@@ -1344,6 +1344,9 @@ ClipSettingsComponent::setPage (BarPage page)
 
   _page = page;
 
+  // Laid out again: CLIP and MOTION place their controls in fields and rows
+  // of their own since 2026-09-27, so the layout depends on the page.
+  resized ();
   showControlsOfPage ();
   repaint ();
 }
@@ -2056,7 +2059,13 @@ void
 ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               bool isSelected)
 {
-  paintSectionCard (g, elevationIndex, isSelected);
+  // On MOTION since 2026-09-27 Elevation shares Motion's one area: a second
+  // wash over it would darken the whole page. Only its lock is its own.
+  if (_layout.sectionCards[elevationIndex]
+      == _layout.sectionCards[motionIndex])
+    paintSectionLock (g, elevationIndex);
+  else
+    paintSectionCard (g, elevationIndex, isSelected);
 
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];

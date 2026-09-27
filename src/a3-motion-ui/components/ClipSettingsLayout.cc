@@ -388,8 +388,11 @@ fieldGrid (juce::Rectangle<int> area, int gap)
 juce::Rectangle<int>
 lockInCorner (juce::Rectangle<int> field)
 {
-  auto const side = juce::jmax (8, juce::jmin (field.getWidth (),
-                                               field.getHeight ()) / 4);
+  // A quarter of the field, but at least half a fingertip -- it is still a
+  // key -- and never more than half the field's shorter side.
+  auto const shorter = juce::jmin (field.getWidth (), field.getHeight ());
+  auto const side = juce::jmin (shorter / 2,
+                                juce::jmax (fingertipSize / 2, shorter / 4));
   return juce::Rectangle<int> (side, side)
       .withPosition (field.getRight () - side - side / 4,
                      field.getY () + side / 4);
@@ -425,6 +428,51 @@ layOutClipPage (ClipSettingsLayout &out)
   out.sectionLocks[0] = lockInCorner (f[4]);
   out.controls[0] = { out.trajectoryIcon, out.clipField, out.directionButton,
                       out.endActionButton };
+}
+
+/** MOTION as one area, no headings (2026-09-27), in the rows the encoders
+ *  turn: spin swell strX strY / rot reach sqzX sqzY / sway clip-top /
+ *  elv clip-bottom. The top encoder row turns row one, or row two after a
+ *  click; the bottom one row three or row four. Four columns throughout, so
+ *  a knob stands under the one its encoder turned a click before. */
+void
+layOutMotionPage (ClipSettingsLayout &out)
+{
+  auto const gap = juce::jmax (2, out.buttonHeight / 8);
+  auto const content = sectionContentBounds (out.clipContent);
+
+  auto const rowH = juce::jmax (0, (content.getHeight () - 3 * gap) / 4);
+  auto const columns = spreadKeys (content.withHeight (rowH), 4, gap, 0);
+  auto const cell = [&] (int row, int column) {
+    return textCell (columns[static_cast<size_t> (column)].withY (
+                         content.getY () + row * (rowH + gap)),
+                     out.metrics.knobDiam);
+  };
+
+  out.sectionCards[2] = out.clipContent;
+  out.sectionCards[1] = out.clipContent;
+  out.sectionLabels[2] = {};
+  out.sectionLabels[1] = {};
+
+  auto &m = out.controls[2];
+  m[1] = cell (0, 0); // spin
+  m[3] = cell (0, 1); // swell
+  m[5] = cell (0, 2); // strX
+  m[7] = cell (0, 3); // strY
+  m[0] = cell (1, 0); // rot
+  m[2] = cell (1, 1); // reach
+  m[4] = cell (1, 2); // sqzX
+  m[6] = cell (1, 3); // sqzY
+
+  auto &e = out.controls[1];
+  e[2] = cell (2, 0); // sway
+  e[1] = cell (2, 1); // clip-top
+  e[3] = cell (3, 0); // elv
+  e[0] = cell (3, 1); // clip-bottom
+
+  // Each group's lock in the corner of its first row, off the knob.
+  out.sectionLocks[2] = lockInCorner (m[7]);
+  out.sectionLocks[1] = lockInCorner (e[1]);
 }
 
 /** The frame's inset round the faces: what it was in the global strip, a
@@ -944,6 +992,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   if (page == BarPage::Clip)
     layOutClipPage (out);
+  if (page == BarPage::Motion)
+    layOutMotionPage (out);
 
   return out;
 }

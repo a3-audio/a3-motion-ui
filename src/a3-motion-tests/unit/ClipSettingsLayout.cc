@@ -171,7 +171,7 @@ TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
   std::vector<std::vector<juce::Rectangle<int> > > const pages{
     { clip.sectionCards[0], clip.playCard, clip.lengthCard,
       clip.sectionCards[3] },
-    { motion.sectionCards[2], motion.sectionCards[1], motion.sectionCards[3] },
+    { motion.sectionCards[2], motion.sectionCards[3] },
     { rec.sectionCards[0], rec.recordCard, rec.lengthCard,
       rec.sectionCards[3] },
   };
@@ -263,47 +263,6 @@ TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
       }
 }
 
-// A frame that eats more than a tenth of a section's width is a border zone
-// again. At the device's width the three clip sections are a sixth each, and
-// what they lose to their own inset they lose from four-value rows.
-// Each of the three sections carries a lock at the right end of its title
-// row: a square the size of the row, so it is hit without aiming while the
-// other hand is busy, and inside its own card so it belongs to the section it
-// holds rather than floating between two.
-TEST (ClipSettingsLayout, EachSectionCarriesALockOnItsTitleRow)
-{
-  // On MOTION, where Elevation and Motion still carry titles. Shape's lock
-  // stands in its field since CLIP lost its headings -- see
-  // TheShapeLockStandsInTheShapeField.
-  for (int height : { 200, 314, 460 })
-    {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
-                                         1.f, BarPage::Motion);
-
-      for (int section = 1; section < 3; ++section)
-        {
-          auto const s = static_cast<size_t> (section);
-          auto const lock = l.sectionLocks[s];
-
-          ASSERT_FALSE (lock.isEmpty ()) << "section " << section;
-          EXPECT_TRUE (l.sectionCards[s].contains (lock))
-              << "section " << section;
-
-          // Square, and out of the title row -- not out of the controls.
-          EXPECT_EQ (lock.getWidth (), lock.getHeight ()) << section;
-          EXPECT_FALSE (lock.intersects (l.sectionLabels[s]))
-              << "the lock and the word would be drawn over each other, "
-              << "section " << section;
-
-          for (auto const &cell : l.controls[s])
-            EXPECT_FALSE (lock.intersects (cell))
-                << "the lock covers a control of section " << section;
-        }
-
-      // The global strip is the device's and holds no clip, so it has none.
-      EXPECT_TRUE (l.sectionLocks[3].isEmpty ());
-    }
-}
 
 TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
 {
@@ -931,30 +890,13 @@ TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
   EXPECT_TRUE (l.sectionLabels[3].isEmpty ())
       << "the global strip still spends a row saying what it is";
 
-  // Elevation and Motion keep theirs on MOTION. Shape's went with CLIP's
-  // cards on 2026-09-27 -- see TheClipPageHasNoHeadings.
-  for (size_t i = 1; i < 3; ++i)
-    EXPECT_FALSE (l.sectionLabels[i].isEmpty ()) << "section " << i;
+  // CLIP and MOTION lost theirs on 2026-09-27 -- see
+  // TheClipPageHasNoHeadings and TheMotionPageIsOneAreaInTheEncodersRows.
 }
 
 
 // ── The sections after the reshuffle ─────────────────────────────────────
 
-// The MOTION page (2026-09-26): Motion across the two left columns, Elevation
-// in the right one.
-TEST (ClipSettingsLayout, TheMotionPageHasMotionThenElevation)
-{
-  auto const l = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Motion);
-
-  EXPECT_EQ (l.sectionCards[2].getX (), l.sectionCards[0].getX ())
-      << "Motion does not start at the left";
-  EXPECT_GT (l.sectionCards[2].getWidth (), l.sectionCards[1].getWidth ())
-      << "Motion is the wider of the two";
-  EXPECT_LE (l.sectionCards[2].getRight (), l.sectionCards[1].getX ());
-  EXPECT_EQ (l.sectionCards[1].getRight (), l.lengthCard.getRight ());
-}
 // ── What the reshuffle replaced ──────────────────────────────────────────
 //
 // Five cases held the old arrangement: Shape's knob column, its knob between
@@ -1781,4 +1723,88 @@ TEST (ClipSettingsLayout, TheShapeLockStandsInTheShapeField)
   EXPECT_TRUE (l.pageFields[4].contains (lock));
   EXPECT_EQ (lock.getRight (), l.pageFields[4].getRight () - lock.getWidth () / 4);
   EXPECT_LT (lock.getWidth (), l.pageFields[4].getWidth () / 3);
+}
+
+// ── MOTION as one area in the encoders' rows (2026-09-27) ──────────────────
+
+namespace
+{
+ClipSettingsLayout
+motionPage (int width = panelWidth)
+{
+  return layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize)
+          .withWidth (width),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Motion);
+}
+}
+
+// One area, no headings. Left to right, row by row, as the maintainer set it:
+// spin swell strX strY / rot reach sqzX sqzY / sway clip-top / elv clip-bottom.
+// The top encoder row turns row one or -- a click -- row two; the bottom one
+// row three or row four.
+TEST (ClipSettingsLayout, TheMotionPageIsOneAreaInTheEncodersRows)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l = motionPage (width);
+      auto const &m = l.controls[2];
+      auto const &e = l.controls[1];
+
+      EXPECT_TRUE (l.sectionLabels[1].isEmpty ());
+      EXPECT_TRUE (l.sectionLabels[2].isEmpty ());
+      EXPECT_EQ (l.sectionCards[2], l.clipContent) << "one area";
+      EXPECT_EQ (l.sectionCards[1], l.clipContent) << "one area";
+
+      // Motion: 0 rot 1 spin 2 reach 3 swell 4 sqzX 5 strX 6 sqzY 7 strY.
+      // Elevation: 0 clip-bot 1 clip-top 2 sway 3 elv.
+      std::vector<std::vector<juce::Rectangle<int> > > const rows{
+        { m[1], m[3], m[5], m[7] },
+        { m[0], m[2], m[4], m[6] },
+        { e[2], e[1] },
+        { e[3], e[0] },
+      };
+
+      for (size_t r = 0; r < rows.size (); ++r)
+        for (size_t c = 0; c < rows[r].size (); ++c)
+          {
+            auto const &cell = rows[r][c];
+            ASSERT_FALSE (cell.isEmpty ()) << "row " << r << " col " << c;
+            EXPECT_TRUE (l.clipContent.contains (cell))
+                << "row " << r << " col " << c;
+            EXPECT_EQ (cell.getY (), rows[r][0].getY ())
+                << "row " << r << " col " << c;
+            EXPECT_EQ (cell.getX (), rows[0][c].getX ())
+                << "row " << r << " col " << c << " at width " << width;
+            if (r > 0)
+              EXPECT_GE (cell.getY (), rows[r - 1][0].getBottom ())
+                  << "row " << r;
+          }
+    }
+}
+
+// The locks that keep Motion's and Elevation's values when a clip is loaded
+// lost their headings; each stands in the corner of its group's first row,
+// off the knob.
+TEST (ClipSettingsLayout, TheMotionLocksStandOffTheKnobs)
+{
+  auto const l = motionPage ();
+  auto const knobOf = [&l] (juce::Rectangle<int> cell) {
+    return juce::Rectangle<int> (l.metrics.knobDiam, l.metrics.knobDiam)
+        .withCentre ({ cell.getCentreX (),
+                       cell.getY () + l.metrics.knobDiam / 2 });
+  };
+
+  for (int section : { 1, 2 })
+    {
+      auto const &lock = l.sectionLocks[static_cast<size_t> (section)];
+      ASSERT_FALSE (lock.isEmpty ()) << "section " << section;
+      EXPECT_GE (lock.getWidth (), fingertipSize / 2)
+          << "still a key, section " << section;
+      EXPECT_TRUE (l.clipContent.contains (lock)) << "section " << section;
+      for (auto const &cell : l.controls[static_cast<size_t> (section)])
+        if (controlIsOnPage (section, 0, BarPage::Motion))
+          EXPECT_FALSE (lock.intersects (knobOf (cell)))
+              << "section " << section;
+    }
 }
