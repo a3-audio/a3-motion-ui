@@ -975,6 +975,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _motionComponent->onCameraChanged = [this] { persistSettings (); };
     }
 
+  // Where each encoder was left on MOTION and REC.
+  _encoderClicksMotion = encoderClicksFromMask (persisted.encoderClicksMotion);
+  _encoderClicksRecord = encoderClicksFromMask (persisted.encoderClicksRecord);
+  showEncoderMarks ();
+
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
@@ -1252,6 +1257,8 @@ A3MotionUIComponent::persistSettings () const
       settings.cameraTurn = camera.turn;
       settings.cameraZoom = _motionComponent->getCameraZoom ();
     }
+  settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
+  settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -2332,9 +2339,8 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _pendingTakes.disarm ();
   refreshTakeState ();
   _barPage = page;
-  // A click belongs to the page it was made on.
-  _encoderClicked = {};
   _clipSettings->setPage (page);
+  showEncoderMarks ();
   _controller->setVisible (page == BarPage::Controller);
   if (_action)
     {
@@ -7580,12 +7586,33 @@ A3MotionUIComponent::chooseSpeedKey (int index)
   applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
 }
 
+EncoderClicks &
+A3MotionUIComponent::encoderClicksOfPage ()
+{
+  static EncoderClicks none{};
+  none = {};
+  if (_barPage == BarPage::Motion)
+    return _encoderClicksMotion;
+  if (_barPage == BarPage::Record)
+    return _encoderClicksRecord;
+  return none;
+}
+
+void
+A3MotionUIComponent::showEncoderMarks ()
+{
+  if (_clipSettings)
+    _clipSettings->setEncoderMarks (
+        encoderMarks (_barPage, encoderClicksOfPage ()));
+}
+
 EncoderTarget
 A3MotionUIComponent::encoderTargetAt (int column, int row)
 {
   return encoderTarget (
       _barPage, column, row,
-      _encoderClicked[static_cast<size_t> (column)][static_cast<size_t> (row)],
+      encoderClicksOfPage ()[static_cast<size_t> (column)]
+                            [static_cast<size_t> (row)],
       isButtonPressed (Button::Shift));
 }
 
@@ -7663,9 +7690,11 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   if (encoderPressClicks (_barPage, column, row)
       && !isButtonPressed (Button::Shift))
     {
-      auto &clicked = _encoderClicked[static_cast<size_t> (column)]
-                                     [static_cast<size_t> (row)];
+      auto &clicked = encoderClicksOfPage ()[static_cast<size_t> (column)]
+                                            [static_cast<size_t> (row)];
       clicked = !clicked;
+      showEncoderMarks ();
+      persistSettings ();
       auto const target = encoderTargetAt (column, row);
       auto const spec = target.section == elevationSection
                             ? elevationKnobSpec (target.sub)

@@ -816,9 +816,15 @@ private:
   /** Which knobs a hand is on, and the pattern those holds were last handed
    *  to -- see pushKnobHolds(). */
   KnobHold _knobHold;
-  /** Each encoder's click, [column][row]: on MOTION and REC a press switches
-   *  what it turns. Let go of on every page change. */
-  std::array<std::array<bool, 2>, numChannelsInitial> _encoderClicked{};
+  /** Each encoder's click on MOTION and on REC, where a press switches what
+   *  it turns: kept per page, and in the settings file, so the marks are where
+   *  they were left (2026-09-27). */
+  EncoderClicks _encoderClicksMotion{};
+  EncoderClicks _encoderClicksRecord{};
+  /** This page's clicks, or none on a page without any. */
+  EncoderClicks &encoderClicksOfPage ();
+  /** Tells the bar which knobs the encoders are on. */
+  void showEncoderMarks ();
   std::weak_ptr<Pattern> _knobHoldPattern;
 
   std::unique_ptr<BrowserComponent> _browser;

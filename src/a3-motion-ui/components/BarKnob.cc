@@ -77,13 +77,23 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
               juce::String const &label, float angleFrac, bool fillFromZero,
               bool isActive, bool isSelected, float reachFrac, bool wraps,
-              bool writing, bool laneDriven)
+              bool writing, bool laneDriven, bool encoderMarked)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
     {
       g.setColour (channelColour.withAlpha (highlightWash));
       g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+    }
+
+  // The knob an encoder is on, where a press switches between two: a frame
+  // in the skin's accent round the whole cell, so a press is seen to move it.
+  if (encoderMarked)
+    {
+      g.setColour (toColour (theme ().accent));
+      g.drawRoundedRectangle (bounds.toFloat ().reduced (theme ().paddingHair),
+                              theme ().radiusControl,
+                              juce::jmax (2.f, theme ().strokeMedium));
     }
 
   auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));

@@ -23,6 +23,8 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
 using namespace a3;
@@ -125,4 +127,42 @@ TEST (BarKnob, AKnobALaneTurnsWearsARedDot)
 TEST (BarKnob, ARingALaneTurnsWearsARedDotToo)
 {
   EXPECT_GT (recordRedPixels (false, true, -2.f, true), 5);
+}
+
+namespace
+{
+/** How many pixels of a knob painted into an image are the skin's accent. */
+int
+accentPixels (bool encoderMarked)
+{
+  juce::Image image (juce::Image::ARGB, 80, 80, true);
+  {
+    juce::Graphics g (image);
+    paintBarKnob (g, image.getBounds (), ControlMetrics{ 60, 10.f, 10.f },
+                  juce::Colours::green, "rot", 0.3f, false, true, false, -2.f,
+                  false, false, false, encoderMarked);
+  }
+
+  auto const accent = toColour (theme ().accent);
+  int count = 0;
+  for (int y = 0; y < image.getHeight (); ++y)
+    for (int x = 0; x < image.getWidth (); ++x)
+      {
+        auto const pixel = image.getPixelAt (x, y);
+        if (pixel.getAlpha () > 200
+            && std::abs (pixel.getRed () - accent.getRed ()) < 8
+            && std::abs (pixel.getGreen () - accent.getGreen ()) < 8
+            && std::abs (pixel.getBlue () - accent.getBlue ()) < 8)
+          ++count;
+      }
+  return count;
+}
+}
+
+// The knob an encoder is on, where a press switches between two, wears a
+// frame in the skin's accent: a press moves it (2026-09-27).
+TEST (BarKnob, TheKnobAnEncoderIsOnIsFramed)
+{
+  EXPECT_EQ (accentPixels (false), 0);
+  EXPECT_GT (accentPixels (true), 40);
 }

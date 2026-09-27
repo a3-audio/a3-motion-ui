@@ -865,6 +865,20 @@ ClipSettingsComponent::setKnobsLaneDriven (
 }
 
 void
+ClipSettingsComponent::setEncoderMarks (
+    std::vector<std::pair<int, int> > const &marked)
+{
+  for (std::size_t s = 0; s < _controlKnob.size (); ++s)
+    for (std::size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+      if (auto &knob = _controlKnob[s][sub])
+        knob->setEncoderMarked (
+            std::find (marked.begin (), marked.end (),
+                       std::pair<int, int>{ static_cast<int> (s),
+                                            static_cast<int> (sub) })
+            != marked.end ());
+}
+
+void
 ClipSettingsComponent::setKnobsWriting (
     std::array<bool, numKnobs> const &writing)
 {

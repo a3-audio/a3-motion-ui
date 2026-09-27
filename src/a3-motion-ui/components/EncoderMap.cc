@@ -156,4 +156,48 @@ encoderPressClicks (BarPage page, int column, int row)
   return false;
 }
 
+std::vector<std::pair<int, int> >
+encoderMarks (BarPage page, EncoderClicks const &clicked)
+{
+  std::vector<std::pair<int, int> > marked;
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      {
+        if (!encoderPressClicks (page, column, row))
+          continue;
+        auto const target = encoderTarget (
+            page, column, row,
+            clicked[static_cast<std::size_t> (column)]
+                   [static_cast<std::size_t> (row)],
+            false);
+        if (target.kind == EncoderTarget::Kind::Control)
+          marked.emplace_back (target.section, target.sub);
+      }
+  return marked;
+}
+
+int
+encoderClicksMask (EncoderClicks const &clicked)
+{
+  int mask = 0;
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      if (clicked[static_cast<std::size_t> (column)]
+                 [static_cast<std::size_t> (row)])
+        mask |= 1 << (column * 2 + row);
+  return mask;
+}
+
+EncoderClicks
+encoderClicksFromMask (int mask)
+{
+  EncoderClicks clicked{};
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      clicked[static_cast<std::size_t> (column)]
+             [static_cast<std::size_t> (row)]
+          = (mask >> (column * 2 + row)) & 1;
+  return clicked;
+}
+
 }

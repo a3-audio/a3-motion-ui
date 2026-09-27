@@ -169,3 +169,65 @@ TEST (EncoderMap, APressOnALengthChoosesIt)
   EXPECT_FALSE (encoderPressClicks (BarPage::Clip, 2, top));
   EXPECT_EQ (turn (BarPage::Clip, 2, top).kind, EncoderTarget::Kind::Speed);
 }
+
+// ── Which knobs the encoders are on, marked (2026-09-27) ───────────────────
+
+namespace
+{
+bool
+marks (std::vector<std::pair<int, int> > const &marked, int section, int sub)
+{
+  for (auto const &[s, u] : marked)
+    if (s == section && u == sub)
+      return true;
+  return false;
+}
+}
+
+// Where an encoder has two things under it, the one it turns now is marked:
+// a press moves the mark.
+TEST (EncoderMap, OnMotionTheRowsTheEncodersTurnAreMarked)
+{
+  EncoderClicks clicked{};
+  auto const before = encoderMarks (BarPage::Motion, clicked);
+
+  EXPECT_EQ (before.size (), 6u) << "four sweeps, sway and clip-top";
+  EXPECT_TRUE (marks (before, 2, 1)) << "spin";
+  EXPECT_TRUE (marks (before, 1, 2)) << "sway";
+  EXPECT_FALSE (marks (before, 2, 0)) << "rot waits for a click";
+
+  clicked[0][0] = true;
+  auto const after = encoderMarks (BarPage::Motion, clicked);
+  EXPECT_TRUE (marks (after, 2, 0)) << "rot, after the click";
+  EXPECT_FALSE (marks (after, 2, 1)) << "spin let go";
+}
+
+TEST (EncoderMap, OnRecFadeOrBiasIsMarked)
+{
+  EncoderClicks clicked{};
+  auto const fade = encoderMarks (BarPage::Record, clicked);
+  ASSERT_EQ (fade.size (), 1u);
+  EXPECT_TRUE (marks (fade, 2, 8));
+
+  clicked[1][1] = true;
+  auto const bias = encoderMarks (BarPage::Record, clicked);
+  ASSERT_EQ (bias.size (), 1u);
+  EXPECT_TRUE (marks (bias, 2, 9));
+}
+
+TEST (EncoderMap, APageWithoutClicksMarksNothing)
+{
+  EXPECT_TRUE (encoderMarks (BarPage::Clip, {}).empty ());
+  EXPECT_TRUE (encoderMarks (BarPage::Mixer, {}).empty ());
+}
+
+// Kept in the settings file as one number per page, so they come back after a
+// restart.
+TEST (EncoderMap, ClicksSurviveAsANumber)
+{
+  EncoderClicks clicked{};
+  clicked[0][0] = clicked[3][1] = clicked[1][1] = true;
+
+  EXPECT_EQ (encoderClicksFromMask (encoderClicksMask (clicked)), clicked);
+  EXPECT_EQ (encoderClicksMask ({}), 0);
+}

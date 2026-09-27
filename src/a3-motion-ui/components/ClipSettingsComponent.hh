@@ -294,6 +294,9 @@ public:
   void setKnobsLaneDriven (std::array<bool, numKnobs> const &driven);
   /** Which knobs the running take is writing -- drawn in the recording red. */
   void setKnobsWriting (std::array<bool, numKnobs> const &writing);
+  /** The knobs (section, sub) the encoders are on, where a press switches
+   *  between two: each framed in the accent. */
+  void setEncoderMarks (std::vector<std::pair<int, int> > const &marked);
 
   /** Which speed button reads as in force, as a speedLog2. */
   void setShapeSpeed (int speedLog2);
