@@ -1313,39 +1313,49 @@ control here that has to be hit *in time* and a tempo tap that misses is worse t
 takes a second go. Record needs no screen twin: the strip's REC button already records into the
 shown clip.
 
-#### The action script: `ScriptPanel`, beside the list in FILES
+#### Every file beside its list: `ScriptPanel` in FILES
 
-**Where it stands (2026-09-27).** The editor left the ACTION page and stands in FILES › ACTIONS,
-beside the list, in `ScriptPanel` (`components/ScriptPanel.{hh,cc}`), which `BrowserComponent`
-places in `BrowserLayout::detailArea` — a column the layout gives only ACTIONS so far, and where the
-other tabs' previews go next. The panel is a plain text editor with an error strip and four keys; it
-knows nothing about actions, so every decision stays in `A3MotionUIComponent`:
+**Where it stands (2026-09-27).** The editor left the ACTION page and stands in FILES beside the list
+-- on every tab: sets, clips and shapes are read and edited as text like the actions (JSON, and SVG
+coloured as XML, `languageFor`). `ScriptPanel` (`components/ScriptPanel.{hh,cc}`) is a plain text
+editor with an error strip and four keys; `BrowserComponent` places it in `BrowserLayout::detailArea`,
+as wide as a shipped action's longest line needs (`ScriptPanel::usualWidthFor`, measured the way
+JUCE's editor measures itself -- a character is "0", the gutter a fixed 35 px), and where the column
+is narrower the panel steps its font down until the line fits (`setColumnsToFit`). The list keeps the
+rest: its own keys (Load on SETS, All, Rename, Delete) at the top in one row with the panel's -- where
+back and close stood, which now appear only on the main menu (`overlayKeysAreShown`) -- and the four
+folders two by two above the rows.
 
-- a tap on a row **chooses** it for reading and editing (`chooseActionRow`) and assigns nothing —
-  assigning is ACTION's list, which now stands open under the action's name;
-- **Save** writes the file and re-runs it on every clip that fires it (`slotsFiring`), so an edit is
-  heard at once rather than after assigning it again;
-- **Save as** writes a copy and re-points only the clip EDIT on ACTION came from (`slotToRepoint`,
-  `_editOrigin`, which lasts one visit to FILES); opened from its own key, FILES only makes the copy;
-- **FROM CLIP** puts the shown clip's settings in as script text, unsaved (`offerScript`);
-- **unsaved text holds the list**: a row tap, Rename or Delete say `-- SAVE OR CANCEL` and flash the
-  two keys (`listWaitsFor`, `actionScriptHoldsTheList`).
+What a file means stays each list's (`LibraryList`: `fileAt`, `folder`, `extension`,
+`currentStateText`, `afterSaving`, `afterCopying`), and every decision stays in
+`A3MotionUIComponent`:
 
-The rules are pure functions in `ActionEditing.hh` and `ScriptPanelLayout.hh` (`scriptKeysFor`),
-tested there; the panel lights and guards its keys by the same `scriptKeysFor`, so a dark key is
-also a dead one.
+- the panel holds the file it was loaded from (`_panelFile`); when the list's chosen row moves under
+  it, it reloads, or -- holding unsaved text -- the row goes back to it (`panelSyncFor`,
+  `syncFilePanel`), so one file's text is never saved into another;
+- a tap on ACTIONS **chooses** (`chooseActionRow`) and assigns nothing -- ACTION's list, open under
+  the name, assigns; a tap on CLIPS or SVG still puts the clip or figure on the slot, a tap on SETS
+  selects;
+- **Save** writes the file and what uses it takes it up now (`afterSaving`): every clip firing an
+  action (`slotsFiring`), every slot holding a clip (`applyClip`) or a figure (`putFigureInSlot`,
+  a playing one plays on from the next beat); a set is only written -- loading stays Load's;
+- **Save as** writes a copy into the user half, named after the original (`freeFileIn`,
+  `copyBaseFor`); on ACTIONS the clip EDIT came from fires it, once (`takeEditOrigin`);
+- **FROM** ("from clip", on SETS "from set") puts the current state in as the file's text,
+  unsaved, written by the same writers Save used to call straight into the file
+  (`currentStateText` through a temporary file) -- so there is one pair of Save keys, and you see
+  what is kept before it is kept;
+- a set or SVG that does not parse is **not written** (`fileErrorsOf`, `errorsBlockSaving`); a script
+  with an error still is, as before; the error stands in the strip;
+- **unsaved text holds the list and the tabs**: a row tap, Rename, Delete or another tab say
+  `-- SAVE OR CANCEL` and flash the two keys (`listWaitsFor`, `fileTextHoldsTheList`).
 
+The rules are pure functions in `ActionEditing.hh`, `ScriptPanelLayout.hh` (`scriptKeysFor`) and
+`BrowserLayout`, tested there; the panel lights and guards its keys by the same `scriptKeysFor`, so a
+dark key is also a dead one. JUCE's code editor calls itself opaque but is drawn transparent; the
+panel says so (`setOpaque (false)`), or a scroll over the sphere let the trajectory through.
 
-The editor is `juce::CodeEditorComponent` over a `juce::CodeDocument`
-(`components/ScriptEditor.{hh,cc}`) — line numbers, undo, syntax colours and a caret that can be
-asked where it is, none of which the hand-rolled one had. What the subclass adds is the touch part,
-and it is one rule: **a finger is scrolling until it has come up without moving.** It starts
-read-only; `mouseDown` only remembers where it landed, `mouseDrag` scrolls in both directions, and
-`mouseUp` begins editing — forwarding the press and release on so the caret lands where the finger
-did — but only if nothing was dragged. Editing on the press instead meant every drag moved the caret
-and nothing ever scrolled. Escape leaves the editor (`onEscape`); it does not quit the app.
-
-**Four keys under it: from clip, cancel, save, save as**, equal width, in that order. Save writes
+**Four keys over it: from clip, cancel, save, save as**, equal width, in that order. Save writes
 the editor's text over the chosen file; **it stays dark on one of the instrument's own
 while developer mode is off**, because writing over a shipped script takes it from every clip that
 fires it with no way back. Save as is the way out of exactly that: it writes the text to a new file
