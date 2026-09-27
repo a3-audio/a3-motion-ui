@@ -1267,6 +1267,7 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   finishRecording ();
 
   pattern->setPlayPosition (0.f);
+  pattern->setLap (0, 0.f);
   // Unturned, like the take was recorded. A clip that resumed wherever the
   // last pass stopped would come back somewhere different every time, which
   // is not something you can aim at.
@@ -1525,6 +1526,12 @@ MotionEngine::performPlayback ()
 
               playing.setPlayPosition (stepped.position);
               playing.setPlaySign (stepped.sign);
+
+              auto const lapLength
+                  = static_cast<index_t> (ticksPlaybackLength);
+              auto const lapTick
+                  = nextLapTick (playing.getLapTick (), lapLength);
+              playing.setLap (lapTick, lapProgress (lapTick, lapLength));
 
               if (stepped.stopped)
                 {

@@ -7596,8 +7596,7 @@ A3MotionUIComponent::updateChannelProgress ()
         if (pattern != nullptr
             && pattern->getStatus () == Pattern::Status::Playing)
           {
-            positions[(size_t)channel] = leftToRightPosition (
-                pattern->getPlayPosition (), pattern->getPlaySign ());
+            positions[(size_t)channel] = pattern->getLapProgress ();
             break;
           }
       }
