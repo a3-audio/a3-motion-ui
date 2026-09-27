@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -176,6 +178,22 @@ inline juce::String fadeName (int sixteenths)
 /** The widest speed label the Motion section can produce — whole bars
  *  above 1, fractions below (see A3MotionUIComponent's speedLog2 range). */
 constexpr char const *widestSpeed = "1/16";
+}
+
+/** Which of the names a direction shows. All four: the field held it to the
+ *  first two until 2026-09-27, so Bounce and Random played while it said
+ *  "Rev". */
+constexpr int
+shownDirection (int direction)
+{
+  return std::clamp (direction, 0, value::numDirections - 1);
+}
+
+/** Which of the names an end action shows -- one of the three there are. */
+constexpr int
+shownEndAction (int endAction)
+{
+  return std::clamp (endAction, 0, value::numEndActions - 1);
 }
 
 /** A string drawn on a control, together with the number of columns its
