@@ -290,6 +290,22 @@ ScriptPanel::stopEditing ()
 }
 
 void
+ScriptPanel::flashKeys ()
+{
+  // Long enough to be seen, short enough not to be mistaken for a state.
+  constexpr int flashMs = 350;
+  _flashing = true;
+  repaint ();
+  juce::Component::SafePointer<ScriptPanel> self (this);
+  juce::Timer::callAfterDelay (flashMs, [self] {
+    if (self == nullptr)
+      return;
+    self->_flashing = false;
+    self->repaint ();
+  });
+}
+
+void
 ScriptPanel::focusLost (FocusChangeType)
 {
   // The keyboard follows the focus, so losing it is the end of the edit
@@ -407,11 +423,17 @@ ScriptPanel::paintKeys (juce::Graphics &g)
   // Save stays dark on a protected script however much has been typed --
   // Save as is the way out, which is why it is lit in exactly that case.
   auto const k = keys ();
+  // Flashing: the two ways out of an unsaved edit, in the warning colour the
+  // field's edge already wears for it.
+  auto const flash = toColour (theme ().warning);
   key (_layout.fromClipButton, "from clip", k.fromClip ? lit : dark);
   key (_layout.cancelButton, "cancel",
-       k.cancel ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
-                : dark);
-  key (_layout.saveButton, "save", k.save ? lit : dark);
+       _flashing  ? flash
+       : k.cancel ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
+                  : dark);
+  key (_layout.saveButton, "save", _flashing && k.save ? flash
+                                   : k.save            ? lit
+                                                       : dark);
   key (_layout.saveAsButton, "save as", k.saveAs ? lit : dark);
 }
 

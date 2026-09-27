@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BrowserLayout.hh>
+#include <a3-motion-ui/components/ScriptPanel.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -90,6 +91,10 @@ public:
   void setChannelColour (juce::Colour colour);
 
   void setShowingList (BrowserList list);
+
+  /** The chosen action's script, beside the list on ACTIONS (2026-09-27).
+   *  The page above fills and wires it; this component only places it. */
+  ScriptPanel &scriptPanel () { return *_script; }
 
   /** Which folder the list should show. One callback per tab rather than one
    *  carrying the choice: the tabs are three separate things a finger lands
@@ -164,6 +169,7 @@ private:
   void endRename (bool keep);
 
   BrowserLayout _layout;
+  std::unique_ptr<ScriptPanel> _script;
 
   juce::StringArray _actionLabels{ "", "", "Rename", "Save", "", "" };
   std::array<bool, 6> _actionEnabled{ false, false, false,

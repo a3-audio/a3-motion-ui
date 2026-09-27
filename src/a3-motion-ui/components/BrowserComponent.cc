@@ -39,6 +39,10 @@ constexpr int maxVisibleRowTouches = 24;
 BrowserComponent::BrowserComponent ()
     : _channelColour (toColour (theme ().accent))
 {
+  // Hidden until the layout gives it a column: only ACTIONS has one so far.
+  _script = std::make_unique<ScriptPanel> ();
+  addChildComponent (*_script);
+
   // Built once and given bounds when the layout says how many there are, the
   // same way the dropdown's entries are: a control created per repaint is a
   // control that loses the finger that is already on it.
@@ -116,6 +120,9 @@ BrowserComponent::resized ()
       OverlayButtons::preferredHeight ()
           + 2 * OverlayButtons::preferredMargin (),
       fingertipSize, theme ().fontSize (FontRole::Body), _list);
+
+  _script->setBounds (_layout.detailArea);
+  _script->setVisible (!_layout.detailArea.isEmpty ());
 
   for (size_t i = 0; i < _rowTouch.size (); ++i)
     {

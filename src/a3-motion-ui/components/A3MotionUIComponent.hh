@@ -48,6 +48,7 @@
 #include <a3-motion-ui/components/EncoderMap.hh>
 #include <a3-motion-ui/components/KnobHold.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
+#include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
@@ -215,8 +216,6 @@ private:
   void showBarPage (BarPage page);
   /** Record's page gesture: to the take's face, or back off it. */
   /** Push the shown clip's envelope and act mode to the ACTION page. */
-  /** Give the chosen field's slot an action, or take its action away. */
-  void assignActionEntry (int row);
 
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
@@ -225,8 +224,21 @@ private:
   /** Put what is in the editor back into the slot's script file. */
   void writeSlotActionScript ();
   juce::String saveSlotActionScriptAs ();
-  /** Keep the chosen slot's settings as a new action clip. */
-  juce::String saveSlotAsAction ();
+  /** A row of FILES › ACTIONS chosen: its script to read and edit beside
+   *  the list. Nothing is assigned -- that is ACTION's (2026-09-27). */
+  void chooseActionRow (int row);
+  /** The chosen action's file, shown in the panel beside the list. */
+  void showChosenActionScript ();
+  /** The panel's text over the chosen action's file, then re-run on every
+   *  clip that fires it. */
+  void saveChosenActionScript ();
+  /** A copy of the panel's text; the EDIT origin, if any, fires the copy. */
+  void saveChosenActionScriptAs ();
+  /** Whether the FILES list has to wait for the script beside it -- unsaved
+   *  on ACTIONS -- and says so if it does (listWaitsFor). */
+  bool actionScriptHoldsTheList ();
+  /** Every slot's action file, channel by slot, for slotsFiring(). */
+  std::vector<std::vector<juce::File>> slotActionFiles () const;
   /** Write what is on show back over the file it came from. Per tab: the
    *  slot's own clip, the slot's own action, the set that is loaded. */
   void saveChosen ();
@@ -239,8 +251,6 @@ private:
   /** The shown clip copied to a clip file of its own, the slot pointed at the
    *  copy. The same thing Save does to a factory clip, asked for outright. */
   juce::String saveSlotClipAsCopy ();
-  /** The shown clip's settings written over the slot's own action file. */
-  void saveSlotActionInPlace ();
   /** The arrangement written over the set it was loaded from. */
   void saveSessionInPlace ();
   /** Give the chosen row another name, and carry across everything that named
@@ -800,6 +810,9 @@ private:
    *  presses -- and anything else that happens disarms it, because an armed
    *  key you have forgotten about is worse than no key. */
   bool _deleteArmed = false;
+  /** The clip EDIT on ACTION opened FILES for: a Save as there points it at
+   *  the copy. Cleared when FILES is left, so it lasts one visit. */
+  std::optional<SlotRef> _editOrigin;
 
   /** Which slot each channel's face stands for. Per channel rather than one
    *  shared setting: the two slot keys used to be shared, so choosing slot 2

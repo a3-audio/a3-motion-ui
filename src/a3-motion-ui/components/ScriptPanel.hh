@@ -74,6 +74,9 @@ public:
   void setSlotHolds (bool holds);
   void setChannelColour (juce::Colour colour);
   void stopEditing ();
+  /** Save and Cancel light up for a moment: the list beside the panel is
+   *  waiting for one of them (2026-09-27). */
+  void flashKeys ();
 
   std::function<void ()> onSave;
   std::function<void ()> onSaveAs;
@@ -117,6 +120,7 @@ private:
   bool _protected = false;
   bool _hasFile = false;
   bool _slotHolds = false;
+  bool _flashing = false;
 
   std::unique_ptr<TouchControl> _fromClipTouch;
   std::unique_ptr<TouchControl> _cancelTouch;
