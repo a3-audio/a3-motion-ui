@@ -843,6 +843,18 @@ ClipSettingsComponent::setLanesPlayed (
                            Knob::StretchY, Knob::ClipBottom, Knob::ClipTop,
                            Knob::Sway })
     onKnob (knob);
+
+  // Every knob a lane moves draws its arc in red, whoever set the arc.
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const place = placeOf (static_cast<Knob> (k));
+      auto const s = static_cast<std::size_t> (place.section);
+      auto const sub = static_cast<std::size_t> (place.sub);
+      if (s < _controlKnob.size () && sub < _controlKnob[s].size ())
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setReachFromLane (
+              played[static_cast<std::size_t> (k)].has_value ());
+    }
 }
 
 void

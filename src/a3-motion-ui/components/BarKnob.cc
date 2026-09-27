@@ -77,7 +77,7 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
               juce::String const &label, float angleFrac, bool fillFromZero,
               bool isActive, bool isSelected, float reachFrac, bool wraps,
-              bool writing)
+              bool writing, bool reachFromLane)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -158,7 +158,10 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
           = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
             * sweep;
 
-      g.setColour (toColour (theme ().notice));
+      // Red where a take's lane is moving it, as the knob was drawn while the
+      // take wrote it; blue where a sweep is.
+      g.setColour (reachFromLane ? transportColour (TransportKey::Record)
+                                 : toColour (theme ().notice));
       for (auto const &[from, to] :
            modulationArcs (angleValue, reachAngle, sweep, wraps))
         {

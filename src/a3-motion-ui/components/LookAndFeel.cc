@@ -148,7 +148,8 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
                 slider.findColour (juce::Slider::thumbColourId),
                 knob->label (), angle, knob->fillsFromTheMiddle (),
                 knob->isActive (), knob->isSelected (), knob->reach (),
-                knob->wraps (), knob->isWriting ());
+                knob->wraps (), knob->isWriting (),
+                knob->isReachFromLane ());
 }
 
 juce::Slider::SliderLayout

@@ -119,6 +119,16 @@ PotKnob::setWriting (bool writing)
 }
 
 void
+PotKnob::setReachFromLane (bool fromLane)
+{
+  if (fromLane == _reachFromLane)
+    return;
+
+  _reachFromLane = fromLane;
+  repaint ();
+}
+
+void
 PotKnob::setKnobColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)
