@@ -192,3 +192,33 @@ TEST (KnobAutomation, ClearingOneLaneLeavesTheOthers)
   EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Reach), 0.8f)
       << "the setting plays again at once, not on the next tick";
 }
+
+TEST (KnobAutomation, AKnobBeingWrittenSaysSo)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  KnobRecorders recorders;
+
+  pattern.setKnobHeld (Knob::Reach, true);
+  EXPECT_TRUE (pattern.recordKnobs (recorders, RecMode::Touch, 0, lap))
+      << "the take has to know it wrote something, or it is thrown away";
+  EXPECT_TRUE (pattern.isKnobWriting (Knob::Reach));
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Rotate));
+
+  pattern.setKnobHeld (Knob::Reach, false);
+  EXPECT_FALSE (pattern.recordKnobs (recorders, RecMode::Touch, 1, lap));
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
+}
+
+TEST (KnobAutomation, AFinishedTakeWritesNothingAnyMore)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  KnobRecorders recorders;
+  pattern.setKnobHeld (Knob::Reach, true);
+  pattern.recordKnobs (recorders, RecMode::Touch, 0, lap);
+
+  pattern.stopKnobWriting ();
+
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
+}

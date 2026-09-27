@@ -130,7 +130,7 @@ KnobLane::fromChangePoints (std::vector<std::pair<int, float> > const &points,
   return lane;
 }
 
-void
+bool
 KnobRecorder::recordTick (KnobLane &lane, RecMode mode, bool held,
                           float value, long long ticksNow, long long lapTicks)
 {
@@ -140,9 +140,12 @@ KnobRecorder::recordTick (KnobLane &lane, RecMode mode, bool held,
     _ticksAtLift = ticksNow;
   _wasHeld = held;
 
-  if (shouldWriteTick (mode,
-                       { held, _hasTouched, _ticksAtLift, ticksNow, lapTicks }))
-    lane.write (lapTicks > 0 ? ticksNow % lapTicks : ticksNow, value);
+  if (!shouldWriteTick (mode,
+                        { held, _hasTouched, _ticksAtLift, ticksNow, lapTicks }))
+    return false;
+
+  lane.write (lapTicks > 0 ? ticksNow % lapTicks : ticksNow, value);
+  return true;
 }
 
 }

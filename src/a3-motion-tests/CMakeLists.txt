@@ -50,6 +50,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobLanes.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobAutomation.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobHold.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TakeSeed.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PadGlyphInk.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SceneLaunch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"

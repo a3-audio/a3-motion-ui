@@ -112,7 +112,8 @@ class KnobRecorder
 public:
   /** `ticksNow` counts from the start of the take, across laps; the lane is
    *  written at its place in the lap. */
-  void recordTick (KnobLane &lane, RecMode mode, bool held, float value,
+  /** @returns whether this tick was written. */
+  bool recordTick (KnobLane &lane, RecMode mode, bool held, float value,
                    long long ticksNow, long long lapTicks);
 
 private:

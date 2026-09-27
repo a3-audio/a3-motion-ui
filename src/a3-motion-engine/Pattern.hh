@@ -378,9 +378,14 @@ public:
   void setKnobHeld (Knob knob, bool held);
   bool isKnobHeld (Knob knob) const;
 
-  /** One tick of a take: every knob into its lane, by the rec mode. */
-  void recordKnobs (KnobRecorders &recorders, RecMode mode, long long ticksNow,
+  /** One tick of a take: every knob into its lane, by the rec mode.
+   *  @returns whether any knob was written. */
+  bool recordKnobs (KnobRecorders &recorders, RecMode mode, long long ticksNow,
                     long long lapTicks);
+  /** Whether the take wrote this knob on its last tick -- drawn in the
+   *  recording red. Stopped when the take ends. */
+  bool isKnobWriting (Knob knob) const;
+  void stopKnobWriting ();
   /** One tick of playback: each lane's value at the play position, except
    *  where a hand holds its knob. */
   void playKnobs (double fractionalTick);
@@ -466,6 +471,7 @@ private:
   /** NaN where no lane is playing -- see getKnob(). */
   std::array<std::atomic<float>, numKnobs> _knobPlayed;
   std::array<std::atomic<bool>, numKnobs> _knobHeld{};
+  std::array<std::atomic<bool>, numKnobs> _knobWriting{};
 
   // TODO is float precision sufficient here? do the math!
   static_assert (std::atomic<float>::is_always_lock_free);

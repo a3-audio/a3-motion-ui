@@ -82,6 +82,8 @@ target_sources("a3-motion-engine" PRIVATE
     RecordingTrace.hh
     KnobLanes.cc
     KnobLanes.hh
+    TakeSeed.cc
+    TakeSeed.hh
     tempo/BeatSync.cc
     tempo/BeatSync.hh
     tempo/ExternalTempo.cc
