@@ -133,6 +133,21 @@ Bestätigung:
 
 Konfiguration erfolgt über `config.json`/UserConfig (`oscReceiver`, `oscSender`).
 
+### 3.5 Action scripts: ACTION and FILES (2026-09-27)
+
+- **ACTION** shows the shown clip's action by name, its mode, EDIT, the assignment list (a tap
+  assigns: `onActionChosen` → `setSlotAction`), the envelope knobs and ACT.
+- **EDIT** (`ActionComponent::onEditPressed`) sets `_editOrigin` to the shown clip, opens FILES over
+  the sphere on ACTIONS and shows that action's script (`showChosenActionScript`).
+- **FILES › ACTIONS**: a row tap → `chooseActionRow` (no assignment). The script panel's keys:
+  - Save → `saveChosenActionScript` (write, then `setSlotAction` on every clip in `slotsFiring`);
+  - Save as → `saveChosenActionScriptAs` (copy named after the chosen file; `slotToRepoint
+    (_editOrigin)` fires the copy);
+  - Cancel → `showChosenActionScript`;
+  - FROM CLIP → `ScriptPanel::offerScript (actionScriptFor (clipSettingsFrom (...)))`.
+- Unsaved text holds the list (`actionScriptHoldsTheList`). Leaving FILES stops editing and clears
+  `_editOrigin` (`showOverSphere`).
+
 ## 4. ClockMode und zeitliches Verhalten
 
 `_clockMode` kodiert:
