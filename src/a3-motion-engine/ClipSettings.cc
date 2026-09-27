@@ -281,22 +281,13 @@ withFeel (ClipSettings settings, ActionFeel const &feel)
 ClipSettings
 actionOver (ClipSettings const &current, ClipSettings const &action)
 {
-  auto fired = action;
-
-  // Named one by one rather than copied as a block: this is the list the
-  // ACTION page owns, and a field that joins it has to be added here too.
-  fired.envelopeAttack = current.envelopeAttack;
-  fired.envelopeDecay = current.envelopeDecay;
-  fired.envelopeMax = current.envelopeMax;
-  fired.freqAttack = current.freqAttack;
-  fired.freqDecay = current.freqDecay;
-  fired.freqMax = current.freqMax;
-  fired.qAttack = current.qAttack;
-  fired.qDecay = current.qDecay;
-  fired.qMax = current.qMax;
-  fired.actMode = current.actMode;
-
-  return fired;
+  // The whole action, how it is played included: since 2026-09-27 each of a
+  // channel's six buttons carries its own feel (ActionFeel) in the action it
+  // fires, and nothing of the clip's stays on during the accent. `current`
+  // is kept as the parameter the callers already pass -- it is what the
+  // accent falls back to, not what it is played with.
+  juce::ignoreUnused (current);
+  return action;
 }
 
 }
