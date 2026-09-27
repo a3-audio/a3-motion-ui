@@ -150,3 +150,75 @@ TEST (PatternDisplay, TheElevationPictureShowsALineByItsLine)
   EXPECT_GE (figure.line.size (), 2u);
   EXPECT_LE (figure.line.size (), 96u);
 }
+
+// ── Which clips are drawn (2026-09-27) ─────────────────────────────────────
+
+namespace
+{
+ClipGrid
+none ()
+{
+  return {};
+}
+
+bool
+has (std::vector<DrawnClip> const &drawn, index_t channel, index_t slot)
+{
+  for (auto const &clip : drawn)
+    if (clip.channel == channel && clip.slot == slot)
+      return true;
+  return false;
+}
+}
+
+// The selected clip is drawn, playing or not: it is the preview of what the
+// bar describes. Nothing else that is not playing.
+TEST (PatternDisplay, TheSelectedClipIsDrawnWhenItIsNotPlaying)
+{
+  auto filled = none ();
+  filled[1][0] = filled[2][1] = filled[3][0] = true;
+
+  auto const drawn = clipsToDraw (none (), filled, 1, 0);
+
+  ASSERT_EQ (drawn.size (), 1u);
+  EXPECT_EQ (drawn[0].channel, 1u);
+  EXPECT_EQ (drawn[0].slot, 0u);
+  EXPECT_TRUE (drawn[0].selected);
+}
+
+// Every playing clip, in whichever slot, and the selected one last so it is
+// drawn over them.
+TEST (PatternDisplay, PlayingClipsAreDrawnAndTheSelectedOneLast)
+{
+  auto filled = none ();
+  auto running = none ();
+  filled[0][1] = running[0][1] = true;
+  filled[2][0] = running[2][0] = true;
+  filled[1][0] = true;
+
+  auto const drawn = clipsToDraw (running, filled, 1, 0);
+
+  ASSERT_EQ (drawn.size (), 3u);
+  EXPECT_TRUE (has (drawn, 0, 1));
+  EXPECT_TRUE (has (drawn, 2, 0));
+  EXPECT_EQ (drawn.back ().channel, 1u);
+  EXPECT_TRUE (drawn.back ().selected);
+  EXPECT_FALSE (drawn.front ().selected);
+}
+
+TEST (PatternDisplay, ASelectedClipThatPlaysIsDrawnOnce)
+{
+  auto filled = none ();
+  auto running = none ();
+  filled[3][1] = running[3][1] = true;
+
+  auto const drawn = clipsToDraw (running, filled, 3, 1);
+
+  ASSERT_EQ (drawn.size (), 1u);
+  EXPECT_TRUE (drawn[0].selected);
+}
+
+TEST (PatternDisplay, AnEmptySelectedSlotDrawsNothing)
+{
+  EXPECT_TRUE (clipsToDraw (none (), none (), 0, 0).empty ());
+}

@@ -686,7 +686,8 @@ samePoints (std::vector<ElevationSidePoint> const &a,
 bool
 sameChannel (ElevationChannel const &a, ElevationChannel const &b)
 {
-  return a.colour == b.colour && a.headValid == b.headValid
+  return a.colour == b.colour && a.selected == b.selected
+         && a.headValid == b.headValid
          && (!a.headValid
              || (std::abs (a.head.down - b.head.down) < 1e-4f
                  && std::abs (a.head.across - b.head.across) < 1e-4f))
@@ -697,20 +698,18 @@ sameChannel (ElevationChannel const &a, ElevationChannel const &b)
 
 void
 ClipSettingsComponent::setElevationChannels (
-    std::array<ElevationChannel, numChannelColumns> const &channels,
-    int shownChannel)
+    std::vector<ElevationChannel> const &clips)
 {
   // Compared before storing: this arrives on every timer tick while a clip
   // plays, and a repaint of the whole bar for figures that have not moved is
   // a repaint the sphere could have had.
-  auto same = shownChannel == _elevationShownChannel;
-  for (std::size_t c = 0; same && c < channels.size (); ++c)
-    same = sameChannel (channels[c], _elevationChannels[c]);
+  auto same = clips.size () == _elevationChannels.size ();
+  for (std::size_t c = 0; same && c < clips.size (); ++c)
+    same = sameChannel (clips[c], _elevationChannels[c]);
   if (same)
     return;
 
-  _elevationChannels = channels;
-  _elevationShownChannel = shownChannel;
+  _elevationChannels = clips;
   repaint ();
 }
 
@@ -2248,32 +2247,20 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // Where the sound actually goes. The sphere above says where in the room the
   // figure is and this says what the sphere above has lost, whichever way it
   // is turned.
-  // Every channel's, the shown one last and full, the others muted under
-  // it: which clip the bar is describing stays the one that stands out.
-  auto const channelsInOrder = [this] {
-    std::vector<std::size_t> order;
-    for (std::size_t c = 0; c < _elevationChannels.size (); ++c)
-      if (static_cast<int> (c) != _elevationShownChannel)
-        order.push_back (c);
-    if (_elevationShownChannel >= 0
-        && _elevationShownChannel < static_cast<int> (_elevationChannels.size ()))
-      order.push_back (static_cast<std::size_t> (_elevationShownChannel));
-    return order;
-  }();
-  auto const shade = [this] (std::size_t c) {
-    return static_cast<int> (c) == _elevationShownChannel ? 1.f : 0.45f;
+  // In the order given: the selected clip last and full, the others muted
+  // under it, so the clip the bar describes stays the one that stands out.
+  auto const shade = [] (ElevationChannel const &clip) {
+    return clip.selected ? 1.f : 0.45f;
   };
-
-  for (auto const c : channelsInOrder)
+  for (auto const &channel : _elevationChannels)
     {
-      auto const &channel = _elevationChannels[c];
       auto const &line = channel.figure.line;
       auto const near
           = channel.colour.withMultipliedAlpha (theme ().alphaTextStrong
-                                                * shade (c));
+                                                * shade (channel));
       auto const far
           = channel.colour.withMultipliedAlpha (theme ().alphaFillEmphasis
-                                                * shade (c));
+                                                * shade (channel));
 
       if (line.size () > 1)
         {
@@ -2366,9 +2353,8 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // everything, and outlined, because in a picture this small it is the only
   // mark that moves and it has to be findable at a glance -- the whole reason
   // to look here mid-set is "how high is it right now".
-  for (auto const c : channelsInOrder)
+  for (auto const &channel : _elevationChannels)
     {
-      auto const &channel = _elevationChannels[c];
       if (!channel.headValid)
         continue;
 
@@ -2380,7 +2366,7 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                      (ballR + 1.f) * 2.f, (ballR + 1.f) * 2.f);
       g.setColour (channel.head.behind
                        ? channel.colour.withAlpha (theme ().alphaInactive)
-                       : channel.colour.withMultipliedAlpha (shade (c)));
+                       : channel.colour.withMultipliedAlpha (shade (channel)));
       g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
     }
 }

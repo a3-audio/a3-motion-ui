@@ -67,6 +67,7 @@
 #include <a3-motion-ui/components/ChannelValueReset.hh>
 #include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
+#include <a3-motion-engine/PatternRunning.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
@@ -7851,40 +7852,48 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setElevationClipTop (knobOf (Knob::ClipTop, 0.f));
   _clipSettings->setElevationClipBottom (knobOf (Knob::ClipBottom, 0.f));
 
-  // Every channel's clip in the side-on circle (2026-09-27), and each one's
-  // sound running along it: the clip on each channel's face, the way the
-  // faces show it. Mapped by elevationFigureFor(), through exactly the calls
-  // the engine plays it through -- a picture drawn through a second mapping
-  // is a picture that is right until one of them is touched -- and projected
-  // from where the sphere above is being looked at, a quarter turn behind it.
+  // The clips clipsToDraw() says -- every playing one, and the selected one
+  // as its preview -- in the side-on circle, each with its sound running
+  // along it (2026-09-27). The sphere above draws the same set. Mapped by
+  // elevationFigureFor(), through exactly the calls the engine plays it
+  // through, and projected from where the sphere above is being looked at, a
+  // quarter turn behind it.
   {
-    std::array<ElevationChannel, numChannelColumns> channels;
-    auto const camera = sphereCamera ();
-
+    ClipGrid running{};
+    ClipGrid filled{};
     for (std::size_t c = 0; c < numChannelColumns; ++c)
+      for (std::size_t s = 0; s < numPadSlots; ++s)
+        if (auto const &p = _patterns[c][s])
+          {
+            filled[c][s] = true;
+            running[c][s] = patternIsRunning (p->getStatus ());
+          }
+
+    auto const camera = sphereCamera ();
+    std::vector<ElevationChannel> clips;
+    for (auto const &drawn : clipsToDraw (running, filled, channel, slot))
       {
-        auto const ch = static_cast<index_t> (c);
-        auto &into = channels[c];
-        into.colour = _channelUIStates[c]->colour;
-
-        auto const &shown = _patterns[ch][_channelSlot[c]];
-        if (!shown)
-          continue;
-
+        auto const &shown = _patterns[drawn.channel][drawn.slot];
+        ElevationChannel into;
+        into.colour = _channelUIStates[drawn.channel]->colour;
+        into.selected = drawn.selected;
         into.figure = elevationFigureFor (*shown, *_patternLibrary,
                                           _engine.getHeightMap (), camera,
                                           elevationFigureSamples);
 
         // Only while that clip is the one being heard.
-        auto const position = _engine.getChannelPosition (ch);
+        auto const position = _engine.getChannelPosition (drawn.channel);
         into.headValid = shown->getStatus () == Pattern::Status::Playing
                          && position.isValid ();
         if (into.headValid)
           into.head = elevationSideView (position, camera);
+
+        clips.push_back (std::move (into));
       }
 
-    _clipSettings->setElevationChannels (channels,
-                                         static_cast<int> (channel));
+    _clipSettings->setElevationChannels (clips);
+    if (_motionComponent)
+      _motionComponent->setSelectedPattern (pattern);
     _clipSettings->setSphereCamera (sphereCamera ());
   }
 

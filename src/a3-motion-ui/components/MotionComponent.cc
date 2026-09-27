@@ -382,6 +382,13 @@ MotionComponent::setPatternDisplayData (std::shared_ptr<Pattern> pattern,
 }
 
 void
+MotionComponent::setSelectedPattern (std::shared_ptr<Pattern> pattern)
+{
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _selectedPattern = std::move (pattern);
+}
+
+void
 MotionComponent::removePatternDisplayData (std::shared_ptr<Pattern> pattern)
 {
   jassert (pattern != nullptr);
@@ -1468,6 +1475,7 @@ MotionComponent::renderOpenGL ()
 
     _mutexDisplayData.lock ();
     auto const patternsDisplayData{ _patternsDisplayData };
+    auto const selected = _selectedPattern;
     _mutexDisplayData.unlock ();
 
     ++_frameCount;
@@ -1520,6 +1528,14 @@ MotionComponent::renderOpenGL ()
           // Pattern preview paths
           for (auto &[pattern, displayData] : patternsPreview)
             drawPatternPreview (*pattern, displayData, gFBO);
+
+          // The selected clip's own preview while it is not playing -- see
+          // clipsToDraw(). Playing, it is drawn below with the others.
+          if (selected && patternsPreview.count (selected) == 0
+              && !patternIsRunning (selected->getStatus ()))
+            if (auto const found = patternsDisplayData.find (selected);
+                found != patternsDisplayData.end ())
+              drawPatternPreview (*selected, found->second, gFBO);
 
           // Faint trajectory lines for all currently playing patterns
           // (skip those already drawn as explicit previews)
@@ -2170,10 +2186,15 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
-  // A phase of its own per channel, so the four do not breathe in step.
+  // Into the channel's maps on the GPU, as a playing line is: drawn here in
+  // software it was the bare strands at the skin's line width -- 0.0018 of
+  // the radius since the line went to the GPU, less than a pixel -- and the
+  // preview was not there at all.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     false, params, heightMap, g, shaping,
-                    _sphereShader.getCamera ());
+                    _sphereShader.getCamera (),
+                    lineStrokesFor (static_cast<int> (ch)),
+                    strandStrokesFor (static_cast<int> (ch)));
 }
 
 void

@@ -24,6 +24,9 @@
 
 #include <a3-motion-ui/components/ElevationSideView.hh>
 
+#include <a3-motion-engine/util/Types.hh>
+
+#include <array>
 #include <utility>
 #include <vector>
 
@@ -63,5 +66,25 @@ ElevationFigure elevationFigureFor (Pattern const &pattern,
                                     PatternLibrary const &library,
                                     HeightMap const &heightMap,
                                     SphereCamera camera, std::size_t maxPoints);
+
+/** [channel][slot]: a flag per clip -- filled, or running. */
+using ClipGrid = std::array<std::array<bool, 2>, 4>;
+
+/** One clip the sphere and the elevation picture draw. */
+struct DrawnClip
+{
+  index_t channel = 0;
+  index_t slot = 0;
+  /** The clip the bar describes: drawn in full, over the others. */
+  bool selected = false;
+};
+
+/** Which clips are drawn (2026-09-27): every one that is running, and the
+ *  selected one -- as its preview -- whether it is running or not. Nothing
+ *  else. The selected one last, so it is drawn over the others. */
+std::vector<DrawnClip> clipsToDraw (ClipGrid const &running,
+                                    ClipGrid const &filled,
+                                    index_t selectedChannel,
+                                    index_t selectedSlot);
 
 }

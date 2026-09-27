@@ -97,4 +97,24 @@ elevationFigureFor (Pattern const &pattern, PatternLibrary const &library,
   return figure;
 }
 
+std::vector<DrawnClip>
+clipsToDraw (ClipGrid const &running, ClipGrid const &filled,
+             index_t selectedChannel, index_t selectedSlot)
+{
+  std::vector<DrawnClip> drawn;
+
+  for (index_t channel = 0; channel < running.size (); ++channel)
+    for (index_t slot = 0; slot < running[channel].size (); ++slot)
+      if (running[channel][slot]
+          && !(channel == selectedChannel && slot == selectedSlot))
+        drawn.push_back ({ channel, slot, false });
+
+  if (selectedChannel < filled.size ()
+      && selectedSlot < filled[selectedChannel].size ()
+      && filled[selectedChannel][selectedSlot])
+    drawn.push_back ({ selectedChannel, selectedSlot, true });
+
+  return drawn;
+}
+
 }

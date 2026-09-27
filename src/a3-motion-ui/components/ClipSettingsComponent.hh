@@ -62,6 +62,8 @@ struct ElevationChannel
   ElevationSidePoint head{};
   bool headValid = false;
   juce::Colour colour;
+  /** The clip the bar describes: drawn full, the others muted under it. */
+  bool selected = false;
 };
 
 /**
@@ -212,14 +214,12 @@ public:
    *  Pushed already mapped rather than as a shape to be mapped here: the
    *  engine's own mapping is the only one that can be right, and there is
    *  exactly one of it. */
-  /** Every channel's clip at once (2026-09-27), in its channel's colour: the
-   *  shown channel's drawn last and full, the other three under it, muted.
-   *  A shape of dots comes as its dots. Each with the ball where its sound is
-   *  -- only while that clip is heard: a ball parked on a figure nobody is
-   *  playing says "this is where the sound is", which would be a lie. */
-  void setElevationChannels (
-      std::array<ElevationChannel, numChannelColumns> const &channels,
-      int shownChannel);
+  /** The clips clipsToDraw() says (2026-09-27) -- every playing one and the
+   *  selected one -- in their channels' colours, in the order given: the
+   *  selected one last and full, the others muted under it. A shape of dots
+   *  comes as its dots. Each with the ball where its sound is, only while it
+   *  is heard. */
+  void setElevationChannels (std::vector<ElevationChannel> const &clips);
 
   /** Where the sphere above is being looked at from. The circle is a second
    *  view of the same room, kept a quarter turn from it, so it has to be told
@@ -674,8 +674,7 @@ private:
   std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
-  std::array<ElevationChannel, numChannelColumns> _elevationChannels{};
-  int _elevationShownChannel = 0;
+  std::vector<ElevationChannel> _elevationChannels;
   SphereCamera _sphereCamera{};
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
