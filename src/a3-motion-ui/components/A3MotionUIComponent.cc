@@ -7136,6 +7136,20 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
   auto const slot = _clipSettingsSlot;
   auto &pattern = _patterns[channel][slot];
 
+  // A knob playing a lane loses the lane, and keeps the value: what the two
+  // taps take away is the recording, and the setting is what plays after it.
+  // A take is its own clip, so this is also how a knob pass is thrown away
+  // during a take. A knob without a lane goes back to the middle below.
+  if (auto const knob = knobAt (section, sub); knob && pattern
+                                                && pattern->hasLane (*knob))
+    {
+      pattern->clearLane (*knob);
+      updateControlReadout (juce::String (knobName (*knob)).toUpperCase ()
+                            + " LANE CLEARED");
+      updateClipSettingsDisplay ();
+      return;
+    }
+
   switch (section)
     {
     case 0: // Shape: the turn. The section has one face now, so this knob is
