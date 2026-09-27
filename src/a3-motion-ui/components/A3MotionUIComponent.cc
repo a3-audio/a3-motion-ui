@@ -63,6 +63,7 @@
 #include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
+#include <a3-motion-ui/components/PatternDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
 #include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
@@ -2416,7 +2417,7 @@ A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
   // the library, so it is the one place that has to say so -- two of the three
   // callers used to do it themselves and the third (restoring a session) did
   // not, which left every slot it filled playing an invisible trajectory.
-  registerPatternDisplayData (_patterns[channel][slot]);
+  refreshPatternDisplay (_patterns[channel][slot]);
 }
 
 /** Whether the clip a slot came from is one of the instrument's.
@@ -2902,9 +2903,8 @@ A3MotionUIComponent::assignBrowserEntry (int index)
         syncClipUIParamsFromPattern (channel, slot);
       }
 
-  // Registered by fillSlotFromLibrary() now -- and by way of
-  // registerPatternDisplayData(), which knows about shapes made of dots.
-  // Going straight to the ticks here drew those with no dots at all.
+  // Registered by fillSlotFromLibrary() now, through refreshPatternDisplay(),
+  // which knows about shapes made of dots.
   if (_patterns[channel][slot])
     applyMotionMode (channel, slot);
 
@@ -4693,14 +4693,13 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
                 }
 
             // saveRecordedPattern() used to do this; a take outside the
-            // library is drawn from its ticks (registerPatternDisplayData()
-            // falls through to refreshPatternDisplayFromTicks()).
+            // library is drawn from its ticks (patternDisplayFor()).
             //
             // Only while the take is still in a slot. A DISCARDed take stops
             // *after* it has been taken out, and registering it here put it
             // back into the display data it had just been removed from (#31).
             if (sitsInASlot)
-              registerPatternDisplayData (messagePatternStatus.pattern);
+              refreshPatternDisplay (messagePatternStatus.pattern);
             refreshTakeState ();
           }
         break;
@@ -5261,7 +5260,7 @@ A3MotionUIComponent::createPadRowDisplays ()
           if (slot < _patterns[ch].size () && _patterns[ch][slot])
             {
               updatePadRowLabel (ch, slot);
-              registerPatternDisplayData (_patterns[ch][slot]);
+              refreshPatternDisplay (_patterns[ch][slot]);
             }
         }
     }
@@ -5385,30 +5384,7 @@ A3MotionUIComponent::setPreviewWithDisplayData (
 }
 
 void
-A3MotionUIComponent::refreshPatternDisplayFromTicks (
-    std::shared_ptr<Pattern> const &pattern)
-{
-  if (!pattern || !_motionComponent)
-    return;
-
-  // Cut at teleports as well as at gaps, the same way the take's own trail is
-  // drawn, so a jump the clip still has is not bridged by a line.
-  // The one place that follows the clip's own plan: this is the line the blob
-  // runs on, so it has to break exactly where the movement jumps.
-  juce::Path path;
-  for (auto const &segment : trajectorySegments (
-           pattern->getTicks ().positions, pattern->getBridgePlan ()))
-    {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
-    }
-
-  _motionComponent->setPatternDisplayData (pattern, path, {});
-}
-
-void
-A3MotionUIComponent::registerPatternDisplayData (
+A3MotionUIComponent::refreshPatternDisplay (
     std::shared_ptr<Pattern> const &pattern)
 {
   // Called from fillSlotFromLibrary(), which also runs while the interface is
@@ -5418,30 +5394,12 @@ A3MotionUIComponent::registerPatternDisplayData (
   if (!pattern || !_motionComponent)
     return;
 
-  auto const &name = pattern->getName ();
-  auto libIndex = _patternLibrary->indexForName (name);
-
-  // A shape made of dots has no line to draw, and its dots are only in the
-  // file: keep taking those from the library.
-  if (libIndex > 0)
-    {
-      auto const &entry = _patternLibrary->getEntry (libIndex);
-      if (entry.hasJumpDots && svgDToPath (entry.svgPathData).isEmpty ())
-        {
-          _motionComponent->setPatternDisplayData (pattern, {},
-                                                   entry.jumpDots);
-          return;
-        }
-    }
-
-  // Everything else is drawn from the ticks, because that is what plays.
-  //
-  // Taking the line from the file was right while the file was a picture of
-  // the pattern. It stopped being one when the take started going to disk as
-  // it was played, with the closing move a setting laid over it: the blob
-  // followed the ending the fade gives it and the line showed a take whose
-  // ends do not meet.
-  refreshPatternDisplayFromTicks (pattern);
+  // One answer for the first registration and for every refresh after a
+  // value was turned -- see patternDisplayFor(). Two routes with half of it
+  // each is how a shape of dots vanished on the first knob turned.
+  auto shown = patternDisplayFor (*pattern, *_patternLibrary);
+  _motionComponent->setPatternDisplayData (pattern, std::move (shown.path),
+                                           std::move (shown.jumpDots));
 }
 
 int
@@ -5727,7 +5685,7 @@ A3MotionUIComponent::saveRecordedPattern (
       // nothing afterwards, so the closing move landed somewhere else, and the
       // stretch between two subpaths came back as a hole -- 45 ticks of one on
       // the take that showed it.
-      registerPatternDisplayData (pattern);
+      refreshPatternDisplay (pattern);
 
       // Update fingerprint so the timer doesn't re-trigger for this save
       _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -7158,7 +7116,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           // sat before anyone moved it.
           pattern->setElevationBase (defaultElevationBase (
               pattern->getClipTop (), pattern->getClipBottom ()));
-          refreshPatternDisplayFromTicks (pattern);
+          refreshPatternDisplay (pattern);
         }
       else
         return;
@@ -7188,7 +7146,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         case 8: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
         case 9:
           pattern->setBridgeBias (0);
-          refreshPatternDisplayFromTicks (pattern);
+          refreshPatternDisplay (pattern);
           break;
         default: return;
         }
@@ -7252,7 +7210,7 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
   else
     return;
 
-  refreshPatternDisplayFromTicks (pattern);
+  refreshPatternDisplay (pattern);
   updateClipSettingsDisplay ();
   scheduleSetSave ();
 }
@@ -7380,7 +7338,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 applyClipSettings (*pattern, held);
                 applyLanes (*pattern, heldLanes);
               }
-            registerPatternDisplayData (pattern);
+            refreshPatternDisplay (pattern);
 
             if (wasPlaying && pattern)
               {
@@ -7418,7 +7376,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 knobForElevationBase (pattern->getElevationBase ())
                     + increment * 0.02f,
                 pattern->getClipTop (), pattern->getClipBottom ()));
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
           case 2:
             // How fast the line the graphic draws travels, and towards which
@@ -7514,14 +7472,14 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             // up.
             pattern->setFadeReach (pattern->getFadeReach ()
                                    + 0.05f * static_cast<float> (increment));
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
 
           default:
             // Where a drawn-through gap leads. Whole steps: nine positions,
             // and a finger should feel each one rather than slide past them.
             pattern->setBridgeBias (pattern->getBridgeBias () + increment);
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
           }
       }

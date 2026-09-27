@@ -463,17 +463,12 @@ private:
 
   void updatePadRowLabel (index_t channel, index_t slot);
   void setPreviewWithDisplayData (std::shared_ptr<Pattern> const &pattern);
-  /** Register display data with MotionComponent for playing-trajectory rendering. */
-  void registerPatternDisplayData (std::shared_ptr<Pattern> const &pattern);
-
-  /** Rebuild a pattern's drawn trajectory from its own ticks.
-   *
-   *  registerPatternDisplayData() takes the shape from the library's file,
-   *  which is right while the pattern is what the file says. Once the fade has
-   *  rewritten the ticks, the file is a picture of what the clip used to be:
-   *  the blob follows the new ending and the line still shows the old one. */
-  void refreshPatternDisplayFromTicks (
-      std::shared_ptr<Pattern> const &pattern);
+  /** What the sphere draws of a pattern, given to MotionComponent: its dots
+   *  for a shape made of dots, the line its ticks run on otherwise -- see
+   *  patternDisplayFor(). The one route for registering and for refreshing
+   *  after a value was turned; there were two, and the refresh knew nothing
+   *  of dots. */
+  void refreshPatternDisplay (std::shared_ptr<Pattern> const &pattern);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
   void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,
