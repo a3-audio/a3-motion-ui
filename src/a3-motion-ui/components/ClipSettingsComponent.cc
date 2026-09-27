@@ -176,6 +176,37 @@ ClipSettingsComponent::createTouchControls ()
       };
       addAndMakeVisible (*face);
 
+      // The meter is drawn in the face and takes no touch: the whole face
+      // selects the clip.
+      auto &meter = _faceMeter[channel];
+      meter = std::make_unique<VuMeterView> ();
+      meter->setDirection (VuDirection::Up);
+      meter->level = [this, channel] {
+        return channelLevel ? channelLevel (static_cast<int> (channel))
+                            : VuLevel{};
+      };
+      meter->setInterceptsMouseClicks (false, false);
+      addAndMakeVisible (*meter);
+
+      // Over the face's touch, so a drag turns it; landing on it chooses the
+      // face too.
+      auto &pot = _face3d[channel];
+      pot = makeChannelPotKnob (ChannelPot::ThreeD);
+      pot->onValueChange = [this, channel, k = pot.get ()] {
+        if (onChannelPotChanged)
+          onChannelPotChanged (static_cast<int> (channel), ChannelPot::ThreeD,
+                               static_cast<float> (k->getValue ()));
+      };
+      pot->onDoubleTapped = [this, channel] {
+        if (onChannelPotDoubleTapped)
+          onChannelPotDoubleTapped (static_cast<int> (channel),
+                                    ChannelPot::ThreeD);
+      };
+      pot->onDragStart = [this, channel] {
+        if (onChannelFaceChosen)
+          onChannelFaceChosen (static_cast<index_t> (channel));
+      };
+      addAndMakeVisible (*pot);
     }
 
   for (int i = 0; i < numTransportKeys; ++i)
@@ -425,7 +456,11 @@ ClipSettingsComponent::resized ()
 
   _tabClipTouch->setBounds (_layout.tabClip);
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
-    _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
+    {
+      _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
+      _faceMeter[channel]->setBounds (_layout.channelFaceMeters[channel]);
+      _face3d[channel]->setBounds (_layout.channelFacePots[channel]);
+    }
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
@@ -1510,6 +1545,23 @@ ClipSettingsComponent::setInputLevels (
 }
 
 void
+ClipSettingsComponent::setChannel3d (int channel, float set, float effective)
+{
+  if (channel < 0 || channel >= static_cast<int> (numChannelColumns))
+    return;
+
+  auto const c = static_cast<std::size_t> (channel);
+  showChannelPot (*_face3d[c], set, effective, _channelFaceColours[c]);
+}
+
+void
+ClipSettingsComponent::repaintChannelMeters ()
+{
+  for (auto &meter : _faceMeter)
+    meter->repaint ();
+}
+
+void
 ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
 {
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
@@ -1543,13 +1595,17 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
                                         _channelFaceSlots[channel])
                           + 1);
 
-      g.setFont (juce::Font (fontFor (FontRole::Header, face, slotName),
-                             shown ? juce::Font::bold : juce::Font::plain));
       g.setColour (readableInk (colour, toColour (theme ().background),
                                 toColour (theme ().textPrimary)));
-      g.drawText (slotName, face, juce::Justification::centred);
+      // Between the meter and the pot, which stand at the face's two ends.
+      auto const middle
+          = face.withLeft (_layout.channelFaceMeters[channel].getRight ())
+                .withRight (_layout.channelFacePots[channel].getX ());
+      g.setFont (juce::Font (fontFor (FontRole::Header, middle, slotName),
+                             shown ? juce::Font::bold : juce::Font::plain));
+      g.drawText (slotName, middle, juce::Justification::centred);
 
-      paintChannelFaceDot (g, face, _channelFaceDots[channel]);
+      paintChannelFaceDot (g, middle, _channelFaceDots[channel]);
     }
 }
 

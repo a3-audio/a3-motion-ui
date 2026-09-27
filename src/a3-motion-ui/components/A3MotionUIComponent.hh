@@ -927,6 +927,9 @@ private:
    *  encoder's hold runs out without anything happening. Lets go of the clip
    *  the holds were on when another one is shown, and keeps the hands. */
   void pushKnobHolds ();
+  /** A face chosen: its clip on show. `mayTurnOver` for a tap, which turns
+   *  the face already on show to its other slot; not for its pot. */
+  void chooseChannelFace (index_t channel, bool mayTurnOver);
   void updateStatusBarPlayheads ();
   /** The nine small meters on the status bar, read off the one VuLevels the
    *  mixer's own meters read. Pushed from here rather than pulled by a timer

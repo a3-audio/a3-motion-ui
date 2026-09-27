@@ -40,6 +40,8 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
@@ -385,6 +387,23 @@ public:
    *  keys: it says "show me the clip", says whose, and -- touched again on
    *  the channel already shown -- turns that channel's slot over. */
   std::function<void (index_t channel)> onChannelFaceTapped;
+  /** A hand landed on a face's 3D pot: the face is chosen as by a tap, but
+   *  never turned over -- a pot is reached for to be turned, and a slot that
+   *  changed under it would be a second thing done by accident. */
+  std::function<void (index_t channel)> onChannelFaceChosen;
+  /** A face's 3D pot turned, or tapped twice -- the same two calls the
+   *  mixers make. */
+  std::function<void (int channel, ChannelPot, float value)>
+      onChannelPotChanged;
+  std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
+  /** Where a face's meter reads its channel. Asked at paint time. */
+  std::function<VuLevel (int channel)> channelLevel;
+
+  /** Where the engine holds a channel's 3D, and where its envelope carries
+   *  it -- drawn on the face's pot as the mixers draw theirs. */
+  void setChannel3d (int channel, float set, float effective);
+  /** The faces' meters, and nothing else. Called at the meters' pace. */
+  void repaintChannelMeters ();
   std::function<void (index_t slot)> onSlotSelected;
   std::function<void (TransportKey key)> onTransportTapped;
   /** Whether `component` is this transport key, or lies inside it. Asked by
@@ -731,6 +750,9 @@ private:
   std::array<bool, numPadSlots> _slotDrifted{};
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numChannelColumns> _faceTouch;
+  /** In every face: its channel's meter at the left, its 3D at the right. */
+  std::array<std::unique_ptr<VuMeterView>, numChannelColumns> _faceMeter;
+  std::array<std::unique_ptr<PotKnob>, numChannelColumns> _face3d;
 
   /** Which channel each face stands for, which slot its toggle shows, and
    *  the colour it wears. Fed from the bar's owner, which is the one place

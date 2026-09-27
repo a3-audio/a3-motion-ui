@@ -569,19 +569,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // two channels in one move each. The two keys used to be shared, and
   // choosing slot 2 chose it for whichever channel you happened to be on.
   _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
-    auto const describesAClip = pageDescribesAClip (_barPage);
-
-    if (describesAClip && channel == _clipSettingsChannel)
-      _channelSlot[channel]
-          = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
-
-    selectClip (channel, _channelSlot[channel]);
-
-    // From the pads page there is no one clip on show to select into -- it
-    // shows every slot at once -- so reaching for a channel there is reaching
-    // for its clip, and the face brings that view back with it.
-    if (!describesAClip)
-      showBarPage (BarPage::Clip);
+    chooseChannelFace (channel, true);
+  };
+  _clipSettings->onChannelFaceChosen = [this] (index_t channel) {
+    chooseChannelFace (channel, false);
+  };
+  _clipSettings->onChannelPotChanged = channelPotChanged;
+  _clipSettings->onChannelPotDoubleTapped = channelPotDoubleTapped;
+  _clipSettings->channelLevel = [this] (int channel) {
+    return _vuLevels.channel (channel, vuNowMs ());
   };
 
   // A drag gives the key under the finger another speed, and the clip is
@@ -5146,7 +5142,7 @@ A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
 void
 A3MotionUIComponent::refreshChannelValues ()
 {
-  if (!_mixer || !_mixerStrip)
+  if (!_mixer || !_mixerStrip || !_clipSettings)
     return;
 
   // Every channel's three, not only the shown one's: the overlay shows all
@@ -5168,6 +5164,7 @@ A3MotionUIComponent::refreshChannelValues ()
       };
       _mixer->setChannelPots (ch, pots);
       _mixerStrip->setChannelPots (ch, pots);
+      _clipSettings->setChannel3d (ch, pots.set[0], pots.effective[0]);
     }
 }
 
@@ -5865,6 +5862,8 @@ A3MotionUIComponent::timerCallback ()
   // refresh stopped in the same tick the clip did. The accent had this
   // already, as _accentWasActive; it was the one case somebody had hit.
   pushKnobHolds ();
+  if (_clipSettings)
+    _clipSettings->repaintChannelMeters ();
 
   if (moving || _wasMoving)
     updateClipSettingsDisplay ();
@@ -7663,6 +7662,26 @@ A3MotionUIComponent::updateInputLevelDots ()
     inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
 
   _clipSettings->setInputLevels (inputs);
+}
+
+void
+A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
+{
+  auto const describesAClip = pageDescribesAClip (_barPage);
+
+  // Touching the face you are already on turns it over; reaching for its pot
+  // does not.
+  if (mayTurnOver && describesAClip && channel == _clipSettingsChannel)
+    _channelSlot[channel]
+        = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
+
+  selectClip (channel, _channelSlot[channel]);
+
+  // From the pads page there is no one clip on show to select into -- it
+  // shows every slot at once -- so reaching for a channel there is reaching
+  // for its clip, and the face brings that view back with it.
+  if (!describesAClip)
+    showBarPage (BarPage::Clip);
 }
 
 void
