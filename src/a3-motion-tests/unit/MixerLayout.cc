@@ -287,10 +287,10 @@ TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
       }
 }
 
-// CHMIX is eight fields in the encoders' four by two (2026-09-27): GAIN HIGH
-// MID LOW over SEND PFL FX and the channel's meter with its fader. 3D, FREQ
-// and Q are in the channel row over the bar.
-TEST (MixerLayout, TheBarsStripIsEightFields)
+// CHMIX is fields in the encoders' four by two (2026-09-27): GAIN HIGH MID
+// LOW over SEND PFL FX, and the channel's meter with its fader beside them.
+// 3D, FREQ and Q are in the channel row over the bar.
+TEST (MixerLayout, TheBarsStripIsFieldsBesideItsMeter)
 {
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -314,9 +314,17 @@ TEST (MixerLayout, TheBarsStripIsEightFields)
       EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1);
     }
 
-  EXPECT_TRUE (f[7].contains (layout.channelMeter[0])) << "the meter, last";
   for (auto const &pot : layout.channelPots[0])
     EXPECT_TRUE (pot.isEmpty ()) << "no 3D, FREQ, Q here";
+
+  // The meter with its fader stands to the right of the fields, their whole
+  // height -- no field of its own (2026-09-27).
+  auto const &meter = layout.channelMeter[0];
+  ASSERT_FALSE (meter.isEmpty ());
+  EXPECT_TRUE (f[7].isEmpty ()) << "seven fields, the meter beside them";
+  EXPECT_GE (meter.getX (), f[3].getRight ());
+  EXPECT_LE (meter.getY (), f[0].getY ());
+  EXPECT_GE (meter.getBottom (), f[4].getBottom ());
 }
 
 // Narrow enough and the strips break into two by two rather than four thin

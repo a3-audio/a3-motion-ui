@@ -387,17 +387,29 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   auto const floor_ = rowFloor (metrics);
   auto cellsFit = true;
 
-  // Eight fields, four by two as the encoders stand (2026-09-27): GAIN HIGH
-  // MID LOW over SEND PFL FX and the channel's meter with its fader. 3D, FREQ
-  // and Q stand in the channel row over the bar, so channelPots stays empty.
+  // Fields four by two as the encoders stand (2026-09-27): GAIN HIGH MID LOW
+  // over SEND PFL FX, the meter with its fader beside them. 3D, FREQ and Q
+  // stand in the channel row over the bar, so channelPots stays empty.
   auto const gap = juce::jmax (2, area.getHeight () / 40);
-  auto const rowH = juce::jmax (0, (area.getHeight () - gap) / 2);
-  auto const cellW = juce::jmax (0, (area.getWidth () - 3 * gap) / 4);
+
+  // The meter with its fader on the right, the whole height of the fields,
+  // half a field wide -- as wide as the overlay's, which is what the
+  // maintainer asked of it: four fields and half of one, and four gaps.
+  auto fieldsArea = area;
+  auto const cellW
+      = juce::jmax (0, (area.getWidth () - 4 * gap) * 2 / 9);
+  out.channelMeter[0] = fieldsArea.removeFromRight (cellW / 2);
+  fieldsArea.removeFromRight (gap);
+  if (out.channelMeter[0].isEmpty ())
+    cellsFit = false;
+
+  auto const rowH = juce::jmax (0, (fieldsArea.getHeight () - gap) / 2);
   for (int row = 0; row < 2; ++row)
     for (int column = 0; column < 4; ++column)
-      out.stripFields[static_cast<std::size_t> (row * 4 + column)]
-          = { area.getX () + column * (cellW + gap),
-              area.getY () + row * (rowH + gap), cellW, rowH };
+      if (row * 4 + column < 7)
+        out.stripFields[static_cast<std::size_t> (row * 4 + column)]
+            = { fieldsArea.getX () + column * (cellW + gap),
+                fieldsArea.getY () + row * (rowH + gap), cellW, rowH };
 
   auto const fieldOf = [] (MixerControl control) {
     switch (control)
@@ -422,14 +434,6 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
       if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
         cellsFit = false;
     }
-
-  // The meter a column in the middle of the last field, half its width: a
-  // level reads up a bar, not across a block.
-  auto const last = out.stripFields.back ();
-  out.channelMeter[0] = last.withSizeKeepingCentre (last.getWidth () / 2,
-                                                    last.getHeight ());
-  if (out.channelMeter[0].isEmpty ())
-    cellsFit = false;
 
   out.fits = cellsFit;
   return out;

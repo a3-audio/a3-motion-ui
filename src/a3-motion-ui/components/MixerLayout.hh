@@ -63,8 +63,9 @@ struct MixerLayout
   std::array<std::array<juce::Rectangle<int>, numChannelPots>,
              static_cast<std::size_t> (numChannelsInitial)>
       channelPots;
-  /** The bar's strip only (2026-09-27): its eight fields, four by two as the
-   *  encoders stand -- GAIN HIGH MID LOW over SEND PFL FX and the meter. */
+  /** The bar's strip only (2026-09-27): its fields, four by two as the
+   *  encoders stand -- GAIN HIGH MID LOW over SEND PFL FX; the last is empty,
+   *  the meter stands beside them. */
   std::array<juce::Rectangle<int>, 8> stripFields;
   std::array<juce::Rectangle<int>, numMasterFaceControls> master;
   /** The master's meter column, left of its pots: the output bars, and the
