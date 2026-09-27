@@ -20,11 +20,13 @@
 
 #include "BarKnob.hh"
 
+#include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
+#include <algorithm>
 #include <cmath>
 
 namespace a3
@@ -72,6 +74,35 @@ modulationArcs (float valueAngle, float reachAngle, float sweep, bool wraps)
   return { { valueAngle, sweep }, { -sweep, reachAngle } };
 }
 
+namespace
+{
+/** The widest caption any of the bar's knobs carries, at `size`. */
+float
+widestKnobCaption (float size)
+{
+  juce::Font const font{ juce::FontOptions (size) };
+  auto widest = 0.f;
+  for (int sub = 0; sub < 10; ++sub)
+    widest = std::max (widest, juce::GlyphArrangement::getStringWidth (
+                                   font, motionKnobSpec (sub).label));
+  for (int sub = 0; sub < 4; ++sub)
+    widest = std::max (widest, juce::GlyphArrangement::getStringWidth (
+                                   font, elevationKnobSpec (sub).label));
+  return widest;
+}
+}
+
+juce::Rectangle<float>
+encoderMarkBounds (juce::Rectangle<int> bounds, ControlMetrics metrics)
+{
+  auto const cell = bounds.toFloat ();
+  auto const inner = std::max (static_cast<float> (metrics.knobDiam),
+                               widestKnobCaption (metrics.captionSize));
+  auto const width
+      = std::min (cell.getWidth (), inner + 2.f * theme ().paddingTight);
+  return cell.withSizeKeepingCentre (width, cell.getHeight ());
+}
+
 void
 paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
@@ -87,11 +118,13 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
     }
 
   // The knob an encoder is on, where a press switches between two: a frame
-  // in the skin's accent round the whole cell, so a press is seen to move it.
+  // in the skin's accent, one size on every knob, so a press is seen to move
+  // it.
   if (encoderMarked)
     {
       g.setColour (toColour (theme ().accent));
-      g.drawRoundedRectangle (bounds.toFloat ().reduced (theme ().paddingHair),
+      g.drawRoundedRectangle (encoderMarkBounds (bounds, metrics)
+                                  .reduced (theme ().paddingHair),
                               theme ().radiusControl,
                               juce::jmax (2.f, theme ().strokeMedium));
     }

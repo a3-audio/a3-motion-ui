@@ -60,6 +60,12 @@ std::vector<std::pair<float, float> > modulationArcs (float valueAngle,
                                                       float reachAngle,
                                                       float sweep, bool wraps);
 
+/** Where the frame of the knob an encoder is on is drawn: as wide as the
+ *  widest caption of the bar's knobs needs, and no wider -- so every frame is
+ *  one size -- centred in the knob's cell and never out of it. */
+juce::Rectangle<float> encoderMarkBounds (juce::Rectangle<int> bounds,
+                                          ControlMetrics metrics);
+
 void paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                    ControlMetrics metrics, juce::Colour channelColour,
                    juce::String const &label, float angleFrac,

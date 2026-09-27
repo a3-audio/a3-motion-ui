@@ -166,3 +166,27 @@ TEST (BarKnob, TheKnobAnEncoderIsOnIsFramed)
   EXPECT_EQ (accentPixels (false), 0);
   EXPECT_GT (accentPixels (true), 40);
 }
+
+// The frame is only as wide as the widest knob caption needs, and every
+// frame is that wide: the same frame on "rot" and on "clip-bot", whatever
+// cell each stands in (2026-09-27).
+TEST (BarKnob, EveryEncoderFrameIsOneSizeAndFitsItsKnob)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+
+  auto const wide = encoderMarkBounds ({ 0, 0, 200, 60 }, metrics);
+  auto const narrower = encoderMarkBounds ({ 0, 0, 150, 60 }, metrics);
+
+  EXPECT_EQ (wide.getWidth (), narrower.getWidth ()) << "one size";
+  EXPECT_LT (wide.getWidth (), 200.f) << "not the whole cell";
+  EXPECT_GE (wide.getWidth (), static_cast<float> (metrics.knobDiam));
+  EXPECT_FLOAT_EQ (wide.getCentreX (), 100.f) << "centred on the knob";
+}
+
+TEST (BarKnob, AFrameNeverLeavesItsCell)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+  juce::Rectangle<int> const tight{ 0, 0, 20, 60 };
+
+  EXPECT_TRUE (tight.toFloat ().contains (encoderMarkBounds (tight, metrics)));
+}
