@@ -278,10 +278,11 @@ public:
    *  — the spin remote-controls the rotation, so the knob shows the hand's
    *  value and the movement over it at once. */
   void setShapeRotate (float rotate, float reach);
-  /** What the clip's lanes are playing, knob by knob, as the blue arc -- for
-   *  the knobs no sweep draws one on. Rotate, reach, elv and the squeezes show
-   *  a lane through their swept value instead. */
-  void setLanesPlayed (std::array<std::optional<float>, numKnobs> const &played);
+  /** Which knobs a take's lane is turning: they show the played value, set
+   *  by the setters above, and wear a small red dot. */
+  void setKnobsLaneDriven (std::array<bool, numKnobs> const &driven);
+  /** Which knobs the running take is writing -- drawn in the recording red. */
+  void setKnobsWriting (std::array<bool, numKnobs> const &writing);
 
   /** Which speed button reads as in force, as a speedLog2. */
   void setShapeSpeed (int speedLog2);

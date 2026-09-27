@@ -23,6 +23,7 @@
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 
 #include <cmath>
 
@@ -75,7 +76,8 @@ void
 paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
               juce::String const &label, float angleFrac, bool fillFromZero,
-              bool isActive, bool isSelected, float reachFrac, bool wraps)
+              bool isActive, bool isSelected, float reachFrac, bool wraps,
+              bool writing, bool laneDriven)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -90,6 +92,10 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
 
   auto const knobColour = controlColour (channelColour, isSelected);
+  // A take writing this knob: the REC key's red on what the hand sets, the
+  // value arc and the pointer. Blue stays what a lane playing it looks like.
+  auto const valueColour
+      = writing ? transportColour (TransportKey::Record) : knobColour;
   // The knob keeps its diameter; the captions get the whole cell. Confining
   // both to knobDiam is what truncated "Forward" and "end-action" to "...".
   auto const knobSize = static_cast<float> (
@@ -136,7 +142,7 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       auto const toAngle = fillFromZero ? std::max (0.f, angleValue) : angleValue;
       valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, fromAngle, toAngle,
                               true);
-      g.setColour (knobColour);
+      g.setColour (valueColour);
       g.strokePath (valueArc,
                     juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
     }
@@ -165,12 +171,25 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
   // Said outright rather than inherited: the pointer used to be drawn in
   // whatever colour the value arc had left set, so a ring -- which has no
   // value arc -- drew its pointer in the modulation's blue.
-  g.setColour (knobColour);
+  g.setColour (valueColour);
   auto const tip = centre.getPointOnCircumference (r, angleValue);
   g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.12f));
+  g.setColour (knobColour);
 
   auto const dotR = r * 0.22f;
   g.fillEllipse (juce::Rectangle<float> (dotR, dotR).withCentre (centre));
+
+  // A take's lane is turning it: a small dot in the REC key's red, up and to
+  // the right of the ring, where it names the knob without covering its arc.
+  if (laneDriven)
+    {
+      auto const markR = juce::jmax (2.f, r * 0.18f);
+      auto const at = centre.getPointOnCircumference (
+          r + markR * 1.6f, juce::MathConstants<float>::pi * 0.25f);
+      g.setColour (transportColour (TransportKey::Record));
+      g.fillEllipse (
+          juce::Rectangle<float> (markR * 2.f, markR * 2.f).withCentre (at));
+    }
 
   // The shared size, not this caption's own fit. Its box is only consulted as
   // a floor: a control box too short for the shared size would otherwise have

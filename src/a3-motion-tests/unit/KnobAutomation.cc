@@ -174,3 +174,82 @@ TEST (KnobAutomation, TheElevationFollowsAPlayedBase)
   EXPECT_NEAR (params.elevationBase, 0.4f, 1e-6f);
   EXPECT_NEAR (params.reach, 0.5f, 1e-6f);
 }
+
+TEST (KnobAutomation, ClearingOneLaneLeavesTheOthers)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+  auto lanes = reachAt (0.3f);
+  lanes[static_cast<std::size_t> (Knob::Rotate)].write (0, 0.25f);
+  pattern.setLanes (lanes);
+  pattern.playKnobs (2.0);
+
+  pattern.clearLane (Knob::Reach);
+
+  EXPECT_FALSE (pattern.hasLane (Knob::Reach));
+  EXPECT_TRUE (pattern.hasLane (Knob::Rotate));
+  EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Reach), 0.8f)
+      << "the setting plays again at once, not on the next tick";
+}
+
+TEST (KnobAutomation, AKnobBeingWrittenSaysSo)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  KnobRecorders recorders;
+
+  pattern.setKnobHeld (Knob::Reach, true);
+  EXPECT_TRUE (pattern.recordKnobs (recorders, RecMode::Touch, 0, lap))
+      << "the take has to know it wrote something, or it is thrown away";
+  EXPECT_TRUE (pattern.isKnobWriting (Knob::Reach));
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Rotate));
+
+  pattern.setKnobHeld (Knob::Reach, false);
+  EXPECT_FALSE (pattern.recordKnobs (recorders, RecMode::Touch, 1, lap));
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
+}
+
+TEST (KnobAutomation, AFinishedTakeWritesNothingAnyMore)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  KnobRecorders recorders;
+  pattern.setKnobHeld (Knob::Reach, true);
+  pattern.recordKnobs (recorders, RecMode::Touch, 0, lap);
+
+  pattern.stopKnobWriting ();
+
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
+}
+
+TEST (KnobAutomation, AHandTakesAKnobOverWhereTheLaneHadIt)
+{
+  // The knob is drawn where the lane has it. A hand landing on it takes it
+  // from there, or the value would jump to the old setting on the touch.
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+  pattern.setSpin (0);
+  auto lanes = reachAt (0.3f);
+  lanes[static_cast<std::size_t> (Knob::Spin)].write (0, 3.f);
+  pattern.setLanes (lanes);
+  pattern.playKnobs (2.0);
+
+  pattern.takeOverKnob (Knob::Reach);
+  pattern.takeOverKnob (Knob::Spin);
+
+  EXPECT_FLOAT_EQ (pattern.getReach (), 0.3f);
+  EXPECT_EQ (pattern.getSpin (), 3);
+}
+
+TEST (KnobAutomation, TakingOverAKnobNoLaneTurnsLeavesItAlone)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+
+  pattern.takeOverKnob (Knob::Reach);
+
+  EXPECT_FLOAT_EQ (pattern.getReach (), 0.8f);
+}

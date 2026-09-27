@@ -372,15 +372,24 @@ public:
   /** The lane's value alone, where one is playing. */
   std::optional<float> getKnobPlayed (Knob knob) const;
   float getKnobSetting (Knob knob) const;
+  void setKnobSetting (Knob knob, float value);
+  /** A hand landing on a knob a lane is turning: the setting becomes what the
+   *  lane plays there, so the knob is picked up where it is drawn. */
+  void takeOverKnob (Knob knob);
 
   /** A hand on the knob: recorded while a take runs, and wins over the lane
    *  while it holds. */
   void setKnobHeld (Knob knob, bool held);
   bool isKnobHeld (Knob knob) const;
 
-  /** One tick of a take: every knob into its lane, by the rec mode. */
-  void recordKnobs (KnobRecorders &recorders, RecMode mode, long long ticksNow,
+  /** One tick of a take: every knob into its lane, by the rec mode.
+   *  @returns whether any knob was written. */
+  bool recordKnobs (KnobRecorders &recorders, RecMode mode, long long ticksNow,
                     long long lapTicks);
+  /** Whether the take wrote this knob on its last tick -- drawn in the
+   *  recording red. Stopped when the take ends. */
+  bool isKnobWriting (Knob knob) const;
+  void stopKnobWriting ();
   /** One tick of playback: each lane's value at the play position, except
    *  where a hand holds its knob. */
   void playKnobs (double fractionalTick);
@@ -388,7 +397,10 @@ public:
   KnobLanes getLanes () const;
   void setLanes (KnobLanes lanes);
   bool hasLanes () const;
+  bool hasLane (Knob knob) const;
   void clearLanes ();
+  /** One knob's lane gone, the others left: its setting plays again. */
+  void clearLane (Knob knob);
 
   /** Convenience bundle of the above, ready to pass to
    *  HeightMap::mapTo3D()/mapTo2D(). */
@@ -463,6 +475,7 @@ private:
   /** NaN where no lane is playing -- see getKnob(). */
   std::array<std::atomic<float>, numKnobs> _knobPlayed;
   std::array<std::atomic<bool>, numKnobs> _knobHeld{};
+  std::array<std::atomic<bool>, numKnobs> _knobWriting{};
 
   // TODO is float precision sufficient here? do the math!
   static_assert (std::atomic<float>::is_always_lock_free);

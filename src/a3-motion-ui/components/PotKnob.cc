@@ -109,6 +109,26 @@ PotKnob::setReach (float reach)
 }
 
 void
+PotKnob::setWriting (bool writing)
+{
+  if (writing == _writing)
+    return;
+
+  _writing = writing;
+  repaint ();
+}
+
+void
+PotKnob::setLaneDriven (bool driven)
+{
+  if (driven == _laneDriven)
+    return;
+
+  _laneDriven = driven;
+  repaint ();
+}
+
+void
 PotKnob::setKnobColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)

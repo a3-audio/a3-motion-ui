@@ -198,8 +198,15 @@ public:
   std::shared_ptr<Pattern> getRecordingPattern ();
   std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
+  /** `seed`, if given, is the clip the take starts from -- see seedTake().
+   *  Read at the downbeat, so the clip may go on playing until then. */
   void recordPattern (std::shared_ptr<Pattern> pattern, //
-                      Measure timepoint, Measure length);
+                      Measure timepoint, Measure length,
+                      std::shared_ptr<Pattern> seed = nullptr);
+  /** Whether the running take has written anything: the finger's path or a
+   *  knob. A take that started from a clip holds that clip's path, so the
+   *  path alone cannot say whether anything was performed. */
+  bool takeWroteSomething () const;
 
   // Playback
   std::shared_ptr<Pattern> getPlayingPattern (index_t channel);
@@ -330,6 +337,8 @@ private:
     Pos position;
     Pos position2D;  // original 2D position (for recording ticks)
     std::shared_ptr<Pattern> pattern;
+    /** What a take starts from, for StartRecording. */
+    std::shared_ptr<Pattern> seed;
     Measure timepoint;
     Measure length;
 
@@ -360,7 +369,8 @@ private:
                             Measure timepoint);
   void scheduledForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
-  void startRecording (std::shared_ptr<Pattern> pattern, Measure length);
+  void startRecording (std::shared_ptr<Pattern> pattern, Measure length,
+                       std::shared_ptr<Pattern> const &seed);
   void startPlaying (std::shared_ptr<Pattern> pattern);
   void stop (std::shared_ptr<Pattern> pattern);
 
@@ -403,6 +413,7 @@ private:
   bool _recordingHasTouched = false;
   /** The knobs' own touch histories for the take that is running. */
   KnobRecorders _knobRecorders;
+  std::atomic<bool> _takeWrote{ false };
   Pos _recordingHeldPosition2D = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */
   std::atomic<float> _recordingProgress{ -1.f };

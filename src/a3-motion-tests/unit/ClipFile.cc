@@ -799,3 +799,46 @@ TEST (ClipFile, AClipWithoutLanesTakesThemAway)
 
   EXPECT_FALSE (pattern.hasLanes ());
 }
+
+TEST (ClipFile, ClearingALaneIsDrift)
+{
+  Clip clip;
+  clip.name = "Take";
+  clip.lanes = reachLane (16);
+  auto const file = tempClip ("a3-drift-lane.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  Pattern pattern;
+  pattern.resize (16);
+  applyClipSettings (pattern, clip.settings);
+  applyLanes (pattern, clip);
+  ASSERT_FALSE (clipHasDrifted (pattern, file));
+
+  pattern.clearLane (Knob::Reach);
+
+  EXPECT_TRUE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, SavingWritesTheLanesBack)
+{
+  Clip clip;
+  clip.name = "Take";
+  clip.lanes = reachLane (16);
+  auto const file = tempClip ("a3-save-lanes.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  Pattern pattern;
+  pattern.resize (16);
+  applyLanes (pattern, clip);
+  pattern.clearLane (Knob::Reach);
+  ASSERT_TRUE (saveClipSettings (pattern, file));
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_TRUE (read->lanes[static_cast<std::size_t> (Knob::Reach)].empty ());
+  EXPECT_FALSE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}

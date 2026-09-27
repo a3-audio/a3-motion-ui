@@ -964,11 +964,12 @@ Pattern::isKnobHeld (Knob knob) const
   return _knobHeld[slot (knob)].load (std::memory_order_relaxed);
 }
 
-void
+bool
 Pattern::recordKnobs (KnobRecorders &recorders, RecMode mode,
                       long long ticksNow, long long lapTicks)
 {
   std::lock_guard<std::mutex> guard (_lanesMutex);
+  auto anyWritten = false;
   for (std::size_t k = 0; k < _lanes.size (); ++k)
     {
       auto const knob = static_cast<Knob> (k);
@@ -977,9 +978,27 @@ Pattern::recordKnobs (KnobRecorders &recorders, RecMode mode,
       if (_lanes[k].ticks () != lapTicks)
         _lanes[k] = KnobLane (lapTicks);
 
-      recorders[k].recordTick (_lanes[k], mode, isKnobHeld (knob),
-                               getKnobSetting (knob), ticksNow, lapTicks);
+      auto const wrote
+          = recorders[k].recordTick (_lanes[k], mode, isKnobHeld (knob),
+                                     getKnobSetting (knob), ticksNow,
+                                     lapTicks);
+      _knobWriting[k].store (wrote, std::memory_order_relaxed);
+      anyWritten = anyWritten || wrote;
     }
+  return anyWritten;
+}
+
+bool
+Pattern::isKnobWriting (Knob knob) const
+{
+  return _knobWriting[slot (knob)].load (std::memory_order_relaxed);
+}
+
+void
+Pattern::stopKnobWriting ()
+{
+  for (auto &writing : _knobWriting)
+    writing.store (false, std::memory_order_relaxed);
 }
 
 void
@@ -1031,6 +1050,52 @@ Pattern::clearLanes ()
   for (auto &played : _knobPlayed)
     played.store (std::numeric_limits<float>::quiet_NaN (),
                   std::memory_order_relaxed);
+}
+
+bool
+Pattern::hasLane (Knob knob) const
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  return !_lanes[slot (knob)].empty ();
+}
+
+void
+Pattern::clearLane (Knob knob)
+{
+  {
+    std::lock_guard<std::mutex> guard (_lanesMutex);
+    _lanes[slot (knob)] = KnobLane{};
+  }
+  _knobPlayed[slot (knob)].store (std::numeric_limits<float>::quiet_NaN (),
+                                  std::memory_order_relaxed);
+}
+
+void
+Pattern::setKnobSetting (Knob knob, float value)
+{
+  auto const step = static_cast<int> (std::lround (value));
+  switch (knob)
+    {
+    case Knob::Rotate: setRotate (value); break;
+    case Knob::Spin: setSpin (step); break;
+    case Knob::Reach: setReach (value); break;
+    case Knob::Swell: setReachLfo (step); break;
+    case Knob::SqueezeX: setSqueezeX (value); break;
+    case Knob::StretchX: setSqueezeXLfo (step); break;
+    case Knob::SqueezeY: setSqueezeY (value); break;
+    case Knob::StretchY: setSqueezeYLfo (step); break;
+    case Knob::ClipBottom: setClipBottom (value); break;
+    case Knob::ClipTop: setClipTop (value); break;
+    case Knob::Sway: setElevationLfo (step); break;
+    case Knob::Elevation: setElevationBase (value); break;
+    }
+}
+
+void
+Pattern::takeOverKnob (Knob knob)
+{
+  if (auto const played = getKnobPlayed (knob))
+    setKnobSetting (knob, *played);
 }
 
 }

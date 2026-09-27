@@ -535,7 +535,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       return;
 
     if (held)
-      _knobHold.press (*knob);
+      {
+        if (auto const &shown
+            = _patterns[_clipSettingsChannel][_clipSettingsSlot])
+          shown->takeOverKnob (*knob);
+        _knobHold.press (*knob);
+      }
     else
       _knobHold.release (*knob);
     pushKnobHolds ();
@@ -2128,9 +2133,14 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   if (_motionComponent)
     _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
 
-  // Always create a fresh Pattern for recording (user pattern)
+  // A fresh Pattern for the take, starting from the clip the slot held: its
+  // settings now, so the bar goes on showing them, and its path and lanes at
+  // the downbeat (seedTake). TOUCH over it is an overdub -- turning pots over
+  // the old figure keeps the figure.
   pattern = std::make_shared<Pattern> ();
   pattern->setChannel (channel);
+  if (_patternBeforeRecording)
+    applyClipSettings (*pattern, clipSettingsFrom (*_patternBeforeRecording));
 
   auto recordLength = Measure{
     0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
@@ -2141,7 +2151,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   pattern->setPlaybackLength (recordLength);
 
   _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
-                         recordLength);
+                         recordLength, _patternBeforeRecording);
 
   // A take underway turns SAVE and DISCARD back into REC and ACT.
   refreshTakeState ();
@@ -5516,10 +5526,14 @@ A3MotionUIComponent::endRecording ()
   auto const channel = _recordingSlot->first;
   auto const slot = _recordingSlot->second;
 
+  // Something performed -- the finger or a knob -- and a path to play it on.
+  // The path alone cannot say the first: a take over a clip starts out
+  // holding that clip's.
   auto const written = pattern->writtenTicks ();
   auto const anyWritten
-      = std::any_of (written.begin (), written.end (),
-                     [] (bool isWritten) { return isWritten; });
+      = _engine.takeWroteSomething ()
+        && std::any_of (written.begin (), written.end (),
+                        [] (bool isWritten) { return isWritten; });
 
   // Where the write head stands is where the take stops, and that edge -- the
   // last tick of the freshest pass against the previous pass still sitting
@@ -7136,6 +7150,20 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
   auto const slot = _clipSettingsSlot;
   auto &pattern = _patterns[channel][slot];
 
+  // A knob playing a lane loses the lane, and keeps the value: what the two
+  // taps take away is the recording, and the setting is what plays after it.
+  // A take is its own clip, so this is also how a knob pass is thrown away
+  // during a take. A knob without a lane goes back to the middle below.
+  if (auto const knob = knobAt (section, sub); knob && pattern
+                                                && pattern->hasLane (*knob))
+    {
+      pattern->clearLane (*knob);
+      updateControlReadout (juce::String (knobName (*knob)).toUpperCase ()
+                            + " LANE CLEARED");
+      updateClipSettingsDisplay ();
+      return;
+    }
+
   switch (section)
     {
     case 0: // Shape: the turn. The section has one face now, so this knob is
@@ -7279,8 +7307,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
   auto &params = _clipUIParams[channel][slot];
 
   // An encoder has no touch: a step is the hand on the knob for a moment.
+  // Stepped from where the knob is drawn, which a lane may have moved.
   if (auto const knob = knobAt (section, sub))
     {
+      if (auto const &shown = _patterns[channel][_clipSettingsSlot])
+        shown->takeOverKnob (*knob);
       _knobHold.nudge (*knob, juce::Time::getMillisecondCounterHiRes ());
       pushKnobHolds ();
     }
@@ -7751,38 +7782,34 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // an arc drawn off the raw sweep would promise a reach the engine is not
   // playing. Shown while the base is sweeping too, because that is when the
   // two differ.
-  // A lane playing any of what the reach is measured from moves it too.
-  auto const lanePlays = [&pattern] (std::initializer_list<Knob> knobs) {
-    for (auto const knob : knobs)
-      if (pattern->getKnobPlayed (knob))
-        return true;
-    return false;
+  // Every knob shows what the clip is playing with: a take's lane turns the
+  // knob as a whole, as the hand did when it was recorded, and a small red dot
+  // says the recording is doing it (setKnobsLaneDriven below). The arcs are
+  // the sweeps' alone, drawn from wherever the knob stands.
+  auto const knobOf = [&pattern] (Knob knob, float fallback) {
+    return pattern ? pattern->getKnob (knob) : fallback;
   };
+  auto const stepOf = [&pattern] (Knob knob, int fallback) {
+    return pattern ? pattern->getKnobStep (knob) : fallback;
+  };
+  auto const swell = stepOf (Knob::Swell, 0);
+  auto const sway = stepOf (Knob::Sway, 0);
+
   _clipSettings->setElevationReach (
-      pattern ? pattern->getReach () : 0.5f,
-      pattern
-              && (pattern->getKnobStep (Knob::Swell) != 0
-                  || pattern->getKnobStep (Knob::Sway) != 0
-                  || lanePlays ({ Knob::Reach, Knob::Swell, Knob::Sway,
-                                  Knob::Elevation, Knob::ClipTop,
-                                  Knob::ClipBottom }))
+      knobOf (Knob::Reach, 0.5f),
+      pattern && (swell != 0 || sway != 0)
           ? sweptElevation (pattern->getElevationParams (), *pattern).reach
           : -2.f);
-  // The line the hand set, and where the sway is holding it now -- the same
-  // pair the reach above is given, and drawn the same way.
+  // The line, and where the sway is holding it now -- the same pair the reach
+  // above is given, and drawn the same way.
   _clipSettings->setElevationBase (
-      pattern ? pattern->getElevationBase () : 0.f,
-      pattern
-              && (pattern->getKnobStep (Knob::Sway) != 0
-                  || lanePlays ({ Knob::Elevation, Knob::Sway }))
-          ? lfoSweep (pattern->getKnob (Knob::Elevation),
-                      pattern->getKnobStep (Knob::Sway),
+      knobOf (Knob::Elevation, 0.f),
+      pattern && sway != 0
+          ? lfoSweep (pattern->getKnob (Knob::Elevation), sway,
                       pattern->getElevationLfoPhase ())
           : -1.f);
-  _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
-                                              : 0.0f);
-  _clipSettings->setElevationClipBottom (
-      pattern ? pattern->getClipBottom () : 0.0f);
+  _clipSettings->setElevationClipTop (knobOf (Knob::ClipTop, 0.f));
+  _clipSettings->setElevationClipBottom (knobOf (Knob::ClipBottom, 0.f));
 
   // The figure itself in the side-on circle, and the sound running along it.
   //
@@ -7872,38 +7899,36 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
       pattern ? pattern->getBridgeBias () : ClipSettings{}.bridgeBias);
   // Each squeeze, and where its own stretch is holding it now -- the same
   // pair reach is given, drawn the same way.
+  auto const stretchX = stepOf (Knob::StretchX, ClipSettings{}.squeezeXLfo);
+  auto const stretchY = stepOf (Knob::StretchY, ClipSettings{}.squeezeYLfo);
   _clipSettings->setMotionSqueeze (
-      pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
-      pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY,
-      pattern
-              && (pattern->getKnobStep (Knob::StretchX) != 0
-                  || lanePlays ({ Knob::SqueezeX, Knob::StretchX }))
-          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeX),
-                             pattern->getKnobStep (Knob::StretchX),
+      knobOf (Knob::SqueezeX, ClipSettings{}.squeezeX),
+      knobOf (Knob::SqueezeY, ClipSettings{}.squeezeY),
+      pattern && stretchX != 0
+          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeX), stretchX,
                              pattern->getSqueezeXLfoPhase ())
           : -2.f,
-      pattern
-              && (pattern->getKnobStep (Knob::StretchY) != 0
-                  || lanePlays ({ Knob::SqueezeY, Knob::StretchY }))
-          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeY),
-                             pattern->getKnobStep (Knob::StretchY),
+      pattern && stretchY != 0
+          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeY), stretchY,
                              pattern->getSqueezeYLfoPhase ())
           : -2.f);
   {
-    std::array<std::optional<float>, numKnobs> played{};
+    std::array<bool, numKnobs> driven{};
+    std::array<bool, numKnobs> writing{};
     if (pattern)
       for (int k = 0; k < numKnobs; ++k)
-        played[static_cast<std::size_t> (k)]
-            = pattern->getKnobPlayed (static_cast<Knob> (k));
-    _clipSettings->setLanesPlayed (played);
+        {
+          auto const knob = static_cast<Knob> (k);
+          driven[static_cast<std::size_t> (k)]
+              = pattern->getKnobPlayed (knob).has_value ();
+          writing[static_cast<std::size_t> (k)] = pattern->isKnobWriting (knob);
+        }
+    _clipSettings->setKnobsLaneDriven (driven);
+    _clipSettings->setKnobsWriting (writing);
   }
-  _clipSettings->setMotionStretch (
-      pattern ? pattern->getSqueezeXLfo () : ClipSettings{}.squeezeXLfo,
-      pattern ? pattern->getSqueezeYLfo () : ClipSettings{}.squeezeYLfo);
-  _clipSettings->setSweeps (
-      pattern ? pattern->getSpin () : ClipSettings{}.spin,
-      pattern ? pattern->getReachLfo () : ClipSettings{}.reachLfo,
-      pattern ? pattern->getElevationLfo () : ClipSettings{}.elevationLfo);
+  _clipSettings->setMotionStretch (stretchX, stretchY);
+  _clipSettings->setSweeps (stepOf (Knob::Spin, ClipSettings{}.spin), swell,
+                            sway);
   _clipSettings->setMotionEnvelope (
       pattern ? pattern->getEnvelopeAttack () : 0,
       pattern ? pattern->getEnvelopeDecay () : 0);
@@ -7919,8 +7944,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // renderer turn by. Summed here by hand it kept counting a stopped spin's
   // leftover phase, so the arc stayed off the pointer after the spin was
   // turned off and there was no way to bring it back.
-  auto const rotate = pattern ? pattern->getRotate () : 0.f;
-  _clipSettings->setShapeRotate (rotate, pattern ? turnsOf (*pattern) : 0.f);
+  _clipSettings->setShapeRotate (knobOf (Knob::Rotate, 0.f),
+                                 pattern ? turnsOf (*pattern) : 0.f);
 
   _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
 

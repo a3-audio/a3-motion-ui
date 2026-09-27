@@ -314,9 +314,11 @@ saveClipSettings (Pattern const &pattern, juce::File const &clipFile)
   if (!clip)
     return false;
 
-  // Only the settings. The name, the shape and the former names are the
-  // clip's identity, not its values -- see the header.
+  // The values and the lanes. The name, the shape and the former names are
+  // the clip's identity, not its values -- see the header.
   clip->settings = clipSettingsFrom (pattern);
+  // And the knobs it plays: a lane cleared on the slot is cleared in the file.
+  clip->lanes = pattern.getLanes ();
 
   return ClipFile::save (*clip, clipFile);
 }
@@ -328,7 +330,19 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
   if (!clip)
     return false;
 
-  return clipSettingsFrom (pattern) != clip->settings;
+  if (clipSettingsFrom (pattern) != clip->settings)
+    return true;
+
+  // Which knobs play a lane, not what they play: a lane can only be cleared
+  // on a slot, never written -- a take is a clip of its own.
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const knob = static_cast<Knob> (k);
+      if (pattern.hasLane (knob)
+          != !clip->lanes[static_cast<std::size_t> (k)].empty ())
+        return true;
+    }
+  return false;
 }
 
 

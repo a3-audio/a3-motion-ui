@@ -84,7 +84,8 @@ std::optional<Clip> load (juce::File const &file);
 
 }
 
-/** Whether a pattern has drifted from the clip it was filled from.
+/** Whether a pattern has drifted from the clip it was filled from: a setting
+ *  turned, or a lane cleared.
  *
  *  Worked out by comparing, not by watching: turning a control and turning it
  *  back leaves nothing behind, which a flag set on every touch could not
@@ -139,7 +140,8 @@ enum class ShippedClips
 bool shippedFileMayBeOverwritten (bool fileExists, bool fileIsShipped,
                                   ShippedClips shipped);
 
-/** Write a pattern's settings back into the clip it came from.
+/** Write a pattern's settings back into the clip it came from, and the
+ *  lanes it plays: a lane cleared on the slot goes from the file too.
  *
  *  Keeps everything about the clip that is not a setting: its name, the shape
  *  it points at, and the names it used to have. Rewriting the file from

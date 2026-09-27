@@ -830,19 +830,33 @@ ClipSettingsComponent::setShapeRotate (float rotate, float reach)
 }
 
 void
-ClipSettingsComponent::setLanesPlayed (
-    std::array<std::optional<float>, numKnobs> const &played)
+ClipSettingsComponent::setKnobsLaneDriven (
+    std::array<bool, numKnobs> const &driven)
 {
-  auto const onKnob = [this, &played] (Knob knob) {
-    auto const place = placeOf (knob);
-    putReachOnKnob (place.section, place.sub,
-                    played[static_cast<std::size_t> (knob)]);
-  };
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const place = placeOf (static_cast<Knob> (k));
+      auto const s = static_cast<std::size_t> (place.section);
+      auto const sub = static_cast<std::size_t> (place.sub);
+      if (s < _controlKnob.size () && sub < _controlKnob[s].size ())
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setLaneDriven (driven[static_cast<std::size_t> (k)]);
+    }
+}
 
-  for (auto const knob : { Knob::Spin, Knob::Swell, Knob::StretchX,
-                           Knob::StretchY, Knob::ClipBottom, Knob::ClipTop,
-                           Knob::Sway })
-    onKnob (knob);
+void
+ClipSettingsComponent::setKnobsWriting (
+    std::array<bool, numKnobs> const &writing)
+{
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const place = placeOf (static_cast<Knob> (k));
+      auto const s = static_cast<std::size_t> (place.section);
+      auto const sub = static_cast<std::size_t> (place.sub);
+      if (s < _controlKnob.size () && sub < _controlKnob[s].size ())
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setWriting (writing[static_cast<std::size_t> (k)]);
+    }
 }
 
 void
