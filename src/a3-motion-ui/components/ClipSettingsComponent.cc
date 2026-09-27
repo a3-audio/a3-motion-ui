@@ -1585,15 +1585,20 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       auto const bar = _layout.channelFaceProgress[channel];
       g.setColour (colour.withAlpha (theme ().alphaOutline));
       g.fillRect (bar);
+      auto const fill = progressFill (bar, _channelProgress[channel]);
       g.setColour (colour);
-      g.fillRect (progressFill (bar, _channelProgress[channel]));
+      g.fillRect (fill);
 
+      // Black or white once the fill runs under the number, or it vanishes in
+      // its own colour; the channel's colour on the washed bar otherwise.
       auto const numberArea = bar.withWidth (juce::jmin (
           bar.getWidth (), bar.getHeight () * 3 / 2));
+      auto const onFill = fill.getRight () > numberArea.getCentreX ();
       g.setFont (juce::Font (fontFor (FontRole::Header, numberArea, slotName),
                              shown ? juce::Font::bold : juce::Font::plain));
-      g.setColour (readableInk (colour, toColour (theme ().background),
-                                toColour (theme ().textPrimary)));
+      g.setColour (onFill ? padGlyphInk (colour)
+                          : readableInk (colour, toColour (theme ().background),
+                                         toColour (theme ().textPrimary)));
       g.drawText (slotName, numberArea, juce::Justification::centred);
     }
 }
