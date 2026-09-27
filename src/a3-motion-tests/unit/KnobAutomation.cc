@@ -174,3 +174,21 @@ TEST (KnobAutomation, TheElevationFollowsAPlayedBase)
   EXPECT_NEAR (params.elevationBase, 0.4f, 1e-6f);
   EXPECT_NEAR (params.reach, 0.5f, 1e-6f);
 }
+
+TEST (KnobAutomation, ClearingOneLaneLeavesTheOthers)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+  auto lanes = reachAt (0.3f);
+  lanes[static_cast<std::size_t> (Knob::Rotate)].write (0, 0.25f);
+  pattern.setLanes (lanes);
+  pattern.playKnobs (2.0);
+
+  pattern.clearLane (Knob::Reach);
+
+  EXPECT_FALSE (pattern.hasLane (Knob::Reach));
+  EXPECT_TRUE (pattern.hasLane (Knob::Rotate));
+  EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Reach), 0.8f)
+      << "the setting plays again at once, not on the next tick";
+}

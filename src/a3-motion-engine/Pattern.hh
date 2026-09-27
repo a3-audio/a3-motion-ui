@@ -388,7 +388,10 @@ public:
   KnobLanes getLanes () const;
   void setLanes (KnobLanes lanes);
   bool hasLanes () const;
+  bool hasLane (Knob knob) const;
   void clearLanes ();
+  /** One knob's lane gone, the others left: its setting plays again. */
+  void clearLane (Knob knob);
 
   /** Convenience bundle of the above, ready to pass to
    *  HeightMap::mapTo3D()/mapTo2D(). */

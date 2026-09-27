@@ -1033,4 +1033,22 @@ Pattern::clearLanes ()
                   std::memory_order_relaxed);
 }
 
+bool
+Pattern::hasLane (Knob knob) const
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  return !_lanes[slot (knob)].empty ();
+}
+
+void
+Pattern::clearLane (Knob knob)
+{
+  {
+    std::lock_guard<std::mutex> guard (_lanesMutex);
+    _lanes[slot (knob)] = KnobLane{};
+  }
+  _knobPlayed[slot (knob)].store (std::numeric_limits<float>::quiet_NaN (),
+                                  std::memory_order_relaxed);
+}
+
 }
