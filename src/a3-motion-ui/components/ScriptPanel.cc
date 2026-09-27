@@ -42,6 +42,11 @@ ScriptPanel::ScriptPanel ()
   // The script is JUCE's editor, read-only until it is touched -- see
   // ScriptEditor for the three things a finger needs on top of it.
   _editor = std::make_unique<ScriptEditor> (_document, &_tokeniser);
+  // JUCE's editor calls itself opaque, but it is drawn transparent over the
+  // darker field. Believed, a scroll repaints only the editor and not the
+  // ground behind it -- and over the sphere that ground is the OpenGL
+  // picture, so the trajectory showed through the script.
+  _editor->setOpaque (false);
   _editor->onStartEditing = [this] {
     if (!_editing)
       {

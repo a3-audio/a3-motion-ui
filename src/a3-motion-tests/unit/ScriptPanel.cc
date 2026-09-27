@@ -55,3 +55,20 @@ TEST (ScriptPanel, AFreshPanelHasNothingUnsaved)
   ScriptPanel panel;
   EXPECT_FALSE (panel.hasUnsavedChanges ());
 }
+
+// JUCE's code editor calls itself opaque, but it is drawn transparent over
+// the panel's darker field. Believed, a scroll repainted only the editor and
+// not the ground behind it -- and over the sphere, what is behind it is the
+// OpenGL picture: the trajectory showed through the script (2026-09-27).
+TEST (ScriptPanel, TheEditorDoesNotClaimToBeOpaque)
+{
+  ScriptPanel panel;
+  auto found = false;
+  for (auto *child : panel.getChildren ())
+    if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
+      {
+        found = true;
+        EXPECT_FALSE (child->isOpaque ());
+      }
+  EXPECT_TRUE (found);
+}
