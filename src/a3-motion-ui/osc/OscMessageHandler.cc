@@ -111,9 +111,15 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
 
       if (clockMode != 0)
         {
-          _engine.setTempoBPM (bpm);
+          // Followed, not taken: an unsteady source must not run every clip
+          // at double speed for a beat (a3-motion-ui#36).
+          _engine.setTempoBPM (_externalTempo.onBeat (bpm));
           _listener.onExternalBeatSync (beat, _engine.getBeatsPerBar ());
         }
+      else
+        // On the internal clock: the next time it follows, it starts afresh
+        // rather than measuring against a tempo from before.
+        _externalTempo.reset ();
 
       return;
     }

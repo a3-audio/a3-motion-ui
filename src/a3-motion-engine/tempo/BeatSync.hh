@@ -23,34 +23,59 @@
 namespace a3
 {
 
-/** How far the engine's clock should move to sit on a beat that just arrived,
- *  in beats. Positive moves it forwards, negative holds it back.
+/** Keeps the engine's clock on the beats an external clock sends (EXT, PIO),
+ *  without ever jumping (a3-motion-ui#36).
  *
  *  In EXT and PIO the engine used to take only the *tempo* from the beats it
  *  was sent and count on by itself. Measured on 2026-09-17 against a click of
  *  known tempo, its beats then slid a whole beat against the music every
- *  twenty-odd seconds and nothing ever pulled them back: any error in the
- *  tempo, however small, adds up without bound when nothing looks at the
- *  phase.
+ *  twenty-odd seconds: any error in the tempo adds up when nothing looks at
+ *  the phase. So each arriving beat pulls the clock towards it.
  *
- *  `enginePositionInBar` is where the engine's clock stood when the beat
- *  arrived, in beats from its own downbeat (0 up to `beatsPerBar`).
- *  `arrivingBeat` is which beat of the bar the source says that was, counted
- *  from 0 -- the source's downbeat is the one a clip waiting for a downbeat
- *  has to start on.
+ *  It used to jump the whole way past a quarter beat, and an unsteady source
+ *  -- outliers up to 400 ms at 70 BPM -- made the engine jump its phase on
+ *  stray beats. Now the error is taken in two parts:
  *
- *  The error is taken the short way round the bar. Inside `beatSyncLockWindow`
- *  it is pulled in by `beatSyncGain` a beat, which is inaudible and still
- *  holds a drift of a few per cent to a fraction of a tick. Outside it the
- *  engine is on the wrong beat, and easing there would be many beats out of
- *  time, so it goes the whole way at once. Exactly half a bar goes forwards:
- *  catching up beats standing still. */
-double beatSyncShift (double enginePositionInBar, int arrivingBeat,
-                      int beatsPerBar);
+ *  - **Which beat of the bar** (the whole beats): renumbered, not moved in
+ *    time. Which beat it is changes; where playback is does not, so a clip
+ *    plays on without a burst of ticks. Only once a second beat confirms it.
+ *  - **Where in the beat** (the fraction): pulled in by `beatSyncGain`, never
+ *    by more than `beatSyncMaxStep` a beat. Past `beatSyncLockWindow` it is a
+ *    stray until the next beat confirms it, and then caught up by the same
+ *    capped steps -- never in one jump.
+ *
+ *  Taken the short way round the bar; exactly half a bar goes forwards. */
+struct BeatSyncCorrection
+{
+  /** How far to move the clock's time, in beats; positive is forwards. */
+  double timeShift = 0.0;
+  /** How many beats to add to the clock's beat number, without moving it. */
+  int beatsToAdd = 0;
+};
 
-/** Past this far off, in beats, the engine jumps instead of easing. */
+class BeatPhaseFollower
+{
+public:
+  /** `enginePositionInBar` is where the engine's clock stood when the beat
+   *  arrived, in beats from its own downbeat (0 up to `beatsPerBar`).
+   *  `arrivingBeat` is which beat of the bar the source says that was,
+   *  counted from 0. */
+  BeatSyncCorrection onBeat (double enginePositionInBar, int arrivingBeat,
+                             int beatsPerBar);
+
+private:
+  bool _farPending = false;
+  double _farFraction = 0.0;
+  bool _wholePending = false;
+  long _wholeBeats = 0;
+};
+
+/** Inside this far off, in beats, a beat is taken at once; past it, only when
+ *  the next one confirms it. */
 constexpr double beatSyncLockWindow = 0.25;
 /** The share of a small error taken out on each beat. */
 constexpr double beatSyncGain = 0.3;
+/** The most the engine's time is moved on one beat, in beats. */
+constexpr double beatSyncMaxStep = 0.08;
 
 }
