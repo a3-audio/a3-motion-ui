@@ -98,8 +98,10 @@ encoderMarkBounds (juce::Rectangle<int> bounds, ControlMetrics metrics)
   auto const cell = bounds.toFloat ();
   auto const inner = std::max (static_cast<float> (metrics.knobDiam),
                                widestKnobCaption (metrics.captionSize));
-  auto const width
-      = std::min (cell.getWidth (), inner + 2.f * theme ().paddingTight);
+  // Half a caption's height of air each side, so the widest word does not
+  // touch the frame.
+  auto const air = std::max (theme ().paddingTight, metrics.captionSize * 0.5f);
+  auto const width = std::min (cell.getWidth (), inner + 2.f * air);
   return cell.withSizeKeepingCentre (width, cell.getHeight ());
 }
 

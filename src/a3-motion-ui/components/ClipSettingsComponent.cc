@@ -1964,6 +1964,12 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
 {
   paintSectionCard (g, motionIndex, isSelected);
 
+  // One field per encoder, grounded like CLIP's and REC's keys; the knobs
+  // draw themselves on top.
+  for (auto const &field : _layout.pageFields)
+    if (!field.isEmpty ())
+      paintBarButton (g, field, {}, {}, false, false);
+
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[motionIndex];
 
