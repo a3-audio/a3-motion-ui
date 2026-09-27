@@ -1,0 +1,123 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2026 Patric Schmitz
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#pragma once
+
+#include <a3-motion-engine/RecMode.hh>
+
+#include <optional>
+#include <utility>
+#include <vector>
+
+namespace a3
+{
+
+/** The Motion and Elevation knobs a take records as lanes (REC 3c,
+ *  2026-09-26). The order is the file's and never changes: a lane is found by
+ *  its name, and the names are stored. */
+enum class Knob
+{
+  Rotate,
+  Spin,
+  Reach,
+  Swell,
+  SqueezeX,
+  StretchX,
+  SqueezeY,
+  StretchY,
+  ClipBottom,
+  ClipTop,
+  Sway,
+  Elevation,
+};
+constexpr int numKnobs = 12;
+
+/** The name a clip file stores a knob's lane under -- the knob's caption. */
+constexpr char const *
+knobName (Knob knob)
+{
+  switch (knob)
+    {
+    case Knob::Rotate: return "rot";
+    case Knob::Spin: return "spin";
+    case Knob::Reach: return "reach";
+    case Knob::Swell: return "swell";
+    case Knob::SqueezeX: return "sqzX";
+    case Knob::StretchX: return "strX";
+    case Knob::SqueezeY: return "sqzY";
+    case Knob::StretchY: return "strY";
+    case Knob::ClipBottom: return "clip-bot";
+    case Knob::ClipTop: return "clip-top";
+    case Knob::Sway: return "sway";
+    case Knob::Elevation: return "elv";
+    }
+  return "";
+}
+
+/** One knob's lane: a value per tick of the take, or nothing where no pass
+ *  wrote one. Played back as a step: between written ticks the last value
+ *  holds, round the take's end too -- a knob turned and let go stays where it
+ *  was left, as it does under the hand. */
+class KnobLane
+{
+public:
+  explicit KnobLane (long long ticks = 0);
+
+  bool empty () const;
+  long long ticks () const { return static_cast<long long> (_values.size ()); }
+
+  void write (long long tick, float value);
+
+  /** The value at a play position, in ticks; nothing on an empty lane. */
+  std::optional<float> at (double tick) const;
+
+  /** Only the ticks where the value changes, for the file: a knob held still
+   *  for a whole pass is one point, not a pass's worth. */
+  std::vector<std::pair<int, float> > changePoints () const;
+  static KnobLane fromChangePoints (std::vector<std::pair<int, float> > const &,
+                                    long long ticks);
+
+private:
+  std::vector<float> _values;
+};
+
+/** Writes one knob into its lane during a take, by the rule the path is
+ *  written by (shouldWriteTick): Touch while the hand holds it, Latch from the
+ *  touch to the end of the lap it was let go in, Write the whole pass. The
+ *  knob's value is written as it stands -- let go, it stays where it was
+ *  left, which is the held value Latch and Write carry on with.
+ *
+ *  One per knob and take: what it remembers -- whether the hand has been on
+ *  it, where it was let go -- is about this take only. */
+class KnobRecorder
+{
+public:
+  /** `ticksNow` counts from the start of the take, across laps; the lane is
+   *  written at its place in the lap. */
+  void recordTick (KnobLane &lane, RecMode mode, bool held, float value,
+                   long long ticksNow, long long lapTicks);
+
+private:
+  bool _wasHeld = false;
+  bool _hasTouched = false;
+  long long _ticksAtLift = 0;
+};
+
+}
