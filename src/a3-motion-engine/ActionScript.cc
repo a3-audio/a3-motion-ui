@@ -923,4 +923,11 @@ actionScriptNames ()
   return names;
 }
 
+ClipSettings
+resolveActionAt (juce::String const &source, ClipSettings const &base,
+                 juce::int64 seed, ActionFeel const &feel)
+{
+  return withFeel (runActionScript (source, base, seed).settings, feel);
+}
+
 }

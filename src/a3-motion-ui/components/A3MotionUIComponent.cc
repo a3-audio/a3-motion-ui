@@ -3104,9 +3104,8 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   // A seed that is new every time a script is chosen, so a script with dice
   // in it throws them again on being picked -- picking it is the gesture that
   // says "give me another one of these".
-  auto const result
-      = runActionScript (action.source, current,
-                         juce::Time::getHighResolutionTicks ());
+  action.seed = juce::Time::getHighResolutionTicks ();
+  auto const result = runActionScript (action.source, current, action.seed);
 
   action.settings = result.settings;
   action.errors = result.errors;
@@ -3134,15 +3133,22 @@ A3MotionUIComponent::shownActionButton ()
 }
 
 std::optional<ClipSettings>
-A3MotionUIComponent::firedActionOf (index_t channel, int button) const
+A3MotionUIComponent::firedActionOf (index_t channel, int button)
 {
-  if (channel >= _channelActions.size () || button < 0
-      || button >= numActionButtons)
+  if (channel >= _channelActions.size () || channel >= _accentBase.size ()
+      || button < 0 || button >= numActionButtons)
     return std::nullopt;
   auto const &action = _channelActions[channel][static_cast<size_t> (button)];
   if (!action.settings)
     return std::nullopt;
-  return withFeel (*action.settings, action.feel);
+
+  auto &base = _accentBase[channel];
+  if (!base || !_engine.isChannelAccentActive (channel))
+    {
+      auto const &pattern = _patterns[channel][0];
+      base = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+    }
+  return resolveActionAt (action.source, *base, action.seed, action.feel);
 }
 
 juce::File

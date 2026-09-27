@@ -820,6 +820,10 @@ private:
      *  set only keeps what was turned from it. */
     ActionFeel feel;
     ActionFeel scriptFeel;
+    /** The dice rolled when the button was assigned. The script is worked out
+     *  again at every press, against the clip as it stands then, and this
+     *  keeps a random action landing where it landed. */
+    juce::int64 seed = 0;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Which of a channel's six buttons the ACTION page shows and edits, and
@@ -827,9 +831,14 @@ private:
   std::array<int, numChannelsInitial> _chosenActionButton{};
   /** The button the ACTION page shows and edits. */
   ActionButton *shownActionButton ();
-  /** What a button fires: its script's settings with its own feel on, or
+  /** What a button fires: its script worked out against the clip as it
+   *  stands before any accent (resolveActionAt), with its own feel on, or
    *  nothing for a button with no action. */
-  std::optional<ClipSettings> firedActionOf (index_t channel, int button) const;
+  std::optional<ClipSettings> firedActionOf (index_t channel, int button);
+  /** The clip's settings from before the running accent, so a second press
+   *  during an accent is worked out against the clip, not against the first
+   *  action. Taken afresh whenever no accent runs. */
+  std::array<std::optional<ClipSettings>, numChannelsInitial> _accentBase;
 
   ClipFilter _clipFilter = ClipFilter::All;
   /** Which library entry each row of the browser stands for. The list is a
