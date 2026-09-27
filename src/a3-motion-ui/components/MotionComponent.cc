@@ -43,6 +43,7 @@
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/components/LineMapGeometry.hh>
 #include <a3-motion-ui/components/LineMapStrokes.hh>
+#include <a3-motion-ui/components/SphereMarks.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace
@@ -2150,10 +2151,9 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // matter which hemisphere it sits in — no depth fade.
   if (!displayData.jumpDots.empty ())
     {
-      // Three times the line, and the line is a skin value now -- so this
-      // follows it instead of being a number of its own. const, not constexpr:
-      // it is read from the theme at draw time.
-      auto const dotSize = lineThickness * 3.f;
+      // Three times the line, and never less than a dot of its own -- see
+      // jumpDotDiameter().
+      auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
@@ -2207,7 +2207,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
-      auto const dotSize = lineThickness * 3.f;
+      auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
