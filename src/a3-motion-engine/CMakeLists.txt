@@ -82,6 +82,8 @@ target_sources("a3-motion-engine" PRIVATE
     RecordingTrace.hh
     tempo/BeatSync.cc
     tempo/BeatSync.hh
+    tempo/ExternalTempo.cc
+    tempo/ExternalTempo.hh
     tempo/BeatTrace.cc
     tempo/BeatTrace.hh
     tempo/TempoClock.cc

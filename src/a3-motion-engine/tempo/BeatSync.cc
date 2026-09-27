@@ -20,16 +20,18 @@
 
 #include "BeatSync.hh"
 
+#include <algorithm>
 #include <cmath>
 
 namespace a3
 {
 
-double
-beatSyncShift (double enginePositionInBar, int arrivingBeat, int beatsPerBar)
+BeatSyncCorrection
+BeatPhaseFollower::onBeat (double enginePositionInBar, int arrivingBeat,
+                          int beatsPerBar)
 {
   if (beatsPerBar < 1)
-    return 0.0;
+    return {};
 
   auto const bar = static_cast<double> (beatsPerBar);
   auto const target = std::fmod (
@@ -42,9 +44,49 @@ beatSyncShift (double enginePositionInBar, int arrivingBeat, int beatsPerBar)
   if (ahead >= 0.5 * bar)
     ahead -= bar;
 
-  if (std::abs (ahead) > beatSyncLockWindow)
-    return -ahead;
-  return -ahead * beatSyncGain;
+  auto const whole = std::lround (ahead);
+  auto const fraction = ahead - static_cast<double> (whole);
+
+  BeatSyncCorrection correction;
+
+  // Which beat of the bar: renumbered once a second beat says the same.
+  if (whole == 0)
+    _wholePending = false;
+  else if (_wholePending && _wholeBeats == whole)
+    {
+      correction.beatsToAdd = static_cast<int> (-whole);
+      _wholePending = false;
+    }
+  else
+    {
+      _wholePending = true;
+      _wholeBeats = whole;
+    }
+
+  // Where in the beat: eased, capped, and a stray until confirmed.
+  auto const eased = [fraction] {
+    return std::clamp (-fraction * beatSyncGain, -beatSyncMaxStep,
+                       beatSyncMaxStep);
+  };
+
+  if (std::abs (fraction) <= beatSyncLockWindow)
+    {
+      _farPending = false;
+      correction.timeShift = eased ();
+    }
+  else if (_farPending
+           && std::abs (fraction - _farFraction) <= beatSyncLockWindow)
+    {
+      _farFraction = fraction;
+      correction.timeShift = eased ();
+    }
+  else
+    {
+      _farPending = true;
+      _farFraction = fraction;
+    }
+
+  return correction;
 }
 
 }

@@ -93,10 +93,10 @@ TEST (TempoClock, FirstTapResetsTheBeat)
 }
 
 
-// In EXT and PIO the clock takes its phase from the beats it is sent, not only
-// their tempo. Told mid-way through beat 0 that beat 2 is happening now, it has
-// to be on beat 2 straight away -- not a second later, and not still on beat 0
-// with the right tempo, which is what it used to do.
+// Beats from outside move the clock onto them -- the phase, not only the
+// tempo. Since a3-motion-ui#36 without a jump: a single beat on another beat
+// of the bar may be a stray, so a second one confirms it, and the clock is
+// renumbered where it stands. The next beat it plays is the one after.
 TEST (TempoClock, ABeatFromOutsideMovesTheClockOntoIt)
 {
   TempoClock tempoClock;
@@ -117,11 +117,13 @@ TEST (TempoClock, ABeatFromOutsideMovesTheClockOntoIt)
 
   juce::Thread::sleep (100);
   tempoClock.syncToBeat (2, TempoClock::monotonicNanoseconds ());
+  juce::Thread::sleep (20);
+  tempoClock.syncToBeat (2, TempoClock::monotonicNanoseconds ());
 
-  for (int i = 0; i < 50 && lastBeat.load () != 2; ++i)
+  for (int i = 0; i < 700 && lastBeat.load () == 0; ++i)
     juce::Thread::sleep (2);
 
-  EXPECT_EQ (lastBeat.load (), 2)
+  EXPECT_EQ (lastBeat.load (), 3)
       << "a beat from outside has to move the clock's phase, not only its "
          "tempo";
 

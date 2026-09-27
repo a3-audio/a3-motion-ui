@@ -364,10 +364,22 @@ private:
     auto const positionAtArrival
         = positionNow - static_cast<double> (age) / nsPerBeat;
 
-    auto const shift = a3::beatSyncShift (positionAtArrival, beat,
-                                          _tempoClock.getBeatsPerBar ());
-    _lastTick -= std::chrono::nanoseconds (
-        static_cast<std::int64_t> (std::llround (shift * nsPerBeat)));
+    // Time and beat number apart (a3-motion-ui#36): the fraction of a beat is
+    // eased by moving the next tick, capped, never a jump; being on the wrong
+    // beat of the bar is renumbered where it stands, so playback advances
+    // exactly as before and no burst of ticks catches it up.
+    auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+    auto const correction
+        = _phase.onBeat (positionAtArrival, beat, beatsPerBar);
+
+    _lastTick -= std::chrono::nanoseconds (static_cast<std::int64_t> (
+        std::llround (correction.timeShift * nsPerBeat)));
+
+    if (correction.beatsToAdd != 0 && beatsPerBar > 0)
+      _measure.beat () = ((_measure.beat () + correction.beatsToAdd)
+                              % beatsPerBar
+                          + beatsPerBar)
+                         % beatsPerBar;
   }
 
   void
@@ -477,6 +489,9 @@ private:
   ClockT::time_point _lastTick;
 
   a3::Measure _measure;
+  /** Keeps the clock on the external beats; owned by this thread, which is
+   *  the only one that reads the pending beat. */
+  a3::BeatPhaseFollower _phase;
 
   // Lock-free RT → message-thread dispatch (no heap allocs)
   static constexpr unsigned kPendingTick = 1u;
