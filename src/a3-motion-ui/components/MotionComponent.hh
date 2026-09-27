@@ -108,6 +108,9 @@ public:
                          juce::Path displayPath = {},
                          std::vector<std::pair<float,float>> jumpDots = {});
   void unsetPreviewPattern (std::shared_ptr<Pattern> pattern);
+  /** The clip the bar describes: drawn as a preview while it is not playing
+   *  (2026-09-27). Every other clip is drawn only while it plays. */
+  void setSelectedPattern (std::shared_ptr<Pattern> pattern);
 
   /** Register display data for a pattern so its trajectory can be drawn
    *  as a faint line whenever it is playing. */
@@ -239,6 +242,8 @@ private:
   // lines for currently playing patterns (separate from explicit previews).
   std::map<std::shared_ptr<Pattern>, PatternDisplayData> _patternsDisplayData;
   std::mutex _mutexDisplayData;
+  /** Guarded by _mutexDisplayData. */
+  std::shared_ptr<Pattern> _selectedPattern;
 
   juce::OpenGLContext _glContext;
 

@@ -728,29 +728,10 @@ fading the last texel, composited premultiplied "over" into a framebuffer, one p
   pass sets its viewport and restores viewport, framebuffer, buffer, program and blend state.
 - A GPU that cannot build the program says so in the log, and the trajectories then have no glow.
 
-**Each of the bar's three sections can be held**, by the lock at the right end of its title row.
-A held section is one nothing writes over: step through clips with Elevation held and every figure
-arrives in the room you are already in. It is what the shapeless presets used to do — land values and
-leave the figure alone — except decided in the moment and per section rather than baked into which
-kind of file you happened to save.
-
-**The lock belongs to the device, not to a clip.** It is a stance taken while playing and dropped
-again, so it is in neither the clip file nor the set; one that travelled with a clip would be a clip
-refusing to be what it says it is on the next machine. By section rather than by control, because
-three marks are three things a hand finds without reading.
-
-The lock's hit area is twice as wide as its mark: the padlock stays a square at the right end of the
-row, but a square the height of a title row is a target you have to aim at, and this is pressed with
-the other hand busy.
-
-`ClipLocks::heldOver()` is the one place that says which field belongs to which lock — grouped the
-way the *bar* is, not the way `ClipSettings` is, since a lock is pressed above a column of knobs.
-`reach` is Motion's to hold even though what it does is elevation, because that is the column the
-hand that pressed the lock was looking at. A test walks the shared field list and insists every field
-is claimed by exactly one lock, or deliberately by none — the ACTION page's ten, which are not one of
-the three sections. That is the test the arrangement stands on: the way this goes wrong is a field
-being added and nobody deciding which column it sits in, and then it is written over while its
-section is held with nothing to notice.
+**No section is held any more.** Each of the bar's three sections had a lock that kept its values
+when a clip was loaded. The maintainer took the locks out on 2026-09-27, when CLIP, MOTION and REC lost
+their headings (the locks stood on those). Loading a clip now lands every value it carries, and the
+figure it names. Holding a movement while stepping through clips is no longer a thing.
 
 **A clip names its shape; a shape knows nothing about clips.** A clip is the playable thing — a
 figure and every value it is played with — and `Clip::svg` names that figure by the name the library

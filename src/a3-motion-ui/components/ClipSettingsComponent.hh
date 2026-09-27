@@ -40,6 +40,9 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
+#include <a3-motion-ui/components/PatternDisplay.hh>
+#include <a3-motion-ui/components/MixerComponent.hh>
+#include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
@@ -50,6 +53,18 @@
 
 namespace a3
 {
+
+/** One channel in the elevation picture: what its clip draws there, where
+ *  its sound is, and its colour. */
+struct ElevationChannel
+{
+  ElevationFigure figure;
+  ElevationSidePoint head{};
+  bool headValid = false;
+  juce::Colour colour;
+  /** The clip the bar describes: drawn full, the others muted under it. */
+  bool selected = false;
+};
 
 /**
  * ClipSettingsComponent
@@ -167,9 +182,6 @@ public:
    *  behind it, which is a thing you can be in and worth being able to see. */
   void setClipName (juce::String const &name, bool drifted);
 
-  /** Which of the three sections is being held. A held section is one nothing
-   *  writes over -- see ClipLocks, where what that means per field lives. */
-  void setLocks (bool shape, bool elevation, bool motion);
 
 
   /** Elevation section values, shown as six small controls, always visible
@@ -199,13 +211,12 @@ public:
    *  Pushed already mapped rather than as a shape to be mapped here: the
    *  engine's own mapping is the only one that can be right, and there is
    *  exactly one of it. */
-  void setElevationFigure (std::vector<ElevationSidePoint> figure);
-
-  /** And where on that figure the sound is at this moment. `valid` is false
-   *  when the slot is not playing, and then no ball is drawn -- an empty
-   *  circle says "nothing is running" better than a ball parked somewhere
-   *  does. */
-  void setElevationHead (ElevationSidePoint head, bool valid);
+  /** The clips clipsToDraw() says (2026-09-27) -- every playing one and the
+   *  selected one -- in their channels' colours, in the order given: the
+   *  selected one last and full, the others muted under it. A shape of dots
+   *  comes as its dots. Each with the ball where its sound is, only while it
+   *  is heard. */
+  void setElevationChannels (std::vector<ElevationChannel> const &clips);
 
   /** Where the sphere above is being looked at from. The circle is a second
    *  view of the same room, kept a quarter turn from it, so it has to be told
@@ -331,23 +342,6 @@ public:
    *  has been sending all three moving; the grid was still drawing two of
    *  them still. Paired in the signature so the next value to gain one cannot
    *  be added without its partner. */
-  /** The four channels' input levels, as a dot on each channel's own face.
-   *
-   *  **Pushed in, not pulled**, from A3MotionUIComponent's timer, off the one
-   *  VuLevels the mixer's meters read. This bar has no repeating timer of its
-   *  own for it and must not grow one.
-   *
-   *  These used to be four bars in the status bar, beside five more for the
-   *  outputs. The maintainer's verdict on 2026-09-12: *"die vu-meter in der
-   *  statusleiste sind too much. das machts unuebersichtlich."* The answer
-   *  was not to drop them but to put them where the question is asked --
-   *  which channel is making sound is asked *of a channel*, and the faces
-   *  are where a hand looking for one already looks.
-   *
-   *  The repaint is clipped to the faces and happens only where a dot would
-   *  actually be drawn differently. See VuMeter.hh's vuDot for what the mark
-   *  says and what it deliberately does not. */
-  void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
 
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
@@ -385,6 +379,28 @@ public:
    *  keys: it says "show me the clip", says whose, and -- touched again on
    *  the channel already shown -- turns that channel's slot over. */
   std::function<void (index_t channel)> onChannelFaceTapped;
+  /** A hand landed on one of a face's pots: the face is chosen as by a tap, but
+   *  never turned over -- a pot is reached for to be turned, and a slot that
+   *  changed under it would be a second thing done by accident. */
+  std::function<void (index_t channel)> onChannelFaceChosen;
+  /** A face's pot turned, or tapped twice -- the same two calls the mixers
+   *  make. */
+  std::function<void (int channel, ChannelPot, float value)>
+      onChannelPotChanged;
+  std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
+  /** Where a face's meter reads its channel. Asked at paint time. */
+  std::function<VuLevel (int channel)> channelLevel;
+
+  /** Where the engine holds a channel's 3D, FREQ and Q, and where their
+   *  envelopes carry them -- drawn on the face's pots as the mixers draw
+   *  theirs. */
+  void setChannelPots (int channel, ChannelPotValues const &values);
+  /** How far each channel's clip has got, left to right, as the face's
+   *  progress bar; negative where nothing plays. They were four marks on the
+   *  tick indicator until 2026-09-27. */
+  void setChannelProgress (std::array<float, numChannelColumns> const &progress);
+  /** The faces' meters, and nothing else. Called at the meters' pace. */
+  void repaintChannelMeters ();
   std::function<void (index_t slot)> onSlotSelected;
   std::function<void (TransportKey key)> onTransportTapped;
   /** Whether `component` is this transport key, or lies inside it. Asked by
@@ -419,8 +435,6 @@ public:
 
   /** A control was tapped: select its section and sub-element in one go —
    *  what the encoders reach by scrolling and pressing. */
-  /** The lock above a section was pressed. */
-  std::function<void (int section)> onLockToggled;
   std::function<void (int section, int sub)> onControlTapped;
   /** A finger came down on a knob, or came up off it -- a hand on the knob
    *  is what a take records and what wins over a lane. */
@@ -554,17 +568,12 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
-  void paintChannelFaceDot (juce::Graphics &g, juce::Rectangle<int> face,
-                            VuDot const &dot);
   /** A block of controls set off from the card it stands on -- the strip's
    *  knobs, its transport, the header's four faces. One painter rather than
    *  three, so a group anywhere in the bar reads as the same kind of group. */
   void paintSetOffFrame (juce::Graphics &g, juce::Rectangle<int> bounds);
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);
-  /** The padlock over a section: shut when the section is held, open and
-   *  quiet when it is not. */
-  void paintSectionLock (juce::Graphics &g, int sectionIndex);
 
 
   /** Largest size for `role` at which `text` still fits inside `area`. */
@@ -654,13 +663,10 @@ private:
   juce::String _trajectoryName{ "Empty" };
   juce::String _clipName;
   bool _clipDrifted = false;
-  std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
-  std::vector<ElevationSidePoint> _elevationFigure;
-  ElevationSidePoint _elevationHead{};
+  std::vector<ElevationChannel> _elevationChannels;
   SphereCamera _sphereCamera{};
-  bool _elevationHeadValid = false;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
   float _elevationClipBottom = 0.0f;
@@ -719,11 +725,6 @@ private:
    *  controls sit in front of them — a tap on a knob must not be caught by
    *  the card it lies on. */
   std::array<std::unique_ptr<TouchControl>, numParameters> _sectionTouch;
-  /** Over the Elevation section's sphere graphic, in front of that
-   *  section's card, with no callbacks at all: the graphic is a picture of
-   *  what the controls below it do, and touching a picture should do
-   *  nothing. Without it the card underneath would answer. */
-  std::array<std::unique_ptr<TouchControl>, numClipSections> _lockTouch;
   /** The four transport keys in the header. Their look follows the same rule
    *  as the global strip's function keys: a key that is doing something is
    *  coloured, and one that is not is not. */
@@ -731,13 +732,18 @@ private:
   std::array<bool, numPadSlots> _slotDrifted{};
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numChannelColumns> _faceTouch;
+  /** In every face: its channel's meter, then its 3D, FREQ and Q. */
+  std::array<std::unique_ptr<VuMeterView>, numChannelColumns> _faceMeter;
+  std::array<std::array<std::unique_ptr<PotKnob>, numChannelPots>,
+             numChannelColumns>
+      _facePots;
 
   /** Which channel each face stands for, which slot its toggle shows, and
    *  the colour it wears. Fed from the bar's owner, which is the one place
    *  that knows all four. */
   std::array<juce::Colour, numChannelColumns> _channelFaceColours;
   std::array<int, numChannelColumns> _channelFaceSlots{};
-  std::array<VuDot, numChannelColumns> _channelFaceDots{};
+  std::array<float, numChannelColumns> _channelProgress{ -1.f, -1.f, -1.f, -1.f };
   int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;

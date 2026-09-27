@@ -60,18 +60,26 @@ constexpr float defaultPotSize = 0.9f;
 juce::Rectangle<int>
 grownBar (float headerSize, float bodySize, float potSize)
 {
+  auto const knobDiam = knobDiameterForFont (bodySize, potSize);
   return { 0, 0, panelWidth,
-           clipSettingsPreferredHeight (
-               headerSize, bodySize, knobDiameterForFont (bodySize, potSize)) };
+           clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+               + channelRowHeight (knobDiam, panelWidth) };
 }
 
-/** The header's keys in the order they stand, left to right (2026-09-26):
- *  CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS. */
+/** The header's keys in the order they stand, left to right (2026-09-27):
+ *  CLIP MOTION ACTION CHMIX REC. FILES, MAINMIX and PADS went up into the
+ *  global strip. */
 std::vector<juce::Rectangle<int> >
 headerKeys (ClipSettingsLayout const &l)
 {
-  return { l.tabClip,  l.tabMotion,  l.tabAction, l.tabBrowser,
-           l.tabMixer, l.tabMainMix, l.tabRecord, l.tabController };
+  return { l.tabClip, l.tabMotion, l.tabAction, l.tabMixer, l.tabRecord };
+}
+
+/** The global strip's keys, left to right: FILES MAINMIX PADS. */
+std::vector<juce::Rectangle<int> >
+globalKeys (ClipSettingsLayout const &l)
+{
+  return { l.tabBrowser, l.tabMainMix, l.tabController };
 }
 
 ClipSettingsLayout
@@ -150,13 +158,21 @@ TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
 // and Motion both start in the left column, on CLIP and MOTION.
 TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
 {
-  auto const l = defaultLayout ();
-  auto const &c = l.sectionCards;
+  auto const bar
+      = grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize);
+  auto const on = [&bar] (BarPage page) {
+    return layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                               defaultPotSize, page);
+  };
+  auto const clip = on (BarPage::Clip);
+  auto const motion = on (BarPage::Motion);
+  auto const rec = on (BarPage::Record);
 
   std::vector<std::vector<juce::Rectangle<int> > > const pages{
-    { c[0], l.playCard, l.lengthCard, c[3] }, // CLIP
-    { c[2], c[1], c[3] },                     // MOTION
-    { c[0], l.recordCard, l.lengthCard, c[3] }, // REC
+    { clip.sectionCards[0], clip.playCard, clip.lengthCard,
+      clip.sectionCards[3] },
+    { motion.sectionCards[2], motion.sectionCards[3] },
+    { rec.sectionCards[0], rec.sectionCards[3] },
   };
 
   for (size_t page = 0; page < pages.size (); ++page)
@@ -246,43 +262,6 @@ TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
       }
 }
 
-// A frame that eats more than a tenth of a section's width is a border zone
-// again. At the device's width the three clip sections are a sixth each, and
-// what they lose to their own inset they lose from four-value rows.
-// Each of the three sections carries a lock at the right end of its title
-// row: a square the size of the row, so it is hit without aiming while the
-// other hand is busy, and inside its own card so it belongs to the section it
-// holds rather than floating between two.
-TEST (ClipSettingsLayout, EachSectionCarriesALockOnItsTitleRow)
-{
-  for (int height : { 200, 314, 460 })
-    {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
-
-      for (int section = 0; section < 3; ++section)
-        {
-          auto const s = static_cast<size_t> (section);
-          auto const lock = l.sectionLocks[s];
-
-          ASSERT_FALSE (lock.isEmpty ()) << "section " << section;
-          EXPECT_TRUE (l.sectionCards[s].contains (lock))
-              << "section " << section;
-
-          // Square, and out of the title row -- not out of the controls.
-          EXPECT_EQ (lock.getWidth (), lock.getHeight ()) << section;
-          EXPECT_FALSE (lock.intersects (l.sectionLabels[s]))
-              << "the lock and the word would be drawn over each other, "
-              << "section " << section;
-
-          for (auto const &cell : l.controls[s])
-            EXPECT_FALSE (lock.intersects (cell))
-                << "the lock covers a control of section " << section;
-        }
-
-      // The global strip is the device's and holds no clip, so it has none.
-      EXPECT_TRUE (l.sectionLocks[3].isEmpty ());
-    }
-}
 
 TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
 {
@@ -298,8 +277,8 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// The header row is CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS, in that
-// order.
+// The header row is CLIP MOTION ACTION CHMIX REC, in that order (2026-09-27;
+// FILES, MAINMIX and PADS lead the global strip since).
 // MAINMIX came down from the status bar on 2026-09-26: the big mixer is
 // opened from where the channel's own strip is. The channel
 // faces that led it went up into the global strip on 2026-09-26, where the
@@ -381,8 +360,7 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
   EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
 
   EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
-  EXPECT_GE (l.clipContent.getY (), l.tabBrowser.getBottom ());
-  EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabRecord.getBottom ());
 
   // And it is what the sections are laid out in, so the two cannot drift.
   for (int section = 0; section < numClipSettingsSections - 1; ++section)
@@ -600,8 +578,8 @@ TEST (ClipSettingsLayout, TwoKeysCarryingOneSpeedBothLight)
   EXPECT_FALSE (speedKeyIsActive (keys, 2, -3, 1));
 }
 
-// The four length keys stand two by two in the CLIP page's right column, in
-// reading order.
+// The four length keys stand two by two, in reading order -- in CLIP's
+// fields since 2026-09-27, in REC's right card for now.
 TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 {
   auto const l = defaultLayout ();
@@ -609,7 +587,7 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 
   for (auto const &key : k)
     {
-      EXPECT_TRUE (l.lengthCard.contains (key));
+      EXPECT_TRUE (l.clipContent.contains (key));
       EXPECT_GE (key.getHeight (), fingertipSize);
     }
 
@@ -747,27 +725,6 @@ TEST (ClipSettingsLayout, TheClipFieldStandsOverThePicture)
     }
 }
 
-TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
-{
-  // Guards the reason for the change rather than its mechanics. Not stated as
-  // a fraction of the card: twelve speed buttons in three rows leave the clip
-  // face less than a third, and a test demanding one would be demanding the
-  // buttons go away. What has to hold is that the picture outranks every
-  // single thing around it -- which is exactly what failed when it was a strip
-  // sharing its box with the name.
-  for (auto const page : { BarPage::Clip })
-    {
-      auto const layout
-          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
-      auto const face = page == BarPage::Clip ? "clip face" : "record face";
-
-      EXPECT_GT (layout.trajectoryIcon.getHeight (), layout.buttonHeight)
-          << face;
-      EXPECT_GT (layout.trajectoryIcon.getHeight (),
-                 layout.controls[0][1].getHeight ())
-          << face;
-    }
-}
 
 // ── The header keys are the pads, reached another way ────────────────────
 
@@ -868,6 +825,13 @@ TEST (ClipSettingsLayout, TheDriftMarkIsAFootnoteNotTheContent)
       << "it has taken over the control";
 }
 
+// And it stays a dot on a big field: CLIP's fields are a quarter of the bar
+// wide since 2026-09-27, and a fifth of that was a coin, not a footnote.
+TEST (ClipSettingsLayout, TheDriftMarkStaysSmallOnABigField)
+{
+  EXPECT_LE (driftMark ({ 0, 0, 200, 130 }).getWidth (), fingertipSize / 3);
+}
+
 TEST (ClipSettingsLayout, NothingToMarkMeansNoMark)
 {
   EXPECT_TRUE (driftMark ({}).isEmpty ());
@@ -895,32 +859,19 @@ TEST (ClipSettingsLayout, TheGlobalCardReachesOverTheTransportKeys)
 // keys with words on them -- and the row it took is a row the grid wanted.
 TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
 {
-  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f);
+  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f,
+                                     BarPage::Motion);
 
   EXPECT_TRUE (l.sectionLabels[3].isEmpty ())
       << "the global strip still spends a row saying what it is";
 
-  // The three clip sections keep theirs: those do need naming.
-  for (size_t i = 0; i < 3; ++i)
-    EXPECT_FALSE (l.sectionLabels[i].isEmpty ()) << "section " << i;
+  // CLIP and MOTION lost theirs on 2026-09-27 -- see
+  // TheClipPageHasNoHeadings and TheMotionPageIsOneAreaInTheEncodersRows.
 }
 
 
 // ── The sections after the reshuffle ─────────────────────────────────────
 
-// The MOTION page (2026-09-26): Motion across the two left columns, Elevation
-// in the right one.
-TEST (ClipSettingsLayout, TheMotionPageHasMotionThenElevation)
-{
-  auto const l = defaultLayout ();
-
-  EXPECT_EQ (l.sectionCards[2].getX (), l.sectionCards[0].getX ())
-      << "Motion does not start at the left";
-  EXPECT_GT (l.sectionCards[2].getWidth (), l.sectionCards[1].getWidth ())
-      << "Motion is the wider of the two";
-  EXPECT_LE (l.sectionCards[2].getRight (), l.sectionCards[1].getX ());
-  EXPECT_EQ (l.sectionCards[1].getRight (), l.lengthCard.getRight ());
-}
 // ── What the reshuffle replaced ──────────────────────────────────────────
 //
 // Five cases held the old arrangement: Shape's knob column, its knob between
@@ -1094,9 +1045,9 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
 // ── The header row after the channel keys ────────────────────────────────
 
 // Four channel faces, each in its channel's colour with its slot number in
-// it. Touching a face is "show me this channel's clip". They stand at the top
-// of the global strip since 2026-09-26, where the 4x3 grid was.
-TEST (ClipSettingsLayout, TheGlobalStripCarriesAFaceForEveryChannel)
+// it. Touching a face is "show me this channel's clip". Since 2026-09-27 they
+// stand in a row of their own across the whole bar, over the sphere's edge.
+TEST (ClipSettingsLayout, TheChannelRowCarriesAFaceForEveryChannel)
 {
   for (int width : { 768, 1024, 1280 })
     {
@@ -1105,7 +1056,7 @@ TEST (ClipSettingsLayout, TheGlobalStripCarriesAFaceForEveryChannel)
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
-          EXPECT_TRUE (l.sectionCards[3].contains (l.channelFaces[ch]))
+          EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
               << "face " << ch << " at width " << width;
 
           // A fingertip in both directions: hit mid-set, one-handed, and the
@@ -1156,45 +1107,118 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
       << "the shared slot keys moved into the channel faces";
 }
 
-// The four faces stand together in a frame of their own in the global strip,
-// under the elevation picture and over the transport: first whose clip, then
-// what to do to it.
-TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameUnderThePicture)
+// The faces left the global strip on 2026-09-27 for a row of their own:
+// across the whole bar, above the tabs and the global strip alike, between
+// the settings and the sphere. As tall as their frame was.
+TEST (ClipSettingsLayout, TheChannelRowSpansTheBarAboveEverything)
 {
   for (int width : { 768, 1024, 1280 })
     {
-      auto const l
-          = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+      juce::Rectangle<int> const bounds{ 0, 0, width, 300 };
+      auto const l = layOutClipSettings (bounds, 14.f, 12.f, 1.f);
+      auto const &row = l.channelFacesFrame;
 
-      ASSERT_FALSE (l.channelFacesFrame.isEmpty ()) << "width " << width;
+      ASSERT_FALSE (row.isEmpty ()) << "width " << width;
+      EXPECT_EQ (row.getX (), bounds.getX ()) << "width " << width;
+      EXPECT_EQ (row.getWidth (), bounds.getWidth ()) << "width " << width;
+      EXPECT_EQ (row.getY (), bounds.getY ()) << "width " << width;
+      EXPECT_GE (row.getHeight (), fingertipSize) << "width " << width;
+
+      EXPECT_LE (row.getBottom (), l.clipBounds.getY ()) << "width " << width;
+      EXPECT_LE (row.getBottom (), l.globalBounds.getY ())
+          << "width " << width;
+      EXPECT_FALSE (row.intersects (l.globalContent)) << "width " << width;
 
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
-        EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
-            << "face " << ch << " at width " << width;
-
-      EXPECT_TRUE (l.globalContent.contains (l.channelFacesFrame))
-          << "width " << width;
-      EXPECT_GE (l.channelFacesFrame.getY (), l.elevationGraphic.getBottom ())
-          << "width " << width;
-      EXPECT_LE (l.channelFacesFrame.getBottom (), l.transportFrame.getY ())
-          << "width " << width;
+        EXPECT_GT (l.channelFaces[ch].getWidth (), width / 8)
+            << "a quarter of the row each, less the gaps; face " << ch;
     }
 }
 
-// PADS closes the row, after the two mixers.
-TEST (ClipSettingsLayout, PadsCloseTheRow)
+// Left to right in every face: the channel's meter, its 3D, FREQ and Q side
+// by side, and the rest a bar the clip's progress fills, as a clip slot
+// shows it in a DAW. The whole face selects the clip.
+TEST (ClipSettingsLayout, EachFaceCarriesItsMeterPotsAndProgress)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_FALSE (l.tabController.isEmpty ());
-  for (auto const &key : headerKeys (l))
-    EXPECT_LE (key.getX (), l.tabController.getX ());
-  EXPECT_TRUE (l.clipBounds.contains (l.tabController));
+  for (size_t ch = 0; ch < numChannelColumns; ++ch)
+    {
+      auto const &face = l.channelFaces[ch];
+      auto const &meter = l.channelFaceMeters[ch];
+      auto const &pots = l.channelFacePots[ch];
+      auto const &progress = l.channelFaceProgress[ch];
+
+      ASSERT_FALSE (meter.isEmpty ()) << "channel " << ch;
+      EXPECT_TRUE (face.contains (meter)) << "channel " << ch;
+      EXPECT_LT (meter.getX () - face.getX (), face.getWidth () / 8)
+          << "the meter stands at the left";
+      EXPECT_GT (meter.getHeight (), meter.getWidth ())
+          << "a channel's meter stands up";
+
+      auto left = meter.getRight ();
+      for (size_t p = 0; p < pots.size (); ++p)
+        {
+          ASSERT_FALSE (pots[p].isEmpty ()) << "channel " << ch << " pot " << p;
+          EXPECT_TRUE (face.contains (pots[p])) << "channel " << ch;
+          EXPECT_GE (pots[p].getX (), left) << "channel " << ch << " pot " << p;
+          EXPECT_LE (pots[p].getX () - left, juce::jmax (4, face.getHeight () / 8))
+              << "each pot right beside what stands before it";
+          EXPECT_EQ (pots[p].getWidth (), pots[0].getWidth ());
+          left = pots[p].getRight ();
+        }
+
+      ASSERT_FALSE (progress.isEmpty ()) << "channel " << ch;
+      EXPECT_TRUE (face.contains (progress)) << "channel " << ch;
+      EXPECT_GE (progress.getX (), left) << "the bar after the pots";
+      EXPECT_GE (progress.getRight (), face.getRight () - face.getHeight () / 4)
+          << "the bar fills the rest of the face";
+    }
 }
 
+TEST (ClipSettingsLayout, AProgressBarFillsFromTheLeft)
+{
+  juce::Rectangle<int> const bar{ 10, 5, 100, 20 };
 
-// Every channel has a face of its own, on every page: the global strip
-// stands on all of them.
+  EXPECT_TRUE (progressFill (bar, -1.f).isEmpty ()) << "not playing";
+  EXPECT_EQ (progressFill (bar, 0.25f), (juce::Rectangle<int>{ 10, 5, 25, 20 }));
+  EXPECT_EQ (progressFill (bar, 1.f), bar);
+  EXPECT_EQ (progressFill (bar, 2.f), bar);
+}
+
+// FILES, MAINMIX and PADS lead the global strip (2026-09-27): a row of keys
+// level with the clip's own tabs and as tall, over the elevation picture.
+// They leave the clip, where the tabs are views of it.
+TEST (ClipSettingsLayout, FilesMainmixAndPadsLeadTheGlobalStrip)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l = layOutClipSettings (
+          { 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+      auto const keys = globalKeys (l);
+
+      int previousRight = l.globalBounds.getX ();
+      for (size_t i = 0; i < keys.size (); ++i)
+        {
+          ASSERT_FALSE (keys[i].isEmpty ()) << "key " << i;
+          EXPECT_TRUE (l.globalBounds.contains (keys[i])) << "key " << i;
+          EXPECT_FALSE (l.clipBounds.intersects (keys[i])) << "key " << i;
+          EXPECT_GE (keys[i].getX (), previousRight) << "key " << i;
+          previousRight = keys[i].getRight ();
+
+          EXPECT_EQ (keys[i].getY (), l.tabClip.getY ()) << "key " << i;
+          EXPECT_EQ (keys[i].getHeight (), l.tabClip.getHeight ())
+              << "key " << i;
+          EXPECT_GE (keys[i].getWidth (), fingertipSize)
+              << "key " << i << " at width " << width;
+          EXPECT_LE (keys[i].getBottom (), l.elevationFrame.getY ())
+              << "key " << i;
+        }
+    }
+}
+
+// Every channel has a face of its own, on every page: the row stands on all
+// of them.
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
   for (auto const page : { BarPage::Clip, BarPage::Controller,
@@ -1206,7 +1230,7 @@ TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "channel " << ch;
-          EXPECT_TRUE (l.globalBounds.contains (l.channelFaces[ch]))
+          EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
               << "channel " << ch;
         }
     }
@@ -1468,43 +1492,7 @@ TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
 
 // ── The REC page (2026-09-26) ─────────────────────────────────────────────
 
-// REC is the take being set up (2026-09-26): Shape on the left, the Record
-// card -- rec mode, fade, bias -- in the middle, and the four lengths on the
-// right, where they stand on CLIP too, since the lit one is the take's length.
-TEST (ClipSettingsLayout, TheRecordCardTakesTheMiddleColumn)
-{
-  auto const l = defaultLayout ();
 
-  ASSERT_FALSE (l.recordCard.isEmpty ());
-  EXPECT_EQ (l.recordCard, l.playCard);
-  EXPECT_FALSE (l.recordCard.intersects (l.lengthCard));
-  EXPECT_FALSE (l.recordLabel.isEmpty ());
-  EXPECT_TRUE (l.recordCard.contains (l.recordLabel));
-
-  EXPECT_TRUE (lengthKeysStandOn (BarPage::Clip));
-  EXPECT_TRUE (lengthKeysStandOn (BarPage::Record));
-  EXPECT_FALSE (lengthKeysStandOn (BarPage::Motion));
-}
-
-TEST (ClipSettingsLayout, FadeAndBiasStandUnderTheRecModeInTheRecordCard)
-{
-  auto const l = defaultLayout ();
-  auto const fade = l.controls[2][8];
-  auto const bias = l.controls[2][9];
-
-  EXPECT_TRUE (l.recordCard.contains (l.recModeButton));
-  EXPECT_GE (l.recModeButton.getHeight (), fingertipSize);
-
-  for (auto const &knob : { fade, bias })
-    {
-      EXPECT_TRUE (l.recordCard.contains (knob));
-      EXPECT_GE (knob.getY (), l.recModeButton.getBottom ());
-      EXPECT_GE (knob.getHeight (), l.metrics.knobDiam);
-    }
-
-  EXPECT_EQ (fade.getY (), bias.getY ());
-  EXPECT_LE (fade.getRight (), bias.getX ());
-}
 
 // Motion keeps its first eight in its own card, on the MOTION page.
 TEST (ClipSettingsLayout, MotionKeepsEightKnobsOnTheMotionPage)
@@ -1561,9 +1549,9 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
 
 
 // The elevation picture stands at the top of the global strip since
-// 2026-09-26, over the channel faces -- on every page, since the strip is --
-// in a grey frame of its own like the faces and the transport. The Elevation
-// card keeps its four knobs and nothing else.
+// 2026-09-26, over the transport since the faces left on 2026-09-27 -- on
+// every page, since the strip is -- in a grey frame of its own like the
+// transport. The Elevation card keeps its four knobs and nothing else.
 TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
 {
   auto const l = defaultLayout ();
@@ -1571,10 +1559,13 @@ TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
   ASSERT_FALSE (l.elevationFrame.isEmpty ());
   EXPECT_EQ (l.elevationFrame.getY (), l.globalContent.getY ());
   EXPECT_TRUE (l.globalContent.contains (l.elevationFrame));
+  EXPECT_GE (l.elevationFrame.getY (), l.tabController.getBottom ())
+      << "under FILES, MAINMIX and PADS";
   EXPECT_TRUE (l.elevationFrame.contains (l.elevationGraphic));
   EXPECT_LT (l.elevationGraphic.getWidth (), l.elevationFrame.getWidth ())
       << "the picture stands inside its frame, not on its edge";
-  EXPECT_LE (l.elevationFrame.getBottom (), l.channelFacesFrame.getY ());
+  EXPECT_LE (l.elevationFrame.getBottom (), l.transportFrame.getY ());
+  EXPECT_GE (l.elevationFrame.getY (), l.channelFacesFrame.getBottom ());
   EXPECT_FALSE (l.sectionCards[1].intersects (l.elevationFrame));
 
   // Big enough to read a line off: a circle across most of the strip.
@@ -1600,39 +1591,189 @@ TEST (ClipSettingsLayout, ACameraMarkSitsInThePicturesCorner)
 
 // ── CLIP and MOTION (2026-09-26) ─────────────────────────────────────────
 
-// CLIP is three columns: the Shape card (picker, picture), the card with dir
-// and end, the card with the four lengths.
-TEST (ClipSettingsLayout, TheClipPageIsThreeColumns)
-{
-  auto const l = defaultLayout ();
-  auto const &shape = l.sectionCards[0];
 
-  ASSERT_FALSE (l.playCard.isEmpty ());
-  ASSERT_FALSE (l.lengthCard.isEmpty ());
-  EXPECT_LE (shape.getRight (), l.playCard.getX ());
-  EXPECT_LE (l.playCard.getRight (), l.lengthCard.getX ());
-  for (auto const &card : { l.playCard, l.lengthCard })
+
+// ── CLIP as one area of eight fields (2026-09-27) ──────────────────────────
+
+// One area, no headings, eight fields of one size in the encoders' four by
+// two: clip, dir, two lengths over the shape, end, two lengths.
+TEST (ClipSettingsLayout, TheClipPageIsEightEqualFields)
+{
+  for (int width : { 768, 1024, 1280 })
     {
-      EXPECT_EQ (card.getY (), shape.getY ());
-      EXPECT_EQ (card.getHeight (), shape.getHeight ());
-      EXPECT_TRUE (l.clipContent.contains (card));
+      auto const l = layOutClipSettings (grownBar (defaultHeaderSize,
+                                                   defaultBodySize,
+                                                   defaultPotSize)
+                                             .withWidth (width),
+                                         defaultHeaderSize, defaultBodySize,
+                                         defaultPotSize, BarPage::Clip);
+      auto const &f = l.pageFields;
+
+      std::array<juce::Rectangle<int>, 8> const expected{
+        l.clipField,         l.directionButton,  l.speedButtons[0],
+        l.speedButtons[1],   l.trajectoryIcon,   l.endActionButton,
+        l.speedButtons[2],   l.speedButtons[3],
+      };
+
+      for (size_t i = 0; i < f.size (); ++i)
+        {
+          ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+          EXPECT_TRUE (l.clipContent.contains (f[i])) << "field " << i;
+          EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1)
+              << "field " << i << " at width " << width;
+          EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1)
+              << "field " << i << " at width " << width;
+          EXPECT_EQ (expected[i], f[i]) << "field " << i;
+          for (size_t j = 0; j < i; ++j)
+            EXPECT_FALSE (f[i].intersects (f[j])) << i << " and " << j;
+        }
+
+      // Four across, two down, in reading order.
+      for (size_t col = 1; col < 4; ++col)
+        {
+          EXPECT_GT (f[col].getX (), f[col - 1].getX ());
+          EXPECT_EQ (f[col].getY (), f[0].getY ());
+          EXPECT_EQ (f[col + 4].getX (), f[col].getX ());
+        }
+      EXPECT_GT (f[4].getY (), f[0].getBottom () - 1);
     }
 }
 
-// dir over end in CLIP's middle card, each one field that steps on a tap --
-// as they did before the pages were rebuilt (the maintainer wanted them back
-// as toggles, 2026-09-26) -- a fingertip tall and the card's width.
-TEST (ClipSettingsLayout, DirAndEndAreTwoFieldsInTheMiddle)
+TEST (ClipSettingsLayout, TheClipPageHasNoHeadings)
 {
   auto const l = defaultLayout ();
 
-  for (auto const &field : { l.directionButton, l.endActionButton })
+  EXPECT_TRUE (l.sectionLabels[0].isEmpty ());
+  EXPECT_TRUE (l.playLabel.isEmpty ());
+  EXPECT_TRUE (l.lengthLabel.isEmpty ());
+  EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
+}
+
+
+// ── MOTION as one area in the encoders' rows (2026-09-27) ──────────────────
+
+namespace
+{
+ClipSettingsLayout
+motionPage (int width = panelWidth)
+{
+  return layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize)
+          .withWidth (width),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Motion);
+}
+}
+
+// One area, no headings. Left to right, row by row, as the maintainer set it:
+// spin swell strX strY / rot reach sqzX sqzY / sway clip-top / elv clip-bottom.
+// The top encoder row turns row one or -- a click -- row two; the bottom one
+// row three or row four.
+TEST (ClipSettingsLayout, TheMotionPageIsOneAreaInTheEncodersRows)
+{
+  for (int width : { 768, 1024, 1280 })
     {
-      EXPECT_TRUE (l.playCard.contains (field));
-      EXPECT_GE (field.getHeight (), fingertipSize);
-      EXPECT_GE (field.getWidth (), l.playCard.getWidth () / 2);
+      auto const l = motionPage (width);
+      auto const &m = l.controls[2];
+      auto const &e = l.controls[1];
+
+      EXPECT_TRUE (l.sectionLabels[1].isEmpty ());
+      EXPECT_TRUE (l.sectionLabels[2].isEmpty ());
+      EXPECT_EQ (l.sectionCards[2], l.clipContent) << "one area";
+      EXPECT_EQ (l.sectionCards[1], l.clipContent) << "one area";
+
+      // Motion: 0 rot 1 spin 2 reach 3 swell 4 sqzX 5 strX 6 sqzY 7 strY.
+      // Elevation: 0 clip-bot 1 clip-top 2 sway 3 elv.
+      std::vector<std::vector<juce::Rectangle<int> > > const rows{
+        { m[1], m[3], m[5], m[7] },
+        { m[0], m[2], m[4], m[6] },
+        { e[2], e[1] },
+        { e[3], e[0] },
+      };
+
+      for (size_t r = 0; r < rows.size (); ++r)
+        for (size_t c = 0; c < rows[r].size (); ++c)
+          {
+            auto const &cell = rows[r][c];
+            ASSERT_FALSE (cell.isEmpty ()) << "row " << r << " col " << c;
+            EXPECT_TRUE (l.clipContent.contains (cell))
+                << "row " << r << " col " << c;
+            EXPECT_EQ (cell.getY (), rows[r][0].getY ())
+                << "row " << r << " col " << c;
+            EXPECT_EQ (cell.getX (), rows[0][c].getX ())
+                << "row " << r << " col " << c << " at width " << width;
+            if (r > 0)
+              EXPECT_GE (cell.getY (), rows[r - 1][0].getBottom ())
+                  << "row " << r;
+          }
     }
-  EXPECT_LE (l.directionButton.getBottom (), l.endActionButton.getY ());
-  EXPECT_TRUE (tapAdvancesValue (0, 2));
-  EXPECT_TRUE (tapAdvancesValue (0, 3));
+}
+
+
+// ── REC as one area of eight fields (2026-09-27) ───────────────────────────
+
+// Like CLIP, with the take's settings where CLIP has dir and end: clip,
+// recmode and two lengths over the shape, fade|bias and the other two. Fade
+// and bias share a field -- one encoder, a click between them.
+TEST (ClipSettingsLayout, TheRecPageIsEightEqualFields)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l = layOutClipSettings (grownBar (defaultHeaderSize,
+                                                   defaultBodySize,
+                                                   defaultPotSize)
+                                             .withWidth (width),
+                                         defaultHeaderSize, defaultBodySize,
+                                         defaultPotSize, BarPage::Record);
+      auto const &f = l.pageFields;
+      auto const fade = l.controls[2][8];
+      auto const bias = l.controls[2][9];
+
+      std::array<juce::Rectangle<int>, 8> const expected{
+        l.clipField,       l.recModeButton,   l.speedButtons[0],
+        l.speedButtons[1], l.trajectoryIcon,  f[5],
+        l.speedButtons[2], l.speedButtons[3],
+      };
+      for (size_t i = 0; i < f.size (); ++i)
+        {
+          ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+          EXPECT_EQ (expected[i], f[i]) << "field " << i;
+          EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1);
+          EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1);
+        }
+
+      EXPECT_TRUE (f[5].contains (fade)) << "width " << width;
+      EXPECT_TRUE (f[5].contains (bias)) << "width " << width;
+      EXPECT_LE (fade.getRight (), bias.getX ()) << "fade, then bias";
+    }
+
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Clip));
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Record));
+  EXPECT_FALSE (lengthKeysStandOn (BarPage::Motion));
+}
+
+TEST (ClipSettingsLayout, TheRecPageHasNoHeadings)
+{
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
+
+  EXPECT_TRUE (l.sectionLabels[0].isEmpty ());
+  EXPECT_TRUE (l.recordLabel.isEmpty ());
+  EXPECT_TRUE (l.lengthLabel.isEmpty ());
+  EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
+}
+
+// The picture in CLIP's and REC's shape field keeps off the field's edge: it
+// sat against it, and dots drawn on the edge read as cut off (2026-09-27).
+TEST (ClipSettingsLayout, TheShapePictureKeepsOffTheFieldsEdge)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const area = shapeFieldIconArea (field);
+
+  ASSERT_FALSE (area.isEmpty ());
+  EXPECT_TRUE (field.contains (area));
+  EXPECT_EQ (area.getWidth (), area.getHeight ()) << "a square";
+  EXPECT_EQ (area.getCentre (), field.getCentre ());
+  EXPECT_LE (area.getWidth (), field.getHeight () * 3 / 4)
+      << "a quarter of the shorter side left as margin";
 }

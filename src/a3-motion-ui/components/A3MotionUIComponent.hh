@@ -33,7 +33,6 @@
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/MotionEngine.hh>
-#include <a3-motion-engine/ClipLocks.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
@@ -46,6 +45,7 @@
 #include <a3-motion-ui/PendingTakes.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/EncoderMap.hh>
 #include <a3-motion-ui/components/KnobHold.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
@@ -462,17 +462,12 @@ private:
 
   void updatePadRowLabel (index_t channel, index_t slot);
   void setPreviewWithDisplayData (std::shared_ptr<Pattern> const &pattern);
-  /** Register display data with MotionComponent for playing-trajectory rendering. */
-  void registerPatternDisplayData (std::shared_ptr<Pattern> const &pattern);
-
-  /** Rebuild a pattern's drawn trajectory from its own ticks.
-   *
-   *  registerPatternDisplayData() takes the shape from the library's file,
-   *  which is right while the pattern is what the file says. Once the fade has
-   *  rewritten the ticks, the file is a picture of what the clip used to be:
-   *  the blob follows the new ending and the line still shows the old one. */
-  void refreshPatternDisplayFromTicks (
-      std::shared_ptr<Pattern> const &pattern);
+  /** What the sphere draws of a pattern, given to MotionComponent: its dots
+   *  for a shape made of dots, the line its ticks run on otherwise -- see
+   *  patternDisplayFor(). The one route for registering and for refreshing
+   *  after a value was turned; there were two, and the refresh knew nothing
+   *  of dots. */
+  void refreshPatternDisplay (std::shared_ptr<Pattern> const &pattern);
   int trajectoryNameToIndex (std::string const &name) const;
   std::shared_ptr<Pattern> createPatternForIndex (int index, index_t channel);
   void saveRecordedPattern (std::shared_ptr<Pattern> const &pattern,
@@ -790,10 +785,6 @@ private:
     juce::StringArray errors;
   };
   std::vector<std::vector<SlotAction> > _slotAction;
-  /** Which of the bar's three sections is being held. The device's, not a
-   *  clip's: a stance taken while playing and dropped again, so it is in
-   *  neither the clip file nor the set. See ClipLocks. */
-  ClipLocks _clipLocks;
 
   ClipFilter _clipFilter = ClipFilter::All;
   /** Which library entry each row of the browser stands for. The list is a
@@ -825,6 +816,9 @@ private:
   /** Which knobs a hand is on, and the pattern those holds were last handed
    *  to -- see pushKnobHolds(). */
   KnobHold _knobHold;
+  /** Each encoder's click, [column][row]: on MOTION and REC a press switches
+   *  what it turns. Let go of on every page change. */
+  std::array<std::array<bool, 2>, numChannelsInitial> _encoderClicked{};
   std::weak_ptr<Pattern> _knobHoldPattern;
 
   std::unique_ptr<BrowserComponent> _browser;
@@ -927,12 +921,18 @@ private:
    *  encoder's hold runs out without anything happening. Lets go of the clip
    *  the holds were on when another one is shown, and keeps the hands. */
   void pushKnobHolds ();
-  void updateStatusBarPlayheads ();
-  /** The nine small meters on the status bar, read off the one VuLevels the
-   *  mixer's own meters read. Pushed from here rather than pulled by a timer
-   *  of the bar's own — that bar is on screen for the whole of a set, and a
-   *  second clock there would be one that never stops. */
-  void updateInputLevelDots ();
+  /** A length key given another length, or chosen -- by touch or encoder. */
+  void dragSpeedKey (int index, int increment);
+  void chooseSpeedKey (int index);
+  /** The panel's eight encoders: what each turns is encoderTarget()'s to say
+   *  (EncoderMap.hh); a press clicks between two things where there are two. */
+  EncoderTarget encoderTargetAt (int column, int row);
+  void handleEncoderTurn (int column, int row, int increment);
+  void handleEncoderPress (int column, int row);
+  /** A face chosen: its clip on show. `mayTurnOver` for a tap, which turns
+   *  the face already on show to its other slot; not for its pot. */
+  void chooseChannelFace (index_t channel, bool mayTurnOver);
+  void updateChannelProgress ();
   /** Where the sphere is being looked at from, or straight down if there is
    *  no sphere yet -- this runs while the interface is still being built. */
   SphereCamera sphereCamera () const;

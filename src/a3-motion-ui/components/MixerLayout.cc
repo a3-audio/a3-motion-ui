@@ -466,9 +466,12 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   auto const channelPotRow = potRow.withY (potRow.getY () + rowH);
   auto const keyRow = channelPotRow.withY (channelPotRow.getY () + rowH);
 
+  // 3D, FREQ and Q one cell in from the left: SEND stands before them in
+  // that row since 2026-09-27, the channel's sends side by side.
   for (int i = 0; i < numChannelPots; ++i)
     {
-      auto const cell = cellAcross (channelPotRow, potsAcrossTheBarsStrip, i);
+      auto const cell
+          = cellAcross (channelPotRow, potsAcrossTheBarsStrip, i + 1);
       out.channelPots[0][static_cast<std::size_t> (i)] = cell;
       if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
         cellsFit = false;
@@ -485,6 +488,8 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
       auto const cell
           = mixerControlIsAToggle (control)
                 ? cellAcross (keyRow, where.fields, where.field)
+            : control == MixerControl::FxSend
+                ? cellAcross (channelPotRow, potsAcrossTheBarsStrip, 0)
                 : cellAcross (potRow, potsAcrossTheBarsStrip, i);
 
       out.controls[0][index] = cell;

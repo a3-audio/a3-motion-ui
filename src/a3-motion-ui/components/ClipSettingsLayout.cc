@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <vector>
+
 #include <algorithm>
 
 #include <cmath>
@@ -266,13 +268,24 @@ driftMark (juce::Rectangle<int> bounds)
   if (bounds.isEmpty ())
     return {};
 
-  auto const size = juce::jmax (
-      3, juce::jmin (bounds.getWidth (), bounds.getHeight ()) / 5);
+  // A fifth of the control, but never more than a third of a fingertip: on
+  // a field the size of CLIP's it would stop being a footnote.
+  auto const size = juce::jlimit (
+      3, juce::jmax (3, fingertipSize / 3),
+      juce::jmin (bounds.getWidth (), bounds.getHeight ()) / 5);
   auto const inset = juce::jmax (2, size / 2);
 
   return juce::Rectangle<int> (size, size)
       .withPosition (bounds.getRight () - size - inset,
                      bounds.getY () + inset);
+}
+
+juce::Rectangle<int>
+shapeFieldIconArea (juce::Rectangle<int> field)
+{
+  auto const side
+      = juce::jmin (field.getWidth (), field.getHeight ()) * 3 / 4;
+  return juce::Rectangle<int> (side, side).withCentre (field.getCentre ());
 }
 
 juce::Rectangle<int>
@@ -291,10 +304,13 @@ cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
 {
   // dir and end stand in CLIP's middle card; fade, bias and the rec mode in
   // REC's; everything else in its section's own.
+  // On CLIP since 2026-09-27 there are no such cards: one area holds all.
   if (section == 0 && sub >= 2)
-    return layout.playCard;
+    return layout.playCard.isEmpty () ? layout.sectionCards[0]
+                                      : layout.playCard;
   if (section == 3 || (section == 2 && controlIsOnPage (2, sub, BarPage::Record)))
-    return layout.recordCard;
+    return layout.recordCard.isEmpty () ? layout.sectionCards[0]
+                                        : layout.recordCard;
 
   return layout.sectionCards[static_cast<size_t> (section)];
 }
@@ -315,11 +331,244 @@ textRowHeight (juce::Rectangle<int> content, float size)
   return juce::jlimit (10, juce::jmax (10, content.getHeight () / 2), needed);
 }
 
+namespace
+{
+/** One height for every button in the bar -- see ClipSettingsLayout's
+ *  buttonHeight. */
+int
+barButtonHeight (int barHeight, int knobDiam)
+{
+  return juce::jlimit (34, juce::jmax (34, barButtonMax.of (barHeight)),
+                       static_cast<int> (static_cast<float> (knobDiam) * 1.35f));
+}
+
+/** `count` keys across `row`, `gap` apart, one size to the pixel the row
+ *  affords.
+ *
+ *  **Every edge is computed from the row's whole width, not stepped across
+ *  it.** Stepping meant an integer span times the count, and the remainder of
+ *  that division piled up against the right edge -- which is where the eye
+ *  reads the row as finished or not. Cumulative, the last edge lands on the
+ *  right edge by construction and the remainder is spread a pixel at a time
+ *  across the keys, where nobody can see it. Never narrower than a
+ *  fingertip. */
+std::vector<juce::Rectangle<int> >
+spreadKeys (juce::Rectangle<int> row, int count, int gap,
+            int minKey = fingertipSize)
+{
+  auto const available = juce::jmax (count * minKey,
+                                     row.getWidth () - gap * (count - 1));
+  std::vector<juce::Rectangle<int> > keys;
+  for (int k = 0; k < count; ++k)
+    {
+      auto const x0 = row.getX () + k * gap + (available * k) / count;
+      auto const x1 = row.getX () + k * gap + (available * (k + 1)) / count;
+      keys.push_back ({ x0, row.getY (), x1 - x0, row.getHeight () });
+    }
+  return keys;
+}
+
+/** Four across and two down, one size to the pixel, row by row: the
+ *  encoders' arrangement, which every page of eight fields follows. */
+std::array<juce::Rectangle<int>, 8>
+fieldGrid (juce::Rectangle<int> area, int gap)
+{
+  // No fingertip floor here: the area is what the bar has, and a grid that
+  // insisted would run out of it at the largest fonts. Both rows exactly one
+  // height, so a row of keys never reads as two sizes.
+  std::array<juce::Rectangle<int>, 8> fields;
+  auto const rowH = juce::jmax (0, (area.getHeight () - gap) / 2);
+  std::array<juce::Rectangle<int>, 2> const rows{
+    area.withHeight (rowH), area.withTrimmedTop (rowH + gap).withHeight (rowH)
+  };
+  for (int row = 0; row < 2; ++row)
+    {
+      auto const band = rows[static_cast<size_t> (row)];
+      auto const columns = spreadKeys (band, 4, gap, 0);
+      for (int column = 0; column < 4; ++column)
+        fields[static_cast<size_t> (row * 4 + column)]
+            = columns[static_cast<size_t> (column)];
+    }
+  return fields;
+}
+
+/** What CLIP and REC share since 2026-09-27: one area of eight equal fields,
+ *  no headings, with the clip, two lengths, the shape and the other two
+ *  lengths in the same places. The two fields between are each page's own. */
+std::array<juce::Rectangle<int>, 8> const &
+layOutPageOfFields (ClipSettingsLayout &out)
+{
+  auto const gap = juce::jmax (2, out.buttonHeight / 8);
+  auto const &f = out.pageFields
+      = fieldGrid (sectionContentBounds (out.clipContent), gap);
+
+  out.sectionCards[0] = out.clipContent;
+  out.sectionLabels[0] = {};
+  out.playCard = {};
+  out.playLabel = {};
+  out.lengthCard = {};
+  out.lengthLabel = {};
+  out.recordCard = {};
+  out.recordLabel = {};
+
+  out.clipField = f[0];
+  out.speedButtons[0] = f[2];
+  out.speedButtons[1] = f[3];
+  out.trajectoryIcon = f[4];
+  out.trajectoryName = f[4];
+  out.speedButtons[2] = f[6];
+  out.speedButtons[3] = f[7];
+
+  return f;
+}
+
+/** CLIP: dir over end between the clip and the lengths. */
+void
+layOutClipPage (ClipSettingsLayout &out)
+{
+  auto const &f = layOutPageOfFields (out);
+  out.directionButton = f[1];
+  out.endActionButton = f[5];
+  out.controls[0] = { out.trajectoryIcon, out.clipField, out.directionButton,
+                      out.endActionButton };
+}
+
+/** REC: the rec mode over fade|bias -- one field for the two, side by side,
+ *  since one encoder turns them with a click between. */
+void
+layOutRecordPage (ClipSettingsLayout &out)
+{
+  auto const &f = layOutPageOfFields (out);
+  out.recModeButton = f[1];
+
+  auto both = f[5];
+  auto const fade = both.removeFromLeft (both.getWidth () / 2);
+  out.controls[2][8] = textCell (fade, out.metrics.knobDiam);
+  out.controls[2][9] = textCell (both, out.metrics.knobDiam);
+}
+
+/** MOTION as one area, no headings (2026-09-27), in the rows the encoders
+ *  turn: spin swell strX strY / rot reach sqzX sqzY / sway clip-top /
+ *  elv clip-bottom. The top encoder row turns row one, or row two after a
+ *  click; the bottom one row three or row four. Four columns throughout, so
+ *  a knob stands under the one its encoder turned a click before. */
+void
+layOutMotionPage (ClipSettingsLayout &out)
+{
+  auto const gap = juce::jmax (2, out.buttonHeight / 8);
+  auto const content = sectionContentBounds (out.clipContent);
+
+  auto const rowH = juce::jmax (0, (content.getHeight () - 3 * gap) / 4);
+  auto const columns = spreadKeys (content.withHeight (rowH), 4, gap, 0);
+  auto const cell = [&] (int row, int column) {
+    return textCell (columns[static_cast<size_t> (column)].withY (
+                         content.getY () + row * (rowH + gap)),
+                     out.metrics.knobDiam);
+  };
+
+  out.sectionCards[2] = out.clipContent;
+  out.sectionCards[1] = out.clipContent;
+  out.sectionLabels[2] = {};
+  out.sectionLabels[1] = {};
+
+  auto &m = out.controls[2];
+  m[1] = cell (0, 0); // spin
+  m[3] = cell (0, 1); // swell
+  m[5] = cell (0, 2); // strX
+  m[7] = cell (0, 3); // strY
+  m[0] = cell (1, 0); // rot
+  m[2] = cell (1, 1); // reach
+  m[4] = cell (1, 2); // sqzX
+  m[6] = cell (1, 3); // sqzY
+
+  auto &e = out.controls[1];
+  e[2] = cell (2, 0); // sway
+  e[1] = cell (2, 1); // clip-top
+  e[3] = cell (3, 0); // elv
+  e[0] = cell (3, 1); // clip-bottom
+
+}
+
+/** The frame's inset round the faces: what it was in the global strip, a
+ *  fortieth of the strip's quarter of the bar. */
+int
+channelRowInset (int barWidth)
+{
+  return juce::jmax (2, barWidth / 4 / 40);
+}
+
+/** The row of channel faces, across the whole bar (2026-09-27): four faces,
+ *  each with its meter, its 3D, FREQ and Q, and its clip's progress. */
+void
+layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
+                  int inset)
+{
+  out.channelFacesFrame = row;
+
+  auto faces = row.reduced (inset);
+  auto const faceGap = juce::jmax (2, faces.getWidth () / 120);
+  auto const numFaces = static_cast<int> (numChannelColumns);
+  auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
+
+  // Edges from the whole width, like the header's, so the last face ends
+  // flush with the frame.
+  for (int i = 0; i < numFaces; ++i)
+    {
+      auto const x0 = faces.getX () + i * faceGap + (span * i) / numFaces;
+      auto const x1 = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
+      auto const face
+          = juce::Rectangle<int>{ x0, faces.getY (), x1 - x0, faces.getHeight () };
+      out.channelFaces[static_cast<size_t> (i)] = face;
+
+      // Left to right: the meter a narrow column, 3D, FREQ and Q as squares
+      // right beside it, and the rest the clip's progress bar.
+      auto inner = face.reduced (juce::jmax (2, face.getHeight () / 10));
+      out.channelFaceMeters[static_cast<size_t> (i)] = inner.removeFromLeft (
+          juce::jmax (4, inner.getHeight () / 4));
+      for (auto &pot : out.channelFacePots[static_cast<size_t> (i)])
+        pot = inner.removeFromLeft (inner.getHeight ());
+      inner.removeFromLeft (juce::jmax (2, inner.getHeight () / 10));
+      out.channelFaceProgress[static_cast<size_t> (i)] = inner;
+    }
+}
+}
+
+juce::Rectangle<int>
+progressFill (juce::Rectangle<int> bar, float fraction)
+{
+  if (fraction < 0.f)
+    return {};
+
+  return bar.withWidth (juce::roundToInt (
+      static_cast<float> (bar.getWidth ()) * juce::jmin (1.f, fraction)));
+}
+
+int
+channelRowHeight (int knobDiam, int barWidth)
+{
+  auto const faceH = juce::jmax (
+      fingertipSize,
+      juce::jmax (34, static_cast<int> (static_cast<float> (knobDiam) * 1.35f)));
+  return faceH + 2 * channelRowInset (barWidth);
+}
+
 ClipSettingsLayout
 layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                     float bodySize, float potSizeScale, BarPage page)
 {
   ClipSettingsLayout out;
+
+  // The channel faces first, across the whole bar and above everything in it:
+  // between the settings and the sphere. As tall as their frame in the global
+  // strip was -- a button, never under a fingertip, and the frame's inset
+  // round it.
+  layOutChannelRow (
+      out,
+      bounds.removeFromTop (juce::jmin (
+          bounds.getHeight (),
+          channelRowHeight (knobDiameterForFont (bodySize, potSizeScale),
+                            bounds.getWidth ()))),
+      channelRowInset (bounds.getWidth ()));
 
   // Two panels side by side, not one panel with an odd section on the end.
   out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);
@@ -346,64 +595,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, as the maintainer set it on 2026-09-26: CLIP MOTION ACTION
-  // FILES CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
-  // the global strip since then -- see there.
+  // Left to right, as the maintainer set it on 2026-09-27: CLIP MOTION ACTION
+  // CHMIX REC -- the views of the clip. FILES, MAINMIX and PADS lead the
+  // global strip since; see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
-
-  constexpr int numViews = 8;
-  constexpr int numHeaderGaps = numViews - 1;
-
-  // **Every edge is computed from the row's whole width, not stepped across
-  // it.** Stepping meant an integer span times five, and the remainder of that
-  // division piled up against the right edge -- which is where the eye reads
-  // the row as finished or not. Cumulative, the last edge lands on the right
-  // edge by construction and the remainder is spread a pixel at a time across
-  // the keys, where nobody can see it. The Shape section's button grid is
-  // measured from the left for the same reason.
-  auto const minSpan = numViews * fingertipSize;
-  auto const available
-      = juce::jmax (minSpan, headerArea.getWidth () - headerGap * numHeaderGaps);
-
-  auto const rowLeft = headerArea.getX ();
-  auto const rowTop = headerArea.getY ();
-  auto const rowHeight = headerArea.getHeight ();
-
-  // The left edge of the view that begins after `units` views and `gaps`
-  // gaps. At units == numViews it is the row's right edge exactly.
-  auto const edgeAt = [rowLeft, available, headerGap] (int units, int gaps) {
-    return rowLeft + gaps * headerGap + (available * units) / numViews;
-  };
-  auto const keyFrom = [rowTop, rowHeight] (int x0, int x1) {
-    return juce::Rectangle<int>{ x0, rowTop, x1 - x0, rowHeight };
-  };
-
-  int units = 0;
-  int gaps = 0;
-
-  auto const takeView = [&units, &gaps, &edgeAt, &keyFrom] {
-    auto const x0 = edgeAt (units, gaps);
-    ++units;
-    auto const key = keyFrom (x0, edgeAt (units, gaps));
-    ++gaps;
-    return key;
-  };
-
-  // The clip's own view leads the row: it is the one the others are
-  // variations on.
-  out.tabClip = takeView ();
-  // Right of CLIP: the clip's movement, which stood beside its shape there.
-  out.tabMotion = takeView ();
-  out.tabAction = takeView ();
-  out.tabBrowser = takeView ();
-
-  // The two mixers side by side: the shown channel's strip (CHMIX), then the
-  // whole mixer over the sphere (MAINMIX), which came down from the status
-  // bar so both are opened from one place.
-  out.tabMixer = takeView ();
-  out.tabMainMix = takeView ();
-  out.tabRecord = takeView ();
-  out.tabController = takeView ();
+  {
+    auto const views = spreadKeys (headerArea, 5, headerGap);
+    out.tabClip = views[0];
+    // Right of CLIP: the clip's movement, which stood beside its shape there.
+    out.tabMotion = views[1];
+    out.tabAction = views[2];
+    // The shown channel's strip, then the take.
+    out.tabMixer = views[3];
+    out.tabRecord = views[4];
+  }
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     out.slotButtons[slot] = {};
@@ -447,9 +652,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // worth looking at -- every row the buttons took came off it. The 34px floor
   // stays: below it TAP could not be hit reliably, and that finding is about
   // fingers, not about how much room the picture would like.
-  out.buttonHeight = juce::jlimit (
-      34, juce::jmax (34, barButtonMax.of (out.clipBounds.getHeight ())),
-      static_cast<int> (metrics.knobDiam * 1.35f));
+  out.buttonHeight
+      = barButtonHeight (out.clipBounds.getHeight (), metrics.knobDiam);
 
   // Three columns, and which card stands in them depends on the page
   // (2026-09-26). CLIP: Shape (picker, picture), then dir and end, then the
@@ -479,6 +683,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The whole strip, band included. The band held the transport and then the
   // readout before it; both have gone, so the card takes the height rather
   // than leaving an empty row above itself.
+  // FILES MAINMIX PADS at the head of the strip (2026-09-27), level with the
+  // clip's tabs and as tall: the ways out of the clip's own views -- the
+  // folder, the whole mixer, every pad at once -- stand over what belongs to
+  // the device rather than among the views of one clip.
+  {
+    auto const keys = spreadKeys (globalArea.removeFromTop (headerH), 3,
+                                  headerGap);
+    out.tabBrowser = keys[0];
+    out.tabMainMix = keys[1];
+    out.tabController = keys[2];
+    globalArea.removeFromTop (
+        juce::jmax (4, barHeaderGap.of (out.clipBounds.getHeight ())));
+  }
+
   auto const globalCard = globalArea;
   out.readout = {};
 
@@ -493,10 +711,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[0]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[0] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[0] = title;
     }
 
@@ -569,10 +783,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[1]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[1] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[1] = title;
     }
 
@@ -611,10 +821,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[2]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[2] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[2] = title;
     }
 
@@ -707,8 +913,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = out.globalContent;
     out.sectionLabels[3] = {};
 
-    // Top to bottom: the elevation picture, whose clip (the four faces), then
-    // what to do to it (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
+    // Top to bottom: the elevation picture, then what to do to the clip (the
+    // transport, two by two) down to the foot. The four faces that said whose
+    // clip left for a row of their own across the bar on 2026-09-27. The 4x3 grid of 3D, FREQ
     // and Q went into the mixer strips and the six function keys went to the
     // status bar and the REC page, both on 2026-09-26; their room is the
     // transport's.
@@ -723,11 +930,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // At the head of the strip, over the faces: the side view of where the
     // shown clip sits and how high it may go, in a grey field of its own like
     // the faces and the transport -- a field that is touched to select it.
-    // Never more than nine twentieths of the strip's height, so the faces and the
-    // transport keep theirs.
+    // Never more than half the strip's height, so the transport keeps its
+    // room. It was nine twentieths while the faces stood here too; FILES,
+    // MAINMIX and PADS took less than they left (2026-09-27).
     {
       auto const side = juce::jmin (content.getWidth (),
-                                    content.getHeight () * 9 / 20);
+                                    content.getHeight () / 2);
       out.elevationFrame = content.removeFromTop (side);
       out.elevationGraphic = out.elevationFrame.reduced (frameInset);
 
@@ -742,38 +950,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
     }
 
-    // ── the four channel faces ────────────────────────────────────────
-    //
-    // In a frame of their own, the way the transport stands in one: four
-    // keys that choose *which clip* the bar describes, not what it does.
-    // As tall as a function key, and never under a fingertip.
-    {
-      auto const faceH = juce::jmax (fingertipSize, buttonRowH);
-      auto frame = content.removeFromTop (
-          juce::jmin (content.getHeight (), faceH + 2 * frameInset));
-      out.channelFacesFrame = frame;
-      content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
-
-      auto faces = frame.reduced (frameInset);
-      auto const faceGap = juce::jmax (2, faces.getWidth () / 60);
-      auto const numFaces = static_cast<int> (numChannelColumns);
-      auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
-
-      // Edges from the whole width, like the header's, so the last face ends
-      // flush with the frame.
-      for (int i = 0; i < numFaces; ++i)
-        {
-          auto const x0 = faces.getX () + i * faceGap + (span * i) / numFaces;
-          auto const x1
-              = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
-          out.channelFaces[static_cast<size_t> (i)]
-              = { x0, faces.getY (), x1 - x0, faces.getHeight () };
-        }
-    }
-
     // ── the transport, two by two ─────────────────────────────────────
     //
-    // Everything between the faces and the function keys, arranged as a
+    // Everything under the picture, arranged as a
     // clip's pads are on PADS: play over act on the left, stop on the right,
     // and rec in the corner the pads give to Settings -- rec has no pad of
     // its own. Two rows rather than one because the grid's room is theirs
@@ -812,6 +991,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // have to be special-cased away everywhere.
     out.controls[3] = { out.recModeButton };
   }
+
+  if (page == BarPage::Clip)
+    layOutClipPage (out);
+  if (page == BarPage::Motion)
+    layOutMotionPage (out);
+  if (page == BarPage::Record)
+    layOutRecordPage (out);
 
   return out;
 }

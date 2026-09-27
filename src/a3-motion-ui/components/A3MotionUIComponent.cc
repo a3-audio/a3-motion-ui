@@ -63,9 +63,11 @@
 #include <a3-motion-ui/components/ElevationSideView.hh>
 #include <a3-motion-ui/components/MotionComponent.hh>
 #include <a3-motion-ui/components/PadRowDisplay.hh>
+#include <a3-motion-ui/components/PatternDisplay.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
 #include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
+#include <a3-motion-engine/PatternRunning.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
@@ -108,11 +110,11 @@ constexpr std::size_t elevationFigureSamples = 96;
  *  Fast enough for a take's write head to move while it is being recorded,
  *  which is what this rate was chosen for.
  *
- *  **It is also the rate the channel faces' signal dots are redrawn at**,
- *  since updateInputLevelDots() is the first thing timerCallback() does. That
+ *  **It is also the rate the channel faces' meters are redrawn at**, since
+ *  repainting them is the first thing timerCallback() does. That
  *  is deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages
  *  that come and go and have a timer each, and this bar never goes away, so
- *  its dots ride the timer that is already running rather than starting a
+ *  its meters ride the timer that is already running rather than starting a
  *  second one behind everything else on screen. The two rates being close but
  *  unequal is therefore a fact about where each of them lives, not an
  *  oversight -- see vuMeterRefreshHz, which says the same thing from the
@@ -569,19 +571,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // two channels in one move each. The two keys used to be shared, and
   // choosing slot 2 chose it for whichever channel you happened to be on.
   _clipSettings->onChannelFaceTapped = [this] (index_t channel) {
-    auto const describesAClip = pageDescribesAClip (_barPage);
-
-    if (describesAClip && channel == _clipSettingsChannel)
-      _channelSlot[channel]
-          = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
-
-    selectClip (channel, _channelSlot[channel]);
-
-    // From the pads page there is no one clip on show to select into -- it
-    // shows every slot at once -- so reaching for a channel there is reaching
-    // for its clip, and the face brings that view back with it.
-    if (!describesAClip)
-      showBarPage (BarPage::Clip);
+    chooseChannelFace (channel, true);
+  };
+  _clipSettings->onChannelFaceChosen = [this] (index_t channel) {
+    chooseChannelFace (channel, false);
+  };
+  _clipSettings->onChannelPotChanged = channelPotChanged;
+  _clipSettings->onChannelPotDoubleTapped = channelPotDoubleTapped;
+  _clipSettings->channelLevel = [this] (int channel) {
+    return _vuLevels.channel (channel, vuNowMs ());
   };
 
   // A drag gives the key under the finger another speed, and the clip is
@@ -591,39 +589,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // to, which is how a speed the four do not name is reached and then found
   // again the next time.
   _clipSettings->onSpeedDragged = [this] (int index, int increment) {
-    if (index < 0 || index >= numSpeedButtons || increment == 0)
-      return;
-    _pendingTakes.disarm ();
-    refreshTakeState ();
-
-    auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
-    auto const moved = draggedSpeedLog2 (carried, increment);
-    if (moved == carried)
-      return;
-
-    carried = moved;
-    _clipSettings->setSpeedButtons (_speedButtonLog2);
-    persistSettings ();
-    scheduleSetSave ();
-    applySpeedLog2ToShownClip (moved);
-  };
-
-  _clipSettings->onLockToggled = [this] (int section) {
-    switch (section)
-      {
-      case 0: _clipLocks.shape = !_clipLocks.shape; break;
-      case 1: _clipLocks.elevation = !_clipLocks.elevation; break;
-      case 2: _clipLocks.motion = !_clipLocks.motion; break;
-      default: return;
-      }
-
-    static char const *names[] = { "SHAPE", "ELEVATION", "MOTION" };
-    auto const held = section == 0   ? _clipLocks.shape
-                      : section == 1 ? _clipLocks.elevation
-                                     : _clipLocks.motion;
-    updateControlReadout (juce::String (held ? "-- HOLD " : "-- FREE ")
-                          + names[section]);
-    updateClipSettingsDisplay ();
+    dragSpeedKey (index, increment);
   };
 
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
@@ -691,12 +657,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // it outright rather than stepping towards it — that is what the keys are
   // for, and it is untouched by the keys becoming assignable.
   _clipSettings->onSpeedChosen = [this] (int index) {
-    if (index < 0 || index >= numSpeedButtons)
-      return;
-    _pendingTakes.disarm ();
-    refreshTakeState ();
-
-    applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
+    chooseSpeedKey (index);
   };
 
   _clipSettings->onAccentHeld = [this] (bool held) {
@@ -1723,56 +1684,41 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
-          // The encoders have one job each now, the same one whatever is
-          // on screen: freq and Q for their channel. They used to scroll
-          // the bar's sections and drive the menu — that is all touch now,
-          // so nothing here depends on what happens to be open.
+          // The encoders turn the field they stand under on CLIP, MOTION,
+          // REC and CHMIX, four by two as the fields are (2026-09-27); with
+          // Shift, and on the other pages, their channel's FREQ and Q as
+          // before. What each one turns is encoderTarget()'s to say.
+          for (int row = 0; row < 2; ++row)
+            {
+              auto &turned = _ioAdapter->getEncoderIncrement (
+                  channel, static_cast<index_t> (row));
+              if (value.refersToSameSourceAs (turned))
+                {
+                  auto const increment
+                      = static_cast<int> (turned.getValue ());
+                  if (increment != 0)
+                    {
+                      // An encoder step is an input like a touch; the analog
+                      // pots are not -- their noise would drop an armed
+                      // DISCARD before the second tap could land (#32).
+                      disarmOnOtherInput ();
+                      handleEncoderTurn (static_cast<int> (channel), row,
+                                         increment);
+                    }
+                  return;
+                }
+
+              auto &pressed = _ioAdapter->getEncoderPress (
+                  channel, static_cast<index_t> (row));
+              if (value.refersToSameSourceAs (pressed))
+                {
+                  if (static_cast<bool> (pressed.getValue ()))
+                    handleEncoderPress (static_cast<int> (channel), row);
+                  return;
+                }
+            }
+
           if (value.refersToSameSourceAs (
-                  _ioAdapter->getEncoderIncrement (channel)))
-            {
-              auto const increment = static_cast<int> (
-                  _ioAdapter->getEncoderIncrement (channel).getValue ());
-              if (increment != 0)
-                {
-                  // An encoder step is an input like a touch; the analog pots
-                  // are not -- their noise would drop an armed DISCARD before
-                  // the second tap could land (#32).
-                  disarmOnOtherInput ();
-                  handleChannelValueChange (channel, ChannelPot::Freq,
-                                            increment);
-                  updateControlReadout (
-                      "CH" + juce::String (channel + 1) + " FREQ "
-                      + juce::String (_engine.getChannelPot1 (channel), 2));
-                }
-              return;
-            }
-          else if (value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderIncrement (channel, 1)))
-            {
-              auto const increment = static_cast<int> (
-                  _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
-              if (increment != 0)
-                {
-                  disarmOnOtherInput ();
-                  handleChannelValueChange (channel, ChannelPot::Q, increment);
-                  updateControlReadout (
-                      "CH" + juce::String (channel + 1) + " Q "
-                      + juce::String (_engine.getChannelPot2 (channel), 2));
-                }
-              return;
-            }
-          else if (value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderPress (channel))
-                   || value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderPress (channel, 1)))
-            {
-              // Nothing. Pressing used to arm a menu row or cycle a
-              // section's sub-element; both are reached by touch now, and a
-              // press that does something different depending on what is
-              // open is exactly what this rework got rid of.
-              return;
-            }
-          else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0))
                    || value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 1)))
@@ -2386,6 +2332,8 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _pendingTakes.disarm ();
   refreshTakeState ();
   _barPage = page;
+  // A click belongs to the page it was made on.
+  _encoderClicked = {};
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
   if (_action)
@@ -2452,7 +2400,7 @@ A3MotionUIComponent::fillSlotFromLibrary (index_t channel, index_t slot,
   // the library, so it is the one place that has to say so -- two of the three
   // callers used to do it themselves and the third (restoring a session) did
   // not, which left every slot it filled playing an invisible trajectory.
-  registerPatternDisplayData (_patterns[channel][slot]);
+  refreshPatternDisplay (_patterns[channel][slot]);
 }
 
 /** Whether the clip a slot came from is one of the instrument's.
@@ -2938,9 +2886,8 @@ A3MotionUIComponent::assignBrowserEntry (int index)
         syncClipUIParamsFromPattern (channel, slot);
       }
 
-  // Registered by fillSlotFromLibrary() now -- and by way of
-  // registerPatternDisplayData(), which knows about shapes made of dots.
-  // Going straight to the ticks here drew those with no dots at all.
+  // Registered by fillSlotFromLibrary() now, through refreshPatternDisplay(),
+  // which knows about shapes made of dots.
   if (_patterns[channel][slot])
     applyMotionMode (channel, slot);
 
@@ -2983,12 +2930,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // the slot with both. A clip written before that says no figure, and then
   // the slot keeps the one it has and only the values land, which is what
   // every clip used to do.
-  //
-  // Unless the shape is being held: a held section is one nothing writes
-  // over, and the figure is what Shape holds. Stepping through clips with it
-  // down keeps the movement you are in and re-dresses it, which is what the
-  // shapeless presets used to do and is now a thing decided in the moment.
-  auto const shape = clip->svg.empty () || _clipLocks.shape
+  auto const shape = clip->svg.empty ()
                          ? 0
                          : _patternLibrary->indexForName (clip->svg);
 
@@ -3019,12 +2961,9 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   if (!pattern)
     return;
 
-  // Every field of a held section comes back off the slot rather than out of
-  // the clip -- one place decides that, and a test insists every field of the
-  // bar belongs to exactly one of the three locks.
-  applyClipSettings (
-      *pattern,
-      heldOver (clipSettingsFrom (*pattern), clip->settings, _clipLocks));
+  // Every value out of the clip. Sections could be held against this until
+  // 2026-09-27; the locks are gone.
+  applyClipSettings (*pattern, clip->settings);
   applyLanes (*pattern, *clip);
 
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
@@ -4729,14 +4668,13 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
                 }
 
             // saveRecordedPattern() used to do this; a take outside the
-            // library is drawn from its ticks (registerPatternDisplayData()
-            // falls through to refreshPatternDisplayFromTicks()).
+            // library is drawn from its ticks (patternDisplayFor()).
             //
             // Only while the take is still in a slot. A DISCARDed take stops
             // *after* it has been taken out, and registering it here put it
             // back into the display data it had just been removed from (#31).
             if (sitsInASlot)
-              registerPatternDisplayData (messagePatternStatus.pattern);
+              refreshPatternDisplay (messagePatternStatus.pattern);
             refreshTakeState ();
           }
         break;
@@ -5146,7 +5084,7 @@ A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
 void
 A3MotionUIComponent::refreshChannelValues ()
 {
-  if (!_mixer || !_mixerStrip)
+  if (!_mixer || !_mixerStrip || !_clipSettings)
     return;
 
   // Every channel's three, not only the shown one's: the overlay shows all
@@ -5168,6 +5106,7 @@ A3MotionUIComponent::refreshChannelValues ()
       };
       _mixer->setChannelPots (ch, pots);
       _mixerStrip->setChannelPots (ch, pots);
+      _clipSettings->setChannelPots (ch, pots);
     }
 }
 
@@ -5296,7 +5235,7 @@ A3MotionUIComponent::createPadRowDisplays ()
           if (slot < _patterns[ch].size () && _patterns[ch][slot])
             {
               updatePadRowLabel (ch, slot);
-              registerPatternDisplayData (_patterns[ch][slot]);
+              refreshPatternDisplay (_patterns[ch][slot]);
             }
         }
     }
@@ -5420,30 +5359,7 @@ A3MotionUIComponent::setPreviewWithDisplayData (
 }
 
 void
-A3MotionUIComponent::refreshPatternDisplayFromTicks (
-    std::shared_ptr<Pattern> const &pattern)
-{
-  if (!pattern || !_motionComponent)
-    return;
-
-  // Cut at teleports as well as at gaps, the same way the take's own trail is
-  // drawn, so a jump the clip still has is not bridged by a line.
-  // The one place that follows the clip's own plan: this is the line the blob
-  // runs on, so it has to break exactly where the movement jumps.
-  juce::Path path;
-  for (auto const &segment : trajectorySegments (
-           pattern->getTicks ().positions, pattern->getBridgePlan ()))
-    {
-      path.startNewSubPath (segment.front ().x (), segment.front ().y ());
-      for (size_t i = 1; i < segment.size (); ++i)
-        path.lineTo (segment[i].x (), segment[i].y ());
-    }
-
-  _motionComponent->setPatternDisplayData (pattern, path, {});
-}
-
-void
-A3MotionUIComponent::registerPatternDisplayData (
+A3MotionUIComponent::refreshPatternDisplay (
     std::shared_ptr<Pattern> const &pattern)
 {
   // Called from fillSlotFromLibrary(), which also runs while the interface is
@@ -5453,30 +5369,12 @@ A3MotionUIComponent::registerPatternDisplayData (
   if (!pattern || !_motionComponent)
     return;
 
-  auto const &name = pattern->getName ();
-  auto libIndex = _patternLibrary->indexForName (name);
-
-  // A shape made of dots has no line to draw, and its dots are only in the
-  // file: keep taking those from the library.
-  if (libIndex > 0)
-    {
-      auto const &entry = _patternLibrary->getEntry (libIndex);
-      if (entry.hasJumpDots && svgDToPath (entry.svgPathData).isEmpty ())
-        {
-          _motionComponent->setPatternDisplayData (pattern, {},
-                                                   entry.jumpDots);
-          return;
-        }
-    }
-
-  // Everything else is drawn from the ticks, because that is what plays.
-  //
-  // Taking the line from the file was right while the file was a picture of
-  // the pattern. It stopped being one when the take started going to disk as
-  // it was played, with the closing move a setting laid over it: the blob
-  // followed the ending the fade gives it and the line showed a take whose
-  // ends do not meet.
-  refreshPatternDisplayFromTicks (pattern);
+  // One answer for the first registration and for every refresh after a
+  // value was turned -- see patternDisplayFor(). Two routes with half of it
+  // each is how a shape of dots vanished on the first knob turned.
+  auto shown = patternDisplayFor (*pattern, *_patternLibrary);
+  _motionComponent->setPatternDisplayData (pattern, std::move (shown.path),
+                                           std::move (shown.jumpDots));
 }
 
 int
@@ -5762,7 +5660,7 @@ A3MotionUIComponent::saveRecordedPattern (
       // nothing afterwards, so the closing move landed somewhere else, and the
       // stretch between two subpaths came back as a hole -- 45 ticks of one on
       // the take that showed it.
-      registerPatternDisplayData (pattern);
+      refreshPatternDisplay (pattern);
 
       // Update fingerprint so the timer doesn't re-trigger for this save
       _lastLibraryFingerprint = _patternLibrary->getDirectoryFingerprint ();
@@ -5814,7 +5712,8 @@ A3MotionUIComponent::timerCallback ()
   // bar that never leaves the screen has no visibility to start and stop a
   // timer on, and a second timer running for the life of the device is the
   // one thing vuMeterRefreshHz's own note argues against.
-  updateInputLevelDots ();
+  if (_clipSettings)
+    _clipSettings->repaintChannelMeters ();
 
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
@@ -7192,7 +7091,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           // sat before anyone moved it.
           pattern->setElevationBase (defaultElevationBase (
               pattern->getClipTop (), pattern->getClipBottom ()));
-          refreshPatternDisplayFromTicks (pattern);
+          refreshPatternDisplay (pattern);
         }
       else
         return;
@@ -7222,7 +7121,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         case 8: pattern->setFadeReach (ClipSettings{}.fadeReach); break;
         case 9:
           pattern->setBridgeBias (0);
-          refreshPatternDisplayFromTicks (pattern);
+          refreshPatternDisplay (pattern);
           break;
         default: return;
         }
@@ -7286,7 +7185,7 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
   else
     return;
 
-  refreshPatternDisplayFromTicks (pattern);
+  refreshPatternDisplay (pattern);
   updateClipSettingsDisplay ();
   scheduleSetSave ();
 }
@@ -7414,7 +7313,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 applyClipSettings (*pattern, held);
                 applyLanes (*pattern, heldLanes);
               }
-            registerPatternDisplayData (pattern);
+            refreshPatternDisplay (pattern);
 
             if (wasPlaying && pattern)
               {
@@ -7452,7 +7351,7 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
                 knobForElevationBase (pattern->getElevationBase ())
                     + increment * 0.02f,
                 pattern->getClipTop (), pattern->getClipBottom ()));
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
           case 2:
             // How fast the line the graphic draws travels, and towards which
@@ -7548,14 +7447,14 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             // up.
             pattern->setFadeReach (pattern->getFadeReach ()
                                    + 0.05f * static_cast<float> (increment));
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
 
           default:
             // Where a drawn-through gap leads. Whole steps: nine positions,
             // and a finger should feel each one rather than slide past them.
             pattern->setBridgeBias (pattern->getBridgeBias () + increment);
-            refreshPatternDisplayFromTicks (pattern);
+            refreshPatternDisplay (pattern);
             break;
           }
       }
@@ -7595,74 +7494,190 @@ A3MotionUIComponent::sphereCamera () const
   return _motionComponent ? _motionComponent->getCamera () : SphereCamera{};
 }
 
-/** Every channel's playhead, gathered fresh.
+/** How far every channel's clip has got, gathered fresh, for the faces'
+ *  progress bars.
  *
  *  Walked rather than remembered: a channel's clip can be stopped by an end
  *  action, by another slot being fired, or by the engine reaching the end of
  *  a one-shot, and none of those routes passes through here. Reading the
- *  patterns each time is what keeps a mark from being left behind on a
+ *  patterns each time is what keeps a bar from being left filled on a
  *  channel that has already finished. */
 void
-A3MotionUIComponent::updateStatusBarPlayheads ()
-{
-  if (!_statusBar)
-    return;
-
-  std::array<float, numChannelsInitial> positions;
-  std::array<juce::Colour, numChannelsInitial> colours;
-  positions.fill (-1.f);
-
-  for (index_t channel = 0;
-       channel < _patterns.size ()
-       && channel < (index_t)numChannelsInitial;
-       ++channel)
-    {
-      colours[(size_t)channel] = _channelUIStates[(size_t)channel]->colour;
-
-      for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
-        {
-          auto const &pattern = _patterns[channel][slot];
-          if (pattern != nullptr
-              && pattern->getStatus () == Pattern::Status::Playing)
-            {
-              // Mirrored while the clip runs backwards, so the mark always
-              // sweeps left to right -- see leftToRightPosition().
-              positions[(size_t)channel] = leftToRightPosition (
-                  pattern->getPlayPosition (), pattern->getPlaySign ());
-              break;
-            }
-        }
-    }
-
-  _statusBar->setChannelPlayheads (positions, colours);
-}
-
-/** Every meter the status bar draws, read at one moment.
- *
- *  One reading of the clock for all four: four dots each asking the time
- *  would draw four slightly different moments of one picture.
- *
- *  Unconditional. Whether a level is moving is not something this side can
- *  know without looking at it, and the bar itself only repaints where a dot
- *  would actually be drawn differently.
- *
- *  It fed nine bars in the status bar until 2026-09-12 -- these four and the
- *  five outputs. The outputs went to the MIX page, where the same five have
- *  always been; these four went to the channel faces, which is where a hand
- *  looking for a channel already looks. */
-void
-A3MotionUIComponent::updateInputLevelDots ()
+A3MotionUIComponent::updateChannelProgress ()
 {
   if (!_clipSettings)
     return;
 
-  auto const now = vuNowMs ();
+  std::array<float, numChannelColumns> positions;
+  positions.fill (-1.f);
 
-  std::array<VuLevel, numChannelsInitial> inputs;
-  for (int channel = 0; channel < numChannelsInitial; ++channel)
-    inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
+  for (index_t channel = 0;
+       channel < _patterns.size () && channel < (index_t)numChannelColumns;
+       ++channel)
+    for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+      {
+        auto const &pattern = _patterns[channel][slot];
+        if (pattern != nullptr
+            && pattern->getStatus () == Pattern::Status::Playing)
+          {
+            positions[(size_t)channel] = leftToRightPosition (
+                pattern->getPlayPosition (), pattern->getPlaySign ());
+            break;
+          }
+      }
 
-  _clipSettings->setInputLevels (inputs);
+  _clipSettings->setChannelProgress (positions);
+}
+
+void
+A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
+{
+  auto const describesAClip = pageDescribesAClip (_barPage);
+
+  // Touching the face you are already on turns it over; reaching for its pot
+  // does not.
+  if (mayTurnOver && describesAClip && channel == _clipSettingsChannel)
+    _channelSlot[channel]
+        = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
+
+  selectClip (channel, _channelSlot[channel]);
+
+  // From the pads page there is no one clip on show to select into -- it
+  // shows every slot at once -- so reaching for a channel there is reaching
+  // for its clip, and the face brings that view back with it.
+  if (!describesAClip)
+    showBarPage (BarPage::Clip);
+}
+
+void
+A3MotionUIComponent::dragSpeedKey (int index, int increment)
+{
+  if (index < 0 || index >= numSpeedButtons || increment == 0)
+    return;
+  _pendingTakes.disarm ();
+  refreshTakeState ();
+
+  auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
+  auto const moved = draggedSpeedLog2 (carried, increment);
+  if (moved == carried)
+    return;
+
+  carried = moved;
+  _clipSettings->setSpeedButtons (_speedButtonLog2);
+  persistSettings ();
+  scheduleSetSave ();
+  applySpeedLog2ToShownClip (moved);
+}
+
+void
+A3MotionUIComponent::chooseSpeedKey (int index)
+{
+  if (index < 0 || index >= numSpeedButtons)
+    return;
+  _pendingTakes.disarm ();
+  refreshTakeState ();
+
+  applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
+}
+
+EncoderTarget
+A3MotionUIComponent::encoderTargetAt (int column, int row)
+{
+  return encoderTarget (
+      _barPage, column, row,
+      _encoderClicked[static_cast<size_t> (column)][static_cast<size_t> (row)],
+      isButtonPressed (Button::Shift));
+}
+
+void
+A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
+{
+  auto const target = encoderTargetAt (column, row);
+  auto const shown = _clipSettingsChannel;
+
+  switch (target.kind)
+    {
+    case EncoderTarget::Kind::None:
+      return;
+
+    case EncoderTarget::Kind::Control:
+      // The rec mode is a key, stepped the way pressing it steps it.
+      if (target.section == ClipSettingsComponent::globalIndex
+          && target.sub == 0)
+        {
+          auto const count = static_cast<int> (recMenuModes.size ());
+          auto const step = increment > 0 ? 1 : count - 1;
+          applyRecMode ((recMenuIndex (_recMode) + step) % count);
+          updateClipSettingsDisplay ();
+          return;
+        }
+      handleClipSettingsValueChange (shown, target.section, target.sub,
+                                     increment);
+      return;
+
+    case EncoderTarget::Kind::Speed:
+      dragSpeedKey (target.speed, increment);
+      return;
+
+    case EncoderTarget::Kind::Mixer:
+      {
+        auto const channel = static_cast<int> (shown);
+        auto const value = juce::jlimit (
+            0.f, 1.f,
+            _mixerState.channelValue (channel, target.mixer)
+                + 0.02f * static_cast<float> (increment));
+        _mixerState.setChannelFromTouch (channel, target.mixer, value);
+        _mixer->syncControls ();
+        _mixerStrip->syncControls ();
+        updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                              + mixerControlLabel (target.mixer) + " "
+                              + juce::String (value, 2));
+        return;
+      }
+
+    case EncoderTarget::Kind::ShownChannelPot:
+    case EncoderTarget::Kind::ColumnChannelPot:
+      {
+        auto const channel
+            = target.kind == EncoderTarget::Kind::ShownChannelPot
+                  ? shown
+                  : static_cast<index_t> (column);
+        handleChannelValueChange (channel, target.pot, increment);
+        updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                              + channelPotLabel (target.pot) + " "
+                              + juce::String (channelPotValue (channel,
+                                                               target.pot),
+                                              2));
+        return;
+      }
+    }
+}
+
+void
+A3MotionUIComponent::handleEncoderPress (int column, int row)
+{
+  disarmOnOtherInput ();
+
+  // A click switches what the encoder turns, where there are two things
+  // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.
+  if (encoderPressClicks (_barPage, column, row)
+      && !isButtonPressed (Button::Shift))
+    {
+      auto &clicked = _encoderClicked[static_cast<size_t> (column)]
+                                     [static_cast<size_t> (row)];
+      clicked = !clicked;
+      auto const target = encoderTargetAt (column, row);
+      auto const spec = target.section == elevationSection
+                            ? elevationKnobSpec (target.sub)
+                            : motionKnobSpec (target.sub);
+      updateControlReadout (juce::String ("-- ") + spec.label);
+      return;
+    }
+
+  // A press on a length chooses it, as a tap does.
+  auto const target = encoderTargetAt (column, row);
+  if (target.kind == EncoderTarget::Kind::Speed)
+    chooseSpeedKey (target.speed);
 }
 
 void
@@ -7743,8 +7758,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // What the slot is played with, and whether it has been turned since. The
   // clip's file name rather than the shape's: they are two different things
   // and the field beside the picture is the one that changes this one.
-  _clipSettings->setLocks (_clipLocks.shape, _clipLocks.elevation,
-                           _clipLocks.motion);
   _clipSettings->setClipName (
       _slotClipFile[channel][slot].getFileNameWithoutExtension (),
       slotHasDrifted (channel, slot));
@@ -7811,53 +7824,48 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setElevationClipTop (knobOf (Knob::ClipTop, 0.f));
   _clipSettings->setElevationClipBottom (knobOf (Knob::ClipBottom, 0.f));
 
-  // The figure itself in the side-on circle, and the sound running along it.
-  //
-  // Mapped here rather than in the bar, and through exactly the calls the
-  // engine plays it through (performPlayback): the same shaping, the same
-  // swept elevation, the same height map. A picture drawn through a second
-  // mapping is a picture that is right until one of them is touched.
-  if (pattern)
-    {
-      auto const shaping = shapingOf (*pattern);
-      auto const params
-          = sweptElevation (pattern->getElevationParams (), *pattern);
-      auto const &heightMap = _engine.getHeightMap ();
-
-      auto const ticks = pattern->getTicks ().positions;
-      std::vector<Pos> onSphere;
-      onSphere.reserve (ticks.size ());
-      for (auto const &tick : ticks)
-        onSphere.push_back (
-            tick.isValid ()
-                ? heightMap.mapTo3D (shapedPosition (tick, shaping), params)
-                : Pos::invalid);
-
-      // Projected from where the sphere above is being looked at, a quarter
-      // turn behind it. Two pictures of one room that disagree about which way
-      // it is facing are worse than one picture.
-      _clipSettings->setElevationFigure (elevationSideView (
-          onSphere, elevationFigureSamples, sphereCamera ()));
-    }
-  else
-    {
-      _clipSettings->setElevationFigure ({});
-    }
-
+  // The clips clipsToDraw() says -- every playing one, and the selected one
+  // as its preview -- in the side-on circle, each with its sound running
+  // along it (2026-09-27). The sphere above draws the same set. Mapped by
+  // elevationFigureFor(), through exactly the calls the engine plays it
+  // through, and projected from where the sphere above is being looked at, a
+  // quarter turn behind it.
   {
-    // Only while the slot on show is the one being heard. A ball parked on a
-    // figure nobody is playing says "this is where the sound is", which would
-    // be a lie the moment it mattered.
-    auto const onAir = pattern
-                       && pattern->getStatus () == Pattern::Status::Playing;
-    auto const position = _engine.getChannelPosition (channel);
-    auto const valid = onAir && position.isValid ();
+    ClipGrid running{};
+    ClipGrid filled{};
+    for (std::size_t c = 0; c < numChannelColumns; ++c)
+      for (std::size_t s = 0; s < numPadSlots; ++s)
+        if (auto const &p = _patterns[c][s])
+          {
+            filled[c][s] = true;
+            running[c][s] = patternIsRunning (p->getStatus ());
+          }
 
-    _clipSettings->setElevationHead (
-        valid ? elevationSideView (position, sphereCamera ())
-              : ElevationSidePoint{},
-        valid);
+    auto const camera = sphereCamera ();
+    std::vector<ElevationChannel> clips;
+    for (auto const &drawn : clipsToDraw (running, filled, channel, slot))
+      {
+        auto const &shown = _patterns[drawn.channel][drawn.slot];
+        ElevationChannel into;
+        into.colour = _channelUIStates[drawn.channel]->colour;
+        into.selected = drawn.selected;
+        into.figure = elevationFigureFor (*shown, *_patternLibrary,
+                                          _engine.getHeightMap (), camera,
+                                          elevationFigureSamples);
 
+        // Only while that clip is the one being heard.
+        auto const position = _engine.getChannelPosition (drawn.channel);
+        into.headValid = shown->getStatus () == Pattern::Status::Playing
+                         && position.isValid ();
+        if (into.headValid)
+          into.head = elevationSideView (position, camera);
+
+        clips.push_back (std::move (into));
+      }
+
+    _clipSettings->setElevationChannels (clips);
+    if (_motionComponent)
+      _motionComponent->setSelectedPattern (pattern);
     _clipSettings->setSphereCamera (sphereCamera ());
   }
 
@@ -8021,7 +8029,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                 : -1.f,
             _channelUIStates[channel]->colour);
 
-        updateStatusBarPlayheads ();
+        updateChannelProgress ();
       }
 
     if (_clipSettings)

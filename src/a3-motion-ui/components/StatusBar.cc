@@ -20,7 +20,6 @@
 
 #include "StatusBar.hh"
 
-#include <a3-motion-ui/components/TickPlayheads.hh>
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -205,11 +204,6 @@ StatusBar::paintOverChildren (juce::Graphics &g)
 {
   auto const tick = _tickIndicator.getBounds ().toFloat ();
 
-  // The playheads are drawn after the recording fill, not under it: while a
-  // take runs on one channel the others keep playing, and a mark hidden by
-  // the fill would be missing in exactly the moment both are worth knowing.
-  paintPlayheads (g, tick);
-
   // The count-in: the same mark, in the same place, before there is anything
   // to fill. A beat blinks it; between beats it is gone, so the bar is not
   // carrying a light that never changes. Drawn at the left edge because that
@@ -289,34 +283,6 @@ StatusBar::setRecordingProgress (float fraction, juce::Colour colour)
   _recordingProgress = fraction;
   _recordingColour = colour;
   repaint ();
-}
-
-void
-StatusBar::setChannelPlayheads (
-    std::array<float, numChannelsInitial> const &positions,
-    std::array<juce::Colour, numChannelsInitial> const &colours)
-{
-  if (positions == _playheads && colours == _playheadColours)
-    return;
-
-  _playheads = positions;
-  _playheadColours = colours;
-  repaint ();
-}
-
-void
-StatusBar::paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick)
-{
-  for (size_t channel = 0; channel < _playheads.size (); ++channel)
-    {
-      auto const head = playheadBounds (tick, _playheads[channel],
-                                        theme ().strokeThick);
-      if (head.isEmpty ())
-        continue;
-
-      g.setColour (_playheadColours[channel]);
-      g.fillRect (head);
-    }
 }
 
 void

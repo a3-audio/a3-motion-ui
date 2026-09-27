@@ -43,6 +43,7 @@
 #include <a3-motion-ui/components/SphereProjection.hh>
 #include <a3-motion-ui/components/LineMapGeometry.hh>
 #include <a3-motion-ui/components/LineMapStrokes.hh>
+#include <a3-motion-ui/components/SphereMarks.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace
@@ -378,6 +379,13 @@ MotionComponent::setPatternDisplayData (std::shared_ptr<Pattern> pattern,
   jassert (pattern != nullptr);
   std::lock_guard<std::mutex> guard (_mutexDisplayData);
   _patternsDisplayData[pattern] = { std::move (displayPath), std::move (jumpDots) };
+}
+
+void
+MotionComponent::setSelectedPattern (std::shared_ptr<Pattern> pattern)
+{
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _selectedPattern = std::move (pattern);
 }
 
 void
@@ -1467,6 +1475,7 @@ MotionComponent::renderOpenGL ()
 
     _mutexDisplayData.lock ();
     auto const patternsDisplayData{ _patternsDisplayData };
+    auto const selected = _selectedPattern;
     _mutexDisplayData.unlock ();
 
     ++_frameCount;
@@ -1519,6 +1528,14 @@ MotionComponent::renderOpenGL ()
           // Pattern preview paths
           for (auto &[pattern, displayData] : patternsPreview)
             drawPatternPreview (*pattern, displayData, gFBO);
+
+          // The selected clip's own preview while it is not playing -- see
+          // clipsToDraw(). Playing, it is drawn below with the others.
+          if (selected && patternsPreview.count (selected) == 0
+              && !patternIsRunning (selected->getStatus ()))
+            if (auto const found = patternsDisplayData.find (selected);
+                found != patternsDisplayData.end ())
+              drawPatternPreview (*selected, found->second, gFBO);
 
           // Faint trajectory lines for all currently playing patterns
           // (skip those already drawn as explicit previews)
@@ -2150,10 +2167,9 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // matter which hemisphere it sits in — no depth fade.
   if (!displayData.jumpDots.empty ())
     {
-      // Three times the line, and the line is a skin value now -- so this
-      // follows it instead of being a number of its own. const, not constexpr:
-      // it is read from the theme at draw time.
-      auto const dotSize = lineThickness * 3.f;
+      // Three times the line, and never less than a dot of its own -- see
+      // jumpDotDiameter().
+      auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (
@@ -2170,10 +2186,15 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
     }
 
   // ── Draw from SVG displayPath projected onto sphere ──
-  // A phase of its own per channel, so the four do not breathe in step.
+  // Into the channel's maps on the GPU, as a playing line is: drawn here in
+  // software it was the bare strands at the skin's line width -- 0.0018 of
+  // the radius since the line went to the GPU, less than a pixel -- and the
+  // preview was not there at all.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     false, params, heightMap, g, shaping,
-                    _sphereShader.getCamera ());
+                    _sphereShader.getCamera (),
+                    lineStrokesFor (static_cast<int> (ch)),
+                    strandStrokesFor (static_cast<int> (ch)));
 }
 
 void
@@ -2207,7 +2228,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Handle jump-dot patterns ──
   if (!displayData.jumpDots.empty ())
     {
-      auto const dotSize = lineThickness * 3.f;
+      auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
           auto pos3D = heightMap.mapTo3D (

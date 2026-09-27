@@ -401,10 +401,6 @@ struct ClipSettingsLayout
   std::array<juce::Rectangle<int>, numClipSettingsSections> sectionCards;
   /** The title row per section. */
   std::array<juce::Rectangle<int>, numClipSettingsSections> sectionLabels;
-  /** The lock, at the right end of that title row: a square the size of the
-   *  row, so it is hit without aiming while the other hand is busy. Empty for
-   *  the global strip, which is the device's and holds no clip. */
-  std::array<juce::Rectangle<int>, numClipSettingsSections> sectionLocks;
 
   /** Per section its controls' cells, ordered **by sub-index**, not by
    *  where they sit. Elevation draws reach, mirror-south, clip-top, ...
@@ -450,6 +446,10 @@ struct ClipSettingsLayout
    *  RecordingLength.hh: the length is the shown clip's, so it is written
    *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
+  /** The page's eight fields, in the encoders' four by two, row by row
+   *  (2026-09-27): every control of CLIP and REC fills one, in one area with
+   *  no headings. Empty on the pages laid out otherwise. */
+  std::array<juce::Rectangle<int>, 8> pageFields;
   /** Rec, stop, play and act, two by two in the global strip under the
    *  channel faces, as a clip's pads stand on PADS: play and stop on top,
    *  act and rec under them. Indexed like transportKeyOrder. */
@@ -476,9 +476,17 @@ struct ClipSettingsLayout
    *  own header. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
 
-  /** The frame the four faces stand in, the way the transport under them
-   *  stands in one. */
+  /** The row the four faces stand in: across the whole bar, above the tabs
+   *  and the global strip, between the settings and the sphere (2026-09-27).
+   *  As tall as the faces' frame in the global strip was. */
   juce::Rectangle<int> channelFacesFrame;
+  /** In every face, left to right: the channel's meter, its 3D, FREQ and Q
+   *  (channelPotOrder), and the rest a bar its clip's progress fills. Drawn in
+   *  the face; the whole face selects the clip. */
+  std::array<juce::Rectangle<int>, numChannelColumns> channelFaceMeters;
+  std::array<std::array<juce::Rectangle<int>, 3>, numChannelColumns>
+      channelFacePots;
+  std::array<juce::Rectangle<int>, numChannelColumns> channelFaceProgress;
 
   /** The clip's plainest view, and the head of the row of views.
    *
@@ -542,19 +550,6 @@ struct ClipSettingsLayout
 juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
                                     int section, int sub);
 
-/** The signal dot's diameter, as a share of the smaller side of a channel
- *  face.
- *
- *  A fifth. Big enough to be caught out of the corner of an eye at arm's
- *  length, small enough that it cannot be mistaken for the face's own colour
- *  or crowd the slot number in the middle. */
-constexpr float channelFaceDotOfFace = 1.f / 5.f;
-
-/** How far the dot is held off the face's corner, as a share of its own
- *  diameter. Half, so the air around it is of its own size and it reads as
- *  sitting *in* the face rather than clipped to its edge. */
-constexpr float channelFaceDotInsetOfDot = 0.5f;
-
 /** A share of the bar's height, written as the divisor that is actually
  *  divided by.
  *
@@ -609,6 +604,16 @@ constexpr HeightShare headerGapOfHeader{ 12 };
  *  rows to the header's ceiling for no reason. */
 constexpr HeightShare barButtonMax{ 6 };
 
+/** The part of a progress bar a clip has played: from the left, `fraction`
+ *  of its width. Nothing for a negative fraction -- the clip is not playing. */
+juce::Rectangle<int> progressFill (juce::Rectangle<int> bar, float fraction);
+
+/** How tall the row of channel faces is, above everything else in the bar: a
+ *  button as the bar's buttons are sized by the knob, never under a
+ *  fingertip, and the frame's inset round it. Not a share of the bar, so the
+ *  bar's preferred height can add it on top of what its sections ask for. */
+int channelRowHeight (int knobDiam, int barWidth);
+
 /** Lays the whole bar out for the given bounds and the three sizes the
  *  user can actually change (header and body font size, Pot Size). Reads
  *  no theme of its own, so it can be checked at sizes nobody has dialled
@@ -630,6 +635,11 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
  *  would be a stray pixel rather than a dot.
  */
 juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
+
+/** Where the shape's picture is drawn in CLIP's and REC's shape field: a
+ *  square in its middle, off the edge by an eighth of the shorter side each
+ *  way. */
+juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
 
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value

@@ -130,21 +130,6 @@ ClipSettingsComponent::createTouchControls ()
       _sectionTouch[static_cast<size_t> (section)] = std::move (card);
     }
 
-  // After the cards, so a tap on the lock reaches the lock rather than the
-  // card it lies on -- JUCE hit-tests front to back and the last child added
-  // is in front.
-  for (int section = 0; section < numClipSections; ++section)
-    {
-      auto lock = std::make_unique<TouchControl> ();
-      lock->setIdentity (section);
-      lock->onTap = [this] (int tapped, int) {
-        if (onLockToggled)
-          onLockToggled (tapped);
-      };
-      addAndMakeVisible (*lock);
-      _lockTouch[static_cast<size_t> (section)] = std::move (lock);
-    }
-
   auto const makeTab = [this] (std::unique_ptr<TouchControl> &into,
                                BarPage page) {
     into = std::make_unique<TouchControl> ();
@@ -176,6 +161,40 @@ ClipSettingsComponent::createTouchControls ()
       };
       addAndMakeVisible (*face);
 
+      // The meter is drawn in the face and takes no touch: the whole face
+      // selects the clip.
+      auto &meter = _faceMeter[channel];
+      meter = std::make_unique<VuMeterView> ();
+      meter->setDirection (VuDirection::Up);
+      meter->level = [this, channel] {
+        return channelLevel ? channelLevel (static_cast<int> (channel))
+                            : VuLevel{};
+      };
+      meter->setInterceptsMouseClicks (false, false);
+      addAndMakeVisible (*meter);
+
+      // Over the face's touch, so a drag turns them; landing on one chooses
+      // the face too.
+      for (int i = 0; i < numChannelPots; ++i)
+        {
+          auto const which = channelPotOrder[static_cast<std::size_t> (i)];
+          auto &pot = _facePots[channel][static_cast<std::size_t> (i)];
+          pot = makeChannelPotKnob (which);
+          pot->onValueChange = [this, channel, which, k = pot.get ()] {
+            if (onChannelPotChanged)
+              onChannelPotChanged (static_cast<int> (channel), which,
+                                   static_cast<float> (k->getValue ()));
+          };
+          pot->onDoubleTapped = [this, channel, which] {
+            if (onChannelPotDoubleTapped)
+              onChannelPotDoubleTapped (static_cast<int> (channel), which);
+          };
+          pot->onDragStart = [this, channel] {
+            if (onChannelFaceChosen)
+              onChannelFaceChosen (static_cast<index_t> (channel));
+          };
+          addAndMakeVisible (*pot);
+        }
     }
 
   for (int i = 0; i < numTransportKeys; ++i)
@@ -412,10 +431,6 @@ ClipSettingsComponent::resized ()
           knob->setBounds (cells[sub]);
     }
 
-  for (int section = 0; section < numClipSections; ++section)
-    _lockTouch[static_cast<size_t> (section)]->setBounds (
-        _layout.sectionLocks[static_cast<size_t> (section)]);
-
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     _slotTouch[slot]->setBounds (_layout.slotButtons[slot]);
 
@@ -425,7 +440,12 @@ ClipSettingsComponent::resized ()
 
   _tabClipTouch->setBounds (_layout.tabClip);
   for (size_t channel = 0; channel < numChannelColumns; ++channel)
-    _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
+    {
+      _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
+      _faceMeter[channel]->setBounds (_layout.channelFaceMeters[channel]);
+      for (std::size_t i = 0; i < numChannelPots; ++i)
+        _facePots[channel][i]->setBounds (_layout.channelFacePots[channel][i]);
+    }
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
   _tabMixerTouch->setBounds (_layout.tabMixer);
@@ -457,17 +477,6 @@ void
 ClipSettingsComponent::setTrajectoryIcon (TrajectoryIconData const &icon)
 {
   _trajectoryIcon = icon;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setLocks (bool shape, bool elevation, bool motion)
-{
-  std::array<bool, numClipSections> const held{ shape, elevation, motion };
-  if (held == _locked)
-    return;
-
-  _locked = held;
   repaint ();
 }
 
@@ -628,24 +637,49 @@ ClipSettingsComponent::setElevationFlatElevation (float flatElevation)
   repaint ();
 }
 
+namespace
+{
+bool
+samePoints (std::vector<ElevationSidePoint> const &a,
+            std::vector<ElevationSidePoint> const &b)
+{
+  return a.size () == b.size ()
+         && std::equal (a.begin (), a.end (), b.begin (),
+                        [] (auto const &p, auto const &q) {
+                          return std::abs (p.down - q.down) < 1e-4f
+                                 && std::abs (p.across - q.across) < 1e-4f
+                                 && p.behind == q.behind
+                                 && p.startsStroke == q.startsStroke;
+                        });
+}
+
+bool
+sameChannel (ElevationChannel const &a, ElevationChannel const &b)
+{
+  return a.colour == b.colour && a.selected == b.selected
+         && a.headValid == b.headValid
+         && (!a.headValid
+             || (std::abs (a.head.down - b.head.down) < 1e-4f
+                 && std::abs (a.head.across - b.head.across) < 1e-4f))
+         && samePoints (a.figure.line, b.figure.line)
+         && samePoints (a.figure.dots, b.figure.dots);
+}
+}
+
 void
-ClipSettingsComponent::setElevationFigure (
-    std::vector<ElevationSidePoint> figure)
+ClipSettingsComponent::setElevationChannels (
+    std::vector<ElevationChannel> const &clips)
 {
   // Compared before storing: this arrives on every timer tick while a clip
-  // plays, and a repaint of the whole bar for a figure that has not moved is
+  // plays, and a repaint of the whole bar for figures that have not moved is
   // a repaint the sphere could have had.
-  if (figure.size () == _elevationFigure.size ()
-      && std::equal (figure.begin (), figure.end (), _elevationFigure.begin (),
-                     [] (auto const &a, auto const &b) {
-                       return std::abs (a.down - b.down) < 1e-4f
-                              && std::abs (a.across - b.across) < 1e-4f
-                              && a.behind == b.behind
-                              && a.startsStroke == b.startsStroke;
-                     }))
+  auto same = clips.size () == _elevationChannels.size ();
+  for (std::size_t c = 0; same && c < clips.size (); ++c)
+    same = sameChannel (clips[c], _elevationChannels[c]);
+  if (same)
     return;
 
-  _elevationFigure = std::move (figure);
+  _elevationChannels = clips;
   repaint ();
 }
 
@@ -656,20 +690,6 @@ ClipSettingsComponent::setSphereCamera (SphereCamera camera)
     return;
 
   _sphereCamera = camera;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setElevationHead (ElevationSidePoint head, bool valid)
-{
-  if (valid == _elevationHeadValid
-      && (!valid
-          || (std::abs (head.down - _elevationHead.down) < 1e-4f
-              && std::abs (head.across - _elevationHead.across) < 1e-4f)))
-    return;
-
-  _elevationHead = head;
-  _elevationHeadValid = valid;
   repaint ();
 }
 
@@ -1305,6 +1325,9 @@ ClipSettingsComponent::setPage (BarPage page)
 
   _page = page;
 
+  // Laid out again: CLIP and MOTION place their controls in fields and rows
+  // of their own since 2026-09-27, so the layout depends on the page.
+  resized ();
   showControlsOfPage ();
   repaint ();
 }
@@ -1385,65 +1408,6 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],
       parameterNames[sectionIndex], isSelected);
-
-  paintSectionLock (g, sectionIndex);
-}
-
-void
-ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
-{
-  if (sectionIndex < 0 || sectionIndex >= numClipSections)
-    return;
-
-  auto bounds = _layout.sectionLocks[static_cast<size_t> (sectionIndex)];
-  if (bounds.isEmpty ())
-    return;
-
-  auto const held = _locked[static_cast<size_t> (sectionIndex)];
-
-  // Lit in the warning colour while it is held, and that is deliberate: a
-  // held section is a section quietly refusing what you drop on it, which is
-  // exactly the kind of state you want to notice from across a booth. Quiet
-  // otherwise -- three marks that shouted at rest would be three marks you
-  // stop seeing.
-  auto const ink = held ? toColour (theme ().warning)
-                        : toColour (theme ().textPrimary,
-                                   theme ().alphaFillEmphasis);
-
-  // The hit area is twice as wide as it is tall so it can be found without
-  // aiming; the mark inside it stays a square, drawn at the right end where
-  // the eye ends up after reading the word.
-  auto const mark
-      = bounds.removeFromRight (bounds.getHeight ()).toFloat ();
-  auto const square = mark.reduced (mark.getWidth () * 0.28f);
-  auto const body = square.withTrimmedTop (square.getHeight () * 0.42f);
-  auto const thickness = juce::jmax (1.f, square.getWidth () * 0.12f);
-
-  if (held)
-    {
-      g.setColour (ink.withAlpha (theme ().alphaFillEmphasis));
-      g.fillRoundedRectangle (mark, theme ().radiusControl);
-    }
-
-  g.setColour (ink);
-  g.fillRoundedRectangle (body, thickness);
-
-  // The shackle: closed onto the body when held, and lifted off one side when
-  // it is not -- a padlock says shut or open by its shape, which survives
-  // being small and being glanced at, where a colour alone does not.
-  auto const shackleW = square.getWidth () * 0.56f;
-  auto const shackle
-      = juce::Rectangle<float> (shackleW, square.getHeight () * 0.62f)
-            .withCentre ({ square.getCentreX (),
-                           body.getY () - square.getHeight () * 0.08f
-                               + (held ? 0.f : -square.getHeight () * 0.12f) });
-
-  juce::Path arc;
-  arc.addCentredArc (shackle.getCentreX (), shackle.getBottom (),
-                     shackleW / 2.f, shackle.getHeight () / 2.f, 0.f,
-                     -juce::MathConstants<float>::halfPi,
-                     juce::MathConstants<float>::halfPi, true);
-  g.strokePath (arc, juce::PathStrokeType (thickness));
 }
 
 void
@@ -1476,37 +1440,34 @@ ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
 }
 
 void
-ClipSettingsComponent::setInputLevels (
-    std::array<VuLevel, numChannelsInitial> const &inputs)
+ClipSettingsComponent::setChannelPots (int channel,
+                                       ChannelPotValues const &values)
 {
-  // Compared as *dots*, not as levels. An rms wobbles every frame and almost
-  // none of that wobble changes the mark: the band is one of three and the
-  // alpha is a byte by the time it is drawn. Comparing the drawn thing rather
-  // than the number behind it is what keeps this bar -- which is on screen
-  // for the whole of a set -- from repainting twenty times a second forever.
-  auto changed = false;
+  if (channel < 0 || channel >= static_cast<int> (numChannelColumns))
+    return;
 
-  for (std::size_t channel = 0; channel < numChannelColumns; ++channel)
-    {
-      auto const dot = vuDot (inputs[channel]);
-      auto const &was = _channelFaceDots[channel];
+  auto const c = static_cast<std::size_t> (channel);
+  for (std::size_t i = 0; i < numChannelPots; ++i)
+    showChannelPot (*_facePots[c][i], values.set[i], values.effective[i],
+                    _channelFaceColours[c]);
+}
 
-      auto const same
-          = dot.visible == was.visible
-            && (!dot.visible
-                || (dot.band == was.band
-                    && juce::roundToInt (dot.alpha * 255.f)
-                           == juce::roundToInt (was.alpha * 255.f)));
+void
+ClipSettingsComponent::setChannelProgress (
+    std::array<float, numChannelColumns> const &progress)
+{
+  if (progress == _channelProgress)
+    return;
 
-      if (!same)
-        {
-          _channelFaceDots[channel] = dot;
-          changed = true;
-        }
-    }
+  _channelProgress = progress;
+  repaint (_layout.channelFacesFrame);
+}
 
-  if (changed)
-    repaint (_layout.channelFacesFrame);
+void
+ClipSettingsComponent::repaintChannelMeters ()
+{
+  for (auto &meter : _faceMeter)
+    meter->repaint ();
 }
 
 void
@@ -1543,46 +1504,28 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
                                         _channelFaceSlots[channel])
                           + 1);
 
-      g.setFont (juce::Font (fontFor (FontRole::Header, face, slotName),
+      // The rest of the face is the clip's progress, filled from the left in
+      // the channel's colour as a clip slot fills in a DAW, with the slot
+      // number at its start.
+      auto const bar = _layout.channelFaceProgress[channel];
+      g.setColour (colour.withAlpha (theme ().alphaOutline));
+      g.fillRect (bar);
+      auto const fill = progressFill (bar, _channelProgress[channel]);
+      g.setColour (colour);
+      g.fillRect (fill);
+
+      // Black or white once the fill runs under the number, or it vanishes in
+      // its own colour; the channel's colour on the washed bar otherwise.
+      auto const numberArea = bar.withWidth (juce::jmin (
+          bar.getWidth (), bar.getHeight () * 3 / 2));
+      auto const onFill = fill.getRight () > numberArea.getCentreX ();
+      g.setFont (juce::Font (fontFor (FontRole::Header, numberArea, slotName),
                              shown ? juce::Font::bold : juce::Font::plain));
-      g.setColour (readableInk (colour, toColour (theme ().background),
-                                toColour (theme ().textPrimary)));
-      g.drawText (slotName, face, juce::Justification::centred);
-
-      paintChannelFaceDot (g, face, _channelFaceDots[channel]);
+      g.setColour (onFill ? padGlyphInk (colour)
+                          : readableInk (colour, toColour (theme ().background),
+                                         toColour (theme ().textPrimary)));
+      g.drawText (slotName, numberArea, juce::Justification::centred);
     }
-}
-
-void
-ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
-                                            juce::Rectangle<int> face,
-                                            VuDot const &dot)
-{
-  // Nothing at all for a silent channel. A face with no dot is the reading
-  // this exists for, and a dim dot would say "quiet" where the answer is
-  // "none" -- the two a hand needs told apart at a glance.
-  if (!dot.visible || face.isEmpty ())
-    return;
-
-  // Top right, inside the corner: the slot number has the middle and the
-  // colour has the whole face, so the one place left that is unmistakably
-  // neither is a corner. The right one, because a hand reading the row reads
-  // left to right and finds the number first.
-  auto const size = juce::jmax (
-      2.f, static_cast<float> (juce::jmin (face.getWidth (),
-                                           face.getHeight ()))
-               * channelFaceDotOfFace);
-  auto const inset = size * channelFaceDotInsetOfDot;
-
-  juce::Rectangle<float> const mark (
-      static_cast<float> (face.getRight ()) - inset - size,
-      static_cast<float> (face.getY ()) + inset, size, size);
-
-  // The meter's own three colours, from the meter's own rule. Green, yellow
-  // and red down a level is a language older than this device, and one read
-  // from two places is one that will one day disagree with itself.
-  g.setColour (vuBandColour (theme (), dot.band).withAlpha (dot.alpha));
-  g.fillEllipse (mark);
 }
 
 void
@@ -1628,10 +1571,10 @@ ClipSettingsComponent::paintLengthSection (juce::Graphics &g)
 void
 ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
 {
-  // The same wash and title every card wears, across both columns.
-  g.setColour (toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (_layout.recordCard.toFloat (), theme ().radiusCard);
-  paintSectionLabel (g, _layout.recordLabel, "Record", false);
+  // No card of its own since 2026-09-27: REC is one area of fields, and
+  // fade|bias share one, grounded like the keys around it.
+  if (!_layout.pageFields[5].isEmpty ())
+    paintBarButton (g, _layout.pageFields[5], {}, {}, false, false);
 
   // The rec mode in its own colour: how much of an old take this pass will
   // destroy, on the same scale the rest of the device uses. It carries a
@@ -1896,7 +1839,6 @@ ClipSettingsComponent::preferredHeight (int width) const
   // Same geometry the layout uses, asked before there is a layout: the knob
   // follows the section width and Pot Size, the boxes follow the knob and the
   // body font, and the bar follows the boxes.
-  juce::ignoreUnused (width);
   auto const knobDiam
       = knobDiameterForFont (theme ().fontSize (FontRole::Body), theme ().potSize);
 
@@ -1915,10 +1857,14 @@ ClipSettingsComponent::preferredHeight (int width) const
       wanted, controllerPreferredHeight (theme ().fontSize (FontRole::Header),
                                          fingertipSize));
 
+  // The row of channel faces on top, unscaled: it is a row of keys, sized
+  // like the bar's buttons, not a share of the bar.
   return juce::jmax (
-      1, juce::roundToInt (static_cast<float> (needed)
-                           * juce::jlimit (0.5f, 2.f,
-                                           theme ().clipSettingsHeightScale)));
+             1, juce::roundToInt (static_cast<float> (needed)
+                                  * juce::jlimit (
+                                      0.5f, 2.f,
+                                      theme ().clipSettingsHeightScale)))
+         + channelRowHeight (knobDiam, width);
 }
 
 
@@ -1960,13 +1906,14 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
         }
     }
 
-  // Pictogram, centred in whatever square area is left above the name.
-  auto const iconSize = static_cast<float> (
-      juce::jmin (_layout.trajectoryIcon.getWidth (),
-                  _layout.trajectoryIcon.getHeight ()));
-  auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
-                      .withCentre (_layout.trajectoryIcon.toFloat ()
-                                       .getCentre ());
+  // On a page of fields the picture has a field of its own, grounded like the
+  // seven keys around it.
+  if (!_layout.pageFields[4].isEmpty ())
+    paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
+
+  // Pictogram, in the middle of the field and off its edge -- see
+  // shapeFieldIconArea().
+  auto iconArea = shapeFieldIconArea (_layout.trajectoryIcon).toFloat ();
   // The channel's colour, selected or not: the pictogram stands for the clip
   // that channel is holding, and it is the same shape in the same colour that
   // is drawn on the sphere. Which section is selected is already said by the
@@ -2030,7 +1977,11 @@ void
 ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               bool isSelected)
 {
-  paintSectionCard (g, elevationIndex, isSelected);
+  // On MOTION since 2026-09-27 Elevation shares Motion's one area: a second
+  // wash over it would darken the whole page.
+  if (_layout.sectionCards[elevationIndex]
+      != _layout.sectionCards[motionIndex])
+    paintSectionCard (g, elevationIndex, isSelected);
 
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[elevationIndex];
@@ -2201,26 +2152,48 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // Where the sound actually goes. The sphere above says where in the room the
   // figure is and this says what the sphere above has lost, whichever way it
   // is turned.
-  if (_elevationFigure.size () > 1)
+  // In the order given: the selected clip last and full, the others muted
+  // under it, so the clip the bar describes stays the one that stands out.
+  auto const shade = [] (ElevationChannel const &clip) {
+    return clip.selected ? 1.f : 0.45f;
+  };
+  for (auto const &channel : _elevationChannels)
     {
-      auto const near = _channelColour.withAlpha (theme ().alphaTextStrong);
-      auto const far = _channelColour.withAlpha (theme ().alphaFillEmphasis);
+      auto const &line = channel.figure.line;
+      auto const near
+          = channel.colour.withMultipliedAlpha (theme ().alphaTextStrong
+                                                * shade (channel));
+      auto const far
+          = channel.colour.withMultipliedAlpha (theme ().alphaFillEmphasis
+                                                * shade (channel));
 
-      auto previous = place (_elevationFigure.front ());
-      for (size_t i = 1; i < _elevationFigure.size (); ++i)
+      if (line.size () > 1)
         {
-          auto const point = place (_elevationFigure[i]);
-
-          // The pen lift is decided in the room, not here -- see
-          // ElevationSidePoint::startsStroke.
-          if (!_elevationFigure[i].startsStroke)
+          auto previous = place (line.front ());
+          for (size_t i = 1; i < line.size (); ++i)
             {
-              g.setColour (_elevationFigure[i].behind ? far : near);
-              g.drawLine (previous.x, previous.y, point.x, point.y,
-                          theme ().strokeMedium);
-            }
+              auto const point = place (line[i]);
 
-          previous = point;
+              // The pen lift is decided in the room, not here -- see
+              // ElevationSidePoint::startsStroke.
+              if (!line[i].startsStroke)
+                {
+                  g.setColour (line[i].behind ? far : near);
+                  g.drawLine (previous.x, previous.y, point.x, point.y,
+                              theme ().strokeMedium);
+                }
+
+              previous = point;
+            }
+        }
+
+      // A shape of dots is its dots here as on the sphere.
+      auto const dotR = juce::jmax (1.5f, r * 0.05f);
+      for (auto const &dot : channel.figure.dots)
+        {
+          auto const at = place (dot);
+          g.setColour (dot.behind ? far : near);
+          g.fillEllipse (at.x - dotR, at.y - dotR, dotR * 2.f, dotR * 2.f);
         }
     }
 
@@ -2285,17 +2258,20 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // everything, and outlined, because in a picture this small it is the only
   // mark that moves and it has to be findable at a glance -- the whole reason
   // to look here mid-set is "how high is it right now".
-  if (_elevationHeadValid)
+  for (auto const &channel : _elevationChannels)
     {
-      auto const at = place (_elevationHead);
+      if (!channel.headValid)
+        continue;
+
+      auto const at = place (channel.head);
       auto const ballR = juce::jmax (2.f, r * 0.11f);
 
       g.setColour (toColour (theme ().surface, outlineOpacity));
       g.fillEllipse (at.x - ballR - 1.f, at.y - ballR - 1.f,
                      (ballR + 1.f) * 2.f, (ballR + 1.f) * 2.f);
-      g.setColour (_elevationHead.behind
-                       ? _channelColour.withAlpha (theme ().alphaInactive)
-                       : _channelColour);
+      g.setColour (channel.head.behind
+                       ? channel.colour.withAlpha (theme ().alphaInactive)
+                       : channel.colour.withMultipliedAlpha (shade (channel)));
       g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
     }
 }

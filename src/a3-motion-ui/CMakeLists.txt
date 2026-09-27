@@ -145,6 +145,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/ActionLayout.cc
     components/BarKnob.cc
     components/KnobHold.cc
+    components/EncoderMap.cc
+    components/PatternDisplay.cc
     components/ColumnBreak.cc
     components/ColumnBreak.hh
     components/MixerControls.hh

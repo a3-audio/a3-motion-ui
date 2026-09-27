@@ -359,13 +359,35 @@ TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);
   ASSERT_TRUE (layout.fits);
 
+  // The EQ row: GAIN to LOW. SEND went into the row under it on 2026-09-27
+  // -- see TheBarsStripsSendStandsLeftOfIts3d.
   auto const keys
-      = static_cast<std::size_t> (faceSlot (MixerControl::Pfl));
+      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
 
   for (std::size_t i = 1; i < keys; ++i)
     EXPECT_GE (layout.controls[0][i].getX (),
                layout.controls[0][i - 1].getRight ())
         << mixerControlLabel (mixerFaceOrder[i]) << " is out of order";
+}
+
+// SEND stands in the row under the EQ, at its left, beside 3D FREQ Q: the
+// channel's three sends to the room and the effect, in one row (2026-09-27).
+TEST (MixerLayout, TheBarsStripsSendStandsLeftOfIts3d)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  auto const send = layout.controls[0][static_cast<std::size_t> (
+      faceSlot (MixerControl::FxSend))];
+  auto const gain = layout.controls[0][static_cast<std::size_t> (
+      faceSlot (MixerControl::Gain))];
+  auto const threeD = layout.channelPots[0][0];
+
+  EXPECT_EQ (send.getY (), threeD.getY ()) << "in the row under the EQ";
+  EXPECT_EQ (send.getX (), gain.getX ()) << "at its left";
+  EXPECT_LE (send.getRight (), threeD.getX ()) << "left of 3D";
+  EXPECT_EQ (send.getWidth (), threeD.getWidth ());
+  EXPECT_EQ (send.getHeight (), threeD.getHeight ());
 }
 
 // One channel, so the other three strips are empty rather than laid out
@@ -606,8 +628,8 @@ TEST (MixerLayout, TheMastersPotsStandRowOnRowOnTheChannelsLines)
     }
 }
 
-// The bar's tab: the channel pots in a second row, each under the pot in the
-// same column, and the keys under them -- a third of the height rather than
+// The bar's tab: the channel pots in a second row, after SEND, each under
+// the pot one column on, and the keys under them -- a third of the height rather than
 // half, which is the room the second row takes.
 TEST (MixerLayout, TheBarsStripHasTheChannelPotsInASecondRow)
 {
@@ -633,9 +655,10 @@ TEST (MixerLayout, TheBarsStripHasTheChannelPotsInASecondRow)
           << channelPotLabel (channelPotOrder[i]) << " is not in the second row";
       EXPECT_EQ (channelPots[i].getCentreY (), channelPots[0].getCentreY ())
           << channelPotLabel (channelPotOrder[i]) << " is off the row";
-      EXPECT_EQ (channelPots[i].getX (), pots[i].getX ())
+      // One column in: SEND stands first in this row since 2026-09-27.
+      EXPECT_EQ (channelPots[i].getX (), pots[i + 1].getX ())
           << channelPotLabel (channelPotOrder[i]) << " is not under "
-          << mixerControlLabel (mixerFaceOrder[i]);
+          << mixerControlLabel (mixerFaceOrder[i + 1]);
       EXPECT_GE (channelPots[i].getWidth (), fingertipSize);
       EXPECT_GE (channelPots[i].getHeight (), fingertipSize);
     }
