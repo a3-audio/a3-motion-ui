@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/KnobLanes.hh>
 #include <a3-motion-engine/TrajectoryBridges.hh>
 
 #include <string>
@@ -357,6 +358,38 @@ public:
   float getFlatElevation () const;
   void setFlatElevation (float flatElevation); // clamped to [0.0, 1.0]
 
+  /** The Motion and Elevation knobs as a take records them and a clip plays
+   *  them back (REC 3c).
+   *
+   *  getKnob() is what the clip is running with: its lane's value where one
+   *  is playing, the setting otherwise. The setting itself is never moved by
+   *  a lane -- the knob stays where the hand left it, which is also the value
+   *  a Latch or Write pass carries on with after the lift. The shaping and
+   *  the swept elevation read getKnob(), so what plays is what is drawn. */
+  float getKnob (Knob knob) const;
+  /** getKnob() for the knobs that are steps (spin, the sweeps). */
+  int getKnobStep (Knob knob) const;
+  /** The lane's value alone, where one is playing. */
+  std::optional<float> getKnobPlayed (Knob knob) const;
+  float getKnobSetting (Knob knob) const;
+
+  /** A hand on the knob: recorded while a take runs, and wins over the lane
+   *  while it holds. */
+  void setKnobHeld (Knob knob, bool held);
+  bool isKnobHeld (Knob knob) const;
+
+  /** One tick of a take: every knob into its lane, by the rec mode. */
+  void recordKnobs (KnobRecorders &recorders, RecMode mode, long long ticksNow,
+                    long long lapTicks);
+  /** One tick of playback: each lane's value at the play position, except
+   *  where a hand holds its knob. */
+  void playKnobs (double fractionalTick);
+
+  KnobLanes getLanes () const;
+  void setLanes (KnobLanes lanes);
+  bool hasLanes () const;
+  void clearLanes ();
+
   /** Convenience bundle of the above, ready to pass to
    *  HeightMap::mapTo3D()/mapTo2D(). */
   ElevationParams getElevationParams () const;
@@ -422,6 +455,14 @@ private:
   std::atomic<int> _envelopeDecay{ 3 };
   std::atomic<float> _envelopeMax{ 1.f };
   mutable std::mutex _ticksMutex;
+
+  /** Guarded by _lanesMutex: written on the engine's tick, swapped whole from
+   *  the message thread when a clip is loaded or a take kept. */
+  KnobLanes _lanes;
+  mutable std::mutex _lanesMutex;
+  /** NaN where no lane is playing -- see getKnob(). */
+  std::array<std::atomic<float>, numKnobs> _knobPlayed;
+  std::array<std::atomic<bool>, numKnobs> _knobHeld{};
 
   // TODO is float precision sufficient here? do the math!
   static_assert (std::atomic<float>::is_always_lock_free);

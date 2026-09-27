@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/KnobLanes.hh>
+
 #include <JuceHeader.h>
 
 #include <array>
@@ -276,6 +278,10 @@ public:
    *  — the spin remote-controls the rotation, so the knob shows the hand's
    *  value and the movement over it at once. */
   void setShapeRotate (float rotate, float reach);
+  /** What the clip's lanes are playing, knob by knob, as the blue arc -- for
+   *  the knobs no sweep draws one on. Rotate, reach, elv and the squeezes show
+   *  a lane through their swept value instead. */
+  void setLanesPlayed (std::array<std::optional<float>, numKnobs> const &played);
 
   /** Which speed button reads as in force, as a speedLog2. */
   void setShapeSpeed (int speedLog2);
@@ -415,6 +421,9 @@ public:
   /** The lock above a section was pressed. */
   std::function<void (int section)> onLockToggled;
   std::function<void (int section, int sub)> onControlTapped;
+  /** A finger came down on a knob, or came up off it -- a hand on the knob
+   *  is what a take records and what wins over a lane. */
+  std::function<void (int section, int sub, bool held)> onControlHeld;
   /** A control was dragged, by one increment. Same increment the
    *  Pot-Encoder produces, so both go through one handler. */
   /** A knob was turned: where it stands now, in the scale ClipKnobs.hh gives

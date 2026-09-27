@@ -529,6 +529,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     selectClipSettingsSection (section);
     selectClipSettingsSubElement (juce::jmax (0, sub));
   };
+  _clipSettings->onControlHeld = [this] (int section, int sub, bool held) {
+    auto const knob = knobAt (section, sub);
+    if (!knob)
+      return;
+
+    if (held)
+      _knobHold.press (*knob);
+    else
+      _knobHold.release (*knob);
+    pushKnobHolds ();
+  };
   _clipSettings->onRecModePressed = [this] {
     auto const count = static_cast<int> (recMenuModes.size ());
     applyRecMode ((recMenuIndex (_recMode) + 1) % count);
@@ -2587,6 +2598,7 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
       = freeNameIn (_patternLibrary->getClipDir (), base, ".json")
             .toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
+  copy.lanes = pattern->getLanes ();
 
   auto const target = newFileIn (_patternLibrary->getClipDir (),
                                  juce::String (copy.name), ".json");
@@ -2881,6 +2893,7 @@ A3MotionUIComponent::assignBrowserEntry (int index)
   // because it is the same gesture reached from the other side. Choosing a
   // whole clip is what replaces the values, and that has its own tab.
   auto const held = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+  auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
   auto const hadOne = pattern != nullptr;
 
   // Whatever was there stops first. Dropping a clip onto a slot that is
@@ -2908,6 +2921,7 @@ A3MotionUIComponent::assignBrowserEntry (int index)
     if (auto const &filled = _patterns[channel][slot])
       {
         applyClipSettings (*filled, held);
+        applyLanes (*filled, heldLanes);
         // And the clip those values came from is still where they came from:
         // the figure changed, not what it is played with.
         setSlotClipFile (channel, slot, wasFrom);
@@ -3001,6 +3015,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   applyClipSettings (
       *pattern,
       heldOver (clipSettingsFrom (*pattern), clip->settings, _clipLocks));
+  applyLanes (*pattern, *clip);
 
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
@@ -4949,17 +4964,21 @@ A3MotionUIComponent::applySet (juce::File const &file)
           // itself as drifted from Breath, which is exactly what it was.
           if (auto const &pattern = _patterns[index][slot])
             {
+              auto const clip = ClipFile::load (_slotClipFile[index][slot]);
               if (saved.overrides.has_value ())
                 {
                   applyClipSettings (*pattern, *saved.overrides);
                   syncClipUIParamsFromPattern (index, slot);
                 }
-              else if (auto const clip
-                       = ClipFile::load (_slotClipFile[index][slot]))
+              else if (clip)
                 {
                   applyClipSettings (*pattern, clip->settings);
                   syncClipUIParamsFromPattern (index, slot);
                 }
+              // The lanes are the clip's whatever the set turned: a set
+              // carries settings, not takes.
+              if (clip)
+                applyLanes (*pattern, *clip);
             }
 
           // And what was running runs again -- from the top, on the next
@@ -5831,6 +5850,8 @@ A3MotionUIComponent::timerCallback ()
   // running and the key went on showing the triangle indefinitely, because the
   // refresh stopped in the same tick the clip did. The accent had this
   // already, as _accentWasActive; it was the one case somebody had hit.
+  pushKnobHolds ();
+
   if (moving || _wasMoving)
     updateClipSettingsDisplay ();
   _wasMoving = moving;
@@ -7257,6 +7278,13 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
   auto const slot = _clipSettingsSlot;
   auto &params = _clipUIParams[channel][slot];
 
+  // An encoder has no touch: a step is the hand on the knob for a moment.
+  if (auto const knob = knobAt (section, sub))
+    {
+      _knobHold.nudge (*knob, juce::Time::getMillisecondCounterHiRes ());
+      pushKnobHolds ();
+    }
+
   switch (section)
     {
     case 0: // Shape — the picture (0) and the clip field under it (1). Two
@@ -7321,6 +7349,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         // how the slot is played.
         auto const held
             = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+        // And the knobs it plays, stretched onto the new figure.
+        auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
 
         bool const wasPlaying
             = pattern
@@ -7349,7 +7379,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           {
             pattern = createPatternForIndex (newIndex, channel);
             if (pattern)
-              applyClipSettings (*pattern, held);
+              {
+                applyClipSettings (*pattern, held);
+                applyLanes (*pattern, heldLanes);
+              }
             registerPatternDisplayData (pattern);
 
             if (wasPlaying && pattern)
@@ -7602,6 +7635,34 @@ A3MotionUIComponent::updateInputLevelDots ()
 }
 
 void
+A3MotionUIComponent::pushKnobHolds ()
+{
+  auto const &shown = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  auto const previous = _knobHoldPattern.lock ();
+
+  if (previous != shown)
+    {
+      // Nobody's hand is on a clip that is not on show. The hands themselves
+      // stay: a finger on a knob is on whatever clip that knob now shows --
+      // which is how a take started under a held knob records it.
+      if (previous)
+        for (int k = 0; k < numKnobs; ++k)
+          previous->setKnobHeld (static_cast<Knob> (k), false);
+      _knobHoldPattern = shown;
+    }
+
+  if (!shown)
+    return;
+
+  auto const now = juce::Time::getMillisecondCounterHiRes ();
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const knob = static_cast<Knob> (k);
+      shown->setKnobHeld (knob, _knobHold.isHeld (knob, now));
+    }
+}
+
+void
 A3MotionUIComponent::updateClipSettingsDisplay ()
 {
   // The bar does not exist yet while the set is being restored -- applySet()
@@ -7690,19 +7751,32 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // an arc drawn off the raw sweep would promise a reach the engine is not
   // playing. Shown while the base is sweeping too, because that is when the
   // two differ.
+  // A lane playing any of what the reach is measured from moves it too.
+  auto const lanePlays = [&pattern] (std::initializer_list<Knob> knobs) {
+    for (auto const knob : knobs)
+      if (pattern->getKnobPlayed (knob))
+        return true;
+    return false;
+  };
   _clipSettings->setElevationReach (
       pattern ? pattern->getReach () : 0.5f,
-      pattern && (pattern->getReachLfo () != 0
-                  || pattern->getElevationLfo () != 0)
+      pattern
+              && (pattern->getKnobStep (Knob::Swell) != 0
+                  || pattern->getKnobStep (Knob::Sway) != 0
+                  || lanePlays ({ Knob::Reach, Knob::Swell, Knob::Sway,
+                                  Knob::Elevation, Knob::ClipTop,
+                                  Knob::ClipBottom }))
           ? sweptElevation (pattern->getElevationParams (), *pattern).reach
           : -2.f);
   // The line the hand set, and where the sway is holding it now -- the same
   // pair the reach above is given, and drawn the same way.
   _clipSettings->setElevationBase (
       pattern ? pattern->getElevationBase () : 0.f,
-      pattern && pattern->getElevationLfo () != 0
-          ? lfoSweep (pattern->getElevationBase (),
-                      pattern->getElevationLfo (),
+      pattern
+              && (pattern->getKnobStep (Knob::Sway) != 0
+                  || lanePlays ({ Knob::Elevation, Knob::Sway }))
+          ? lfoSweep (pattern->getKnob (Knob::Elevation),
+                      pattern->getKnobStep (Knob::Sway),
                       pattern->getElevationLfoPhase ())
           : -1.f);
   _clipSettings->setElevationClipTop (pattern ? pattern->getClipTop ()
@@ -7801,16 +7875,28 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setMotionSqueeze (
       pattern ? pattern->getSqueezeX () : ClipSettings{}.squeezeX,
       pattern ? pattern->getSqueezeY () : ClipSettings{}.squeezeY,
-      pattern && pattern->getSqueezeXLfo () != 0
-          ? lfoSweepBipolar (pattern->getSqueezeX (),
-                             pattern->getSqueezeXLfo (),
+      pattern
+              && (pattern->getKnobStep (Knob::StretchX) != 0
+                  || lanePlays ({ Knob::SqueezeX, Knob::StretchX }))
+          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeX),
+                             pattern->getKnobStep (Knob::StretchX),
                              pattern->getSqueezeXLfoPhase ())
           : -2.f,
-      pattern && pattern->getSqueezeYLfo () != 0
-          ? lfoSweepBipolar (pattern->getSqueezeY (),
-                             pattern->getSqueezeYLfo (),
+      pattern
+              && (pattern->getKnobStep (Knob::StretchY) != 0
+                  || lanePlays ({ Knob::SqueezeY, Knob::StretchY }))
+          ? lfoSweepBipolar (pattern->getKnob (Knob::SqueezeY),
+                             pattern->getKnobStep (Knob::StretchY),
                              pattern->getSqueezeYLfoPhase ())
           : -2.f);
+  {
+    std::array<std::optional<float>, numKnobs> played{};
+    if (pattern)
+      for (int k = 0; k < numKnobs; ++k)
+        played[static_cast<std::size_t> (k)]
+            = pattern->getKnobPlayed (static_cast<Knob> (k));
+    _clipSettings->setLanesPlayed (played);
+  }
   _clipSettings->setMotionStretch (
       pattern ? pattern->getSqueezeXLfo () : ClipSettings{}.squeezeXLfo,
       pattern ? pattern->getSqueezeYLfo () : ClipSettings{}.squeezeYLfo);

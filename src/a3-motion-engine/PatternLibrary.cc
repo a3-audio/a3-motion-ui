@@ -247,7 +247,10 @@ PatternLibrary::loadPattern (int index) const
   // formats are in use, and stops mattering once the shape holds none.
   if (pattern != nullptr && entry.clipFile.existsAsFile ())
     if (auto const clip = ClipFile::load (entry.clipFile))
-      applyClipSettings (*pattern, clip->settings);
+      {
+        applyClipSettings (*pattern, clip->settings);
+        applyLanes (*pattern, *clip);
+      }
 
   return pattern;
 }
@@ -309,6 +312,7 @@ PatternLibrary::saveUserPattern (std::shared_ptr<Pattern> const &pattern)
                     .fromFirstOccurrenceOf ("_", false, false)
                     .toStdString ();
     clip.settings = clipSettingsFrom (*pattern);
+    clip.lanes = pattern->getLanes ();
 
     auto const clipFile
         = newFileIn (getClipDir (), juce::String (clip.name), ".json");

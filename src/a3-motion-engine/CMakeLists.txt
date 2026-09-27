@@ -80,6 +80,8 @@ target_sources("a3-motion-engine" PRIVATE
     PatternLibrary.hh
     RecordingTrace.cc
     RecordingTrace.hh
+    KnobLanes.cc
+    KnobLanes.hh
     tempo/BeatSync.cc
     tempo/BeatSync.hh
     tempo/ExternalTempo.cc

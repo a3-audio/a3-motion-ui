@@ -385,3 +385,27 @@ TEST (PatternLibraryClips, ATakeWhoseClipCannotBeWrittenIsNotSaved)
              0)
       << "a shape left behind would be a half-saved take in the library";
 }
+
+TEST (PatternLibraryClips, ASavedTakeKeepsTheKnobsItTurned)
+{
+  auto const root = aRootHolding ("a3-library-save-lanes", "16_Wave.svg");
+  PatternLibrary library (root);
+  library.refresh ();
+
+  auto take = aTakeNamed ("Rec_lanes");
+  KnobLanes lanes;
+  auto &reach = lanes[static_cast<std::size_t> (Knob::Reach)];
+  reach = KnobLane (static_cast<long long> (take->getNumTicks ()));
+  reach.write (0, 0.7f);
+  take->setLanes (lanes);
+
+  ASSERT_GT (library.saveUserPattern (take), 0);
+
+  auto const clip
+      = ClipFile::load (root.getChildFile ("clips/user/Rec_lanes.json"));
+  ASSERT_TRUE (clip.has_value ());
+  EXPECT_FLOAT_EQ (clip->lanes[static_cast<std::size_t> (Knob::Reach)]
+                       .at (5.0)
+                       .value_or (-1.f),
+                   0.7f);
+}

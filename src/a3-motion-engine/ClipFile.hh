@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/KnobLanes.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <optional>
@@ -64,6 +65,11 @@ struct Clip
   std::string svg;
 
   ClipSettings settings;
+
+  /** The knobs the take turned, as they play back with it (REC 3c). Part of
+   *  the take rather than of its settings: a settings save leaves them as
+   *  they are, and a clip that has none writes none. */
+  KnobLanes lanes;
 };
 
 namespace ClipFile
@@ -88,6 +94,12 @@ std::optional<Clip> load (juce::File const &file);
  *  shape that has none -- has nothing to have drifted from, so it has not.
  */
 bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
+
+/** Puts a clip's lanes on the pattern it is played on, stretched to its
+ *  length -- a clip can be played on a shape other than its own. A clip with
+ *  none takes the pattern's away. */
+void applyLanes (Pattern &pattern, Clip const &clip);
+void applyLanes (Pattern &pattern, KnobLanes const &lanes);
 
 /** Whether Save may write back over the clip a slot came from.
  *

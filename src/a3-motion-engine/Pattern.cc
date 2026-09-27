@@ -26,13 +26,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace a3
 {
 
 // TODO default-initializing to channel 0 is not clean. Needs to be
 // redesigned. Patterns should be channel-agnostic to begin with.
-Pattern::Pattern () : _channel (0) {}
+Pattern::Pattern () : _channel (0)
+{
+  for (auto &played : _knobPlayed)
+    played.store (std::numeric_limits<float>::quiet_NaN (),
+                  std::memory_order_relaxed);
+}
 
 void
 Pattern::clear ()
@@ -891,6 +897,140 @@ Pattern::getElevationParams () const
   params.flat = _flat;
   params.flatElevation = _flatElevation;
   return params;
+}
+
+namespace
+{
+std::size_t
+slot (Knob knob)
+{
+  return static_cast<std::size_t> (knob);
+}
+}
+
+float
+Pattern::getKnob (Knob knob) const
+{
+  if (auto const played = getKnobPlayed (knob))
+    return *played;
+  return getKnobSetting (knob);
+}
+
+int
+Pattern::getKnobStep (Knob knob) const
+{
+  return static_cast<int> (std::lround (getKnob (knob)));
+}
+
+std::optional<float>
+Pattern::getKnobPlayed (Knob knob) const
+{
+  auto const played = _knobPlayed[slot (knob)].load (std::memory_order_relaxed);
+  if (std::isnan (played))
+    return {};
+  return played;
+}
+
+float
+Pattern::getKnobSetting (Knob knob) const
+{
+  switch (knob)
+    {
+    case Knob::Rotate: return getRotate ();
+    case Knob::Spin: return static_cast<float> (getSpin ());
+    case Knob::Reach: return getReach ();
+    case Knob::Swell: return static_cast<float> (getReachLfo ());
+    case Knob::SqueezeX: return getSqueezeX ();
+    case Knob::StretchX: return static_cast<float> (getSqueezeXLfo ());
+    case Knob::SqueezeY: return getSqueezeY ();
+    case Knob::StretchY: return static_cast<float> (getSqueezeYLfo ());
+    case Knob::ClipBottom: return getClipBottom ();
+    case Knob::ClipTop: return getClipTop ();
+    case Knob::Sway: return static_cast<float> (getElevationLfo ());
+    case Knob::Elevation: return getElevationBase ();
+    }
+  return 0.f;
+}
+
+void
+Pattern::setKnobHeld (Knob knob, bool held)
+{
+  _knobHeld[slot (knob)].store (held, std::memory_order_relaxed);
+}
+
+bool
+Pattern::isKnobHeld (Knob knob) const
+{
+  return _knobHeld[slot (knob)].load (std::memory_order_relaxed);
+}
+
+void
+Pattern::recordKnobs (KnobRecorders &recorders, RecMode mode,
+                      long long ticksNow, long long lapTicks)
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  for (std::size_t k = 0; k < _lanes.size (); ++k)
+    {
+      auto const knob = static_cast<Knob> (k);
+      // A lane is as long as the take it belongs to; one from before is
+      // somebody else's.
+      if (_lanes[k].ticks () != lapTicks)
+        _lanes[k] = KnobLane (lapTicks);
+
+      recorders[k].recordTick (_lanes[k], mode, isKnobHeld (knob),
+                               getKnobSetting (knob), ticksNow, lapTicks);
+    }
+}
+
+void
+Pattern::playKnobs (double fractionalTick)
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  for (std::size_t k = 0; k < _lanes.size (); ++k)
+    {
+      auto const value = isKnobHeld (static_cast<Knob> (k))
+                             ? std::nullopt
+                             : _lanes[k].at (fractionalTick);
+      _knobPlayed[k].store (value.value_or (
+                                std::numeric_limits<float>::quiet_NaN ()),
+                            std::memory_order_relaxed);
+    }
+}
+
+KnobLanes
+Pattern::getLanes () const
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  return _lanes;
+}
+
+void
+Pattern::setLanes (KnobLanes lanes)
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  _lanes = std::move (lanes);
+}
+
+bool
+Pattern::hasLanes () const
+{
+  std::lock_guard<std::mutex> guard (_lanesMutex);
+  for (auto const &lane : _lanes)
+    if (!lane.empty ())
+      return true;
+  return false;
+}
+
+void
+Pattern::clearLanes ()
+{
+  {
+    std::lock_guard<std::mutex> guard (_lanesMutex);
+    _lanes = KnobLanes{};
+  }
+  for (auto &played : _knobPlayed)
+    played.store (std::numeric_limits<float>::quiet_NaN (),
+                  std::memory_order_relaxed);
 }
 
 }
