@@ -480,10 +480,13 @@ struct ClipSettingsLayout
    *  and the global strip, between the settings and the sphere (2026-09-27).
    *  As tall as the faces' frame in the global strip was. */
   juce::Rectangle<int> channelFacesFrame;
-  /** In every face, left to right: the channel's meter, then its 3D. Drawn in
+  /** In every face, left to right: the channel's meter, its 3D, FREQ and Q
+   *  (channelPotOrder), and the rest a bar its clip's progress fills. Drawn in
    *  the face; the whole face selects the clip. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaceMeters;
-  std::array<juce::Rectangle<int>, numChannelColumns> channelFacePots;
+  std::array<std::array<juce::Rectangle<int>, 3>, numChannelColumns>
+      channelFacePots;
+  std::array<juce::Rectangle<int>, numChannelColumns> channelFaceProgress;
 
   /** The clip's plainest view, and the head of the row of views.
    *
@@ -547,19 +550,6 @@ struct ClipSettingsLayout
 juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
                                     int section, int sub);
 
-/** The signal dot's diameter, as a share of the smaller side of a channel
- *  face.
- *
- *  A fifth. Big enough to be caught out of the corner of an eye at arm's
- *  length, small enough that it cannot be mistaken for the face's own colour
- *  or crowd the slot number in the middle. */
-constexpr float channelFaceDotOfFace = 1.f / 5.f;
-
-/** How far the dot is held off the face's corner, as a share of its own
- *  diameter. Half, so the air around it is of its own size and it reads as
- *  sitting *in* the face rather than clipped to its edge. */
-constexpr float channelFaceDotInsetOfDot = 0.5f;
-
 /** A share of the bar's height, written as the divisor that is actually
  *  divided by.
  *
@@ -613,6 +603,10 @@ constexpr HeightShare headerGapOfHeader{ 12 };
  *  happen to share a number, and folding them together would tie the button
  *  rows to the header's ceiling for no reason. */
 constexpr HeightShare barButtonMax{ 6 };
+
+/** The part of a progress bar a clip has played: from the left, `fraction`
+ *  of its width. Nothing for a negative fraction -- the clip is not playing. */
+juce::Rectangle<int> progressFill (juce::Rectangle<int> bar, float fraction);
 
 /** How tall the row of channel faces is, above everything else in the bar: a
  *  button as the bar's buttons are sized by the knob, never under a

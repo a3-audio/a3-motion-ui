@@ -128,22 +128,6 @@ public:
    *  clock would have counted in silence. */
   void pulseCountInOnBeat ();
 
-  /** How far each channel's clip has got through its own loop, as a narrow
-   *  mark in that channel's colour. A negative fraction means the channel is
-   *  not playing and no mark is drawn.
-   *
-   *  One mark per channel rather than one fill for all of them: up to four
-   *  clips run at once, and a single fill could only ever show one of them —
-   *  it showed whichever clip the settings bar happened to be displaying,
-   *  which is not the question anybody is asking mid-set.
-   *
-   *  Recording keeps its fill. Two states that must not be confused are told
-   *  apart by their shape rather than by counting marks: a take writes over
-   *  something that does not come back, and that has to be legible at a
-   *  glance in a dark room. */
-  void setChannelPlayheads (
-      std::array<float, numChannelsInitial> const &positions,
-      std::array<juce::Colour, numChannelsInitial> const &colours);
 
 
   /** The take's progress is laid over the tick indicator, which is a child —
@@ -180,11 +164,6 @@ public:
   }
 
 private:
-  /** The four marks, drawn after the recording fill so neither hides the
-   *  other. Not part of paintOverChildren's body only because that function
-   *  already carries the fill's reasoning and two ideas in one function is
-   *  how the next reader loses both. */
-  void paintPlayheads (juce::Graphics &g, juce::Rectangle<float> tick);
 
   /** The ground every key on this bar stands on -- CLOCK, CLEAN, the
    *  keyboard and MENU look alike (asked for on 2026-09-26): a framed key,
@@ -212,8 +191,6 @@ private:
 
   bool _countingIn = false;
   bool _countInLit = false;
-  std::array<float, numChannelsInitial> _playheads{ -1.f, -1.f, -1.f, -1.f };
-  std::array<juce::Colour, numChannelsInitial> _playheadColours;
 
   juce::Label _labelBPM;
   juce::Label _labelReadout;

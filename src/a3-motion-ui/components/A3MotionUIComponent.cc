@@ -108,11 +108,11 @@ constexpr std::size_t elevationFigureSamples = 96;
  *  Fast enough for a take's write head to move while it is being recorded,
  *  which is what this rate was chosen for.
  *
- *  **It is also the rate the channel faces' signal dots are redrawn at**,
- *  since updateInputLevelDots() is the first thing timerCallback() does. That
+ *  **It is also the rate the channel faces' meters are redrawn at**, since
+ *  repainting them is the first thing timerCallback() does. That
  *  is deliberately *not* vuMeterRefreshHz: the mixer's meters live on pages
  *  that come and go and have a timer each, and this bar never goes away, so
- *  its dots ride the timer that is already running rather than starting a
+ *  its meters ride the timer that is already running rather than starting a
  *  second one behind everything else on screen. The two rates being close but
  *  unequal is therefore a fact about where each of them lives, not an
  *  oversight -- see vuMeterRefreshHz, which says the same thing from the
@@ -5164,7 +5164,7 @@ A3MotionUIComponent::refreshChannelValues ()
       };
       _mixer->setChannelPots (ch, pots);
       _mixerStrip->setChannelPots (ch, pots);
-      _clipSettings->setChannel3d (ch, pots.set[0], pots.effective[0]);
+      _clipSettings->setChannelPots (ch, pots);
     }
 }
 
@@ -5811,7 +5811,8 @@ A3MotionUIComponent::timerCallback ()
   // bar that never leaves the screen has no visibility to start and stop a
   // timer on, and a second timer running for the life of the device is the
   // one thing vuMeterRefreshHz's own note argues against.
-  updateInputLevelDots ();
+  if (_clipSettings)
+    _clipSettings->repaintChannelMeters ();
 
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
@@ -5862,8 +5863,6 @@ A3MotionUIComponent::timerCallback ()
   // refresh stopped in the same tick the clip did. The accent had this
   // already, as _accentWasActive; it was the one case somebody had hit.
   pushKnobHolds ();
-  if (_clipSettings)
-    _clipSettings->repaintChannelMeters ();
 
   if (moving || _wasMoving)
     updateClipSettingsDisplay ();
@@ -7594,74 +7593,39 @@ A3MotionUIComponent::sphereCamera () const
   return _motionComponent ? _motionComponent->getCamera () : SphereCamera{};
 }
 
-/** Every channel's playhead, gathered fresh.
+/** How far every channel's clip has got, gathered fresh, for the faces'
+ *  progress bars.
  *
  *  Walked rather than remembered: a channel's clip can be stopped by an end
  *  action, by another slot being fired, or by the engine reaching the end of
  *  a one-shot, and none of those routes passes through here. Reading the
- *  patterns each time is what keeps a mark from being left behind on a
+ *  patterns each time is what keeps a bar from being left filled on a
  *  channel that has already finished. */
 void
-A3MotionUIComponent::updateStatusBarPlayheads ()
-{
-  if (!_statusBar)
-    return;
-
-  std::array<float, numChannelsInitial> positions;
-  std::array<juce::Colour, numChannelsInitial> colours;
-  positions.fill (-1.f);
-
-  for (index_t channel = 0;
-       channel < _patterns.size ()
-       && channel < (index_t)numChannelsInitial;
-       ++channel)
-    {
-      colours[(size_t)channel] = _channelUIStates[(size_t)channel]->colour;
-
-      for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
-        {
-          auto const &pattern = _patterns[channel][slot];
-          if (pattern != nullptr
-              && pattern->getStatus () == Pattern::Status::Playing)
-            {
-              // Mirrored while the clip runs backwards, so the mark always
-              // sweeps left to right -- see leftToRightPosition().
-              positions[(size_t)channel] = leftToRightPosition (
-                  pattern->getPlayPosition (), pattern->getPlaySign ());
-              break;
-            }
-        }
-    }
-
-  _statusBar->setChannelPlayheads (positions, colours);
-}
-
-/** Every meter the status bar draws, read at one moment.
- *
- *  One reading of the clock for all four: four dots each asking the time
- *  would draw four slightly different moments of one picture.
- *
- *  Unconditional. Whether a level is moving is not something this side can
- *  know without looking at it, and the bar itself only repaints where a dot
- *  would actually be drawn differently.
- *
- *  It fed nine bars in the status bar until 2026-09-12 -- these four and the
- *  five outputs. The outputs went to the MIX page, where the same five have
- *  always been; these four went to the channel faces, which is where a hand
- *  looking for a channel already looks. */
-void
-A3MotionUIComponent::updateInputLevelDots ()
+A3MotionUIComponent::updateChannelProgress ()
 {
   if (!_clipSettings)
     return;
 
-  auto const now = vuNowMs ();
+  std::array<float, numChannelColumns> positions;
+  positions.fill (-1.f);
 
-  std::array<VuLevel, numChannelsInitial> inputs;
-  for (int channel = 0; channel < numChannelsInitial; ++channel)
-    inputs[static_cast<size_t> (channel)] = _vuLevels.channel (channel, now);
+  for (index_t channel = 0;
+       channel < _patterns.size () && channel < (index_t)numChannelColumns;
+       ++channel)
+    for (index_t slot = 0; slot < _patterns[channel].size (); ++slot)
+      {
+        auto const &pattern = _patterns[channel][slot];
+        if (pattern != nullptr
+            && pattern->getStatus () == Pattern::Status::Playing)
+          {
+            positions[(size_t)channel] = leftToRightPosition (
+                pattern->getPlayPosition (), pattern->getPlaySign ());
+            break;
+          }
+      }
 
-  _clipSettings->setInputLevels (inputs);
+  _clipSettings->setChannelProgress (positions);
 }
 
 void
@@ -8040,7 +8004,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                 : -1.f,
             _channelUIStates[channel]->colour);
 
-        updateStatusBarPlayheads ();
+        updateChannelProgress ();
       }
 
     if (_clipSettings)

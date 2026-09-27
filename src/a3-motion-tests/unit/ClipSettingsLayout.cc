@@ -1185,9 +1185,10 @@ TEST (ClipSettingsLayout, TheChannelRowSpansTheBarAboveEverything)
     }
 }
 
-// Left to right in every face: the channel's meter, then its 3D. The whole
-// face selects the clip; these are drawn in it.
-TEST (ClipSettingsLayout, EachFaceCarriesItsMeterThenIts3d)
+// Left to right in every face: the channel's meter, its 3D, FREQ and Q side
+// by side, and the rest a bar the clip's progress fills, as a clip slot
+// shows it in a DAW. The whole face selects the clip.
+TEST (ClipSettingsLayout, EachFaceCarriesItsMeterPotsAndProgress)
 {
   auto const l = defaultLayout ();
 
@@ -1195,20 +1196,44 @@ TEST (ClipSettingsLayout, EachFaceCarriesItsMeterThenIts3d)
     {
       auto const &face = l.channelFaces[ch];
       auto const &meter = l.channelFaceMeters[ch];
-      auto const &pot = l.channelFacePots[ch];
+      auto const &pots = l.channelFacePots[ch];
+      auto const &progress = l.channelFaceProgress[ch];
 
       ASSERT_FALSE (meter.isEmpty ()) << "channel " << ch;
-      ASSERT_FALSE (pot.isEmpty ()) << "channel " << ch;
       EXPECT_TRUE (face.contains (meter)) << "channel " << ch;
-      EXPECT_TRUE (face.contains (pot)) << "channel " << ch;
-      EXPECT_LE (meter.getRight (), pot.getX ()) << "channel " << ch;
-      EXPECT_LT (meter.getX () - face.getX (), face.getWidth () / 4)
+      EXPECT_LT (meter.getX () - face.getX (), face.getWidth () / 8)
           << "the meter stands at the left";
-      EXPECT_LT (face.getRight () - pot.getRight (), face.getWidth () / 4)
-          << "the pot stands at the right";
       EXPECT_GT (meter.getHeight (), meter.getWidth ())
           << "a channel's meter stands up";
+
+      auto left = meter.getRight ();
+      for (size_t p = 0; p < pots.size (); ++p)
+        {
+          ASSERT_FALSE (pots[p].isEmpty ()) << "channel " << ch << " pot " << p;
+          EXPECT_TRUE (face.contains (pots[p])) << "channel " << ch;
+          EXPECT_GE (pots[p].getX (), left) << "channel " << ch << " pot " << p;
+          EXPECT_LE (pots[p].getX () - left, juce::jmax (4, face.getHeight () / 8))
+              << "each pot right beside what stands before it";
+          EXPECT_EQ (pots[p].getWidth (), pots[0].getWidth ());
+          left = pots[p].getRight ();
+        }
+
+      ASSERT_FALSE (progress.isEmpty ()) << "channel " << ch;
+      EXPECT_TRUE (face.contains (progress)) << "channel " << ch;
+      EXPECT_GE (progress.getX (), left) << "the bar after the pots";
+      EXPECT_GE (progress.getRight (), face.getRight () - face.getHeight () / 4)
+          << "the bar fills the rest of the face";
     }
+}
+
+TEST (ClipSettingsLayout, AProgressBarFillsFromTheLeft)
+{
+  juce::Rectangle<int> const bar{ 10, 5, 100, 20 };
+
+  EXPECT_TRUE (progressFill (bar, -1.f).isEmpty ()) << "not playing";
+  EXPECT_EQ (progressFill (bar, 0.25f), (juce::Rectangle<int>{ 10, 5, 25, 20 }));
+  EXPECT_EQ (progressFill (bar, 1.f), bar);
+  EXPECT_EQ (progressFill (bar, 2.f), bar);
 }
 
 // PADS closes the row, after the two mixers.

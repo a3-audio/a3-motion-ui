@@ -188,25 +188,28 @@ ClipSettingsComponent::createTouchControls ()
       meter->setInterceptsMouseClicks (false, false);
       addAndMakeVisible (*meter);
 
-      // Over the face's touch, so a drag turns it; landing on it chooses the
-      // face too.
-      auto &pot = _face3d[channel];
-      pot = makeChannelPotKnob (ChannelPot::ThreeD);
-      pot->onValueChange = [this, channel, k = pot.get ()] {
-        if (onChannelPotChanged)
-          onChannelPotChanged (static_cast<int> (channel), ChannelPot::ThreeD,
-                               static_cast<float> (k->getValue ()));
-      };
-      pot->onDoubleTapped = [this, channel] {
-        if (onChannelPotDoubleTapped)
-          onChannelPotDoubleTapped (static_cast<int> (channel),
-                                    ChannelPot::ThreeD);
-      };
-      pot->onDragStart = [this, channel] {
-        if (onChannelFaceChosen)
-          onChannelFaceChosen (static_cast<index_t> (channel));
-      };
-      addAndMakeVisible (*pot);
+      // Over the face's touch, so a drag turns them; landing on one chooses
+      // the face too.
+      for (int i = 0; i < numChannelPots; ++i)
+        {
+          auto const which = channelPotOrder[static_cast<std::size_t> (i)];
+          auto &pot = _facePots[channel][static_cast<std::size_t> (i)];
+          pot = makeChannelPotKnob (which);
+          pot->onValueChange = [this, channel, which, k = pot.get ()] {
+            if (onChannelPotChanged)
+              onChannelPotChanged (static_cast<int> (channel), which,
+                                   static_cast<float> (k->getValue ()));
+          };
+          pot->onDoubleTapped = [this, channel, which] {
+            if (onChannelPotDoubleTapped)
+              onChannelPotDoubleTapped (static_cast<int> (channel), which);
+          };
+          pot->onDragStart = [this, channel] {
+            if (onChannelFaceChosen)
+              onChannelFaceChosen (static_cast<index_t> (channel));
+          };
+          addAndMakeVisible (*pot);
+        }
     }
 
   for (int i = 0; i < numTransportKeys; ++i)
@@ -459,7 +462,8 @@ ClipSettingsComponent::resized ()
     {
       _faceTouch[channel]->setBounds (_layout.channelFaces[channel]);
       _faceMeter[channel]->setBounds (_layout.channelFaceMeters[channel]);
-      _face3d[channel]->setBounds (_layout.channelFacePots[channel]);
+      for (std::size_t i = 0; i < numChannelPots; ++i)
+        _facePots[channel][i]->setBounds (_layout.channelFacePots[channel][i]);
     }
   _tabActionTouch->setBounds (_layout.tabAction);
   _tabControllerTouch->setBounds (_layout.tabController);
@@ -1511,47 +1515,27 @@ ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
 }
 
 void
-ClipSettingsComponent::setInputLevels (
-    std::array<VuLevel, numChannelsInitial> const &inputs)
-{
-  // Compared as *dots*, not as levels. An rms wobbles every frame and almost
-  // none of that wobble changes the mark: the band is one of three and the
-  // alpha is a byte by the time it is drawn. Comparing the drawn thing rather
-  // than the number behind it is what keeps this bar -- which is on screen
-  // for the whole of a set -- from repainting twenty times a second forever.
-  auto changed = false;
-
-  for (std::size_t channel = 0; channel < numChannelColumns; ++channel)
-    {
-      auto const dot = vuDot (inputs[channel]);
-      auto const &was = _channelFaceDots[channel];
-
-      auto const same
-          = dot.visible == was.visible
-            && (!dot.visible
-                || (dot.band == was.band
-                    && juce::roundToInt (dot.alpha * 255.f)
-                           == juce::roundToInt (was.alpha * 255.f)));
-
-      if (!same)
-        {
-          _channelFaceDots[channel] = dot;
-          changed = true;
-        }
-    }
-
-  if (changed)
-    repaint (_layout.channelFacesFrame);
-}
-
-void
-ClipSettingsComponent::setChannel3d (int channel, float set, float effective)
+ClipSettingsComponent::setChannelPots (int channel,
+                                       ChannelPotValues const &values)
 {
   if (channel < 0 || channel >= static_cast<int> (numChannelColumns))
     return;
 
   auto const c = static_cast<std::size_t> (channel);
-  showChannelPot (*_face3d[c], set, effective, _channelFaceColours[c]);
+  for (std::size_t i = 0; i < numChannelPots; ++i)
+    showChannelPot (*_facePots[c][i], values.set[i], values.effective[i],
+                    _channelFaceColours[c]);
+}
+
+void
+ClipSettingsComponent::setChannelProgress (
+    std::array<float, numChannelColumns> const &progress)
+{
+  if (progress == _channelProgress)
+    return;
+
+  _channelProgress = progress;
+  repaint (_layout.channelFacesFrame);
 }
 
 void
@@ -1595,50 +1579,23 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
                                         _channelFaceSlots[channel])
                           + 1);
 
+      // The rest of the face is the clip's progress, filled from the left in
+      // the channel's colour as a clip slot fills in a DAW, with the slot
+      // number at its start.
+      auto const bar = _layout.channelFaceProgress[channel];
+      g.setColour (colour.withAlpha (theme ().alphaOutline));
+      g.fillRect (bar);
+      g.setColour (colour);
+      g.fillRect (progressFill (bar, _channelProgress[channel]));
+
+      auto const numberArea = bar.withWidth (juce::jmin (
+          bar.getWidth (), bar.getHeight () * 3 / 2));
+      g.setFont (juce::Font (fontFor (FontRole::Header, numberArea, slotName),
+                             shown ? juce::Font::bold : juce::Font::plain));
       g.setColour (readableInk (colour, toColour (theme ().background),
                                 toColour (theme ().textPrimary)));
-      // Between the meter and the pot, which stand at the face's two ends.
-      auto const middle
-          = face.withLeft (_layout.channelFaceMeters[channel].getRight ())
-                .withRight (_layout.channelFacePots[channel].getX ());
-      g.setFont (juce::Font (fontFor (FontRole::Header, middle, slotName),
-                             shown ? juce::Font::bold : juce::Font::plain));
-      g.drawText (slotName, middle, juce::Justification::centred);
-
-      paintChannelFaceDot (g, middle, _channelFaceDots[channel]);
+      g.drawText (slotName, numberArea, juce::Justification::centred);
     }
-}
-
-void
-ClipSettingsComponent::paintChannelFaceDot (juce::Graphics &g,
-                                            juce::Rectangle<int> face,
-                                            VuDot const &dot)
-{
-  // Nothing at all for a silent channel. A face with no dot is the reading
-  // this exists for, and a dim dot would say "quiet" where the answer is
-  // "none" -- the two a hand needs told apart at a glance.
-  if (!dot.visible || face.isEmpty ())
-    return;
-
-  // Top right, inside the corner: the slot number has the middle and the
-  // colour has the whole face, so the one place left that is unmistakably
-  // neither is a corner. The right one, because a hand reading the row reads
-  // left to right and finds the number first.
-  auto const size = juce::jmax (
-      2.f, static_cast<float> (juce::jmin (face.getWidth (),
-                                           face.getHeight ()))
-               * channelFaceDotOfFace);
-  auto const inset = size * channelFaceDotInsetOfDot;
-
-  juce::Rectangle<float> const mark (
-      static_cast<float> (face.getRight ()) - inset - size,
-      static_cast<float> (face.getY ()) + inset, size, size);
-
-  // The meter's own three colours, from the meter's own rule. Green, yellow
-  // and red down a level is a language older than this device, and one read
-  // from two places is one that will one day disagree with itself.
-  g.setColour (vuBandColour (theme (), dot.band).withAlpha (dot.alpha));
-  g.fillEllipse (mark);
 }
 
 void

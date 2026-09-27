@@ -333,23 +333,6 @@ public:
    *  has been sending all three moving; the grid was still drawing two of
    *  them still. Paired in the signature so the next value to gain one cannot
    *  be added without its partner. */
-  /** The four channels' input levels, as a dot on each channel's own face.
-   *
-   *  **Pushed in, not pulled**, from A3MotionUIComponent's timer, off the one
-   *  VuLevels the mixer's meters read. This bar has no repeating timer of its
-   *  own for it and must not grow one.
-   *
-   *  These used to be four bars in the status bar, beside five more for the
-   *  outputs. The maintainer's verdict on 2026-09-12: *"die vu-meter in der
-   *  statusleiste sind too much. das machts unuebersichtlich."* The answer
-   *  was not to drop them but to put them where the question is asked --
-   *  which channel is making sound is asked *of a channel*, and the faces
-   *  are where a hand looking for one already looks.
-   *
-   *  The repaint is clipped to the faces and happens only where a dot would
-   *  actually be drawn differently. See VuMeter.hh's vuDot for what the mark
-   *  says and what it deliberately does not. */
-  void setInputLevels (std::array<VuLevel, numChannelsInitial> const &inputs);
 
   /** Which section (0..numParameters-1) is currently selected/highlighted. */
   void setSelectedParameterIndex (int index);
@@ -387,21 +370,26 @@ public:
    *  keys: it says "show me the clip", says whose, and -- touched again on
    *  the channel already shown -- turns that channel's slot over. */
   std::function<void (index_t channel)> onChannelFaceTapped;
-  /** A hand landed on a face's 3D pot: the face is chosen as by a tap, but
+  /** A hand landed on one of a face's pots: the face is chosen as by a tap, but
    *  never turned over -- a pot is reached for to be turned, and a slot that
    *  changed under it would be a second thing done by accident. */
   std::function<void (index_t channel)> onChannelFaceChosen;
-  /** A face's 3D pot turned, or tapped twice -- the same two calls the
-   *  mixers make. */
+  /** A face's pot turned, or tapped twice -- the same two calls the mixers
+   *  make. */
   std::function<void (int channel, ChannelPot, float value)>
       onChannelPotChanged;
   std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
   /** Where a face's meter reads its channel. Asked at paint time. */
   std::function<VuLevel (int channel)> channelLevel;
 
-  /** Where the engine holds a channel's 3D, and where its envelope carries
-   *  it -- drawn on the face's pot as the mixers draw theirs. */
-  void setChannel3d (int channel, float set, float effective);
+  /** Where the engine holds a channel's 3D, FREQ and Q, and where their
+   *  envelopes carry them -- drawn on the face's pots as the mixers draw
+   *  theirs. */
+  void setChannelPots (int channel, ChannelPotValues const &values);
+  /** How far each channel's clip has got, left to right, as the face's
+   *  progress bar; negative where nothing plays. They were four marks on the
+   *  tick indicator until 2026-09-27. */
+  void setChannelProgress (std::array<float, numChannelColumns> const &progress);
   /** The faces' meters, and nothing else. Called at the meters' pace. */
   void repaintChannelMeters ();
   std::function<void (index_t slot)> onSlotSelected;
@@ -573,8 +561,6 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
-  void paintChannelFaceDot (juce::Graphics &g, juce::Rectangle<int> face,
-                            VuDot const &dot);
   /** A block of controls set off from the card it stands on -- the strip's
    *  knobs, its transport, the header's four faces. One painter rather than
    *  three, so a group anywhere in the bar reads as the same kind of group. */
@@ -750,16 +736,18 @@ private:
   std::array<bool, numPadSlots> _slotDrifted{};
   std::array<std::unique_ptr<TouchControl>, numPadSlots> _slotTouch;
   std::array<std::unique_ptr<TouchControl>, numChannelColumns> _faceTouch;
-  /** In every face: its channel's meter at the left, its 3D at the right. */
+  /** In every face: its channel's meter, then its 3D, FREQ and Q. */
   std::array<std::unique_ptr<VuMeterView>, numChannelColumns> _faceMeter;
-  std::array<std::unique_ptr<PotKnob>, numChannelColumns> _face3d;
+  std::array<std::array<std::unique_ptr<PotKnob>, numChannelPots>,
+             numChannelColumns>
+      _facePots;
 
   /** Which channel each face stands for, which slot its toggle shows, and
    *  the colour it wears. Fed from the bar's owner, which is the one place
    *  that knows all four. */
   std::array<juce::Colour, numChannelColumns> _channelFaceColours;
   std::array<int, numChannelColumns> _channelFaceSlots{};
-  std::array<VuDot, numChannelColumns> _channelFaceDots{};
+  std::array<float, numChannelColumns> _channelProgress{ -1.f, -1.f, -1.f, -1.f };
   int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;
   std::unique_ptr<TouchControl> _tabBrowserTouch;

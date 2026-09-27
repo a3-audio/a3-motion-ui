@@ -335,7 +335,7 @@ channelRowInset (int barWidth)
 }
 
 /** The row of channel faces, across the whole bar (2026-09-27): four faces,
- *  each with its meter at the left and its 3D at the right. */
+ *  each with its meter, its 3D, FREQ and Q, and its clip's progress. */
 void
 layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
                   int inset)
@@ -357,15 +357,27 @@ layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
           = juce::Rectangle<int>{ x0, faces.getY (), x1 - x0, faces.getHeight () };
       out.channelFaces[static_cast<size_t> (i)] = face;
 
-      // The meter a narrow column at the left, the pot a square at the right,
-      // the slot number in the room between them.
+      // Left to right: the meter a narrow column, 3D, FREQ and Q as squares
+      // right beside it, and the rest the clip's progress bar.
       auto inner = face.reduced (juce::jmax (2, face.getHeight () / 10));
       out.channelFaceMeters[static_cast<size_t> (i)] = inner.removeFromLeft (
           juce::jmax (4, inner.getHeight () / 4));
-      out.channelFacePots[static_cast<size_t> (i)]
-          = inner.removeFromRight (inner.getHeight ());
+      for (auto &pot : out.channelFacePots[static_cast<size_t> (i)])
+        pot = inner.removeFromLeft (inner.getHeight ());
+      inner.removeFromLeft (juce::jmax (2, inner.getHeight () / 10));
+      out.channelFaceProgress[static_cast<size_t> (i)] = inner;
     }
 }
+}
+
+juce::Rectangle<int>
+progressFill (juce::Rectangle<int> bar, float fraction)
+{
+  if (fraction < 0.f)
+    return {};
+
+  return bar.withWidth (juce::roundToInt (
+      static_cast<float> (bar.getWidth ()) * juce::jmin (1.f, fraction)));
 }
 
 int
