@@ -90,10 +90,8 @@ public:
   /** The same at the usual font size: what the page should offer, so a font
    *  stepped down once is not what decides the next layout. */
   int usualWidthFor (int characters) const;
-  /** Keep `characters` of a line in view: where the panel is narrower than
-   *  that at the usual size, the font steps down until it fits (never below
-   *  a size that is still read). 0 lets the text scroll sideways instead. */
-  void setColumnsToFit (int characters);
+  /** The size the text is read at: the list's beside it (2026-09-27). */
+  float fontSize () const { return usualFontSize (); }
   /** Save and Cancel light up for a moment: the list beside the panel is
    *  waiting for one of them (2026-09-27). */
   void flashKeys ();
@@ -144,8 +142,6 @@ private:
   juce::Font scriptFont () const;
   float usualFontSize () const;
   int widthAt (float fontSize, int characters) const;
-  /** Works out _fittedSize for the width the panel has now. */
-  void fitFontToWidth ();
   int scriptLineHeight () const;
   int textInset () const;
 
@@ -161,9 +157,6 @@ private:
   juce::XmlTokeniser _xmlTokeniser;
   ScriptLanguage _language = ScriptLanguage::CLike;
   juce::String _fromLabel{ "from clip" };
-  int _columnsToFit = 0;
-  /** The size the font steps down to so a line fits; 0 is the usual size. */
-  float _fittedSize = 0.f;
   std::unique_ptr<ScriptEditor> _editor;
   juce::StringArray _errors;
   bool _editing = false;

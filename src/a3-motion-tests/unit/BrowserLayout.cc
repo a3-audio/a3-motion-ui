@@ -165,11 +165,16 @@ TEST (BrowserLayout, TheListTileReadsTopToBottom)
   EXPECT_LE (l.saveButton.getRight (), l.saveAsButton.getX ());
 }
 
-// Load only on SETS -- a set is loaded on purpose, a clip by a tap.
-TEST (BrowserLayout, LoadStandsOnlyOnSets)
+// Load on every tab (2026-09-27): a tap only chooses, Load puts it on the
+// slot. Beside Rename and Delete, over Cancel, Save and Save as.
+TEST (BrowserLayout, LoadStandsOnEveryTab)
 {
-  EXPECT_FALSE (defaultBrowser (BrowserList::Sessions).loadButton.isEmpty ());
-  EXPECT_TRUE (defaultBrowser (BrowserList::Clips).loadButton.isEmpty ());
-  auto const sets = defaultBrowser (BrowserList::Sessions);
-  EXPECT_EQ (sets.loadButton.getY (), sets.renameButton.getY ());
+  for (auto const list : { BrowserList::Sessions, BrowserList::Clips,
+                           BrowserList::Shapes, BrowserList::Actions })
+    {
+      auto const l = defaultBrowser (list);
+      EXPECT_FALSE (l.loadButton.isEmpty ());
+      EXPECT_EQ (l.loadButton.getY (), l.renameButton.getY ());
+      EXPECT_GE (l.loadButton.getWidth (), fingertipSize);
+    }
 }

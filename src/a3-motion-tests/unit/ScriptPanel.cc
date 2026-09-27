@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ScriptPanel.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 using namespace a3;
 
@@ -95,22 +96,14 @@ TEST (ScriptPanel, AChangeOfLanguageKeepsTheTextAndTheGround)
   EXPECT_EQ (editors, 1) << "the old editor is gone";
 }
 
-// The whole of a line should fit (maintainer, 2026-09-27: "sodass der
-// editor ganz draufpasst"). Where the column is narrower than a line at the
-// usual size, the font steps down until it fits; where there is room it
-// stays as it is.
-TEST (ScriptPanel, AColumnTooNarrowForALineTakesASmallerFont)
+// The editor reads at the size of the list beside it (maintainer,
+// 2026-09-27: "die schriftgröße vom editor soll gleich sein") -- whatever the
+// column's width; a longer line scrolls sideways.
+TEST (ScriptPanel, TheEditorReadsAtTheListsSize)
 {
-  constexpr int line = 86;
   ScriptPanel panel;
-  auto const natural = panel.widthFor (line);
-
-  panel.setColumnsToFit (line);
-  panel.setBounds (0, 0, natural * 9 / 10, 400);
-  EXPECT_LE (panel.widthFor (line), panel.getWidth ());
-
-  panel.setBounds (0, 0, natural * 2, 400);
-  EXPECT_EQ (panel.widthFor (line), natural) << "room enough: the usual size";
+  panel.setBounds (0, 0, 300, 400);
+  EXPECT_FLOAT_EQ (panel.fontSize (), theme ().fontSize (FontRole::Body));
 }
 
 // JUCE's line numbers take a fixed 35 px and are set to its right edge; the

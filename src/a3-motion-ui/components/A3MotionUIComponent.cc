@@ -833,16 +833,16 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       return;
     deleteChosenEntry ();
   };
+  // Load, on every tab (2026-09-27): the chosen row onto the shown slot --
+  // its clip, its figure, its action -- or the set. One press, not two; a key
+  // you reach for and read before pressing is already the deliberate act the
+  // tap is not.
   _browser->onLoadPressed = [this] {
-    if (_browserList != BrowserList::Sessions)
+    auto const row = _browser->getSelectedEntry ();
+    if (row < 0 || !currentList ().hasFileAt (row))
       return;
-
-    // One press, not two. The arrangement is written as it is changed
-    // (scheduleSetSave), so nothing unsaved is lost -- and a key you reach for
-    // and read before pressing is already the deliberate act that the tap was
-    // not.
     _deleteArmed = false;
-    loadSessionNamed (_browser->entryName (_browser->getSelectedEntry ()));
+    currentList ().assign (row);
   };
 
   // Steps through the three on a tap, like every other few-valued control in
@@ -948,17 +948,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _browser->cancelRename ();
     _browser->setSelectedEntry (index);
 
-    // A set is *not* loaded by touching it. It replaces all eight slots and
-    // restarts what was running, which is not a thing to do by brushing a
-    // list -- and while the tap did it, touching a set was also the only way
-    // to reach one, so renaming or deleting a set meant loading it first and
-    // losing the arrangement you were working on. The Load key does it now.
-    if (_browserList == BrowserList::Sessions)
-      refreshBrowser ();
-    else if (_browserList == BrowserList::Actions)
-      chooseActionRow (index);
-    else
-      assignBrowserEntry (libraryForBrowserRow (index));
+    // A tap chooses and shows, on every tab (maintainer, 2026-09-27: "tap only
+    // shows, Load loads"): the file stands beside the list to read, and
+    // nothing lands on a slot by brushing the list. The Load key does that --
+    // a set was the first to learn it, since it replaces all eight slots.
+    refreshBrowser ();
   };
 
   addChildComponent (*_clipSettings);
@@ -2838,11 +2832,13 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
   // for on 2026-09-19, so that FILES answers the same question the clip field
   // on the CLIP page already answers, in the same mark and the same colour.
   //
-  // Read back out of the browser rather than from the branches above: three
-  // of them set the selection and one of them keeps whatever was there, and a
-  // fourth copy of "which row is chosen" is a fourth chance to disagree.
+  // The slot's own clip's row, not the chosen one: since a tap only shows
+  // (2026-09-27) the two can differ, and a dot on the row being read would
+  // say that clip had drifted.
   _browser->setDriftedRow (driftedRowIn (
-      _browserList, _browser->getSelectedEntry (),
+      _browserList,
+      browserRowForLibrary (_patternLibrary->indexForClipFile (
+          _slotClipFile[_clipSettingsChannel][_clipSettingsSlot])),
       slotHasDrifted (_clipSettingsChannel, _clipSettingsSlot)));
 
   // What can actually be done. A key lights only when pressing it would do
@@ -3152,15 +3148,6 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
 
   updateActionPage ();
   updateClipSettingsDisplay ();
-}
-
-void
-A3MotionUIComponent::chooseActionRow (int row)
-{
-  // Chosen for reading and editing, not assigned -- that is ACTION's
-  // (2026-09-27). The panel follows through refreshBrowser (syncFilePanel).
-  _browser->setSelectedEntry (row);
-  refreshBrowser ();
 }
 
 juce::File
@@ -3706,9 +3693,20 @@ public:
            && _owner._slotAction[ch][sl].file.existsAsFile ();
   }
 
-  // A row chosen here is shown beside the list, not assigned: that is
-  // ACTION's (2026-09-27).
-  void assign (int row) override { _owner.chooseActionRow (row); }
+  // Load: the shown clip fires this action from now on -- the same as a tap
+  // in ACTION's own list.
+  void
+  assign (int row) override
+  {
+    auto const file = fileAt (row);
+    if (!file.existsAsFile ())
+      return;
+    _owner.setSlotAction (_owner._clipSettingsChannel,
+                          _owner._clipSettingsSlot, file);
+    _owner.updateControlReadout (
+        "-- ACT " + file.getFileNameWithoutExtension ().toUpperCase ());
+    _owner.refreshBrowser ();
+  }
   void
   rename (int, juce::String const &name) override
   {

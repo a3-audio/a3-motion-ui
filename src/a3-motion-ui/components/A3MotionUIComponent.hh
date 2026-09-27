@@ -221,9 +221,6 @@ private:
    *  or one that will not read, leaves the slot firing the accent alone. */
   void setSlotAction (index_t channel, index_t slot, juce::File const &file);
 
-  /** A row of FILES › ACTIONS chosen: its script to read and edit beside
-   *  the list. Nothing is assigned -- that is ACTION's (2026-09-27). */
-  void chooseActionRow (int row);
   /** The chosen action's file, shown in the panel beside the list. */
   void showChosenFileText ();
   /** The file behind the chosen row, whichever list is showing. */

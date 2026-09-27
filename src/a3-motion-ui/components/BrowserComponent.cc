@@ -127,7 +127,6 @@ BrowserComponent::resized ()
   // characters and one to spare), the list the rest, and the list's keys in
   // one row with the script's, the same height (2026-09-27).
   constexpr int scriptCharacters = 86;
-  _script->setColumnsToFit (scriptCharacters);
   // A fingertip, or twice the header size, whichever is more -- the height
   // the ACTION page's keys always had.
   auto const keyHeight

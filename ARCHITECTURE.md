@@ -1320,8 +1320,9 @@ shown clip.
 coloured as XML, `languageFor`). `ScriptPanel` (`components/ScriptPanel.{hh,cc}`) is a plain text
 editor with an error strip and four keys; `BrowserComponent` places it in `BrowserLayout::detailArea`,
 as wide as a shipped action's longest line needs (`ScriptPanel::usualWidthFor`, measured the way
-JUCE's editor measures itself -- a character is "0", the gutter a fixed 35 px), and where the column
-is narrower the panel steps its font down until the line fits (`setColumnsToFit`). The list keeps the
+JUCE's editor measures itself -- a character is "0", the gutter a fixed 35 px, less the empty room
+left of the numbers that the panel's frame cuts off). The text reads at the list's size; a line
+longer than the column scrolls. The list keeps the
 rest: its own keys (Load on SETS, All, Rename, Delete) at the top in one row with the panel's -- where
 back and close stood, which now appear only on the main menu (`overlayKeysAreShown`) -- and the four
 folders two by two above the rows.
@@ -1333,9 +1334,9 @@ What a file means stays each list's (`LibraryList`: `fileAt`, `folder`, `extensi
 - the panel holds the file it was loaded from (`_panelFile`); when the list's chosen row moves under
   it, it reloads, or -- holding unsaved text -- the row goes back to it (`panelSyncFor`,
   `syncFilePanel`), so one file's text is never saved into another;
-- a tap on ACTIONS **chooses** (`chooseActionRow`) and assigns nothing -- ACTION's list, open under
-  the name, assigns; a tap on CLIPS or SVG still puts the clip or figure on the slot, a tap on SETS
-  selects;
+- a tap on any tab **chooses and shows** and loads nothing; **Load** (on every tab) puts the row on
+  the shown slot -- its clip, its figure, its action (`LibraryList::assign`) -- or loads the set.
+  The drift dot stays on the row of the slot's own clip, not on the chosen one;
 - **Save** writes the file and what uses it takes it up now (`afterSaving`): every clip firing an
   action (`slotsFiring`), every slot holding a clip (`applyClip`) or a figure (`putFigureInSlot`,
   a playing one plays on from the next beat); a set is only written -- loading stays Load's;

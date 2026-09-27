@@ -171,7 +171,6 @@ ScriptPanel::dressEditor ()
 void
 ScriptPanel::resized ()
 {
-  fitFontToWidth ();
   _layout = layOutScriptPanel (getLocalBounds (), _errors.size (),
                                scriptLineHeight ());
   _frame->setBounds (_layout.textArea.reduced (textInset ()));
@@ -440,7 +439,9 @@ ScriptPanel::codeDocumentTextDeleted (int, int)
 float
 ScriptPanel::usualFontSize () const
 {
-  return juce::jlimit (9.f, 15.f, theme ().fontSize (FontRole::Body) * 0.8f);
+  // The list's size beside it (maintainer, 2026-09-27: "die schriftgröße vom
+  // editor soll gleich sein"); a line longer than the column scrolls.
+  return theme ().fontSize (FontRole::Body);
 }
 
 juce::Font
@@ -448,45 +449,10 @@ ScriptPanel::scriptFont () const
 {
   // Monospaced, because a script is read by column as much as by line: what
   // lines up under what is half of how you find your way in one.
-  auto const size = _fittedSize > 0.f ? _fittedSize : usualFontSize ();
+  auto const size = usualFontSize ();
 
   return juce::Font (juce::FontOptions (
       juce::Font::getDefaultMonospacedFontName (), size, juce::Font::plain));
-}
-
-void
-ScriptPanel::setColumnsToFit (int characters)
-{
-  if (characters == _columnsToFit)
-    return;
-  _columnsToFit = characters;
-  resized ();
-  repaint ();
-}
-
-void
-ScriptPanel::fitFontToWidth ()
-{
-  // Small enough to be read on the device at arm's length, and a quarter
-  // point at a time, so the step is never more than it takes.
-  constexpr float smallestReadable = 8.f;
-  constexpr float step = 0.25f;
-
-  auto const before = _fittedSize;
-  _fittedSize = 0.f;
-  if (_columnsToFit > 0 && getWidth () > 0)
-    {
-      auto size = usualFontSize ();
-      while (widthFor (_columnsToFit) > getWidth ()
-             && size - step >= smallestReadable)
-        {
-          size -= step;
-          _fittedSize = size;
-        }
-    }
-
-  if (_fittedSize != before)
-    dressEditor ();
 }
 
 int

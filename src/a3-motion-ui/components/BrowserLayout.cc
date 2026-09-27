@@ -96,11 +96,11 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
   split (row (0), keysInARow,
          { &out.cancelButton, &out.saveButton, &out.saveAsButton });
   inside.removeFromBottom (gap);
-  if (list == BrowserList::Sessions)
-    split (row (0), keysInARow,
-           { &out.renameButton, &out.deleteButton, &out.loadButton });
-  else
-    split (row (0), keysInARow, { &out.renameButton, &out.deleteButton });
+  // Load on every tab (2026-09-27): a tap only chooses. So the keys are the
+  // same on every tab and `list` does not change them any more.
+  juce::ignoreUnused (list);
+  split (row (0), keysInARow,
+         { &out.renameButton, &out.deleteButton, &out.loadButton });
   inside.removeFromBottom (gap * 2);
 
   out.listArea = inside;
