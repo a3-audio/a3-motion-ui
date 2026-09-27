@@ -7662,13 +7662,13 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
         return;
       }
 
-    case EncoderTarget::Kind::ShownChannelPot:
+    case EncoderTarget::Kind::MixerKey:
+      // A key is pressed, not turned -- see handleEncoderPress().
+      return;
+
     case EncoderTarget::Kind::ColumnChannelPot:
       {
-        auto const channel
-            = target.kind == EncoderTarget::Kind::ShownChannelPot
-                  ? shown
-                  : static_cast<index_t> (column);
+        auto const channel = static_cast<index_t> (column);
         handleChannelValueChange (channel, target.pot, increment);
         updateControlReadout ("CH" + juce::String (channel + 1) + " "
                               + channelPotLabel (target.pot) + " "
@@ -7703,10 +7703,21 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
       return;
     }
 
-  // A press on a length chooses it, as a tap does.
+  // A press on a length chooses it, as a tap does; on PFL or FX it flips it.
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
+  if (target.kind == EncoderTarget::Kind::MixerKey)
+    {
+      auto const channel = static_cast<int> (_clipSettingsChannel);
+      auto const on = !_mixerState.channelToggle (channel, target.mixer);
+      _mixerState.setChannelFromTouch (channel, target.mixer, on ? 1.f : 0.f);
+      _mixer->syncControls ();
+      _mixerStrip->syncControls ();
+      updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                            + mixerControlLabel (target.mixer)
+                            + (on ? " ON" : " OFF"));
+    }
 }
 
 void

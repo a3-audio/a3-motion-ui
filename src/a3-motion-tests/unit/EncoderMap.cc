@@ -113,7 +113,7 @@ TEST (EncoderMap, OnRecTheRecModeAndFadeThenBias)
   EXPECT_EQ (turn (BarPage::Record, 3, bottom).speed, 3);
 }
 
-TEST (EncoderMap, OnChmixTheShownChannelsEightPots)
+TEST (EncoderMap, OnChmixTheShownChannelsEightFields)
 {
   MixerControl const eq[] = { MixerControl::Gain, MixerControl::EqHigh,
                               MixerControl::EqMid, MixerControl::EqLow };
@@ -124,18 +124,18 @@ TEST (EncoderMap, OnChmixTheShownChannelsEightPots)
       EXPECT_EQ (t.mixer, eq[column]);
     }
 
-  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).kind,
-             EncoderTarget::Kind::Mixer);
+  // SEND PFL FX VOL since 2026-09-27: 3D, FREQ and Q left CHMIX for the
+  // channel row. PFL and FX are keys, a press flips them.
+  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).kind, EncoderTarget::Kind::Mixer);
   EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).mixer, MixerControl::FxSend);
-
-  ChannelPot const pots[] = { ChannelPot::ThreeD, ChannelPot::Freq,
-                              ChannelPot::Q };
-  for (int column = 1; column < 4; ++column)
-    {
-      auto const t = turn (BarPage::Mixer, column, bottom);
-      EXPECT_EQ (t.kind, EncoderTarget::Kind::ShownChannelPot);
-      EXPECT_EQ (t.pot, pots[column - 1]);
-    }
+  EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).kind,
+             EncoderTarget::Kind::MixerKey);
+  EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).mixer, MixerControl::Pfl);
+  EXPECT_EQ (turn (BarPage::Mixer, 2, bottom).kind,
+             EncoderTarget::Kind::MixerKey);
+  EXPECT_EQ (turn (BarPage::Mixer, 2, bottom).mixer, MixerControl::Fx);
+  EXPECT_EQ (turn (BarPage::Mixer, 3, bottom).kind, EncoderTarget::Kind::Mixer);
+  EXPECT_EQ (turn (BarPage::Mixer, 3, bottom).mixer, MixerControl::Volume);
 }
 
 // FREQ and Q of the column's channel, as before the fields: with Shift held

@@ -116,14 +116,12 @@ onMixer (int column, int row)
       t.mixer = eq[column];
       return t;
     }
-  if (column == 0)
-    {
-      t.kind = EncoderTarget::Kind::Mixer;
-      t.mixer = MixerControl::FxSend;
-      return t;
-    }
-  t.kind = EncoderTarget::Kind::ShownChannelPot;
-  t.pot = channelPotOrder[static_cast<std::size_t> (column - 1)];
+  // SEND PFL FX VOL, as CHMIX's fields stand (2026-09-27).
+  MixerControl const bottom[] = { MixerControl::FxSend, MixerControl::Pfl,
+                                  MixerControl::Fx, MixerControl::Volume };
+  t.mixer = bottom[column];
+  t.kind = mixerControlIsAToggle (t.mixer) ? EncoderTarget::Kind::MixerKey
+                                           : EncoderTarget::Kind::Mixer;
   return t;
 }
 }

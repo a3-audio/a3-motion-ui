@@ -47,8 +47,9 @@ struct EncoderTarget
     Speed,
     /** One of the shown channel's mixer pots (CHMIX). */
     Mixer,
-    /** The shown channel's 3D, FREQ or Q (CHMIX). */
-    ShownChannelPot,
+    /** One of the shown channel's two keys, PFL or FX (CHMIX): a press
+     *  flips it, a turn does nothing. */
+    MixerKey,
     /** FREQ or Q of the encoder's own column's channel. */
     ColumnChannelPot,
   };
