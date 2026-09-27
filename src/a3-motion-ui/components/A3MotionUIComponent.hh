@@ -226,6 +226,14 @@ private:
   void chooseActionRow (int row);
   /** The chosen action's file, shown in the panel beside the list. */
   void showChosenActionScript ();
+  /** A file's text in the panel, and the panel told which file it is. */
+  void showActionScript (juce::File const &file);
+  /** The panel told the lock, the colour and whether the slot holds a clip,
+   *  for its file and the shown clip as they are now. */
+  void dressActionPanel ();
+  /** The panel brought to the list's chosen row, or the row back to the
+   *  panel when it holds unsaved text (panelSyncFor). */
+  void syncActionPanel ();
   /** The panel's text over the chosen action's file, then re-run on every
    *  clip that fires it. */
   void saveChosenActionScript ();
@@ -810,6 +818,9 @@ private:
   /** The clip EDIT on ACTION opened FILES for: a Save as there points it at
    *  the copy. Cleared when FILES is left, so it lasts one visit. */
   std::optional<SlotRef> _editOrigin;
+  /** The file the script beside the FILES list was loaded from. Save writes
+   *  here, never to whichever row is chosen -- the two can differ. */
+  juce::File _panelFile;
 
   /** Which slot each channel's face stands for. Per channel rather than one
    *  shared setting: the two slot keys used to be shared, so choosing slot 2

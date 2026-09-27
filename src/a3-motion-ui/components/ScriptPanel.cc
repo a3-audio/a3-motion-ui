@@ -35,6 +35,10 @@ ScriptPanel::ScriptPanel ()
   // whatever has the focus, and a panel that never asked for it gets nothing.
   setWantsKeyboardFocus (true);
 
+  // A fresh document counts as changed until it has a save point; nothing has
+  // been typed into this one yet.
+  _document.setSavePoint ();
+
   // The script is JUCE's editor, read-only until it is touched -- see
   // ScriptEditor for the three things a finger needs on top of it.
   _editor = std::make_unique<ScriptEditor> (_document, &_tokeniser);

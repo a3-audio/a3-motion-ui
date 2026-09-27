@@ -54,8 +54,29 @@ slotsFiring (juce::File const &file,
 bool listWaitsFor (bool scriptHasUnsavedChanges);
 
 /** Which clip a Save as points at the copy: the one EDIT on ACTION came from,
- *  and nobody when FILES was opened from its own key. */
-std::optional<SlotRef> slotToRepoint (std::optional<SlotRef> editOrigin);
+ *  and nobody when FILES was opened from its own key. Taken, not read: the
+ *  first Save as of a visit uses it up, so a copy of another script made
+ *  afterwards re-points nobody. */
+std::optional<SlotRef> takeEditOrigin (std::optional<SlotRef> &editOrigin);
+
+/** What the script panel does when the list's chosen row is not the file it
+ *  holds. */
+enum class PanelSync
+{
+  /** The same file: nothing to do, unsaved text included. */
+  Keep,
+  /** Another file and nothing unsaved: show that one. */
+  Reload,
+  /** Another file but unsaved text: the row goes back to the panel's file,
+   *  so the text can never be saved into a file it did not come from. */
+  HoldRow,
+};
+
+PanelSync panelSyncFor (juce::File const &chosen, juce::File const &inPanel,
+                        bool unsaved);
+
+/** What a script gets wrong, line by line, for the panel's error strip. */
+juce::StringArray scriptErrorsOf (juce::String const &script);
 
 /** What a copy is named after: the file it came from ("Bloom" gives
  *  "Bloom 2" through freeFileIn), or "Action" for one with no origin. */

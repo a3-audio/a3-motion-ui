@@ -56,14 +56,39 @@ TEST (ActionEditing, UnsavedScriptHoldsTheList)
   EXPECT_FALSE (listWaitsFor (false));
 }
 
-// Save as re-points only the clip EDIT came from; opened from the tab, it
-// only makes a copy.
-TEST (ActionEditing, OnlyTheEditOriginIsRepointed)
+// Save as re-points only the clip EDIT came from, and only once: the origin
+// is taken by the first Save as, so a second one on another script re-points
+// nobody (final review, 2026-09-27). Opened from the tab, nobody at all.
+TEST (ActionEditing, TheEditOriginIsRepointedOnce)
 {
-  EXPECT_FALSE (slotToRepoint (std::nullopt).has_value ());
-  auto const origin = slotToRepoint (SlotRef{ 2, 1 });
-  ASSERT_TRUE (origin.has_value ());
-  EXPECT_EQ (*origin, (SlotRef{ 2, 1 }));
+  std::optional<SlotRef> none;
+  EXPECT_FALSE (takeEditOrigin (none).has_value ());
+
+  std::optional<SlotRef> origin = SlotRef{ 2, 1 };
+  auto const first = takeEditOrigin (origin);
+  ASSERT_TRUE (first.has_value ());
+  EXPECT_EQ (*first, (SlotRef{ 2, 1 }));
+  EXPECT_FALSE (takeEditOrigin (origin).has_value ()) << "a second Save as";
+}
+
+// The panel holds the file it was loaded from. When the list's chosen row
+// moves under it -- a clip change, a delete, FILES reopened -- it reloads,
+// unless it has unsaved text: then the row goes back to the panel's file
+// rather than the text being written into a different one (final review).
+TEST (ActionEditing, ThePanelFollowsTheRowUnlessItHoldsUnsavedText)
+{
+  EXPECT_EQ (panelSyncFor (bloom, bloom, false), PanelSync::Keep);
+  EXPECT_EQ (panelSyncFor (bloom, bloom, true), PanelSync::Keep)
+      << "unsaved text on the same file stays";
+  EXPECT_EQ (panelSyncFor (ground, bloom, false), PanelSync::Reload);
+  EXPECT_EQ (panelSyncFor (ground, bloom, true), PanelSync::HoldRow);
+}
+
+// What a script gets wrong, for the panel's error strip.
+TEST (ActionEditing, AScriptSaysWhatIsWrongWithIt)
+{
+  EXPECT_TRUE (scriptErrorsOf ("~base = 0.5;").isEmpty ());
+  EXPECT_FALSE (scriptErrorsOf ("~base = ;").isEmpty ());
 }
 
 // A copy is named after what it came from ("Bloom 2"), a new one "Action".

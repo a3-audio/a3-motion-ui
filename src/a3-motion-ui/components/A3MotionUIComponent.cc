@@ -762,12 +762,20 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     refreshBrowser ();
   };
 
-  // The keyboard is the system's own, and it types into whatever has the
-  // focus -- so opening the editor is what shows it and losing the editor is
-  // what takes it away.
+  // The fat key under the knobs, which is the ACT pad in another place: same
+  // handler, so the two cannot come to mean different things.
+  _action->onFireHeld = [this] (bool held) {
+    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
+    if (held)
+      handlePadPress (_clipSettingsChannel, pad);
+    else
+      handlePadRelease (_clipSettingsChannel, pad);
+  };
+
   // EDIT: the shown clip's action, opened beside the list in FILES. A Save
-  // as from there points this clip at the copy (slotToRepoint), as the
-  // editor on this page did before it moved (2026-09-27).
+  // as from there points this clip at the copy (takeEditOrigin), as the
+  // editor on this page did before it moved (2026-09-27). The panel is
+  // brought to the chosen row by refreshBrowser -- see syncActionPanel.
   _action->onEditPressed = [this] {
     _editOrigin = SlotRef{ _clipSettingsChannel, _clipSettingsSlot };
     showOverSphere (SphereOverlay::Files);
@@ -776,7 +784,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _deleteArmed = false;
     _browser->cancelRename ();
     refreshBrowser (BrowserSelection::PointAtTheSlot);
-    showChosenActionScript ();
   };
 
   // The browser: the library the shown slot is filled from. What a row means
@@ -890,9 +897,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     _deleteArmed = false;
     _browser->cancelRename ();
     _browser->setSelectedEntry (-1);
-    // Reiterwechsel.
+    // Reiterwechsel. The script beside the list follows through
+    // syncActionPanel, which keeps unsaved text rather than dropping it.
     refreshBrowser (BrowserSelection::PointAtTheSlot);
-    showChosenActionScript ();
   };
 
   // The chosen action's script beside the list (2026-09-27): the keys only
@@ -903,7 +910,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   filesScript.onSave = [this] { saveChosenActionScript (); };
   filesScript.onSaveAs = [this] { saveChosenActionScriptAs (); };
-  filesScript.onCancel = [this] { showChosenActionScript (); };
+  filesScript.onCancel = [this] { showActionScript (_panelFile); };
   filesScript.onFromClip = [this] {
     auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
     if (pattern)
@@ -2871,6 +2878,10 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
         onActions ? "" : "Save as", remove },
       { keys.load && !onActions, keys.filter, keys.rename,
         keys.save && !onActions, keys.saveAs && !onActions, keys.remove });
+
+  // Last, once the chosen row is settled: the script beside the list
+  // follows it, or holds it while it has unsaved text.
+  syncActionPanel ();
 }
 
 void
@@ -3136,22 +3147,71 @@ A3MotionUIComponent::chooseActionRow (int row)
 void
 A3MotionUIComponent::showChosenActionScript ()
 {
+  showActionScript (chosenActionFile ());
+}
+
+void
+A3MotionUIComponent::showActionScript (juce::File const &file)
+{
   auto &panel = _browser->scriptPanel ();
-  auto const file = chosenActionFile ();
+  _panelFile = file;
+  dressActionPanel ();
+  panel.stopEditing ();
+  auto const text
+      = file.existsAsFile () ? file.loadFileAsString () : juce::String{};
+  panel.setScript (text);
+  panel.markSaved ();
+  panel.setErrors (scriptErrorsOf (text));
+}
+
+void
+A3MotionUIComponent::dressActionPanel ()
+{
+  auto &panel = _browser->scriptPanel ();
   auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
 
+  // What the panel is told about the file and the shown clip, asked again
+  // whenever either may have changed: a lock or a colour remembered from the
+  // last clip is a lock or a colour on the wrong one.
   panel.setChannelColour (_channelUIStates[_clipSettingsChannel]->colour);
-  panel.setHasFile (file.existsAsFile ());
+  panel.setHasFile (_panelFile.existsAsFile ());
   // The same rule the ACTION page asks, in the same words.
   panel.setProtected (!shippedFileMayBeOverwritten (
-      file.existsAsFile (), isSystemFileIn (actionsDir (), file),
+      _panelFile.existsAsFile (), isSystemFileIn (actionsDir (), _panelFile),
       shippedClips ()));
   panel.setSlotHolds (pattern != nullptr);
-  panel.stopEditing ();
-  panel.setScript (file.existsAsFile () ? file.loadFileAsString ()
-                                        : juce::String{});
-  panel.markSaved ();
-  panel.setErrors ({});
+}
+
+void
+A3MotionUIComponent::syncActionPanel ()
+{
+  if (_browserList != BrowserList::Actions || !_browser)
+    return;
+
+  // The row can move under the panel -- another clip shown, a row deleted,
+  // FILES opened again -- and the panel's text must never be saved into a
+  // file it did not come from (final review, 2026-09-27).
+  switch (panelSyncFor (chosenActionFile (), _panelFile,
+                        _browser->scriptPanel ().hasUnsavedChanges ()))
+    {
+    case PanelSync::Keep:
+      dressActionPanel ();
+      break;
+    case PanelSync::Reload:
+      showActionScript (chosenActionFile ());
+      break;
+    case PanelSync::HoldRow:
+      {
+        auto const name = _panelFile.getFileNameWithoutExtension ();
+        for (int row = 0; row < _browser->getNumEntries (); ++row)
+          if (_browser->entryName (row) == name)
+            _browser->setSelectedEntry (row);
+        dressActionPanel ();
+        updateControlReadout ("-- SAVE OR CANCEL");
+        _browser->scriptPanel ().flashKeys ();
+        break;
+      }
+    }
 }
 
 bool
@@ -3169,7 +3229,10 @@ A3MotionUIComponent::actionScriptHoldsTheList ()
 void
 A3MotionUIComponent::saveChosenActionScript ()
 {
-  auto const file = chosenActionFile ();
+  // The file the text came from, never the row that happens to be chosen:
+  // the two can differ, and writing one script into another is the one
+  // thing this key must never do.
+  auto const file = _panelFile;
   auto &panel = _browser->scriptPanel ();
 
   // The second lock: the key is dark on a shipped script, but a save that
@@ -3187,6 +3250,7 @@ A3MotionUIComponent::saveChosenActionScript ()
       return;
     }
   panel.markSaved ();
+  panel.setErrors (scriptErrorsOf (panel.script ()));
 
   // Heard at once on every clip that fires it, not only the shown one: an
   // edit that waited for the action to be assigned again is an edit you
@@ -3209,8 +3273,8 @@ A3MotionUIComponent::saveChosenActionScriptAs ()
   // arriving as "Action 4" would have lost the only thing saying where it
   // came from. Counted against both halves, or a new file would take a
   // shipped name.
-  auto const file = freeFileIn (actionsDir (),
-                                copyBaseFor (chosenActionFile ()), ".scd");
+  auto const file = freeFileIn (actionsDir (), copyBaseFor (_panelFile),
+                                ".scd");
   auto &panel = _browser->scriptPanel ();
   if (!writeTextFile (file, panel.script ()))
     {
@@ -3221,9 +3285,13 @@ A3MotionUIComponent::saveChosenActionScriptAs ()
 
   // The clip EDIT came from fires the copy from here on; opened from its own
   // key, FILES only makes the copy.
-  if (auto const at = slotToRepoint (_editOrigin))
+  // Taken, so only this Save as re-points it.
+  if (auto const at = takeEditOrigin (_editOrigin))
     setSlotAction (at->channel, at->slot, file);
 
+  // The copy is what the panel holds from here on, and the row follows it.
+  _panelFile = file;
+  panel.setErrors (scriptErrorsOf (panel.script ()));
   auto const name = file.getFileNameWithoutExtension ();
   refreshBrowser ();
   for (int row = 0; row < _browser->getNumEntries (); ++row)

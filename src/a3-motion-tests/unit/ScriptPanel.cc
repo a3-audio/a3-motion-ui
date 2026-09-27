@@ -46,3 +46,12 @@ TEST (ScriptPanel, OfferedTextIsUnsavedUntilKept)
   panel.markSaved ();
   EXPECT_FALSE (panel.hasUnsavedChanges ());
 }
+
+// A panel nobody has typed into has nothing unsaved: a fresh document counts
+// as changed until it has a save point, and that held the FILES list against
+// a script that did not exist (final review fix, 2026-09-27).
+TEST (ScriptPanel, AFreshPanelHasNothingUnsaved)
+{
+  ScriptPanel panel;
+  EXPECT_FALSE (panel.hasUnsavedChanges ());
+}

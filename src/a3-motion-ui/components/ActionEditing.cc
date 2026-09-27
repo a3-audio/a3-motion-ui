@@ -20,6 +20,8 @@
 
 #include "ActionEditing.hh"
 
+#include <a3-motion-engine/ActionScript.hh>
+
 namespace a3
 {
 
@@ -45,9 +47,28 @@ listWaitsFor (bool scriptHasUnsavedChanges)
 }
 
 std::optional<SlotRef>
-slotToRepoint (std::optional<SlotRef> editOrigin)
+takeEditOrigin (std::optional<SlotRef> &editOrigin)
 {
-  return editOrigin;
+  auto const taken = editOrigin;
+  editOrigin.reset ();
+  return taken;
+}
+
+PanelSync
+panelSyncFor (juce::File const &chosen, juce::File const &inPanel,
+              bool unsaved)
+{
+  if (chosen == inPanel)
+    return PanelSync::Keep;
+  return unsaved ? PanelSync::HoldRow : PanelSync::Reload;
+}
+
+juce::StringArray
+scriptErrorsOf (juce::String const &script)
+{
+  // Run against the defaults with a fixed seed: only what is wrong with the
+  // text is wanted here, not what it would do to any clip.
+  return runActionScript (script, ClipSettings{}, 0).errors;
 }
 
 juce::String
