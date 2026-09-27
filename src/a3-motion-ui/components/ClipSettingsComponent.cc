@@ -1981,6 +1981,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
         }
     }
 
+  // On a page of fields the picture has a field of its own, grounded like the
+  // seven keys around it.
+  if (!_layout.pageFields[4].isEmpty ())
+    paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
+
   // Pictogram, centred in whatever square area is left above the name.
   auto const iconSize = static_cast<float> (
       juce::jmin (_layout.trajectoryIcon.getWidth (),

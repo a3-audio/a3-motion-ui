@@ -268,8 +268,11 @@ driftMark (juce::Rectangle<int> bounds)
   if (bounds.isEmpty ())
     return {};
 
-  auto const size = juce::jmax (
-      3, juce::jmin (bounds.getWidth (), bounds.getHeight ()) / 5);
+  // A fifth of the control, but never more than a third of a fingertip: on
+  // a field the size of CLIP's it would stop being a footnote.
+  auto const size = juce::jlimit (
+      3, juce::jmax (3, fingertipSize / 3),
+      juce::jmin (bounds.getWidth (), bounds.getHeight ()) / 5);
   auto const inset = juce::jmax (2, size / 2);
 
   return juce::Rectangle<int> (size, size)
@@ -293,8 +296,10 @@ cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
 {
   // dir and end stand in CLIP's middle card; fade, bias and the rec mode in
   // REC's; everything else in its section's own.
+  // On CLIP since 2026-09-27 there are no such cards: one area holds all.
   if (section == 0 && sub >= 2)
-    return layout.playCard;
+    return layout.playCard.isEmpty () ? layout.sectionCards[0]
+                                      : layout.playCard;
   if (section == 3 || (section == 2 && controlIsOnPage (2, sub, BarPage::Record)))
     return layout.recordCard;
 
@@ -339,9 +344,10 @@ barButtonHeight (int barHeight, int knobDiam)
  *  across the keys, where nobody can see it. Never narrower than a
  *  fingertip. */
 std::vector<juce::Rectangle<int> >
-spreadKeys (juce::Rectangle<int> row, int count, int gap)
+spreadKeys (juce::Rectangle<int> row, int count, int gap,
+            int minKey = fingertipSize)
 {
-  auto const available = juce::jmax (count * fingertipSize,
+  auto const available = juce::jmax (count * minKey,
                                      row.getWidth () - gap * (count - 1));
   std::vector<juce::Rectangle<int> > keys;
   for (int k = 0; k < count; ++k)
@@ -351,6 +357,74 @@ spreadKeys (juce::Rectangle<int> row, int count, int gap)
       keys.push_back ({ x0, row.getY (), x1 - x0, row.getHeight () });
     }
   return keys;
+}
+
+/** Four across and two down, one size to the pixel, row by row: the
+ *  encoders' arrangement, which every page of eight fields follows. */
+std::array<juce::Rectangle<int>, 8>
+fieldGrid (juce::Rectangle<int> area, int gap)
+{
+  // No fingertip floor here: the area is what the bar has, and a grid that
+  // insisted would run out of it at the largest fonts. Both rows exactly one
+  // height, so a row of keys never reads as two sizes.
+  std::array<juce::Rectangle<int>, 8> fields;
+  auto const rowH = juce::jmax (0, (area.getHeight () - gap) / 2);
+  std::array<juce::Rectangle<int>, 2> const rows{
+    area.withHeight (rowH), area.withTrimmedTop (rowH + gap).withHeight (rowH)
+  };
+  for (int row = 0; row < 2; ++row)
+    {
+      auto const band = rows[static_cast<size_t> (row)];
+      auto const columns = spreadKeys (band, 4, gap, 0);
+      for (int column = 0; column < 4; ++column)
+        fields[static_cast<size_t> (row * 4 + column)]
+            = columns[static_cast<size_t> (column)];
+    }
+  return fields;
+}
+
+/** The lock of a section that lost its heading: a small key in the top right
+ *  corner of the field it keeps, held off the edge by a quarter of itself. */
+juce::Rectangle<int>
+lockInCorner (juce::Rectangle<int> field)
+{
+  auto const side = juce::jmax (8, juce::jmin (field.getWidth (),
+                                               field.getHeight ()) / 4);
+  return juce::Rectangle<int> (side, side)
+      .withPosition (field.getRight () - side - side / 4,
+                     field.getY () + side / 4);
+}
+
+/** CLIP as one area of eight equal fields, no headings (2026-09-27): clip,
+ *  dir and two lengths over the shape, end and the other two. The encoders
+ *  stand four by two, and so do the fields they turn. */
+void
+layOutClipPage (ClipSettingsLayout &out)
+{
+  auto const gap = juce::jmax (2, out.buttonHeight / 8);
+  auto const &f = out.pageFields
+      = fieldGrid (sectionContentBounds (out.clipContent), gap);
+
+  out.sectionCards[0] = out.clipContent;
+  out.sectionLabels[0] = {};
+  out.playCard = {};
+  out.playLabel = {};
+  out.lengthCard = {};
+  out.lengthLabel = {};
+
+  out.clipField = f[0];
+  out.directionButton = f[1];
+  out.speedButtons[0] = f[2];
+  out.speedButtons[1] = f[3];
+  out.trajectoryIcon = f[4];
+  out.trajectoryName = f[4];
+  out.endActionButton = f[5];
+  out.speedButtons[2] = f[6];
+  out.speedButtons[3] = f[7];
+
+  out.sectionLocks[0] = lockInCorner (f[4]);
+  out.controls[0] = { out.trajectoryIcon, out.clipField, out.directionButton,
+                      out.endActionButton };
 }
 
 /** The frame's inset round the faces: what it was in the global strip, a
@@ -867,6 +941,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // have to be special-cased away everywhere.
     out.controls[3] = { out.recModeButton };
   }
+
+  if (page == BarPage::Clip)
+    layOutClipPage (out);
 
   return out;
 }

@@ -450,6 +450,10 @@ struct ClipSettingsLayout
    *  RecordingLength.hh: the length is the shown clip's, so it is written
    *  where the clip is named rather than on keys of its own. */
   juce::Rectangle<int> clipField;
+  /** The page's eight fields, in the encoders' four by two, row by row
+   *  (2026-09-27): every control of CLIP and REC fills one, in one area with
+   *  no headings. Empty on the pages laid out otherwise. */
+  std::array<juce::Rectangle<int>, 8> pageFields;
   /** Rec, stop, play and act, two by two in the global strip under the
    *  channel faces, as a clip's pads stand on PADS: play and stop on top,
    *  act and rec under them. Indexed like transportKeyOrder. */

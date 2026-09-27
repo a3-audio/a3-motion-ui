@@ -158,13 +158,22 @@ TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
 // and Motion both start in the left column, on CLIP and MOTION.
 TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
 {
-  auto const l = defaultLayout ();
-  auto const &c = l.sectionCards;
+  auto const bar
+      = grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize);
+  auto const on = [&bar] (BarPage page) {
+    return layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                               defaultPotSize, page);
+  };
+  auto const clip = on (BarPage::Clip);
+  auto const motion = on (BarPage::Motion);
+  auto const rec = on (BarPage::Record);
 
   std::vector<std::vector<juce::Rectangle<int> > > const pages{
-    { c[0], l.playCard, l.lengthCard, c[3] }, // CLIP
-    { c[2], c[1], c[3] },                     // MOTION
-    { c[0], l.recordCard, l.lengthCard, c[3] }, // REC
+    { clip.sectionCards[0], clip.playCard, clip.lengthCard,
+      clip.sectionCards[3] },
+    { motion.sectionCards[2], motion.sectionCards[1], motion.sectionCards[3] },
+    { rec.sectionCards[0], rec.recordCard, rec.lengthCard,
+      rec.sectionCards[3] },
   };
 
   for (size_t page = 0; page < pages.size (); ++page)
@@ -263,11 +272,15 @@ TEST (ClipSettingsLayout, ControlsStayInsideTheirSectionContent)
 // holds rather than floating between two.
 TEST (ClipSettingsLayout, EachSectionCarriesALockOnItsTitleRow)
 {
+  // On MOTION, where Elevation and Motion still carry titles. Shape's lock
+  // stands in its field since CLIP lost its headings -- see
+  // TheShapeLockStandsInTheShapeField.
   for (int height : { 200, 314, 460 })
     {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f,
+                                         1.f, BarPage::Motion);
 
-      for (int section = 0; section < 3; ++section)
+      for (int section = 1; section < 3; ++section)
         {
           auto const s = static_cast<size_t> (section);
           auto const lock = l.sectionLocks[s];
@@ -607,8 +620,8 @@ TEST (ClipSettingsLayout, TwoKeysCarryingOneSpeedBothLight)
   EXPECT_FALSE (speedKeyIsActive (keys, 2, -3, 1));
 }
 
-// The four length keys stand two by two in the CLIP page's right column, in
-// reading order.
+// The four length keys stand two by two, in reading order -- in CLIP's
+// fields since 2026-09-27, in REC's right card for now.
 TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 {
   auto const l = defaultLayout ();
@@ -616,7 +629,7 @@ TEST (ClipSettingsLayout, TheSpeedKeysAreLaidOutInOrder)
 
   for (auto const &key : k)
     {
-      EXPECT_TRUE (l.lengthCard.contains (key));
+      EXPECT_TRUE (l.clipContent.contains (key));
       EXPECT_GE (key.getHeight (), fingertipSize);
     }
 
@@ -762,7 +775,10 @@ TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
   // buttons go away. What has to hold is that the picture outranks every
   // single thing around it -- which is exactly what failed when it was a strip
   // sharing its box with the name.
-  for (auto const page : { BarPage::Clip })
+  //
+  // REC only since 2026-09-27: CLIP is eight fields of one size by the
+  // maintainer's word, and the picture is one of them.
+  for (auto const page : { BarPage::Record })
     {
       auto const layout
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
@@ -875,6 +891,13 @@ TEST (ClipSettingsLayout, TheDriftMarkIsAFootnoteNotTheContent)
       << "it has taken over the control";
 }
 
+// And it stays a dot on a big field: CLIP's fields are a quarter of the bar
+// wide since 2026-09-27, and a fifth of that was a coin, not a footnote.
+TEST (ClipSettingsLayout, TheDriftMarkStaysSmallOnABigField)
+{
+  EXPECT_LE (driftMark ({ 0, 0, 200, 130 }).getWidth (), fingertipSize / 3);
+}
+
 TEST (ClipSettingsLayout, NothingToMarkMeansNoMark)
 {
   EXPECT_TRUE (driftMark ({}).isEmpty ());
@@ -902,13 +925,15 @@ TEST (ClipSettingsLayout, TheGlobalCardReachesOverTheTransportKeys)
 // keys with words on them -- and the row it took is a row the grid wanted.
 TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
 {
-  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f);
+  auto const l = layOutClipSettings ({ 0, 0, 1280, 300 }, 18.f, 14.f, 1.f,
+                                     BarPage::Motion);
 
   EXPECT_TRUE (l.sectionLabels[3].isEmpty ())
       << "the global strip still spends a row saying what it is";
 
-  // The three clip sections keep theirs: those do need naming.
-  for (size_t i = 0; i < 3; ++i)
+  // Elevation and Motion keep theirs on MOTION. Shape's went with CLIP's
+  // cards on 2026-09-27 -- see TheClipPageHasNoHeadings.
+  for (size_t i = 1; i < 3; ++i)
     EXPECT_FALSE (l.sectionLabels[i].isEmpty ()) << "section " << i;
 }
 
@@ -919,7 +944,9 @@ TEST (ClipSettingsLayout, TheGlobalCardIsNotTitled)
 // in the right one.
 TEST (ClipSettingsLayout, TheMotionPageHasMotionThenElevation)
 {
-  auto const l = defaultLayout ();
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Motion);
 
   EXPECT_EQ (l.sectionCards[2].getX (), l.sectionCards[0].getX ())
       << "Motion does not start at the left";
@@ -1553,7 +1580,9 @@ TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
 // right, where they stand on CLIP too, since the lit one is the take's length.
 TEST (ClipSettingsLayout, TheRecordCardTakesTheMiddleColumn)
 {
-  auto const l = defaultLayout ();
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
   ASSERT_FALSE (l.recordCard.isEmpty ());
   EXPECT_EQ (l.recordCard, l.playCard);
@@ -1683,39 +1712,73 @@ TEST (ClipSettingsLayout, ACameraMarkSitsInThePicturesCorner)
 
 // ── CLIP and MOTION (2026-09-26) ─────────────────────────────────────────
 
-// CLIP is three columns: the Shape card (picker, picture), the card with dir
-// and end, the card with the four lengths.
-TEST (ClipSettingsLayout, TheClipPageIsThreeColumns)
-{
-  auto const l = defaultLayout ();
-  auto const &shape = l.sectionCards[0];
 
-  ASSERT_FALSE (l.playCard.isEmpty ());
-  ASSERT_FALSE (l.lengthCard.isEmpty ());
-  EXPECT_LE (shape.getRight (), l.playCard.getX ());
-  EXPECT_LE (l.playCard.getRight (), l.lengthCard.getX ());
-  for (auto const &card : { l.playCard, l.lengthCard })
+
+// ── CLIP as one area of eight fields (2026-09-27) ──────────────────────────
+
+// One area, no headings, eight fields of one size in the encoders' four by
+// two: clip, dir, two lengths over the shape, end, two lengths.
+TEST (ClipSettingsLayout, TheClipPageIsEightEqualFields)
+{
+  for (int width : { 768, 1024, 1280 })
     {
-      EXPECT_EQ (card.getY (), shape.getY ());
-      EXPECT_EQ (card.getHeight (), shape.getHeight ());
-      EXPECT_TRUE (l.clipContent.contains (card));
+      auto const l = layOutClipSettings (grownBar (defaultHeaderSize,
+                                                   defaultBodySize,
+                                                   defaultPotSize)
+                                             .withWidth (width),
+                                         defaultHeaderSize, defaultBodySize,
+                                         defaultPotSize, BarPage::Clip);
+      auto const &f = l.pageFields;
+
+      std::array<juce::Rectangle<int>, 8> const expected{
+        l.clipField,         l.directionButton,  l.speedButtons[0],
+        l.speedButtons[1],   l.trajectoryIcon,   l.endActionButton,
+        l.speedButtons[2],   l.speedButtons[3],
+      };
+
+      for (size_t i = 0; i < f.size (); ++i)
+        {
+          ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+          EXPECT_TRUE (l.clipContent.contains (f[i])) << "field " << i;
+          EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1)
+              << "field " << i << " at width " << width;
+          EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1)
+              << "field " << i << " at width " << width;
+          EXPECT_EQ (expected[i], f[i]) << "field " << i;
+          for (size_t j = 0; j < i; ++j)
+            EXPECT_FALSE (f[i].intersects (f[j])) << i << " and " << j;
+        }
+
+      // Four across, two down, in reading order.
+      for (size_t col = 1; col < 4; ++col)
+        {
+          EXPECT_GT (f[col].getX (), f[col - 1].getX ());
+          EXPECT_EQ (f[col].getY (), f[0].getY ());
+          EXPECT_EQ (f[col + 4].getX (), f[col].getX ());
+        }
+      EXPECT_GT (f[4].getY (), f[0].getBottom () - 1);
     }
 }
 
-// dir over end in CLIP's middle card, each one field that steps on a tap --
-// as they did before the pages were rebuilt (the maintainer wanted them back
-// as toggles, 2026-09-26) -- a fingertip tall and the card's width.
-TEST (ClipSettingsLayout, DirAndEndAreTwoFieldsInTheMiddle)
+TEST (ClipSettingsLayout, TheClipPageHasNoHeadings)
 {
   auto const l = defaultLayout ();
 
-  for (auto const &field : { l.directionButton, l.endActionButton })
-    {
-      EXPECT_TRUE (l.playCard.contains (field));
-      EXPECT_GE (field.getHeight (), fingertipSize);
-      EXPECT_GE (field.getWidth (), l.playCard.getWidth () / 2);
-    }
-  EXPECT_LE (l.directionButton.getBottom (), l.endActionButton.getY ());
-  EXPECT_TRUE (tapAdvancesValue (0, 2));
-  EXPECT_TRUE (tapAdvancesValue (0, 3));
+  EXPECT_TRUE (l.sectionLabels[0].isEmpty ());
+  EXPECT_TRUE (l.playLabel.isEmpty ());
+  EXPECT_TRUE (l.lengthLabel.isEmpty ());
+  EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
+}
+
+// The lock that keeps the shape when a clip is loaded lost its heading; it
+// stands in the shape field's corner, small, where it is still a key.
+TEST (ClipSettingsLayout, TheShapeLockStandsInTheShapeField)
+{
+  auto const l = defaultLayout ();
+  auto const &lock = l.sectionLocks[0];
+
+  ASSERT_FALSE (lock.isEmpty ());
+  EXPECT_TRUE (l.pageFields[4].contains (lock));
+  EXPECT_EQ (lock.getRight (), l.pageFields[4].getRight () - lock.getWidth () / 4);
+  EXPECT_LT (lock.getWidth (), l.pageFields[4].getWidth () / 3);
 }
