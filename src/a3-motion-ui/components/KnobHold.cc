@@ -60,11 +60,4 @@ KnobHold::isHeld (Knob knob, double nowMs) const
   return nudged && nowMs - *nudged < encoderHoldMs;
 }
 
-void
-KnobHold::clear ()
-{
-  _pressed = {};
-  _nudgedAt = {};
-}
-
 }

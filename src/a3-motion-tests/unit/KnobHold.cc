@@ -87,15 +87,3 @@ TEST (KnobHold, EachKnobIsHeldOnItsOwn)
   EXPECT_TRUE (hold.isHeld (Knob::Elevation, 0.0));
   EXPECT_FALSE (hold.isHeld (Knob::Sway, 0.0));
 }
-
-TEST (KnobHold, LettingGoOfEverythingEndsEveryHold)
-{
-  KnobHold hold;
-  hold.press (Knob::Elevation);
-  hold.nudge (Knob::Spin, 0.0);
-
-  hold.clear ();
-
-  EXPECT_FALSE (hold.isHeld (Knob::Elevation, 0.0));
-  EXPECT_FALSE (hold.isHeld (Knob::Spin, 0.0));
-}

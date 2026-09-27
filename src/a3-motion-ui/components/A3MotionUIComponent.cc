@@ -7642,11 +7642,12 @@ A3MotionUIComponent::pushKnobHolds ()
 
   if (previous != shown)
     {
-      // Nobody's hand is on a clip that is not on show.
+      // Nobody's hand is on a clip that is not on show. The hands themselves
+      // stay: a finger on a knob is on whatever clip that knob now shows --
+      // which is how a take started under a held knob records it.
       if (previous)
         for (int k = 0; k < numKnobs; ++k)
           previous->setKnobHeld (static_cast<Knob> (k), false);
-      _knobHold.clear ();
       _knobHoldPattern = shown;
     }
 

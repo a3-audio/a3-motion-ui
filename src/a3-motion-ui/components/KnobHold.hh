@@ -85,7 +85,6 @@ public:
   void release (Knob knob);
   void nudge (Knob knob, double nowMs);
   bool isHeld (Knob knob, double nowMs) const;
-  void clear ();
 
 private:
   std::array<bool, numKnobs> _pressed{};

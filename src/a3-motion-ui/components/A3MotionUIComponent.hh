@@ -925,7 +925,7 @@ private:
   void updateClipSettingsDisplay ();
   /** Hands the shown clip which of its knobs a hand is on, every tick: an
    *  encoder's hold runs out without anything happening. Lets go of the clip
-   *  the holds were on when another one is shown. */
+   *  the holds were on when another one is shown, and keeps the hands. */
   void pushKnobHolds ();
   void updateStatusBarPlayheads ();
   /** The nine small meters on the status bar, read off the one VuLevels the
