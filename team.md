@@ -135,8 +135,10 @@ Konfiguration erfolgt über `config.json`/UserConfig (`oscReceiver`, `oscSender`
 
 ### 3.5 FILES and ACTION (2026-09-27)
 
-- **ACTION**: the shown clip's action by name, its mode, EDIT, the assignment list (a tap assigns:
-  `onActionChosen` → `setSlotAction`), the envelope knobs and ACT (`onFireHeld`).
+- **ACTION** (2026-09-28): the six fields A1–A6 (`onButtonHeld`: down → `chooseActionButton` +
+  `handlePadPress (padIndexForAction)`, up → `handlePadRelease`), the assignment list (a tap assigns
+  to the chosen button: `onActionChosen` → `setButtonAction`), EDIT, the mode, and the envelope
+  knobs of the chosen button. The first encoder is `EncoderTarget::Kind::ActionButton`.
 - **EDIT** (`ActionComponent::onEditPressed`) sets `_editOrigin`, opens FILES on ACTIONS; the panel
   follows the chosen row through `refreshBrowser` → `syncFilePanel`.
 - **FILES**, every tab: the chosen row's file in the panel (`showFileText`). Keys:
