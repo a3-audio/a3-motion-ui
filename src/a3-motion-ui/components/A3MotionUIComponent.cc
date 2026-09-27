@@ -667,7 +667,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     auto const channel = _clipSettingsChannel;
     auto const slot = _clipSettingsSlot;
     if (held)
-      _engine.setChannelAction (channel, _slotAction[channel][slot].settings);
+      _engine.setChannelAction (channel,
+                                firedActionOf (channel, buttonForSlot (slot)));
     _engine.setChannelAccentHeld (channel, held,
                                   held ? _patterns[channel][slot] : nullptr);
     updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
@@ -758,7 +759,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
 
   _action->onActionChosen = [this] (juce::String const &name) {
-    setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
+    setButtonAction (_clipSettingsChannel, buttonForSlot (_clipSettingsSlot),
                    name.isEmpty ()
                        ? juce::File{}
                        : namedFileIn (actionsDir (), name, ".scd"));
@@ -780,7 +781,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // editor on this page did before it moved (2026-09-27). The panel is
   // brought to the chosen row by refreshBrowser -- see syncFilePanel.
   _action->onEditPressed = [this] {
-    _editOrigin = SlotRef{ _clipSettingsChannel, _clipSettingsSlot };
+    // The origin's second index is the button EDIT came from.
+    _editOrigin = SlotRef{ _clipSettingsChannel,
+                           static_cast<index_t> (buttonForSlot (_clipSettingsSlot)) };
     showOverSphere (SphereOverlay::Files);
     _browserList = BrowserList::Actions;
     _browser->setShowingList (BrowserList::Actions);
@@ -1450,9 +1453,7 @@ A3MotionUIComponent::initializePatterns ()
     channelClips.resize (numClipSlots);
   _pendingTakes = PendingTakes (numChannels, numClipSlots);
 
-  _slotAction.resize (numChannels);
-  for (auto &channelActions : _slotAction)
-    channelActions.resize (numClipSlots);
+  _channelActions.resize (numChannels);
 
   // Every slot starts holding Bloom. A slot that fires nothing has an ACT key
   // that does nothing, which is a key you have to be told about rather than
@@ -1465,7 +1466,7 @@ A3MotionUIComponent::initializePatterns ()
     if (bloom.existsAsFile ())
       for (auto channel = 0u; channel < numChannels; ++channel)
         for (auto slot = 0u; slot < numClipSlots; ++slot)
-          setSlotAction (channel, slot, bloom);
+          setButtonAction (channel, buttonForSlot (slot), bloom);
   }
 
   // Load patterns from the library, one per clip slot; channels share the
@@ -2323,7 +2324,8 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // it: the engine takes the clip's settings down at the moment the
         // accent starts, and it can only do that if it already knows there is
         // something to put in their place.
-        _engine.setChannelAction (channel, _slotAction[channel][slot].settings);
+        _engine.setChannelAction (
+            channel, firedActionOf (channel, buttonForSlot (slot)));
         _engine.setChannelAccentHeld (channel, true, pattern);
 
         if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
@@ -2354,7 +2356,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // changed mid-press, and a gesture that ends under a different rule
         // than it began under is one that sometimes leaves a clip running
         // with nothing holding it.
-        if (pattern->getActMode () == ActMode::Hold)
+        // From the button: how it is played is the button's (2026-09-27).
+        if (_channelActions[channel][static_cast<size_t> (buttonForSlot (slot))]
+                .feel.actMode
+            == ActMode::Hold)
           _actHeldSlot[channel] = static_cast<int> (slot);
         break;
       }
@@ -2794,7 +2799,8 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
     {
       auto const ch = _clipSettingsChannel;
       auto const sl = _clipSettingsSlot;
-      auto const &action = _slotAction[ch][sl].file;
+      auto const &action
+          = _channelActions[ch][static_cast<size_t> (buttonForSlot (sl))].file;
       _browser->setSelectedEntry (
           action.existsAsFile ()
               ? names.indexOf (action.getFileNameWithoutExtension ())
@@ -3094,17 +3100,20 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
 }
 
 void
-A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
-                                    juce::File const &file)
+A3MotionUIComponent::setButtonAction (index_t channel, int button,
+                                      juce::File const &file)
 {
-  if (channel >= _slotAction.size () || slot >= _slotAction[channel].size ())
+  if (channel >= _channelActions.size () || button < 0
+      || button >= numActionButtons)
     return;
 
-  auto &action = _slotAction[channel][slot];
+  auto &action = _channelActions[channel][static_cast<size_t> (button)];
   action.file = file;
   action.settings.reset ();
   action.source = {};
   action.errors = {};
+  action.feel = ActionFeel{};
+  action.scriptFeel = ActionFeel{};
 
   if (!file.existsAsFile ())
     {
@@ -3114,7 +3123,10 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
 
   action.source = file.loadFileAsString ();
 
-  auto const &pattern = _patterns[channel][slot];
+  // Seeded with the shown clip's settings, so a line the script leaves
+  // commented out means "as the clip is" -- for the feel too. The clip is
+  // slot 0's until the panel's switch collapses the slots.
+  auto const &pattern = _patterns[channel][0];
   auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
 
   // A seed that is new every time a script is chosen, so a script with dice
@@ -3126,31 +3138,39 @@ A3MotionUIComponent::setSlotAction (index_t channel, index_t slot,
 
   action.settings = result.settings;
   action.errors = result.errors;
-
-  // What the ACTION page shows is the slot's, and choosing a script is how
-  // those get set: the nine envelope values and the mode go onto the clip
-  // right away, so the page reads what the script says. The movement and the
-  // shape stay in the action and are put on only while ACT is down -- see
-  // actionOver().
-  if (pattern)
-    {
-      pattern->setEnvelopeAttack (result.settings.envelopeAttack);
-      pattern->setEnvelopeDecay (result.settings.envelopeDecay);
-      pattern->setEnvelopeMax (result.settings.envelopeMax);
-      pattern->setFreqAttack (result.settings.freqAttack);
-      pattern->setFreqDecay (result.settings.freqDecay);
-      pattern->setFreqMax (result.settings.freqMax);
-      pattern->setQAttack (result.settings.qAttack);
-      pattern->setQDecay (result.settings.qDecay);
-      pattern->setQMax (result.settings.qMax);
-      pattern->setActMode (result.settings.actMode);
-    }
+  // How it is played is the button's since 2026-09-27: taken from the
+  // script, and no longer written onto the clip -- with six buttons the last
+  // one assigned would otherwise decide how all six feel.
+  action.scriptFeel = actionFeelFrom (result.settings);
+  action.feel = action.scriptFeel;
 
   if (!result.errors.isEmpty ())
     updateControlReadout (result.errors[0]);
 
   updateActionPage ();
   updateClipSettingsDisplay ();
+}
+
+A3MotionUIComponent::ActionButton *
+A3MotionUIComponent::shownActionButton ()
+{
+  auto const channel = _clipSettingsChannel;
+  auto const button = buttonForSlot (_clipSettingsSlot);
+  if (channel >= _channelActions.size () || button >= numActionButtons)
+    return nullptr;
+  return &_channelActions[channel][static_cast<size_t> (button)];
+}
+
+std::optional<ClipSettings>
+A3MotionUIComponent::firedActionOf (index_t channel, int button) const
+{
+  if (channel >= _channelActions.size () || button < 0
+      || button >= numActionButtons)
+    return std::nullopt;
+  auto const &action = _channelActions[channel][static_cast<size_t> (button)];
+  if (!action.settings)
+    return std::nullopt;
+  return withFeel (*action.settings, action.feel);
 }
 
 juce::File
@@ -3348,7 +3368,7 @@ std::vector<std::vector<juce::File>>
 A3MotionUIComponent::slotActionFiles () const
 {
   std::vector<std::vector<juce::File>> files;
-  for (auto const &channel : _slotAction)
+  for (auto const &channel : _channelActions)
     {
       files.emplace_back ();
       for (auto const &slot : channel)
@@ -3693,7 +3713,8 @@ public:
     auto const sl = _owner._clipSettingsSlot;
     return ch < _owner._patterns.size () && sl < _owner._patterns[ch].size ()
            && _owner._patterns[ch][sl] != nullptr
-           && _owner._slotAction[ch][sl].file.existsAsFile ();
+           && _owner._channelActions[ch][static_cast<size_t> (buttonForSlot (sl))]
+                  .file.existsAsFile ();
   }
 
   // Load: the shown clip fires this action from now on -- the same as a tap
@@ -3704,8 +3725,8 @@ public:
     auto const file = fileAt (row);
     if (!file.existsAsFile ())
       return;
-    _owner.setSlotAction (_owner._clipSettingsChannel,
-                          _owner._clipSettingsSlot, file);
+    _owner.setButtonAction (_owner._clipSettingsChannel,
+                            buttonForSlot (_owner._clipSettingsSlot), file);
     _owner.updateControlReadout (
         "-- ACT " + file.getFileNameWithoutExtension ().toUpperCase ());
     _owner.refreshBrowser ();
@@ -3743,7 +3764,7 @@ public:
   {
     // Heard at once on every clip that fires it, not only the shown one.
     for (auto const &at : slotsFiring (file, _owner.slotActionFiles ()))
-      _owner.setSlotAction (at.channel, at.slot, file);
+      _owner.setButtonAction (at.channel, static_cast<int> (at.slot), file);
   }
 
   void
@@ -3751,7 +3772,7 @@ public:
   {
     // The clip EDIT came from fires the copy -- once (takeEditOrigin).
     if (auto const at = takeEditOrigin (_owner._editOrigin))
-      _owner.setSlotAction (at->channel, at->slot, copy);
+      _owner.setButtonAction (at->channel, static_cast<int> (at->slot), copy);
   }
 
   // The script beside the list carries Save and Save as on this tab; the
@@ -4318,10 +4339,10 @@ A3MotionUIComponent::renameChosenAction (juce::String const &name)
   // Every slot firing it comes across. A slot pointing at a file that is no
   // longer there fires nothing, silently, and the ACTION page would show an
   // empty field where a script was a moment ago.
-  for (index_t channel = 0; channel < _slotAction.size (); ++channel)
-    for (index_t slot = 0; slot < _slotAction[channel].size (); ++slot)
-      if (_slotAction[channel][slot].file == from)
-        setSlotAction (channel, slot, to);
+  for (index_t channel = 0; channel < _channelActions.size (); ++channel)
+    for (int button = 0; button < numActionButtons; ++button)
+      if (_channelActions[channel][static_cast<size_t> (button)].file == from)
+        setButtonAction (channel, button, to);
 
   updateControlReadout ("-- RENAMED " + name.toUpperCase ());
   refreshBrowser ();
@@ -4343,10 +4364,10 @@ A3MotionUIComponent::deleteChosenAction ()
 
   // Every slot that fired it stops firing anything, rather than being left
   // pointing at a name with nothing behind it.
-  for (index_t channel = 0; channel < _slotAction.size (); ++channel)
-    for (index_t slot = 0; slot < _slotAction[channel].size (); ++slot)
-      if (_slotAction[channel][slot].file == file)
-        setSlotAction (channel, slot, juce::File{});
+  for (index_t channel = 0; channel < _channelActions.size (); ++channel)
+    for (int button = 0; button < numActionButtons; ++button)
+      if (_channelActions[channel][static_cast<size_t> (button)].file == file)
+        setButtonAction (channel, button, juce::File{});
 
   updateControlReadout (
       "-- DELETED " + file.getFileNameWithoutExtension ().toUpperCase ());
@@ -4637,34 +4658,21 @@ A3MotionUIComponent::updateActionPage ()
 
   auto const channel = _clipSettingsChannel;
   auto const slot = _clipSettingsSlot;
-  auto const &pattern = _patterns[channel][slot];
 
   _action->setTarget (static_cast<int> (channel), static_cast<int> (slot),
                       _channelUIStates[channel]->colour);
 
-  // The defaults when the slot is empty, so the page reads as a page rather
-  // than as a blank: there is nothing to fire, but what firing would do is
-  // still worth seeing.
-  ClipSettings const defaults;
-  _action->setEnvelope (
-      pattern ? pattern->getEnvelopeAttack () : defaults.envelopeAttack,
-      pattern ? pattern->getEnvelopeDecay () : defaults.envelopeDecay,
-      pattern ? pattern->getEnvelopeMax () : defaults.envelopeMax);
-  _action->setActMode (
-      (pattern ? pattern->getActMode () : defaults.actMode) == ActMode::Hold
-          ? 1
-          : 0);
+  // How the shown button is played -- its own since 2026-09-27, so six
+  // buttons on one clip can each have their own feel.
+  auto const *shown = shownActionButton ();
+  auto const feel = shown ? shown->feel : ActionFeel{};
+  _action->setEnvelope (feel.envelopeAttack, feel.envelopeDecay,
+                        feel.envelopeMax);
+  _action->setActMode (feel.actMode == ActMode::Hold ? 1 : 0);
+  _action->setFreqEnvelope (feel.freqAttack, feel.freqDecay, feel.freqMax);
+  _action->setQEnvelope (feel.qAttack, feel.qDecay, feel.qMax);
 
-  _action->setFreqEnvelope (
-      pattern ? pattern->getFreqAttack () : defaults.freqAttack,
-      pattern ? pattern->getFreqDecay () : defaults.freqDecay,
-      pattern ? pattern->getFreqMax () : defaults.freqMax);
-  _action->setQEnvelope (pattern ? pattern->getQAttack () : defaults.qAttack,
-                         pattern ? pattern->getQDecay () : defaults.qDecay,
-                         pattern ? pattern->getQMax () : defaults.qMax);
-
-  auto const &slotAction = _slotAction[channel][slot];
-  auto const &action = slotAction.file;
+  auto const action = shown ? shown->file : juce::File{};
 
   // What the field's list offers: the empty row first, so a slot can go back
   // to firing nothing the same way it can go back to holding no clip.
@@ -4682,11 +4690,13 @@ A3MotionUIComponent::updateActionPage ()
 void
 A3MotionUIComponent::applyActionControl (int control, int increment)
 {
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto &pattern = _patterns[channel][slot];
-  if (!pattern)
+  // The shown button's feel, edited through a Pattern so its setters stay
+  // the one place that knows each value's range (2026-09-27).
+  auto *button = shownActionButton ();
+  if (button == nullptr)
     return;
+  auto const pattern = std::make_shared<Pattern> ();
+  applyClipSettings (*pattern, withFeel (ClipSettings{}, button->feel));
 
   switch (control)
     {
@@ -4735,6 +4745,8 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       return;
     }
 
+  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
+  scheduleSetSave ();
   updateActionPage ();
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
@@ -4742,11 +4754,13 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
 void
 A3MotionUIComponent::setActionControl (int control, double value)
 {
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto &pattern = _patterns[channel][slot];
-  if (!pattern)
+  // The shown button's feel, edited through a Pattern so its setters stay
+  // the one place that knows each value's range (2026-09-27).
+  auto *button = shownActionButton ();
+  if (button == nullptr)
     return;
+  auto const pattern = std::make_shared<Pattern> ();
+  applyClipSettings (*pattern, withFeel (ClipSettings{}, button->feel));
 
   auto const step = static_cast<int> (std::lround (value));
   auto const level = static_cast<float> (value);
@@ -4765,6 +4779,8 @@ A3MotionUIComponent::setActionControl (int control, double value)
     default:                           return;
     }
 
+  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
+  scheduleSetSave ();
   updateActionPage ();
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
@@ -4772,11 +4788,13 @@ A3MotionUIComponent::setActionControl (int control, double value)
 void
 A3MotionUIComponent::resetActionControl (int control)
 {
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto &pattern = _patterns[channel][slot];
-  if (!pattern)
+  // The shown button's feel, edited through a Pattern so its setters stay
+  // the one place that knows each value's range (2026-09-27).
+  auto *button = shownActionButton ();
+  if (button == nullptr)
     return;
+  auto const pattern = std::make_shared<Pattern> ();
+  applyClipSettings (*pattern, withFeel (ClipSettings{}, button->feel));
 
   // The mode is a list and has no middle to come back to.
   switch (control)
@@ -4814,6 +4832,8 @@ A3MotionUIComponent::resetActionControl (int control)
       return;
     }
 
+  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
+  scheduleSetSave ();
   updateActionPage ();
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
@@ -5155,6 +5175,21 @@ A3MotionUIComponent::applySet (juce::File const &file)
       auto const index = static_cast<index_t> (ch);
       auto const &channel = set.channels[static_cast<size_t> (ch)];
 
+      // The six buttons first, as the slots' actions were: a button the set
+      // names gets it, one it leaves empty keeps what it had. The feel only
+      // where the set says it was turned.
+      for (int b = 0; b < numActionButtons; ++b)
+        {
+          auto const &entry = channel.actions[static_cast<size_t> (b)];
+          if (entry.script.empty ())
+            continue;
+          setButtonAction (index, b,
+                           namedFileIn (actionsDir (),
+                                        juce::String (entry.script), ".scd"));
+          if (entry.feel)
+            _channelActions[index][static_cast<size_t> (b)].feel = *entry.feel;
+        }
+
       // Where the channel was parked. Empty on a first run, which is zero,
       // which is where they start anyway.
       //
@@ -5172,13 +5207,6 @@ A3MotionUIComponent::applySet (juce::File const &file)
           auto const &saved = channel.slots[static_cast<size_t> (slot)];
           _clipUIParams[index][slot].recordLengthLog2
               = saved.recordLengthLog2;
-
-          // The action first, so a slot that fires one gets it whether or not
-          // it also holds a clip.
-          if (!saved.action.empty ())
-            setSlotAction (index, slot,
-                           namedFileIn (actionsDir (),
-                                        juce::String (saved.action), ".scd"));
 
           if (saved.patternName.empty ())
             continue;
@@ -5305,6 +5333,18 @@ A3MotionUIComponent::buildSession ()
       // that saved mid-accent would come back with the accent baked in.
       channel.threeD = _engine.getChannelPot3 (index);
 
+      // The six buttons, by script name, with their feel only where it was
+      // turned from the script's own -- a set keeps what somebody chose.
+      for (int b = 0; b < numActionButtons; ++b)
+        {
+          auto const &button = _channelActions[index][static_cast<size_t> (b)];
+          auto &entry = channel.actions[static_cast<size_t> (b)];
+          entry.script
+              = button.file.getFileNameWithoutExtension ().toStdString ();
+          if (button.file.existsAsFile () && button.feel != button.scriptFeel)
+            entry.feel = button.feel;
+        }
+
       channel.slots.resize (numClipSlots);
       for (index_t slot = 0; slot < numClipSlots; ++slot)
         {
@@ -5312,11 +5352,9 @@ A3MotionUIComponent::buildSession ()
           saved.recordLengthLog2
               = _clipUIParams[index][slot].recordLengthLog2;
 
-          // The action goes with the slot whether or not there is a clip in
-          // it: a slot can be given one and filled afterwards.
-          saved.action = _slotAction[index][slot]
-                             .file.getFileNameWithoutExtension ()
-                             .toStdString ();
+          // The actions are the channel's six buttons now (below); a
+          // slot names none.
+          saved.action.clear ();
 
           // A set names only what is on disk: an unsaved slot stands for
           // what it held before its take. See PendingTakes::forSet().

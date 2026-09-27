@@ -219,7 +219,7 @@ private:
 
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
-  void setSlotAction (index_t channel, index_t slot, juce::File const &file);
+  void setButtonAction (index_t channel, int button, juce::File const &file);
 
   /** The chosen action's file, shown in the panel beside the list. */
   void showChosenFileText ();
@@ -790,27 +790,43 @@ private:
   /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;
-  /** The action clip the ACT key fires on this slot, if any. Per slot,
-   *  not per clip: two slots on one clip can act differently.
+  /** One of a channel's six action buttons (2026-09-27): the script it
+   *  fires and how it is played.
    *
-   *  The file and its contents together, in one struct rather than two
-   *  vectors, because they have to agree: the file is what the browser
-   *  highlights and the ACTION page names, and the settings are what ACT
-   *  actually fires. Read once, when the action is assigned -- a press has to
-   *  land on the beat, and a press that opened a file would not. */
-  struct SlotAction
+   *  The file and its contents together, because they have to agree: the
+   *  file is what the browser highlights and the ACTION page names, and the
+   *  settings are what the button actually fires. Read once, when the action
+   *  is assigned -- a press has to land on the beat, and a press that opened
+   *  a file would not. */
+  struct ActionButton
   {
     juce::File file;
     /** The script as written, for the page to show and later to edit. */
     juce::String source;
-    /** What it worked out to when it was chosen. Empty when the slot fires
+    /** What it worked out to when it was chosen. Empty when the button fires
      *  nothing, or when the file would not read. */
     std::optional<ClipSettings> settings;
-    /** What the script got wrong, line by line. Shown rather than swallowed:
-     *  the only compiler here is the one that just ran. */
+    /** What the script got wrong, line by line. */
     juce::StringArray errors;
+    /** How it is played -- the envelopes and the mode, the button's own
+     *  since the feel left the clip -- and what the script itself said, so a
+     *  set only keeps what was turned from it. */
+    ActionFeel feel;
+    ActionFeel scriptFeel;
   };
-  std::vector<std::vector<SlotAction> > _slotAction;
+  std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
+  /** Which button a slot's ACT pad fires until the panel switches to six
+   *  action pads: slot 1 fires A1, slot 2 fires A2. */
+  static constexpr int
+  buttonForSlot (index_t slot)
+  {
+    return static_cast<int> (slot);
+  }
+  /** The button the ACTION page shows and edits. */
+  ActionButton *shownActionButton ();
+  /** What a button fires: its script's settings with its own feel on, or
+   *  nothing for a button with no action. */
+  std::optional<ClipSettings> firedActionOf (index_t channel, int button) const;
 
   ClipFilter _clipFilter = ClipFilter::All;
   /** Which library entry each row of the browser stands for. The list is a
