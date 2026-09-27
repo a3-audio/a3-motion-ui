@@ -218,6 +218,42 @@ operator!= (ClipSettings const &a, ClipSettings const &b)
   return !(a == b);
 }
 
+/** How many action buttons a channel has (2026-09-27): six, beside Play and
+ *  Page on the panel. */
+constexpr int numActionButtons = 6;
+
+/** How an action is played: its three envelopes' times and ceilings, and
+ *  whether it is a stab or a hold. Each of a channel's six buttons has its
+ *  own since 2026-09-27 -- one feel per clip made six buttons feel the same.
+ *  The defaults are ClipSettings' (ActionFiring.AFreshFeelIsTheClipDefaults
+ *  holds them together). */
+struct ActionFeel
+{
+  int envelopeAttack = 2;
+  int envelopeDecay = 3;
+  float envelopeMax = 1.f;
+  int freqAttack = 2;
+  int freqDecay = 3;
+  float freqMax = 0.f;
+  int qAttack = 2;
+  int qDecay = 3;
+  float qMax = 0.f;
+  ActMode actMode = ActMode::OneShot;
+};
+
+bool operator== (ActionFeel const &a, ActionFeel const &b);
+inline bool
+operator!= (ActionFeel const &a, ActionFeel const &b)
+{
+  return !(a == b);
+}
+
+/** The feel a clip's settings carry. */
+ActionFeel actionFeelFrom (ClipSettings const &settings);
+
+/** `settings` with the feel put on, every other field as it was. */
+ClipSettings withFeel (ClipSettings settings, ActionFeel const &feel);
+
 /** What a fired action puts on the clip it is fired at.
  *
  *  An action is a whole ClipSettings, saved off a clip that was dialled the

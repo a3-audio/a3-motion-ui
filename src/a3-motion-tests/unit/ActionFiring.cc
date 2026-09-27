@@ -411,3 +411,30 @@ TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
 
   engine.setChannelAccentHeld (0, false, nullptr);
 }
+
+// How an action is played -- its three envelopes and its mode -- belongs to
+// each of the six buttons from 2026-09-27, not to the clip. It is carried as
+// an ActionFeel and put onto settings field by field.
+TEST (ActionFiring, AFeelIsTheEnvelopesAndTheMode)
+{
+  ClipSettings clip;
+  clip.envelopeAttack = 5;
+  clip.qMax = 0.25f;
+  clip.actMode = ActMode::Hold;
+  clip.spin = 3;
+
+  auto const feel = actionFeelFrom (clip);
+  EXPECT_EQ (feel.envelopeAttack, 5);
+  EXPECT_FLOAT_EQ (feel.qMax, 0.25f);
+  EXPECT_EQ (feel.actMode, ActMode::Hold);
+
+  auto const back = withFeel (ClipSettings{}, feel);
+  EXPECT_EQ (back.envelopeAttack, 5);
+  EXPECT_EQ (back.actMode, ActMode::Hold);
+  EXPECT_EQ (back.spin, ClipSettings{}.spin) << "only the feel is put on";
+}
+
+TEST (ActionFiring, AFreshFeelIsTheClipDefaults)
+{
+  EXPECT_EQ (ActionFeel{}, actionFeelFrom (ClipSettings{}));
+}

@@ -20,6 +20,8 @@
 
 #include "SessionFile.hh"
 
+#include <algorithm>
+
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/TextFile.hh>
 
@@ -234,6 +236,62 @@ readSpeedKeys (juce::var const &value)
 }
 }
 
+namespace
+{
+/** A channel's six actions, or -- in a set written before 2026-09-27, when a
+ *  channel had two slots with an action each -- those two as A1 and A2, with
+ *  the envelope each slot had been turned to. Read before fitToDevice cuts the
+ *  second slot, or its action would be gone. */
+void
+readActions (Session::Channel &channel, juce::var const &value)
+{
+  if (auto const *entries = value.getArray ())
+    {
+      auto const count = juce::jmin (entries->size (), numActionButtons);
+      for (int i = 0; i < count; ++i)
+        {
+          auto const &entry = entries->getReference (i);
+          auto &action = channel.actions[static_cast<size_t> (i)];
+          action.script = entry["script"].toString ().toStdString ();
+          if (auto const feel = readOverrides (entry["feel"]))
+            action.feel = actionFeelFrom (*feel);
+        }
+      return;
+    }
+
+  auto const count = juce::jmin (static_cast<int> (channel.slots.size ()),
+                                 numActionButtons);
+  for (int i = 0; i < count; ++i)
+    {
+      auto const &slot = channel.slots[static_cast<size_t> (i)];
+      auto &action = channel.actions[static_cast<size_t> (i)];
+      action.script = slot.action;
+      // The feel only where the slot had been turned from the defaults --
+      // otherwise the script says how it is played, as it always did.
+      if (slot.overrides && actionFeelFrom (*slot.overrides) != ActionFeel{})
+        action.feel = actionFeelFrom (*slot.overrides);
+    }
+}
+
+juce::var
+writeActions (std::array<Session::ActionEntry, numActionButtons> const &actions)
+{
+  juce::Array<juce::var> entries;
+  for (auto const &action : actions)
+    {
+      auto *entry = new juce::DynamicObject ();
+      if (!action.script.empty ())
+        entry->setProperty ("script", juce::String (action.script));
+      // Only what differs from the defaults, like a slot's overrides.
+      if (action.feel)
+        entry->setProperty ("feel",
+                            writeOverrides (withFeel (ClipSettings{}, *action.feel)));
+      entries.add (juce::var (entry));
+    }
+  return entries;
+}
+}
+
 Session
 loadSession (juce::File const &file, int numChannels, int numSlots)
 {
@@ -270,6 +328,7 @@ loadSession (juce::File const &file, int numChannels, int numSlots)
                 channel.slots.push_back (slot);
               }
 
+          readActions (channel, entry["actions"]);
           set.channels.push_back (channel);
         }
     }
@@ -322,6 +381,16 @@ saveSession (juce::File const &file, Session const &set)
           slots.add (juce::var (slotEntry));
         }
       entry->setProperty ("slots", slots);
+      // Only when a button has something: an empty list would tell the next
+      // reading that there are no actions, and the slots' own -- a set from
+      // before the buttons -- would no longer reach A1 and A2.
+      auto const anyAction = std::any_of (
+          channel.actions.begin (), channel.actions.end (),
+          [] (Session::ActionEntry const &a) {
+            return !a.script.empty () || a.feel.has_value ();
+          });
+      if (anyAction)
+        entry->setProperty ("actions", writeActions (channel.actions));
 
       channels.add (juce::var (entry));
     }
@@ -364,6 +433,36 @@ migrateSetToCurrent (juce::File const &root)
   std::cout << "SessionFile: the automatic set is now current.json"
             << std::endl;
   return true;
+}
+
+bool
+migrateTwoSlotSets (juce::File const &root)
+{
+  auto const backup = root.getChildFile ("backup-two-slots");
+  if (backup.exists ())
+    return false;
+
+  auto copied = false;
+  auto const keep = [&] (juce::File const &file, juce::String const &relative) {
+    if (!file.existsAsFile ())
+      return;
+    auto const target = backup.getChildFile (relative);
+    target.getParentDirectory ().createDirectory ();
+    copied = file.copyFileTo (target) || copied;
+  };
+
+  keep (root.getChildFile ("current.json"), "current.json");
+  for (auto const *half : { "system", "user" })
+    for (auto const &set : root.getChildFile ("sessions")
+                               .getChildFile (half)
+                               .findChildFiles (juce::File::findFiles, false,
+                                                "*.json"))
+      keep (set, juce::String ("sessions/") + half + "/" + set.getFileName ());
+
+  if (copied)
+    std::cout << "SessionFile: two-slot sets copied to "
+              << backup.getFullPathName () << std::endl;
+  return copied;
 }
 
 }

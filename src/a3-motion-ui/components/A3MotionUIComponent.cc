@@ -202,6 +202,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   migrateCombinedPatterns (patternsDir);
   migrateSetToCurrent (patternsDir);
+  // Before anything writes a set back with one slot (2026-09-27): every
+  // two-slot set is copied aside once, nothing deleted.
+  migrateTwoSlotSets (patternsDir);
 
   // The actions and the sets are split into what the instrument ships with
   // and what the performer made, the way the shapes already were. Whatever a

@@ -242,6 +242,42 @@ defaultElevationBase (float clipTop, float clipBottom)
   return (std::min (ceiling, floor) + std::max (ceiling, floor)) * 0.5f;
 }
 
+bool
+operator== (ActionFeel const &a, ActionFeel const &b)
+{
+  return a.envelopeAttack == b.envelopeAttack
+         && a.envelopeDecay == b.envelopeDecay
+         && a.envelopeMax == b.envelopeMax && a.freqAttack == b.freqAttack
+         && a.freqDecay == b.freqDecay && a.freqMax == b.freqMax
+         && a.qAttack == b.qAttack && a.qDecay == b.qDecay
+         && a.qMax == b.qMax && a.actMode == b.actMode;
+}
+
+ActionFeel
+actionFeelFrom (ClipSettings const &s)
+{
+  return { s.envelopeAttack, s.envelopeDecay, s.envelopeMax,
+           s.freqAttack,     s.freqDecay,     s.freqMax,
+           s.qAttack,        s.qDecay,        s.qMax,
+           s.actMode };
+}
+
+ClipSettings
+withFeel (ClipSettings settings, ActionFeel const &feel)
+{
+  settings.envelopeAttack = feel.envelopeAttack;
+  settings.envelopeDecay = feel.envelopeDecay;
+  settings.envelopeMax = feel.envelopeMax;
+  settings.freqAttack = feel.freqAttack;
+  settings.freqDecay = feel.freqDecay;
+  settings.freqMax = feel.freqMax;
+  settings.qAttack = feel.qAttack;
+  settings.qDecay = feel.qDecay;
+  settings.qMax = feel.qMax;
+  settings.actMode = feel.actMode;
+  return settings;
+}
+
 ClipSettings
 actionOver (ClipSettings const &current, ClipSettings const &action)
 {

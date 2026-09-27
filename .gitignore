@@ -16,6 +16,9 @@ config/ui_state.json
 pattern/user/
 pattern/set.json
 pattern/current.json
+# The copy of every two-slot set, made once by the one-clip build
+# (migrateTwoSlotSets): the performer's, like the sets themselves.
+pattern/backup-two-slots/
 pattern/sessions/*
 # Ten factory sets -- one per place in an evening, each naming eight shapes
 # and carrying a preset per slot. The performer's own sets land in the same
