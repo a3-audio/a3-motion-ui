@@ -225,23 +225,29 @@ private:
    *  the list. Nothing is assigned -- that is ACTION's (2026-09-27). */
   void chooseActionRow (int row);
   /** The chosen action's file, shown in the panel beside the list. */
-  void showChosenActionScript ();
+  void showChosenFileText ();
+  /** The file behind the chosen row, whichever list is showing. */
+  juce::File chosenRowFile () const;
+  /** Puts `errors` in the panel's strip and says whether the text may be
+   *  written (errorsBlockSaving); the readout says why not. */
+  bool fileTextIsFitToWrite (juce::StringArray const &errors,
+                             juce::File const &file);
   /** A file's text in the panel, and the panel told which file it is. */
-  void showActionScript (juce::File const &file);
+  void showFileText (juce::File const &file);
   /** The panel told the lock, the colour and whether the slot holds a clip,
    *  for its file and the shown clip as they are now. */
-  void dressActionPanel ();
+  void dressFilePanel ();
   /** The panel brought to the list's chosen row, or the row back to the
    *  panel when it holds unsaved text (panelSyncFor). */
-  void syncActionPanel ();
+  void syncFilePanel ();
   /** The panel's text over the chosen action's file, then re-run on every
    *  clip that fires it. */
-  void saveChosenActionScript ();
+  void saveFileText ();
   /** A copy of the panel's text; the EDIT origin, if any, fires the copy. */
-  void saveChosenActionScriptAs ();
+  void saveFileTextAs ();
   /** Whether the FILES list has to wait for the script beside it -- unsaved
    *  on ACTIONS -- and says so if it does (listWaitsFor). */
-  bool actionScriptHoldsTheList ();
+  bool fileTextHoldsTheList ();
   /** Every slot's action file, channel by slot, for slotsFiring(). */
   std::vector<std::vector<juce::File>> slotActionFiles () const;
   /** Write what is on show back over the file it came from. Per tab: the
@@ -430,6 +436,11 @@ private:
 
   void refreshBrowser (BrowserSelection selection = BrowserSelection::Keep);
   void assignBrowserEntry (int index);
+  /** A library figure into a slot, keeping the slot's values: what a tap on
+   *  SVG does (selecting and playing it), and what a saved shape does to the
+   *  slots already holding it (neither, unless one was playing). */
+  void putFigureInSlot (index_t channel, index_t slot, int index, bool select,
+                        bool play);
 
   void handlePadPress (index_t channel, index_t pad);
   /** The other half of a pad gesture. Shift+Action previews for as long as it
