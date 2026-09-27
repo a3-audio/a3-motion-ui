@@ -476,26 +476,3 @@ TEST (PlayheadAdvance, AShorterLengthPutsTheLapBackInside)
   EXPECT_EQ (nextLapTick (7, 0), 0u);
   EXPECT_FLOAT_EQ (lapProgress (7, 0), 0.f);
 }
-
-// Random drops in at a random point at every pass end: that is a jump the
-// blob is to glide over (2026-09-27), so the playhead says so.
-TEST (PlayheadAdvance, ARandomPassEndSaysItJumped)
-{
-  auto const stepped
-      = advancePlayhead ({ 0.999f, 1.f, false }, 0.01f, PlayDirection::Random,
-                         EndAction::Loop, 0.4f);
-  EXPECT_TRUE (stepped.jumped);
-  EXPECT_FLOAT_EQ (stepped.position, 0.4f);
-}
-
-// A step on, and a loop running over its seam, are not jumps: the seam is the
-// bridges' to join (planBridges).
-TEST (PlayheadAdvance, AStepAndALoopSeamAreNoJump)
-{
-  EXPECT_FALSE (advancePlayhead ({ 0.5f, 1.f, false }, 0.01f,
-                                 PlayDirection::Random, EndAction::Loop, 0.4f)
-                    .jumped);
-  EXPECT_FALSE (advancePlayhead ({ 0.999f, 1.f, false }, 0.01f,
-                                 PlayDirection::Forward, EndAction::Loop, 0.4f)
-                    .jumped);
-}

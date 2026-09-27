@@ -23,7 +23,6 @@
 #include <atomic>
 #include <memory>
 
-#include <a3-motion-engine/Glide.hh>
 #include <a3-motion-engine/Measure.hh>
 #include <a3-motion-engine/util/Types.hh>
 
@@ -62,9 +61,6 @@ private:
   Measure _playingStarted;
 
   Pos _position;
-  /** The blob gliding over a jump of the playhead, played on the RT thread
-   *  only (Glide.hh). */
-  Glide _glide;
   // Where a pot starts is where it comes to rest: twelve o'clock for 3d and
   // freq, shut for Q. They used to start at a quarter, wide open and shut --
   // three different answers to the question the reset table already answers

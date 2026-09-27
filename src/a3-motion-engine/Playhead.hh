@@ -90,8 +90,6 @@ struct Playhead
   float position;
   float sign;
   bool stopped;
-  /** Random dropped in at a new point: the blob glides there (Glide.hh). */
-  bool jumped = false;
 };
 
 float initialSign (PlayDirection direction);
