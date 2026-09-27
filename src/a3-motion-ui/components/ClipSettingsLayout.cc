@@ -315,11 +315,85 @@ textRowHeight (juce::Rectangle<int> content, float size)
   return juce::jlimit (10, juce::jmax (10, content.getHeight () / 2), needed);
 }
 
+namespace
+{
+/** One height for every button in the bar -- see ClipSettingsLayout's
+ *  buttonHeight. */
+int
+barButtonHeight (int barHeight, int knobDiam)
+{
+  return juce::jlimit (34, juce::jmax (34, barButtonMax.of (barHeight)),
+                       static_cast<int> (static_cast<float> (knobDiam) * 1.35f));
+}
+
+/** The frame's inset round the faces: what it was in the global strip, a
+ *  fortieth of the strip's quarter of the bar. */
+int
+channelRowInset (int barWidth)
+{
+  return juce::jmax (2, barWidth / 4 / 40);
+}
+
+/** The row of channel faces, across the whole bar (2026-09-27): four faces,
+ *  each with its meter at the left and its 3D at the right. */
+void
+layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
+                  int inset)
+{
+  out.channelFacesFrame = row;
+
+  auto faces = row.reduced (inset);
+  auto const faceGap = juce::jmax (2, faces.getWidth () / 120);
+  auto const numFaces = static_cast<int> (numChannelColumns);
+  auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
+
+  // Edges from the whole width, like the header's, so the last face ends
+  // flush with the frame.
+  for (int i = 0; i < numFaces; ++i)
+    {
+      auto const x0 = faces.getX () + i * faceGap + (span * i) / numFaces;
+      auto const x1 = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
+      auto const face
+          = juce::Rectangle<int>{ x0, faces.getY (), x1 - x0, faces.getHeight () };
+      out.channelFaces[static_cast<size_t> (i)] = face;
+
+      // The meter a narrow column at the left, the pot a square at the right,
+      // the slot number in the room between them.
+      auto inner = face.reduced (juce::jmax (2, face.getHeight () / 10));
+      out.channelFaceMeters[static_cast<size_t> (i)] = inner.removeFromLeft (
+          juce::jmax (4, inner.getHeight () / 4));
+      out.channelFacePots[static_cast<size_t> (i)]
+          = inner.removeFromRight (inner.getHeight ());
+    }
+}
+}
+
+int
+channelRowHeight (int knobDiam, int barWidth)
+{
+  auto const faceH = juce::jmax (
+      fingertipSize,
+      juce::jmax (34, static_cast<int> (static_cast<float> (knobDiam) * 1.35f)));
+  return faceH + 2 * channelRowInset (barWidth);
+}
+
 ClipSettingsLayout
 layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                     float bodySize, float potSizeScale, BarPage page)
 {
   ClipSettingsLayout out;
+
+  // The channel faces first, across the whole bar and above everything in it:
+  // between the settings and the sphere. As tall as their frame in the global
+  // strip was -- a button, never under a fingertip, and the frame's inset
+  // round it.
+  layOutChannelRow (
+      out,
+      bounds.removeFromTop (juce::jmin (
+          bounds.getHeight (),
+          channelRowHeight (knobDiameterForFont (bodySize, potSizeScale),
+                            bounds.getWidth ()))),
+      channelRowInset (bounds.getWidth ()));
 
   // Two panels side by side, not one panel with an odd section on the end.
   out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);
@@ -447,9 +521,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // worth looking at -- every row the buttons took came off it. The 34px floor
   // stays: below it TAP could not be hit reliably, and that finding is about
   // fingers, not about how much room the picture would like.
-  out.buttonHeight = juce::jlimit (
-      34, juce::jmax (34, barButtonMax.of (out.clipBounds.getHeight ())),
-      static_cast<int> (metrics.knobDiam * 1.35f));
+  out.buttonHeight
+      = barButtonHeight (out.clipBounds.getHeight (), metrics.knobDiam);
 
   // Three columns, and which card stands in them depends on the page
   // (2026-09-26). CLIP: Shape (picker, picture), then dir and end, then the
@@ -707,8 +780,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = out.globalContent;
     out.sectionLabels[3] = {};
 
-    // Top to bottom: the elevation picture, whose clip (the four faces), then
-    // what to do to it (the transport, two by two) down to the foot. The 4x3 grid of 3D, FREQ
+    // Top to bottom: the elevation picture, then what to do to the clip (the
+    // transport, two by two) down to the foot. The four faces that said whose
+    // clip left for a row of their own across the bar on 2026-09-27. The 4x3 grid of 3D, FREQ
     // and Q went into the mixer strips and the six function keys went to the
     // status bar and the REC page, both on 2026-09-26; their room is the
     // transport's.
@@ -723,8 +797,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // At the head of the strip, over the faces: the side view of where the
     // shown clip sits and how high it may go, in a grey field of its own like
     // the faces and the transport -- a field that is touched to select it.
-    // Never more than nine twentieths of the strip's height, so the faces and the
-    // transport keep theirs.
+    // Never more than nine twentieths of the strip's height, so the transport
+    // keeps its room.
     {
       auto const side = juce::jmin (content.getWidth (),
                                     content.getHeight () * 9 / 20);
@@ -742,38 +816,9 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
     }
 
-    // ── the four channel faces ────────────────────────────────────────
-    //
-    // In a frame of their own, the way the transport stands in one: four
-    // keys that choose *which clip* the bar describes, not what it does.
-    // As tall as a function key, and never under a fingertip.
-    {
-      auto const faceH = juce::jmax (fingertipSize, buttonRowH);
-      auto frame = content.removeFromTop (
-          juce::jmin (content.getHeight (), faceH + 2 * frameInset));
-      out.channelFacesFrame = frame;
-      content.removeFromTop (juce::jmin (content.getHeight (), blockGap));
-
-      auto faces = frame.reduced (frameInset);
-      auto const faceGap = juce::jmax (2, faces.getWidth () / 60);
-      auto const numFaces = static_cast<int> (numChannelColumns);
-      auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
-
-      // Edges from the whole width, like the header's, so the last face ends
-      // flush with the frame.
-      for (int i = 0; i < numFaces; ++i)
-        {
-          auto const x0 = faces.getX () + i * faceGap + (span * i) / numFaces;
-          auto const x1
-              = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
-          out.channelFaces[static_cast<size_t> (i)]
-              = { x0, faces.getY (), x1 - x0, faces.getHeight () };
-        }
-    }
-
     // ── the transport, two by two ─────────────────────────────────────
     //
-    // Everything between the faces and the function keys, arranged as a
+    // Everything under the picture, arranged as a
     // clip's pads are on PADS: play over act on the left, stop on the right,
     // and rec in the corner the pads give to Settings -- rec has no pad of
     // its own. Two rows rather than one because the grid's room is theirs

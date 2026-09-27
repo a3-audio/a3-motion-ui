@@ -476,9 +476,14 @@ struct ClipSettingsLayout
    *  own header. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaces;
 
-  /** The frame the four faces stand in, the way the transport under them
-   *  stands in one. */
+  /** The row the four faces stand in: across the whole bar, above the tabs
+   *  and the global strip, between the settings and the sphere (2026-09-27).
+   *  As tall as the faces' frame in the global strip was. */
   juce::Rectangle<int> channelFacesFrame;
+  /** In every face, left to right: the channel's meter, then its 3D. Drawn in
+   *  the face; the whole face selects the clip. */
+  std::array<juce::Rectangle<int>, numChannelColumns> channelFaceMeters;
+  std::array<juce::Rectangle<int>, numChannelColumns> channelFacePots;
 
   /** The clip's plainest view, and the head of the row of views.
    *
@@ -608,6 +613,12 @@ constexpr HeightShare headerGapOfHeader{ 12 };
  *  happen to share a number, and folding them together would tie the button
  *  rows to the header's ceiling for no reason. */
 constexpr HeightShare barButtonMax{ 6 };
+
+/** How tall the row of channel faces is, above everything else in the bar: a
+ *  button as the bar's buttons are sized by the knob, never under a
+ *  fingertip, and the frame's inset round it. Not a share of the bar, so the
+ *  bar's preferred height can add it on top of what its sections ask for. */
+int channelRowHeight (int knobDiam, int barWidth);
 
 /** Lays the whole bar out for the given bounds and the three sizes the
  *  user can actually change (header and body font size, Pot Size). Reads

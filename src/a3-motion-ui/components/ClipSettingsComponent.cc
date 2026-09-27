@@ -1896,7 +1896,6 @@ ClipSettingsComponent::preferredHeight (int width) const
   // Same geometry the layout uses, asked before there is a layout: the knob
   // follows the section width and Pot Size, the boxes follow the knob and the
   // body font, and the bar follows the boxes.
-  juce::ignoreUnused (width);
   auto const knobDiam
       = knobDiameterForFont (theme ().fontSize (FontRole::Body), theme ().potSize);
 
@@ -1915,10 +1914,14 @@ ClipSettingsComponent::preferredHeight (int width) const
       wanted, controllerPreferredHeight (theme ().fontSize (FontRole::Header),
                                          fingertipSize));
 
+  // The row of channel faces on top, unscaled: it is a row of keys, sized
+  // like the bar's buttons, not a share of the bar.
   return juce::jmax (
-      1, juce::roundToInt (static_cast<float> (needed)
-                           * juce::jlimit (0.5f, 2.f,
-                                           theme ().clipSettingsHeightScale)));
+             1, juce::roundToInt (static_cast<float> (needed)
+                                  * juce::jlimit (
+                                      0.5f, 2.f,
+                                      theme ().clipSettingsHeightScale)))
+         + channelRowHeight (knobDiam, width);
 }
 
 

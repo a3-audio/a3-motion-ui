@@ -60,9 +60,10 @@ constexpr float defaultPotSize = 0.9f;
 juce::Rectangle<int>
 grownBar (float headerSize, float bodySize, float potSize)
 {
+  auto const knobDiam = knobDiameterForFont (bodySize, potSize);
   return { 0, 0, panelWidth,
-           clipSettingsPreferredHeight (
-               headerSize, bodySize, knobDiameterForFont (bodySize, potSize)) };
+           clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
+               + channelRowHeight (knobDiam, panelWidth) };
 }
 
 /** The header's keys in the order they stand, left to right (2026-09-26):
@@ -1094,9 +1095,9 @@ TEST (ClipSettingsLayout, TheAxisSnapsToEarHeight)
 // ── The header row after the channel keys ────────────────────────────────
 
 // Four channel faces, each in its channel's colour with its slot number in
-// it. Touching a face is "show me this channel's clip". They stand at the top
-// of the global strip since 2026-09-26, where the 4x3 grid was.
-TEST (ClipSettingsLayout, TheGlobalStripCarriesAFaceForEveryChannel)
+// it. Touching a face is "show me this channel's clip". Since 2026-09-27 they
+// stand in a row of their own across the whole bar, over the sphere's edge.
+TEST (ClipSettingsLayout, TheChannelRowCarriesAFaceForEveryChannel)
 {
   for (int width : { 768, 1024, 1280 })
     {
@@ -1105,7 +1106,7 @@ TEST (ClipSettingsLayout, TheGlobalStripCarriesAFaceForEveryChannel)
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "face " << ch;
-          EXPECT_TRUE (l.sectionCards[3].contains (l.channelFaces[ch]))
+          EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
               << "face " << ch << " at width " << width;
 
           // A fingertip in both directions: hit mid-set, one-handed, and the
@@ -1156,28 +1157,57 @@ TEST (ClipSettingsLayout, TheClipTabStandsAtTheHeadOfTheViews)
       << "the shared slot keys moved into the channel faces";
 }
 
-// The four faces stand together in a frame of their own in the global strip,
-// under the elevation picture and over the transport: first whose clip, then
-// what to do to it.
-TEST (ClipSettingsLayout, TheFacesStandTogetherInAFrameUnderThePicture)
+// The faces left the global strip on 2026-09-27 for a row of their own:
+// across the whole bar, above the tabs and the global strip alike, between
+// the settings and the sphere. As tall as their frame was.
+TEST (ClipSettingsLayout, TheChannelRowSpansTheBarAboveEverything)
 {
   for (int width : { 768, 1024, 1280 })
     {
-      auto const l
-          = layOutClipSettings ({ 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+      juce::Rectangle<int> const bounds{ 0, 0, width, 300 };
+      auto const l = layOutClipSettings (bounds, 14.f, 12.f, 1.f);
+      auto const &row = l.channelFacesFrame;
 
-      ASSERT_FALSE (l.channelFacesFrame.isEmpty ()) << "width " << width;
+      ASSERT_FALSE (row.isEmpty ()) << "width " << width;
+      EXPECT_EQ (row.getX (), bounds.getX ()) << "width " << width;
+      EXPECT_EQ (row.getWidth (), bounds.getWidth ()) << "width " << width;
+      EXPECT_EQ (row.getY (), bounds.getY ()) << "width " << width;
+      EXPECT_GE (row.getHeight (), fingertipSize) << "width " << width;
+
+      EXPECT_LE (row.getBottom (), l.clipBounds.getY ()) << "width " << width;
+      EXPECT_LE (row.getBottom (), l.globalBounds.getY ())
+          << "width " << width;
+      EXPECT_FALSE (row.intersects (l.globalContent)) << "width " << width;
 
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
-        EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
-            << "face " << ch << " at width " << width;
+        EXPECT_GT (l.channelFaces[ch].getWidth (), width / 8)
+            << "a quarter of the row each, less the gaps; face " << ch;
+    }
+}
 
-      EXPECT_TRUE (l.globalContent.contains (l.channelFacesFrame))
-          << "width " << width;
-      EXPECT_GE (l.channelFacesFrame.getY (), l.elevationGraphic.getBottom ())
-          << "width " << width;
-      EXPECT_LE (l.channelFacesFrame.getBottom (), l.transportFrame.getY ())
-          << "width " << width;
+// Left to right in every face: the channel's meter, then its 3D. The whole
+// face selects the clip; these are drawn in it.
+TEST (ClipSettingsLayout, EachFaceCarriesItsMeterThenIts3d)
+{
+  auto const l = defaultLayout ();
+
+  for (size_t ch = 0; ch < numChannelColumns; ++ch)
+    {
+      auto const &face = l.channelFaces[ch];
+      auto const &meter = l.channelFaceMeters[ch];
+      auto const &pot = l.channelFacePots[ch];
+
+      ASSERT_FALSE (meter.isEmpty ()) << "channel " << ch;
+      ASSERT_FALSE (pot.isEmpty ()) << "channel " << ch;
+      EXPECT_TRUE (face.contains (meter)) << "channel " << ch;
+      EXPECT_TRUE (face.contains (pot)) << "channel " << ch;
+      EXPECT_LE (meter.getRight (), pot.getX ()) << "channel " << ch;
+      EXPECT_LT (meter.getX () - face.getX (), face.getWidth () / 4)
+          << "the meter stands at the left";
+      EXPECT_LT (face.getRight () - pot.getRight (), face.getWidth () / 4)
+          << "the pot stands at the right";
+      EXPECT_GT (meter.getHeight (), meter.getWidth ())
+          << "a channel's meter stands up";
     }
 }
 
@@ -1193,8 +1223,8 @@ TEST (ClipSettingsLayout, PadsCloseTheRow)
 }
 
 
-// Every channel has a face of its own, on every page: the global strip
-// stands on all of them.
+// Every channel has a face of its own, on every page: the row stands on all
+// of them.
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
   for (auto const page : { BarPage::Clip, BarPage::Controller,
@@ -1206,7 +1236,7 @@ TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
       for (size_t ch = 0; ch < numChannelColumns; ++ch)
         {
           ASSERT_FALSE (l.channelFaces[ch].isEmpty ()) << "channel " << ch;
-          EXPECT_TRUE (l.globalBounds.contains (l.channelFaces[ch]))
+          EXPECT_TRUE (l.channelFacesFrame.contains (l.channelFaces[ch]))
               << "channel " << ch;
         }
     }
@@ -1561,9 +1591,9 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
 
 
 // The elevation picture stands at the top of the global strip since
-// 2026-09-26, over the channel faces -- on every page, since the strip is --
-// in a grey frame of its own like the faces and the transport. The Elevation
-// card keeps its four knobs and nothing else.
+// 2026-09-26, over the transport since the faces left on 2026-09-27 -- on
+// every page, since the strip is -- in a grey frame of its own like the
+// transport. The Elevation card keeps its four knobs and nothing else.
 TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
 {
   auto const l = defaultLayout ();
@@ -1574,7 +1604,8 @@ TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
   EXPECT_TRUE (l.elevationFrame.contains (l.elevationGraphic));
   EXPECT_LT (l.elevationGraphic.getWidth (), l.elevationFrame.getWidth ())
       << "the picture stands inside its frame, not on its edge";
-  EXPECT_LE (l.elevationFrame.getBottom (), l.channelFacesFrame.getY ());
+  EXPECT_LE (l.elevationFrame.getBottom (), l.transportFrame.getY ());
+  EXPECT_GE (l.elevationFrame.getY (), l.channelFacesFrame.getBottom ());
   EXPECT_FALSE (l.sectionCards[1].intersects (l.elevationFrame));
 
   // Big enough to read a line off: a circle across most of the strip.
