@@ -491,6 +491,78 @@ Pattern::setSqueezeYLfoPhase (float phase)
   _squeezeYLfoPhase.store (phase, std::memory_order_relaxed);
 }
 
+float
+Pattern::getTilt () const
+{
+  return _tilt.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setTilt (float amount)
+{
+  _tilt.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+}
+
+float
+Pattern::getRoll () const
+{
+  return _roll.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setRoll (float amount)
+{
+  _roll.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+}
+
+int
+Pattern::getTiltLfo () const
+{
+  return _tiltLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setTiltLfo (int step)
+{
+  _tiltLfo.store (step, std::memory_order_relaxed);
+}
+
+int
+Pattern::getRollLfo () const
+{
+  return _rollLfo.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setRollLfo (int step)
+{
+  _rollLfo.store (step, std::memory_order_relaxed);
+}
+
+float
+Pattern::getTiltLfoPhase () const
+{
+  return _tiltLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setTiltLfoPhase (float phase)
+{
+  _tiltLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
+float
+Pattern::getRollLfoPhase () const
+{
+  return _rollLfoPhase.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setRollLfoPhase (float phase)
+{
+  _rollLfoPhase.store (phase, std::memory_order_relaxed);
+}
+
 int
 Pattern::getSpin () const
 {
