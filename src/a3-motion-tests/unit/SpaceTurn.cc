@@ -20,7 +20,9 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/SpaceTurn.hh>
+#include <a3-motion-engine/TempoLfo.hh>
 
 #include <cmath>
 
@@ -79,4 +81,22 @@ TEST (SpaceTurn, NothingStaysNothing)
 {
   EXPECT_FALSE (turnedInSpace (Pos::invalid, { 0.5f, 0.5f }).isValid ());
   EXPECT_FALSE (unturnedInSpace (Pos::invalid, { 0.5f, 0.5f }).isValid ());
+}
+
+// What a clip leans by right now: its setting, swept out and back by its
+// own sweep the way a squeeze is by its stretch.
+TEST (SpaceTurn, AClipLeansByItsSettingAndItsSweep)
+{
+  Pattern pattern;
+  pattern.setTilt (0.5f);
+  pattern.setRoll (-0.25f);
+
+  auto const still = spaceTurnOf (pattern);
+  EXPECT_FLOAT_EQ (still.tilt, 0.5f);
+  EXPECT_FLOAT_EQ (still.roll, -0.25f);
+
+  pattern.setTiltLfo (2);
+  pattern.setTiltLfoPhase (0.3f);
+  EXPECT_FLOAT_EQ (spaceTurnOf (pattern).tilt,
+                   lfoSweepBipolar (0.5f, 2, 0.3f));
 }

@@ -20,6 +20,9 @@
 
 #include "SpaceTurn.hh"
 
+#include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/TempoLfo.hh>
+
 #include <cmath>
 
 namespace a3
@@ -66,6 +69,17 @@ unturnedInSpace (Pos const &direction, SpaceTurn turn)
     return direction;
   return aboutLeftRight (aboutFrontBack (direction, -turn.roll * quarterTurn),
                          -turn.tilt * quarterTurn);
+}
+
+SpaceTurn
+spaceTurnOf (Pattern const &pattern)
+{
+  // Out of where each was set and back, towards the end its sweep's sign
+  // points at -- bipolar, like the squeezes.
+  return { lfoSweepBipolar (pattern.getTilt (), pattern.getTiltLfo (),
+                            pattern.getTiltLfoPhase ()),
+           lfoSweepBipolar (pattern.getRoll (), pattern.getRollLfo (),
+                            pattern.getRollLfoPhase ()) };
 }
 
 }

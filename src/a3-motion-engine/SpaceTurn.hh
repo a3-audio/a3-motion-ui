@@ -25,6 +25,8 @@
 namespace a3
 {
 
+class Pattern;
+
 /** How far the figure's plane is leant in the room (2026-09-27), each
  *  bipolar with zero upright and a quarter turn at either end. Applied to a
  *  direction on the sphere, after the height map: tilt about the left-right
@@ -42,5 +44,9 @@ Pos turnedInSpace (Pos const &direction, SpaceTurn turn);
 /** And back -- where a finger lands in the leant plane, as the figure has it
  *  before it is leant. */
 Pos unturnedInSpace (Pos const &direction, SpaceTurn turn);
+
+/** What a clip leans by right now: its tilt and roll, each swept out and back
+ *  by its own sweep. The one call the engine and every drawing make. */
+SpaceTurn spaceTurnOf (Pattern const &pattern);
 
 }
