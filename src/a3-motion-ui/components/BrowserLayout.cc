@@ -25,87 +25,80 @@ namespace a3
 
 BrowserLayout
 layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
-               BrowserList list)
+               BrowserList list, int detailWidth)
 {
   BrowserLayout out;
 
   if (bounds.isEmpty ())
     return out;
 
-  auto const gap = juce::jmax (2, bounds.getHeight () / 40);
+  // Half the bar's usual gap: over the sphere the height is three times the
+  // bar's, and a fortieth of it between four keys took the characters a
+  // script line needed (2026-09-27).
+  auto const gap = juce::jmax (2, bounds.getHeight () / 80);
+  auto const keyH
+      = juce::jmin (bounds.getHeight (), juce::jmax (fingertipSize, buttonHeight));
 
-  // The whole area is the library. The eight destinations that used to take
-  // the left of it are the header's channel faces now -- see BrowserLayout's
-  // own note -- and what is being read here is a list of names, which is the
-  // one thing on this page that gets better with width.
+  // The list's own keys: Load only on SETS, where a set is loaded on purpose;
+  // a clip or a shape is put on a slot by a tap. Save and Save as are the
+  // script's beside it, on every tab since 2026-09-27.
+  auto const numKeys = list == BrowserList::Sessions ? 4 : 3;
+  // Measured for the most keys any tab has, so the columns stay put when
+  // the tab changes.
+  constexpr int mostKeys = 4;
+  auto const listMinW = mostKeys * fingertipSize + (mostKeys - 1) * gap;
+
   auto area = bounds;
 
-  // Four words over the list: one question -- which folder -- asked of four
-  // folders, so all four are the same size. Any one of them drawn larger
-  // would read as the list's real subject with the others as afterthoughts.
-  auto tabRow = area.removeFromTop (
-      juce::jmin (area.getHeight () / 4, buttonHeight));
-  auto const tabW = (tabRow.getWidth () - gap * 3) / 4;
-  // In the order the work is done in: a set holds clips, a clip holds a
-  // shape, and an action is what you reach for once all three are standing.
-  out.setsTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.clipsTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.shapesTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.actionsTab = tabRow.removeFromLeft (tabW);
-
-  area.removeFromTop (gap * 2);
-  out.listArea = area;
-
-  // On ACTIONS the list keeps a third and the chosen script takes the rest
-  // (2026-09-27). The split is the layout's, so the other tabs can take a
-  // column of their own later without the list moving.
-  auto const withDetail = list == BrowserList::Actions;
-  if (withDetail)
+  // The script column first, as wide as it asks -- a line of a shipped
+  // action fits without scrolling sideways -- and the list keeps the rest,
+  // never less than its keys need.
+  if (detailWidth > 0)
     {
-      // Two thirds of what is left once the gap between them is taken, so
-      // the gap comes out of both columns rather than out of the list.
-      out.detailArea = out.listArea.removeFromRight (
-          (out.listArea.getWidth () - gap) * 2 / 3);
-      out.listArea.removeFromRight (gap);
+      auto const width = juce::jlimit (
+          0, juce::jmax (0, area.getWidth () - listMinW - gap), detailWidth);
+      out.detailArea = area.removeFromRight (width);
+      area.removeFromRight (gap);
     }
 
-  // The strip along the bottom first, so the list is whatever is left rather
-  // than the list deciding how much room the buttons get.
+  // The keys at the top, where back and close stood: one row with the
+  // script's keys beside them, the same height (ScriptPanel::keyHeight).
   {
-    auto strip = out.listArea.removeFromBottom (
-        juce::jmin (out.listArea.getHeight () / 3, buttonHeight));
-    out.listArea.removeFromBottom (gap);
+    auto keys = area.removeFromTop (keyH);
+    area.removeFromTop (gap);
 
-    // The list's own keys only: on ACTIONS the script beside it carries Save
-    // and Save as, and nothing is loaded from there.
-    if (withDetail)
+    auto const keyW = (keys.getWidth () - (numKeys - 1) * gap) / numKeys;
+    if (list == BrowserList::Sessions)
       {
-        auto const buttonW = (strip.getWidth () - 2 * gap) / 3;
-        out.filterButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.renameButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.deleteButton = strip;
+        out.loadButton = keys.removeFromLeft (keyW);
+        keys.removeFromLeft (gap);
       }
-    else
-      {
-        auto const buttonW = (strip.getWidth () - 5 * gap) / 6;
-        out.loadButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.filterButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.renameButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.saveButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.saveAsButton = strip.removeFromLeft (buttonW);
-        strip.removeFromLeft (gap);
-        out.deleteButton = strip;
-      }
+    out.filterButton = keys.removeFromLeft (keyW);
+    keys.removeFromLeft (gap);
+    out.renameButton = keys.removeFromLeft (keyW);
+    keys.removeFromLeft (gap);
+    out.deleteButton = keys;
   }
+
+  // The four folders two by two under them, in the order the work is done
+  // in: a set holds clips, a clip holds a shape, and an action is what you
+  // reach for once all three are standing. One size, so none of them reads
+  // as the list's real subject.
+  {
+    auto const tabW = (area.getWidth () - gap) / 2;
+    auto const tabRow = [&] (juce::Rectangle<int> &left,
+                             juce::Rectangle<int> &right) {
+      auto row = area.removeFromTop (juce::jmin (keyH, area.getHeight ()));
+      left = row.removeFromLeft (tabW);
+      right = row.withTrimmedLeft (gap).withWidth (tabW);
+    };
+    tabRow (out.setsTab, out.clipsTab);
+    area.removeFromTop (gap);
+    tabRow (out.shapesTab, out.actionsTab);
+    area.removeFromTop (gap * 2);
+  }
+
+  out.listArea = area;
 
   // A row is hit with a finger, so it is a fingertip tall whatever the font
   // says -- and the list shows as many as fit rather than squeezing all of
@@ -120,14 +113,6 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
     out.rows.push_back (rows.removeFromTop (out.rowHeight));
 
   return out;
-}
-
-BrowserLayout
-layOutBrowserOverSphere (juce::Rectangle<int> bounds, int overlayKeysBand,
-                         int buttonHeight, float bodySize, BrowserList list)
-{
-  bounds.removeFromTop (juce::jmax (0, overlayKeysBand));
-  return layOutBrowser (bounds, buttonHeight, bodySize, list);
 }
 
 }

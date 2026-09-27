@@ -205,7 +205,8 @@ ScriptPanel::dressEditor ()
 void
 ScriptPanel::resized ()
 {
-  _layout = layOutScriptPanel (getLocalBounds (), buttonHeight (),
+  fitFontToWidth ();
+  _layout = layOutScriptPanel (getLocalBounds (), keyHeight (),
                                _errors.size (), scriptLineHeight ());
   _editor->setBounds (_layout.textArea.reduced (textInset ()));
   _fromClipTouch->setBounds (_layout.fromClipButton);
@@ -217,7 +218,7 @@ ScriptPanel::resized ()
 // The key height the ACTION page used: a fingertip, or twice the header
 // size, whichever is more.
 int
-ScriptPanel::buttonHeight () const
+ScriptPanel::keyHeight () const
 {
   return juce::jmax (fingertipSize,
                      juce::roundToInt (theme ().fontSize (FontRole::Header)
@@ -225,10 +226,44 @@ ScriptPanel::buttonHeight () const
 }
 
 int
+ScriptPanel::widthFor (int characters) const
+{
+  return widthAt (scriptFont ().getHeight (), characters);
+}
+
+int
+ScriptPanel::usualWidthFor (int characters) const
+{
+  return widthAt (usualFontSize (), characters);
+}
+
+int
+ScriptPanel::widthAt (float fontSize, int characters) const
+{
+  // Measured the way JUCE's editor measures itself, or the promise is a
+  // guess: a character is the width of "0" (CodeEditorComponent keeps
+  // charWidth from TextLayout::getStringWidth), the line numbers take a fixed
+  // gutter (getGutterSize), and the scroll bar is as thick as dressEditor()
+  // makes it.
+  constexpr int juceGutter = 35;
+  juce::Font const font (juce::FontOptions (
+      juce::Font::getDefaultMonospacedFontName (), fontSize,
+      juce::Font::plain));
+  auto const charW = juce::TextLayout::getStringWidth (font, "0");
+  // One character to spare, so the last one is never under the bar's edge.
+  auto const text = charW * static_cast<float> (characters + 1);
+  auto const bar = static_cast<float> (
+      juce::jmax (1, juce::roundToInt (font.getHeight () / 2.f)));
+  return static_cast<int> (std::ceil (juceGutter + text + bar))
+         + 2 * textInset () + 2 * juce::roundToInt (theme ().strokeThick);
+}
+
+int
 ScriptPanel::textInset () const
 {
-  return juce::jmax (juce::roundToInt (theme ().paddingSmall),
-                     _layout.textArea.getHeight () / 40);
+  // A fixed pad, not a share of the height: over the sphere a fortieth of it
+  // came to fifteen pixels a side, which is five characters of a line.
+  return juce::roundToInt (theme ().paddingSmall);
 }
 
 void
@@ -363,16 +398,56 @@ ScriptPanel::keys () const
                         _slotHolds);
 }
 
+float
+ScriptPanel::usualFontSize () const
+{
+  return juce::jlimit (9.f, 15.f, theme ().fontSize (FontRole::Body) * 0.8f);
+}
+
 juce::Font
 ScriptPanel::scriptFont () const
 {
   // Monospaced, because a script is read by column as much as by line: what
   // lines up under what is half of how you find your way in one.
-  auto const size = juce::jlimit (
-      9.f, 15.f, theme ().fontSize (FontRole::Body) * 0.8f);
+  auto const size = _fittedSize > 0.f ? _fittedSize : usualFontSize ();
 
   return juce::Font (juce::FontOptions (
       juce::Font::getDefaultMonospacedFontName (), size, juce::Font::plain));
+}
+
+void
+ScriptPanel::setColumnsToFit (int characters)
+{
+  if (characters == _columnsToFit)
+    return;
+  _columnsToFit = characters;
+  resized ();
+  repaint ();
+}
+
+void
+ScriptPanel::fitFontToWidth ()
+{
+  // Small enough to be read on the device at arm's length, and a quarter
+  // point at a time, so the step is never more than it takes.
+  constexpr float smallestReadable = 8.f;
+  constexpr float step = 0.25f;
+
+  auto const before = _fittedSize;
+  _fittedSize = 0.f;
+  if (_columnsToFit > 0 && getWidth () > 0)
+    {
+      auto size = usualFontSize ();
+      while (widthFor (_columnsToFit) > getWidth ()
+             && size - step >= smallestReadable)
+        {
+          size -= step;
+          _fittedSize = size;
+        }
+    }
+
+  if (_fittedSize != before)
+    dressEditor ();
 }
 
 int

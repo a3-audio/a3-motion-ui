@@ -92,3 +92,21 @@ TEST (ScriptPanel, AChangeOfLanguageKeepsTheTextAndTheGround)
       }
   EXPECT_EQ (editors, 1) << "the old editor is gone";
 }
+
+// The whole of a line should fit (maintainer, 2026-09-27: "sodass der
+// editor ganz draufpasst"). Where the column is narrower than a line at the
+// usual size, the font steps down until it fits; where there is room it
+// stays as it is.
+TEST (ScriptPanel, AColumnTooNarrowForALineTakesASmallerFont)
+{
+  constexpr int line = 86;
+  ScriptPanel panel;
+  auto const natural = panel.widthFor (line);
+
+  panel.setColumnsToFit (line);
+  panel.setBounds (0, 0, natural * 9 / 10, 400);
+  EXPECT_LE (panel.widthFor (line), panel.getWidth ());
+
+  panel.setBounds (0, 0, natural * 2, 400);
+  EXPECT_EQ (panel.widthFor (line), natural) << "room enough: the usual size";
+}

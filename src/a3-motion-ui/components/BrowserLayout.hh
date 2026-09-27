@@ -79,8 +79,8 @@ struct BrowserLayout
    *  more, and a row too short to hit is no use in a booth. */
   juce::Rectangle<int> listArea;
   std::vector<juce::Rectangle<int>> rows;
-  /** Beside the list, what the chosen row holds -- on ACTIONS its script,
-   *  since 2026-09-27; empty on the other tabs until they have one. */
+  /** Beside the list, what the chosen row holds: its text, on every tab
+   *  since 2026-09-27 (ScriptPanel). */
   juce::Rectangle<int> detailArea;
   /** How many rows the area has room for at this size. */
   int visibleRows = 0;
@@ -115,26 +115,19 @@ struct BrowserLayout
   juce::Rectangle<int> loadButton;
   juce::Rectangle<int> filterButton;
   juce::Rectangle<int> renameButton;
+  /** Always empty since 2026-09-27: Save and Save as are the script panel's
+   *  on every tab. Kept so the strip's six keys stay one interface. */
   juce::Rectangle<int> saveButton;
-  /** Beside Save, not instead of it: one writes what is on show back where it
-   *  came from, the other writes it somewhere new, and which of the two you
-   *  meant is not a thing to work out from a modifier. */
   juce::Rectangle<int> saveAsButton;
   juce::Rectangle<int> deleteButton;
 };
 
-/** Lays the browser out in the given area. Reads no theme, so it can be
+/** Lays FILES out over the sphere: the script column on the right, as wide
+ *  as `detailWidth` asks (none for 0), and on the left the list's keys, the
+ *  four folders two by two, and the list. Reads no theme, so it can be
  *  checked at sizes nobody has dialled in yet. */
 BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
-                             float bodySize, BrowserList list);
-
-/** The same, over the sphere, where it stands since 2026-09-27. The top
- *  `overlayKeysBand` pixels are left clear for back and close, which float in
- *  the top right of every overlay -- the band the big mixer keeps clear for
- *  the same reason, so the folder tabs are not drawn under a key that answers
- *  for something else. */
-BrowserLayout layOutBrowserOverSphere (juce::Rectangle<int> bounds,
-                                       int overlayKeysBand, int buttonHeight,
-                                       float bodySize, BrowserList list);
+                             float bodySize, BrowserList list,
+                             int detailWidth);
 
 }

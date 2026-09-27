@@ -23,33 +23,32 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BrowserLayout.hh>
+#include <a3-motion-ui/components/ScriptPanelLayout.hh>
 
 using namespace a3;
 
 namespace
 {
+// FILES over the sphere on the device: the width, and the height the sphere
+// leaves it. The script column asks for what 86 characters of the panel's
+// font take (BrowserComponent measures it).
+juce::Rectangle<int> const sphere{ 0, 0, 768, 620 };
+constexpr int buttonHeight = 36;
+constexpr int scriptWidth = 520;
+
 BrowserLayout
-defaultBrowser ()
+defaultBrowser (BrowserList list = BrowserList::Clips)
 {
-  return layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f, BrowserList::Clips);
+  return layOutBrowser (sphere, buttonHeight, 12.f, list, scriptWidth);
 }
 }
 
-// The eight destination fields are gone.
-//
-// They laid the device's clips out the way the pads page does, and you chose
-// one before choosing what to put in it. The four channel faces in the header
-// do that now, for every view of the settings area at once -- so the browser
-// keeping a second idea of which clip you were filling meant two selections
-// that could point at different slots, and the bar telling you about one while
-// the list filled the other. It fills whatever the faces have chosen.
+// The eight destination fields are gone: the channel faces in the header
+// choose what is filled, for every view at once, and the list is what the
+// page is for.
 TEST (BrowserLayout, ThereAreNoDestinationFieldsAnyMore)
 {
-  auto const l = defaultBrowser ();
-
-  // The list gets the room they used to take: it is what the page is for.
-  EXPECT_GE (l.listArea.getWidth (), defaultBrowser ().listArea.getWidth ());
-  EXPECT_EQ (l.listArea.getX (), 0);
+  EXPECT_EQ (defaultBrowser ().listArea.getX (), 0);
 }
 
 TEST (BrowserLayout, EveryListRowIsBigEnoughToHit)
@@ -57,9 +56,10 @@ TEST (BrowserLayout, EveryListRowIsBigEnoughToHit)
   // A library row is tapped in the dark by a hand that is also doing something
   // else. Forty patterns squeezed into the area would be four pixels each, so
   // the list shows as many as fit and scrolls for the rest.
-  for (int height : { 160, 200, 250, 320, 400 })
+  for (int height : { 300, 400, 520, 620 })
     {
-      auto const l = layOutBrowser ({ 0, 0, 578, height }, 34, 12.f, BrowserList::Clips);
+      auto const l = layOutBrowser ({ 0, 0, 768, height }, buttonHeight, 12.f,
+                                    BrowserList::Clips, scriptWidth);
 
       EXPECT_GE (l.rowHeight, fingertipSize) << "height " << height;
       EXPECT_GE (l.visibleRows, 1) << "height " << height;
@@ -80,182 +80,100 @@ TEST (BrowserLayout, TheRowsDoNotOverlapEachOther)
     EXPECT_LE (l.rows[i].getBottom (), l.rows[i + 1].getY ()) << "row " << i;
 }
 
-TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
-{
-  auto const l = defaultBrowser ();
-
-  ASSERT_FALSE (l.filterButton.isEmpty ());
-  ASSERT_FALSE (l.renameButton.isEmpty ());
-  ASSERT_FALSE (l.saveButton.isEmpty ());
-  ASSERT_FALSE (l.saveAsButton.isEmpty ());
-  ASSERT_FALSE (l.deleteButton.isEmpty ());
-
-  EXPECT_FALSE (l.renameButton.intersects (l.listArea));
-  EXPECT_GE (l.renameButton.getY (), l.listArea.getBottom ());
-
-  // Side by side, in reading order.
-  // The filter first -- it changes what is listed, the other three act on a
-  // row of it -- then left to right in the order they are reached for.
-  ASSERT_FALSE (l.loadButton.isEmpty ());
-
-  EXPECT_LE (l.loadButton.getRight (), l.filterButton.getX ());
-  EXPECT_LE (l.filterButton.getRight (), l.renameButton.getX ());
-  EXPECT_LE (l.renameButton.getRight (), l.saveButton.getX ());
-  EXPECT_LE (l.saveButton.getRight (), l.saveAsButton.getX ());
-  EXPECT_LE (l.saveAsButton.getRight (), l.deleteButton.getX ());
-
-  // Five keys of one width. One narrower than its neighbours reads as a
-  // different kind of thing, and these are all keys.
-  EXPECT_EQ (l.loadButton.getWidth (), l.filterButton.getWidth ());
-  EXPECT_EQ (l.filterButton.getWidth (), l.renameButton.getWidth ());
-  EXPECT_EQ (l.renameButton.getWidth (), l.saveButton.getWidth ());
-  EXPECT_EQ (l.saveButton.getWidth (), l.saveAsButton.getWidth ());
-
-  EXPECT_FALSE (l.filterButton.intersects (l.listArea));
-}
-
 TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)
 {
-  auto const l = layOutBrowser ({}, 34, 12.f, BrowserList::Clips);
+  auto const l = layOutBrowser ({}, buttonHeight, 12.f, BrowserList::Clips,
+                                scriptWidth);
 
   EXPECT_TRUE (l.rows.empty ());
   EXPECT_TRUE (l.listArea.isEmpty ());
+  EXPECT_TRUE (l.detailArea.isEmpty ());
   EXPECT_TRUE (l.clipsTab.isEmpty ());
   EXPECT_TRUE (l.setsTab.isEmpty ());
 }
 
-// Three kinds of file, three words over the one list: what a slot holds, what
-// ACT does to it, and the arrangement of all eight together. A set used to be
-// reached by touching the strip that said which set was loaded -- a control
-// that looked like a label, in a corner of the page that has now gone. It is a
-// tab like the other two, because it is the same question asked of a third
-// folder.
-TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
+// Every tab has the script column (2026-09-27, evening): every file in FILES
+// is read and edited there. It is as wide as it asks -- a script line of
+// 85 characters fits without scrolling sideways -- and the list keeps the
+// rest, full height.
+TEST (BrowserLayout, EveryTabHasAScriptColumnAsWideAsItAsks)
 {
-  for (int width : { 480, 640, 768, 1024 })
-    for (int height : { 160, 250, 400 })
-      {
-        auto const l = layOutBrowser ({ 0, 0, width, height }, 34, 14.f, BrowserList::Clips);
-
-        ASSERT_FALSE (l.clipsTab.isEmpty ()) << width << "x" << height;
-        ASSERT_FALSE (l.actionsTab.isEmpty ()) << width << "x" << height;
-        ASSERT_FALSE (l.setsTab.isEmpty ()) << width << "x" << height;
-
-        // Side by side, none of them overlapping, and in the order the work
-        // is done in: a set holds clips, a clip holds a shape, and an action
-        // is what you reach for once all three are standing.
-        EXPECT_LE (l.setsTab.getRight (), l.clipsTab.getX ())
-            << width << "x" << height;
-        EXPECT_LE (l.clipsTab.getRight (), l.shapesTab.getX ())
-            << width << "x" << height;
-        EXPECT_LE (l.shapesTab.getRight (), l.actionsTab.getX ())
-            << width << "x" << height;
-
-        // Clear of the list they head.
-        for (auto const &tab : { l.clipsTab, l.actionsTab, l.setsTab })
-          {
-            EXPECT_LE (tab.getBottom (), l.listArea.getY ())
-                << width << "x" << height;
-            EXPECT_GE (tab.getHeight (), 1) << width << "x" << height;
-          }
-
-        // One row of three, all the same width: they ask one question of
-        // three folders, so no one of them may look like the main one.
-        EXPECT_EQ (l.actionsTab.getWidth (), l.clipsTab.getWidth ())
-            << width << "x" << height;
-        EXPECT_EQ (l.setsTab.getWidth (), l.clipsTab.getWidth ())
-            << width << "x" << height;
-        EXPECT_EQ (l.actionsTab.getY (), l.clipsTab.getY ())
-            << width << "x" << height;
-        EXPECT_EQ (l.setsTab.getY (), l.clipsTab.getY ())
-            << width << "x" << height;
-      }
-}
-
-// Six keys where there were five, on the panel's own width. Promised to the
-// maintainer as a measurement rather than an assurance: a key you cannot land
-// on without looking is worse than one that is not there.
-TEST (BrowserLayout, SixKeysStayWiderThanAFingertip)
-{
-  // The device's screen, and the bar at the height the browser gets.
-  auto const l = layOutBrowser ({ 0, 0, 768, 360 }, 34, 12.f, BrowserList::Clips);
-
-  for (auto const &key : { l.loadButton, l.filterButton, l.renameButton,
-                           l.saveButton, l.saveAsButton, l.deleteButton })
-    EXPECT_GE (key.getWidth (), fingertipSize);
-}
-
-// Over the sphere since 2026-09-27, where back and close float in the top
-// right of whatever overlay is open. The band they stand in is kept clear, as
-// the big mixer keeps it: the folder tabs laid out under them put ACTIONS
-// under a key that closes the page.
-TEST (BrowserLayout, OverTheSphereTheOverlayKeysBandIsKeptClear)
-{
-  juce::Rectangle<int> const sphere{ 0, 0, 1024, 520 };
-  int const band = 50;
-  auto const l = layOutBrowserOverSphere (sphere, band, 34, 12.f, BrowserList::Clips);
-
-  auto const clear = sphere.withHeight (band);
-  for (auto const &r :
-       { l.setsTab, l.clipsTab, l.shapesTab, l.actionsTab, l.listArea,
-         l.loadButton, l.filterButton, l.renameButton, l.saveButton,
-         l.saveAsButton, l.deleteButton })
+  for (auto const list : { BrowserList::Sessions, BrowserList::Clips,
+                           BrowserList::Shapes, BrowserList::Actions })
     {
-      ASSERT_FALSE (r.isEmpty ());
-      EXPECT_FALSE (r.intersects (clear));
-      EXPECT_TRUE (sphere.contains (r));
+      auto const l = defaultBrowser (list);
+      EXPECT_EQ (l.detailArea.getWidth (), scriptWidth);
+      EXPECT_EQ (l.listArea.getWidth (), defaultBrowser ().listArea.getWidth ())
+          << "the columns stay put when the tab changes";
+      EXPECT_EQ (l.detailArea.getRight (), sphere.getRight ());
+      EXPECT_EQ (l.detailArea.getY (), sphere.getY ());
+      EXPECT_EQ (l.detailArea.getBottom (), sphere.getBottom ());
+      EXPECT_FALSE (l.listArea.intersects (l.detailArea));
+      EXPECT_LT (l.listArea.getRight (), l.detailArea.getX ());
     }
 }
 
-// The reason it moved: the sphere is the tallest area on screen, and a list of
-// seventy names wants rows. In the bar's content area it showed a handful.
-TEST (BrowserLayout, OverTheSphereTheListShowsMoreRowsThanInTheBar)
+// A column that asks for more than there is leaves the list enough for its
+// keys and its tabs: three fingertips and the gaps between them.
+TEST (BrowserLayout, AGreedyScriptLeavesTheListItsKeys)
 {
-  auto const bar = layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f, BrowserList::Clips);
-  auto const over
-      = layOutBrowserOverSphere ({ 0, 0, 1024, 520 }, 50, 34, 12.f, BrowserList::Clips);
-
-  EXPECT_GT (over.visibleRows, bar.visibleRows);
-}
-
-// FILES › ACTIONS (2026-09-27): the list on the left third, the script on
-// the rest, the list's own keys under the list. Load, Save and Save as are
-// not the list's there -- the script panel carries its own.
-TEST (BrowserLayout, ActionsStandBesideTheirScript)
-{
-  juce::Rectangle<int> const area{ 0, 0, 768, 620 };
-  auto const l = layOutBrowserOverSphere (area, 60, 44, 14.f,
-                                          BrowserList::Actions);
-
-  ASSERT_FALSE (l.detailArea.isEmpty ());
-  EXPECT_FALSE (l.listArea.intersects (l.detailArea));
-  EXPECT_NEAR (l.listArea.getWidth (), area.getWidth () / 3, 8);
-  EXPECT_GE (l.detailArea.getX (), l.listArea.getRight ());
-  EXPECT_EQ (l.detailArea.getBottom (), area.getBottom ());
-
+  auto const l = layOutBrowser (sphere, buttonHeight, 12.f, BrowserList::Clips,
+                                5000);
   for (auto const &key : { l.filterButton, l.renameButton, l.deleteButton })
-    {
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_LE (key.getRight (), l.listArea.getRight ());
-      EXPECT_FALSE (key.intersects (l.detailArea));
-    }
-  EXPECT_TRUE (l.loadButton.isEmpty ());
-  EXPECT_TRUE (l.saveButton.isEmpty ());
-  EXPECT_TRUE (l.saveAsButton.isEmpty ());
-  for (auto const &row : l.rows)
-    EXPECT_FALSE (row.intersects (l.detailArea));
+    EXPECT_GE (key.getWidth (), fingertipSize);
+  EXPECT_TRUE (sphere.contains (l.detailArea));
 }
 
-// The other tabs are laid out as before: no detail column, six keys.
-TEST (BrowserLayout, TheOtherTabsKeepTheWholeWidth)
+// The list's own keys stand at the top of its column, where back and close
+// stood, in one row with the script's keys beside them: same top, same
+// height. Load only on SETS -- a set is loaded on purpose, a clip by a tap.
+TEST (BrowserLayout, TheKeysFormOneRowAtTheTop)
 {
-  juce::Rectangle<int> const area{ 0, 0, 768, 620 };
-  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
-                           BrowserList::Sessions })
+  for (auto const list : { BrowserList::Sessions, BrowserList::Clips })
     {
-      auto const l = layOutBrowserOverSphere (area, 60, 44, 14.f, list);
-      EXPECT_TRUE (l.detailArea.isEmpty ());
-      EXPECT_EQ (l.listArea.getWidth (), area.getWidth ());
-      EXPECT_FALSE (l.saveButton.isEmpty ());
+      auto const l = defaultBrowser (list);
+      auto const panel = layOutScriptPanel (l.detailArea, buttonHeight, 0, 16);
+
+      std::vector<juce::Rectangle<int>> keys{ l.filterButton, l.renameButton,
+                                              l.deleteButton };
+      if (list == BrowserList::Sessions)
+        keys.insert (keys.begin (), l.loadButton);
+      else
+        EXPECT_TRUE (l.loadButton.isEmpty ());
+
+      for (size_t i = 0; i < keys.size (); ++i)
+        {
+          EXPECT_GE (keys[i].getWidth (), fingertipSize);
+          EXPECT_EQ (keys[i].getY (), panel.saveButton.getY ());
+          EXPECT_EQ (keys[i].getHeight (), panel.saveButton.getHeight ());
+          EXPECT_LE (keys[i].getRight (), l.detailArea.getX ());
+          if (i > 0)
+            EXPECT_LE (keys[i - 1].getRight (), keys[i].getX ());
+        }
+      EXPECT_TRUE (l.saveButton.isEmpty ()) << "the script carries Save";
+      EXPECT_TRUE (l.saveAsButton.isEmpty ());
+    }
+}
+
+// The four folders as two by two at the top of the list column, under its
+// keys: SETS CLIPS over SVG ACTIONS, all one size, clear of the list.
+TEST (BrowserLayout, TheFoldersStandTwoByTwoAboveTheList)
+{
+  auto const l = defaultBrowser ();
+
+  EXPECT_EQ (l.setsTab.getY (), l.clipsTab.getY ());
+  EXPECT_EQ (l.shapesTab.getY (), l.actionsTab.getY ());
+  EXPECT_LT (l.setsTab.getBottom (), l.shapesTab.getY () + 1);
+  EXPECT_LE (l.setsTab.getRight (), l.clipsTab.getX ());
+  EXPECT_LE (l.shapesTab.getRight (), l.actionsTab.getX ());
+
+  for (auto const &tab : { l.setsTab, l.clipsTab, l.shapesTab, l.actionsTab })
+    {
+      EXPECT_EQ (tab.getWidth (), l.clipsTab.getWidth ());
+      EXPECT_EQ (tab.getHeight (), l.clipsTab.getHeight ());
+      EXPECT_GE (tab.getWidth (), fingertipSize);
+      EXPECT_GE (tab.getY (), l.filterButton.getBottom ());
+      EXPECT_LE (tab.getBottom (), l.listArea.getY ());
+      EXPECT_LE (tab.getRight (), l.detailArea.getX ());
     }
 }

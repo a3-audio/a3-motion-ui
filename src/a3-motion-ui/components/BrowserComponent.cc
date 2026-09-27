@@ -22,7 +22,6 @@
 
 #include <a3-motion-engine/ClipFile.hh>
 
-#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -113,13 +112,14 @@ BrowserComponent::applyTheme ()
 void
 BrowserComponent::resized ()
 {
-  // Over the sphere, under back and close: their band is kept clear the way
-  // the big mixer keeps it (MixerComponent::resized).
-  _layout = layOutBrowserOverSphere (
-      getLocalBounds (),
-      OverlayButtons::preferredHeight ()
-          + 2 * OverlayButtons::preferredMargin (),
-      fingertipSize, theme ().fontSize (FontRole::Body), _list);
+  // The script column as wide as a line of a shipped action needs (85
+  // characters and one to spare), the list the rest, and the list's keys in
+  // one row with the script's, the same height (2026-09-27).
+  constexpr int scriptCharacters = 86;
+  _script->setColumnsToFit (scriptCharacters);
+  _layout = layOutBrowser (getLocalBounds (), _script->keyHeight (),
+                           theme ().fontSize (FontRole::Body), _list,
+                           _script->usualWidthFor (scriptCharacters));
 
   _script->setBounds (_layout.detailArea);
   _script->setVisible (!_layout.detailArea.isEmpty ());
