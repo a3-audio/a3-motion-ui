@@ -105,4 +105,12 @@ int controllerPreferredHeight (float headerSize, int buttonHeight);
 ControllerLayout layOutController (juce::Rectangle<int> contentArea,
                                    float headerSize, int buttonHeight);
 
+/** The same, over the sphere, where PADS stands since 2026-09-27. The top
+ *  `overlayKeysBand` pixels are left clear for back and close, as the browser
+ *  and the big mixer leave them. */
+ControllerLayout layOutControllerOverSphere (juce::Rectangle<int> bounds,
+                                             int overlayKeysBand,
+                                             float headerSize,
+                                             int buttonHeight);
+
 }

@@ -692,8 +692,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     handleClipSettingsReset (_clipSettingsChannel, section, sub);
   };
 
-  // MAINMIX and FILES are tabs: each shows its overlay over the sphere and a
-  // second tap leaves it up. Any page tab takes it away and shows its page.
+  // MAINMIX, FILES and PADS lie over the sphere; a second tap on the lit one
+  // takes it away again. Any page tab takes it away and shows its page.
   _clipSettings->onPageSelected = [this] (BarPage page) {
     showOverSphere (SphereOverlay::None);
     showBarPage (page);
@@ -708,12 +708,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     updateControlReadout (_cameraMode ? "-- CAMERA ON" : "-- CAMERA OFF");
   };
   // The other key swaps one for the other: they share the sphere's rectangle.
-  _clipSettings->onSphereOverlayTapped = [this] (SphereOverlay overlay) {
-    if (_overSphere == overlay)
-      return;
-    updateControlReadout (overlay == SphereOverlay::Files ? "-- FILES ON"
-                                                          : "-- MIX ON");
-    showOverSphere (overlay);
+  _clipSettings->onSphereOverlayTapped = [this] (SphereOverlay tapped) {
+    auto const next = overlayAfterTap (_overSphere, tapped);
+    updateControlReadout (overlayReadout (next == SphereOverlay::None
+                                              ? _overSphere
+                                              : next,
+                                          next != SphereOverlay::None));
+    showOverSphere (next);
   };
   _clipSettings->setOverSphere (_overSphere);
 
@@ -941,13 +942,15 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // that came through at fifteen percent of itself — a page whose job is
   // showing which clip is running, showing it in the dark. A child is painted
   // after its parent by construction, and no z-order call can undo that.
-  _clipSettings->addChildComponent (*_controller);
   _clipSettings->addChildComponent (*_action);
   // Over the sphere since 2026-09-27, where the big mixer stands: a child of
   // MotionComponent like it, so it composites above the GL context, and
   // always on top of the sphere's other furniture for the same reason.
   _browser->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_browser);
+  // PADS followed FILES over the sphere the same day, for the same reasons.
+  _controller->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_controller);
   _clipSettings->addChildComponent (*_mixerStrip);
   selectClip (0, 0); // sensible default before any button has been pressed
 
@@ -1530,8 +1533,6 @@ A3MotionUIComponent::resized ()
   // bar. The header row and the global strip beside it belong to the bar on
   // both pages, and this paints nothing in the header, so what is drawn there
   // stays visible and its tabs stay reachable.
-  if (_controller && _clipSettings)
-    _controller->setBounds (_clipSettings->clipContentBounds ());
   if (_action)
     {
       _action->setBounds (_clipSettings->clipContentBounds ());
@@ -1557,6 +1558,8 @@ A3MotionUIComponent::resized ()
     _mixer->setBounds (_motionComponent->getLocalBounds ());
   if (_browser)
     _browser->setBounds (_motionComponent->getLocalBounds ());
+  if (_controller)
+    _controller->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
   if (_colourPicker)
@@ -1922,13 +1925,14 @@ A3MotionUIComponent::toggleGlobalSettings ()
 void
 A3MotionUIComponent::showOverSphere (SphereOverlay overlay)
 {
-  if (!_mixer || !_browser || !_motionComponent)
+  if (!_mixer || !_browser || !_controller || !_motionComponent)
     return;
 
   auto const wasFiles = _overSphere == SphereOverlay::Files;
   _overSphere = overlay;
   auto const mixer = overlay == SphereOverlay::MainMix;
   auto const files = overlay == SphereOverlay::Files;
+  auto const pads = overlay == SphereOverlay::Pads;
 
   // Leaving the browser leaves its masks: a name being typed goes without
   // being kept -- keeping is Enter's or Keep's -- which also puts the keyboard
@@ -1947,6 +1951,11 @@ A3MotionUIComponent::showOverSphere (SphereOverlay overlay)
   _mixer->setVisible (mixer);
   if (mixer)
     _mixer->toFront (false);
+
+  _controller->setBounds (_motionComponent->getLocalBounds ());
+  _controller->setVisible (pads);
+  if (pads)
+    _controller->toFront (false);
 
   _browser->setBounds (_motionComponent->getLocalBounds ());
   _browser->setVisible (files);
@@ -2376,7 +2385,6 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _barPage = page;
   _clipSettings->setPage (page);
   showEncoderMarks ();
-  _controller->setVisible (page == BarPage::Controller);
   if (_action)
     {
       _action->setVisible (page == BarPage::Action);
@@ -7600,21 +7608,15 @@ A3MotionUIComponent::updateChannelProgress ()
 void
 A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
 {
-  auto const describesAClip = pageDescribesAClip (_barPage);
-
   // Touching the face you are already on turns it over; reaching for its pot
-  // does not.
-  if (mayTurnOver && describesAClip && channel == _clipSettingsChannel)
+  // does not. (PADS was the page where a face brought CLIP back instead; it
+  // lies over the sphere since 2026-09-27, and every page left describes one
+  // clip.)
+  if (mayTurnOver && channel == _clipSettingsChannel)
     _channelSlot[channel]
         = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
 
   selectClip (channel, _channelSlot[channel]);
-
-  // From the pads page there is no one clip on show to select into -- it
-  // shows every slot at once -- so reaching for a channel there is reaching
-  // for its clip, and the face brings that view back with it.
-  if (!describesAClip)
-    showBarPage (BarPage::Clip);
 }
 
 void

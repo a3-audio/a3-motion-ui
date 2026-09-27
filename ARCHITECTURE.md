@@ -915,14 +915,15 @@ lays out freely, and `layOutActionPage` is handed an empty reference.
 
 The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
 strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
-is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
+is up; a second tap takes it away again, and so does any other tab (`pageTabIsLit`). It stood in the
 status bar as a MIX toggle until then.
 
 **FILES lies over the sphere too** (2026-09-27), the same way: it is not a `BarPage` any more but
-one value of `SphereOverlay` (`None`, `MainMix`, `Files`), and `showOverSphere()` is the one place
-that shows either. One value, not a flag each, because the two share one rectangle — MAINMIX while
-the browser is up swaps it for the mixer, and FILES the other way round. A second tap on the lit
-key leaves it up; any page tab, Back, Close and the Menu key take it away; the bar underneath stays
+one value of `SphereOverlay` (`None`, `MainMix`, `Files`, `Pads`), and `showOverSphere()` is the
+one place that shows any of them. One value, not a flag each, because they share one rectangle —
+MAINMIX while the browser is up swaps it for the mixer, and so on. **The three keys toggle**
+(2026-09-27): a tap on the lit key takes its overlay away, a tap on another swaps that one in
+(`overlayAfterTap`), so only one is ever on. Any page tab, Back, Close and the Menu key take it away; the bar underneath stays
 on the page it was on and its tab goes dark while the overlay is lit. It moved because a list of
 seventy names showed a handful of rows in the clip area and shows most of a folder over the sphere.
 Like the mixer it is opaque and keeps the band for back and close clear
@@ -930,6 +931,12 @@ Like the mixer it is opaque and keeps the band for back and close clear
 (`sideStripsHaveAList`) — its edges are its own tabs and keys. Closing it ends a rename without
 keeping it and disarms Delete, as leaving any mask does. The encoders follow the page underneath,
 as they do under the mixer.
+
+**PADS followed the same day**, for the same reasons: `BarPage::Controller` is gone, the pads lie
+opaque over the sphere (`layOutControllerOverSphere` keeps the back/close band clear), and with it
+went `pageDescribesAClip` — PADS was the one page that did not describe one clip, where a channel
+face brought CLIP back. Every page left describes one, so a face now only selects (and turns over
+the face you are on), whatever lies over the sphere.
 
 **CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
 card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,

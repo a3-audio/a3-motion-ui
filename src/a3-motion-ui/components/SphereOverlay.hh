@@ -25,8 +25,9 @@ namespace a3
 
 /** What lies over the sphere, opened from the global strip's keys.
  *
- *  MAINMIX and FILES are not bar pages: each covers the sphere, and the bar
- *  stays on the page it was on underneath. FILES was a page of the clip area
+ *  MAINMIX, FILES and PADS are not bar pages: each covers the sphere, and the
+ *  bar stays on the page it was on underneath. PADS followed FILES there on
+ *  the same day. FILES was a page of the clip area
  *  until 2026-09-27 -- a list of seventy names in a strip a few rows tall --
  *  and moved over the sphere, where the big mixer already stood, because the
  *  sphere is the one area on screen with room for a list.
@@ -39,6 +40,29 @@ enum class SphereOverlay
   None,
   MainMix,
   Files,
+  Pads,
 };
+
+/** What is over the sphere after a tap on one of its keys: the lit key takes
+ *  its overlay away again, any other key swaps its own in. */
+constexpr SphereOverlay
+overlayAfterTap (SphereOverlay current, SphereOverlay tapped)
+{
+  return current == tapped ? SphereOverlay::None : tapped;
+}
+
+/** What the readout says when `overlay` went on or off. */
+constexpr char const *
+overlayReadout (SphereOverlay overlay, bool on)
+{
+  switch (overlay)
+    {
+    case SphereOverlay::MainMix: return on ? "-- MIX ON" : "-- MIX OFF";
+    case SphereOverlay::Files: return on ? "-- FILES ON" : "-- FILES OFF";
+    case SphereOverlay::Pads: return on ? "-- PADS ON" : "-- PADS OFF";
+    case SphereOverlay::None: return "";
+    }
+  return "";
+}
 
 }

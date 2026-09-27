@@ -1225,7 +1225,7 @@ TEST (ClipSettingsLayout, FilesMainmixAndPadsLeadTheGlobalStrip)
 // of them.
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
-  for (auto const page : { BarPage::Clip, BarPage::Controller,
+  for (auto const page : { BarPage::Clip, BarPage::Mixer,
                            BarPage::Action })
     {
       auto const l
@@ -1332,7 +1332,7 @@ TEST (ClipSettingsLayout, TheFacesAndTheTransportHaveTheirOwnFrames)
 TEST (ClipSettingsLayout, TheTransportIsFourEqualKeysOnEveryPage)
 {
   for (auto const page : { BarPage::Clip,
-                           BarPage::Controller, BarPage::Action })
+                           BarPage::Mixer, BarPage::Action })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, 768, 400 }, 14.f, 12.f, 1.f, page);
@@ -1502,6 +1502,41 @@ TEST (ClipSettingsLayout, OneTabIsLitAndAnOverlayTakesItWhileOpen)
       << "the page under the browser is lit beside FILES";
 }
 
+// FILES, MAINMIX and PADS toggle (2026-09-27): a tap on the lit key takes it
+// away again, a tap on another swaps it in. One value over the sphere, so only
+// one key is ever on.
+TEST (ClipSettingsLayout, TheKeysOverTheSphereToggleAndOnlyOneIsOn)
+{
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::None, SphereOverlay::Pads),
+             SphereOverlay::Pads);
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::Pads, SphereOverlay::Pads),
+             SphereOverlay::None)
+      << "a second tap leaves it up";
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::Files, SphereOverlay::Files),
+             SphereOverlay::None);
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::MainMix, SphereOverlay::MainMix),
+             SphereOverlay::None);
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::Files, SphereOverlay::Pads),
+             SphereOverlay::Pads)
+      << "two over the sphere at once";
+  EXPECT_EQ (overlayAfterTap (SphereOverlay::Pads, SphereOverlay::MainMix),
+             SphereOverlay::MainMix);
+
+  EXPECT_FALSE (
+      pageTabIsLit (BarPage::Clip, BarPage::Clip, SphereOverlay::Pads))
+      << "the page under the pads is lit beside PADS";
+}
+
+// The readout names the key and which way it went.
+TEST (ClipSettingsLayout, TheReadoutSaysWhichOverlayWentOnOrOff)
+{
+  EXPECT_STREQ (overlayReadout (SphereOverlay::Pads, true), "-- PADS ON");
+  EXPECT_STREQ (overlayReadout (SphereOverlay::Pads, false), "-- PADS OFF");
+  EXPECT_STREQ (overlayReadout (SphereOverlay::Files, true), "-- FILES ON");
+  EXPECT_STREQ (overlayReadout (SphereOverlay::MainMix, false),
+                "-- MIX OFF");
+}
+
 // ── The REC page (2026-09-26) ─────────────────────────────────────────────
 
 
@@ -1554,8 +1589,7 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
   EXPECT_TRUE (controlIsOnPage (global, 0, BarPage::Record));
   EXPECT_FALSE (controlIsOnPage (global, 0, BarPage::Clip));
 
-  for (auto const page : { BarPage::Action, BarPage::Controller,
-                           BarPage::Mixer })
+  for (auto const page : { BarPage::Action, BarPage::Mixer })
     EXPECT_FALSE (controlIsOnPage (shape, 0, page));
 }
 

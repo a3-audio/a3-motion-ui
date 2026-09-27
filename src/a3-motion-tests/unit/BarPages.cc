@@ -49,8 +49,9 @@ TEST (BarPages, EveryPageAppearsInTheOrderExactlyOnce)
 // purpose. CLIP shows the bar's own three sections; the other four cover them
 // with something of their own -- MIX with one channel's strip.
 //
-// FILES was one of them until 2026-09-27. It lies over the sphere now, the way
-// MAINMIX does (SphereOverlay.hh), so it is not a page and not here.
+// FILES and PADS were among them until 2026-09-27. They lie over the sphere
+// now, the way MAINMIX does (SphereOverlay.hh), so they are not pages and not
+// here.
 //
 // REC was here until 2026-09-23 as the clip page with the Shape card turned
 // over, and came back on 2026-09-26 as a page of its own: Shape as CLIP shows
@@ -62,20 +63,6 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
   EXPECT_FALSE (pageCoversClipArea (BarPage::Record));
   EXPECT_FALSE (pageCoversClipArea (BarPage::Motion));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Action));
-  EXPECT_TRUE (pageCoversClipArea (BarPage::Controller));
   EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
 }
 
-// PADS is the one page that is about every slot at once, so reaching for a
-// channel face there is reaching for its clip -- and the face brings the CLIP
-// view back with it. Everywhere else the face steps the slot and stays: on
-// MIX that is what swaps the strip without leaving the page.
-TEST (BarPages, PadsIsTheOnlyPageThatDoesNotDescribeOneClip)
-{
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Clip));
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Record));
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Motion));
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Action));
-  EXPECT_FALSE (pageDescribesAClip (BarPage::Controller));
-  EXPECT_TRUE (pageDescribesAClip (BarPage::Mixer));
-}

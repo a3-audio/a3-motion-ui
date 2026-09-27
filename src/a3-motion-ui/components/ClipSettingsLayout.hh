@@ -166,7 +166,6 @@ enum class BarPage
    *  already as narrow as a fingertip allows -- a fourth would take the shape
    *  its picture. */
   Action,
-  Controller,
   /** One channel's mixer strip: the channel of the clip this bar describes.
    *  The whole mixer is an overlay reached from the status bar -- this is the
    *  one-handed reach to the channel you are already looking at, without
@@ -182,20 +181,19 @@ enum class BarPage
   Motion,
 };
 
-// FILES was a page here until 2026-09-27. It lies over the sphere now, the
-// way MAINMIX does -- see SphereOverlay.hh.
-constexpr int numBarPages = 6;
+// FILES and PADS were pages here until 2026-09-27. They lie over the sphere
+// now, the way MAINMIX does -- see SphereOverlay.hh.
+constexpr int numBarPages = 5;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
  *  checks that on its own, since this is data, not a case of an enum. Kept
- *  beside pageCoversClipArea and pageDescribesAClip because a page has to be
- *  added here too, alongside a case in each of them, and a forgotten one
+ *  beside pageCoversClipArea because a page has to be
+ *  added here too, alongside a case in it, and a forgotten one
  *  answers wrong quietly forever if this test does not walk it. */
 constexpr std::array<BarPage, numBarPages> barPageOrder{
-  BarPage::Clip,       BarPage::Action,
-  BarPage::Controller, BarPage::Mixer,
-  BarPage::Record,    BarPage::Motion,
+  BarPage::Clip,   BarPage::Action, BarPage::Mixer,
+  BarPage::Record, BarPage::Motion,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -231,44 +229,12 @@ pageCoversClipArea (BarPage page)
     case BarPage::Motion:
       return false;
     case BarPage::Action:
-    case BarPage::Controller:
     case BarPage::Mixer:
       return true;
     }
   // Every case above returns, so this is never reached -- it exists only to
   // stop -Wreturn-type complaining that the function might fall off the end,
   // which would otherwise drown out the one warning that matters here.
-  __builtin_unreachable ();
-}
-
-/** Pages that are about one clip, so a tap on a channel face steps that
- *  channel's slot and leaves the page where it is.
- *
- *  PADS is the exception: it shows every slot at once, so reaching for a
- *  channel there is reaching for its clip, and the face brings the CLIP view
- *  back with it. MIX is the other way round: the strip on show is the shown
- *  clip's channel, so a face is how you get to the next channel's strip and
- *  being thrown to CLIP would undo the reach. (FILES, which asked the same,
- *  lies over the sphere since 2026-09-27 and is not a page.)
- *
- *  A `switch` with no `default:` for the same reason as pageCoversClipArea
- *  above -- `-Wswitch-enum` is what says a new page forgot to answer. */
-constexpr bool
-pageDescribesAClip (BarPage page)
-{
-  switch (page)
-    {
-    case BarPage::Clip:
-    case BarPage::Action:
-    case BarPage::Mixer:
-    case BarPage::Record:
-    case BarPage::Motion:
-      return true;
-    case BarPage::Controller:
-      return false;
-    }
-  // Every case above returns, so this is never reached -- see the matching
-  // comment in pageCoversClipArea.
   __builtin_unreachable ();
 }
 

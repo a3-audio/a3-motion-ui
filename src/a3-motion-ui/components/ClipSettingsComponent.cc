@@ -236,7 +236,6 @@ ClipSettingsComponent::createTouchControls ()
 
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabActionTouch, BarPage::Action);
-  makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabMixerTouch, BarPage::Mixer);
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabMotionTouch, BarPage::Motion);
@@ -252,8 +251,8 @@ ClipSettingsComponent::createTouchControls ()
   };
   addAndMakeVisible (*_elevationPictureTouch);
 
-  // FILES and MAINMIX are not pages: each lays its overlay over the sphere
-  // and leaves the bar on the page it was on.
+  // FILES, MAINMIX and PADS are not pages: each lays its overlay over the
+  // sphere and leaves the bar on the page it was on.
   auto const makeOverlayKey = [this] (std::unique_ptr<TouchControl> &into,
                                       SphereOverlay overlay) {
     into = std::make_unique<TouchControl> ();
@@ -265,6 +264,7 @@ ClipSettingsComponent::createTouchControls ()
   };
   makeOverlayKey (_tabBrowserTouch, SphereOverlay::Files);
   makeOverlayKey (_tabMainMixTouch, SphereOverlay::MainMix);
+  makeOverlayKey (_tabControllerTouch, SphereOverlay::Pads);
 
 
   auto const makeButton
@@ -1238,7 +1238,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   paintTab (_layout.tabAction, "ACTION",
             pageTabIsLit (BarPage::Action, _page, _overSphere));
   paintTab (_layout.tabController, "PADS",
-            pageTabIsLit (BarPage::Controller, _page, _overSphere));
+            _overSphere == SphereOverlay::Pads);
   paintTab (_layout.tabMixer, "CHMIX",
             pageTabIsLit (BarPage::Mixer, _page, _overSphere));
   paintTab (_layout.tabMainMix, "MAINMIX",
