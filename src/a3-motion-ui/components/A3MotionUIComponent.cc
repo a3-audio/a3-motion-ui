@@ -2718,6 +2718,10 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
   // before the settings have been read -- writing them out from there would
   // put every other setting back to its default.
   persistSettings ();
+  // And the set itself becomes the current one on disk. Nothing else a Load
+  // does schedules the write, so a restart straight after loading came back
+  // with the set from before (2026-09-28).
+  scheduleSetSave ();
 
   updateControlReadout ("-- LOADED " + name.toUpperCase ());
   refreshBrowser ();
