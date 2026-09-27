@@ -641,6 +641,11 @@ juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
  *  way. */
 juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
 
+/** Where a field's caption stands: small, in its top left corner, clear of
+ *  the value in the middle (2026-09-27). */
+juce::Rectangle<int> fieldCaptionArea (juce::Rectangle<int> field,
+                                       float captionSize);
+
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value
  *  get the room the grid gives them. Never taller than the cell, or a

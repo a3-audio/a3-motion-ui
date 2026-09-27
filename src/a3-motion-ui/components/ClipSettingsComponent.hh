@@ -312,15 +312,6 @@ public:
    *  of, and therefore what they have to be named from. */
   void setPatternLengthBeats (float beats);
 
-  /** How long the next take into this slot will be, in beats.
-   *
-   *  Worked out where both its inputs are -- see recordingLengthBeats() --
-   *  and handed over as one number, so the bar does not carry a second copy
-   *  of a rule it would then have to be kept in step with. Written in the
-   *  clip field beside the clip's name: the eight length keys are gone with
-   *  the REC tab, and a length you cannot see before you press REC is one you
-   *  find out about afterwards. */
-  void setNextTakeLengthBeats (float beats);
 
   /** How many beats a bar holds, for the record lengths. From the clock, so
    *  they are right in three four as well. */
@@ -571,6 +562,10 @@ private:
                        juce::Colour valueColour = {});
 
   void paintChannelFaces (juce::Graphics &g);
+  /** A field's caption, small in its top left corner -- see
+   *  fieldCaptionArea(). */
+  void paintFieldCaption (juce::Graphics &g, juce::Rectangle<int> field,
+                          juce::String const &text);
   /** A block of controls set off from the card it stands on -- the strip's
    *  knobs, its transport, the header's four faces. One painter rather than
    *  three, so a group anywhere in the bar reads as the same kind of group. */
@@ -716,7 +711,6 @@ private:
    *  needs it — see speedKeyIsActive(), which is where it is read. */
   int _speedDragIndex = noSpeedKeyDragged;
   float _patternLengthBeats = 0.f;
-  float _nextTakeLengthBeats = 0.f;
   int _beatsPerBar = 4;
   int _selectedIndex = 0;
 

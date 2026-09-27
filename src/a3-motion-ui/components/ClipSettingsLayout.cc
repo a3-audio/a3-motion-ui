@@ -289,6 +289,16 @@ shapeFieldIconArea (juce::Rectangle<int> field)
 }
 
 juce::Rectangle<int>
+fieldCaptionArea (juce::Rectangle<int> field, float captionSize)
+{
+  auto const inset = juce::roundToInt (theme ().paddingSmall);
+  auto const height = static_cast<int> (std::ceil (captionSize * rowHeightFactor));
+  return field.reduced (inset)
+      .withHeight (std::min (height, field.getHeight () / 4))
+      .withWidth (field.getWidth () / 2);
+}
+
+juce::Rectangle<int>
 textCell (juce::Rectangle<int> cell, int knobDiam)
 {
   auto const boxH = juce::jmin (

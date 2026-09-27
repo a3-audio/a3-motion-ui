@@ -1775,3 +1775,19 @@ TEST (ClipSettingsLayout, TheShapePictureKeepsOffTheFieldsEdge)
   EXPECT_LE (area.getWidth (), field.getHeight () * 3 / 4)
       << "a quarter of the shorter side left as margin";
 }
+
+// A field's caption -- dir, end, recmode, shape -- stands small in its top
+// left corner, out of the way of the value in the middle (2026-09-27).
+TEST (ClipSettingsLayout, AFieldsCaptionStandsInItsTopLeftCorner)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const caption = fieldCaptionArea (field, 12.f);
+
+  ASSERT_FALSE (caption.isEmpty ());
+  EXPECT_TRUE (field.contains (caption));
+  EXPECT_LT (caption.getX () - field.getX (), 10);
+  EXPECT_LT (caption.getY () - field.getY (), 10);
+  EXPECT_LE (caption.getBottom (), field.getCentreY () - 20)
+      << "clear of the value in the middle";
+  EXPECT_GE (caption.getHeight (), 12);
+}

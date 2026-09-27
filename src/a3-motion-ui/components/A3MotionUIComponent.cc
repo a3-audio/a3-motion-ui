@@ -7997,21 +7997,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
   _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
 
-  // How long the next take will be, worked out once and handed over: the slot
-  // has no length keys any more, so the clip field says it.
-  {
-    auto const beatsPerBar = _engine.getBeatsPerBar ();
-    auto const &shown = _patterns[channel][slot];
-    auto const clipBeats
-        = shown ? juce::roundToInt (playbackLengthBeats (
-              getPatternLengthBeats (channel, slot), shown->getSpeedLog2 ()))
-                : 0;
-
-    _clipSettings->setNextTakeLengthBeats (static_cast<float> (
-        recordingLengthBeats (clipBeats, params.recordLengthLog2,
-                              beatsPerBar)));
-  }
-
   // What the speed keys are a ratio of. Without it they cannot say how many
   // ticks they would run, because that is a property of the take, not of the
   // key -- see speedKeyName().
