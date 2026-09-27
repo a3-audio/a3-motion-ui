@@ -158,7 +158,11 @@ private:
   juce::Colour _channelColour;
   void paintRow (juce::Graphics &g, int row);
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
-                    juce::String const &label, bool enabled);
+                    juce::String const &label, bool enabled,
+                    juce::Colour ink = {});
+  /** The script panel's four keys, in this tile, from the panel's own
+   *  states. */
+  void paintScriptKeys (juce::Graphics &g);
 
   void mouseWheelMove (juce::MouseEvent const &event,
                        juce::MouseWheelDetails const &wheel) override;
@@ -186,6 +190,8 @@ private:
   std::unique_ptr<TouchControl> _shapesTabTouch;
   std::unique_ptr<TouchControl> _actionsTabTouch;
   std::unique_ptr<TouchControl> _setsTabTouch;
+  std::unique_ptr<TouchControl> _fromClipTouch;
+  std::unique_ptr<TouchControl> _cancelTouch;
   std::unique_ptr<TouchControl> _filterTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;

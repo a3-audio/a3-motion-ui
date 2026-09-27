@@ -27,22 +27,18 @@
 namespace a3
 {
 
-/** Where the script panel puts things: four keys at its top, the text, and
- *  the errors under it. Reads no theme, so it can be checked at any size. */
+/** Where the script panel puts things: the text, and the errors under it.
+ *  Its keys stand in the list's tile since 2026-09-27 (BrowserLayout). Reads
+ *  no theme, so it can be checked at any size. */
 struct ScriptPanelLayout
 {
   juce::Rectangle<int> textArea;
   /** Empty when there is nothing wrong -- the text gets the room back. */
   juce::Rectangle<int> errorArea;
-  juce::Rectangle<int> fromClipButton;
-  juce::Rectangle<int> cancelButton;
-  juce::Rectangle<int> saveButton;
-  juce::Rectangle<int> saveAsButton;
 };
 
 ScriptPanelLayout layOutScriptPanel (juce::Rectangle<int> bounds,
-                                     int buttonHeight, int errorLines,
-                                     int lineHeight);
+                                     int errorLines, int lineHeight);
 
 /** Which of the panel's keys would do something. Dark otherwise: a key
  *  offering to save nothing is a key you have to stop and think about. */

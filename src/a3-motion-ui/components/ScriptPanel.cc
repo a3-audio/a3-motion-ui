@@ -39,59 +39,24 @@ ScriptPanel::ScriptPanel ()
   // been typed into this one yet.
   _document.setSavePoint ();
 
+  // The editor's frame: it cuts off the empty room JUCE leaves left of the
+  // line numbers, and passes every touch through to the editor in it.
+  _frame = std::make_unique<juce::Component> ();
+  _frame->setInterceptsMouseClicks (false, true);
+  addAndMakeVisible (*_frame);
+  _document.addListener (this);
+
   buildEditor ();
 
-  // Each key asks the rule it is lit by (scriptKeysFor), so a dark key is
-  // also a dead one: a save that depends on a key having been dark happens
-  // the first time something else lights it.
-  _fromClipTouch = std::make_unique<TouchControl> ();
-  _fromClipTouch->onTap = [this] (int, int) {
-    if (!keys ().fromClip)
-      return;
-    if (onFromClip)
-      onFromClip ();
-  };
-  addAndMakeVisible (*_fromClipTouch);
-
-  _cancelTouch = std::make_unique<TouchControl> ();
-  _cancelTouch->onTap = [this] (int, int) {
-    stopEditing ();
-    if (onCancel)
-      onCancel ();
-    repaint ();
-  };
-  addAndMakeVisible (*_cancelTouch);
-
-  _saveTouch = std::make_unique<TouchControl> ();
-  _saveTouch->onTap = [this] (int, int) {
-    if (!keys ().save)
-      return;
-    stopEditing ();
-    if (onSave)
-      onSave ();
-    repaint ();
-  };
-  addAndMakeVisible (*_saveTouch);
-
-  _saveAsTouch = std::make_unique<TouchControl> ();
-  _saveAsTouch->onTap = [this] (int, int) {
-    if (!keys ().saveAs)
-      return;
-    stopEditing ();
-    if (onSaveAs)
-      onSaveAs ();
-    repaint ();
-  };
-  addAndMakeVisible (*_saveAsTouch);
 }
 
-ScriptPanel::~ScriptPanel () = default;
+ScriptPanel::~ScriptPanel () { _document.removeListener (this); }
 
 void
 ScriptPanel::buildEditor ()
 {
   if (_editor)
-    removeChildComponent (_editor.get ());
+    _frame->removeChildComponent (_editor.get ());
 
   // The script is JUCE's editor, read-only until it is touched -- see
   // ScriptEditor for the three things a finger needs on top of it.
@@ -116,7 +81,7 @@ ScriptPanel::buildEditor ()
     repaint ();
   };
   _editor->onEscape = [this] { stopEditing (); };
-  addAndMakeVisible (*_editor);
+  _frame->addAndMakeVisible (*_editor);
   dressEditor ();
 }
 
@@ -139,6 +104,7 @@ ScriptPanel::setFromLabel (juce::String const &label)
     return;
   _fromLabel = label;
   repaint ();
+  notifyKeys ();
 }
 
 
@@ -206,23 +172,27 @@ void
 ScriptPanel::resized ()
 {
   fitFontToWidth ();
-  _layout = layOutScriptPanel (getLocalBounds (), keyHeight (),
-                               _errors.size (), scriptLineHeight ());
-  _editor->setBounds (_layout.textArea.reduced (textInset ()));
-  _fromClipTouch->setBounds (_layout.fromClipButton);
-  _cancelTouch->setBounds (_layout.cancelButton);
-  _saveTouch->setBounds (_layout.saveButton);
-  _saveAsTouch->setBounds (_layout.saveAsButton);
+  _layout = layOutScriptPanel (getLocalBounds (), _errors.size (),
+                               scriptLineHeight ());
+  _frame->setBounds (_layout.textArea.reduced (textInset ()));
+  auto const trim = gutterTrim ();
+  _editor->setBounds (-trim, 0, _frame->getWidth () + trim,
+                      _frame->getHeight ());
 }
 
-// The key height the ACTION page used: a fingertip, or twice the header
-// size, whichever is more.
 int
-ScriptPanel::keyHeight () const
+ScriptPanel::gutterTrim () const
 {
-  return juce::jmax (fingertipSize,
-                     juce::roundToInt (theme ().fontSize (FontRole::Header)
-                                       * 2.f));
+  // JUCE draws the numbers right-aligned in its gutter less two pixels, at
+  // most 13 px tall (CodeEditorComponent::GutterComponent::paint). Three
+  // digits and a little air are what they need; the rest is cut.
+  constexpr float juceGutterText = 33.f;
+  constexpr float juceNumberCap = 13.f;
+  auto const numbers = scriptFont ().withHeight (
+      juce::jmin (juceNumberCap, scriptFont ().getHeight () * 0.8f));
+  auto const needed = juce::GlyphArrangement::getStringWidth (numbers, "999");
+  auto const air = numbers.getHeight () / 2.f;
+  return juce::jmax (0, static_cast<int> (juceGutterText - needed - air));
 }
 
 int
@@ -254,8 +224,11 @@ ScriptPanel::widthAt (float fontSize, int characters) const
   auto const text = charW * static_cast<float> (characters + 1);
   auto const bar = static_cast<float> (
       juce::jmax (1, juce::roundToInt (font.getHeight () / 2.f)));
+  // The frame cuts off the gutter's empty room (gutterTrim), measured at the
+  // same font.
   return static_cast<int> (std::ceil (juceGutter + text + bar))
-         + 2 * textInset () + 2 * juce::roundToInt (theme ().strokeThick);
+         - gutterTrim () + 2 * textInset ()
+         + 2 * juce::roundToInt (theme ().strokeThick);
 }
 
 int
@@ -302,6 +275,7 @@ ScriptPanel::markSaved ()
 {
   _document.setSavePoint ();
   repaint ();
+  notifyKeys ();
 }
 
 // Errors change the layout (they take room off the text), so a change lays
@@ -323,6 +297,7 @@ ScriptPanel::setProtected (bool locked)
     return;
   _protected = locked;
   repaint ();
+  notifyKeys ();
 }
 
 void
@@ -332,6 +307,7 @@ ScriptPanel::setHasFile (bool hasFile)
     return;
   _hasFile = hasFile;
   repaint ();
+  notifyKeys ();
 }
 
 void
@@ -341,6 +317,7 @@ ScriptPanel::setSlotHolds (bool holds)
     return;
   _slotHolds = holds;
   repaint ();
+  notifyKeys ();
 }
 
 void
@@ -373,13 +350,13 @@ ScriptPanel::flashKeys ()
   // Long enough to be seen, short enough not to be mistaken for a state.
   constexpr int flashMs = 350;
   _flashing = true;
-  repaint ();
+  notifyKeys ();
   juce::Component::SafePointer<ScriptPanel> self (this);
   juce::Timer::callAfterDelay (flashMs, [self] {
     if (self == nullptr)
       return;
     self->_flashing = false;
-    self->repaint ();
+    self->notifyKeys ();
   });
 }
 
@@ -396,6 +373,68 @@ ScriptPanel::keys () const
 {
   return scriptKeysFor (hasUnsavedChanges (), _protected, _hasFile,
                         _slotHolds);
+}
+
+// Each key asks the rule it is lit by (scriptKeysFor), so a dark key is also
+// a dead one: a save that depends on a key having been dark happens the first
+// time something else lights it.
+void
+ScriptPanel::pressFromClip ()
+{
+  if (keys ().fromClip && onFromClip)
+    onFromClip ();
+}
+
+void
+ScriptPanel::pressCancel ()
+{
+  stopEditing ();
+  if (onCancel)
+    onCancel ();
+  repaint ();
+}
+
+void
+ScriptPanel::pressSave ()
+{
+  if (!keys ().save)
+    return;
+  stopEditing ();
+  if (onSave)
+    onSave ();
+  repaint ();
+}
+
+void
+ScriptPanel::pressSaveAs ()
+{
+  if (!keys ().saveAs)
+    return;
+  stopEditing ();
+  if (onSaveAs)
+    onSaveAs ();
+  repaint ();
+}
+
+void
+ScriptPanel::notifyKeys ()
+{
+  if (onKeysChanged)
+    onKeysChanged ();
+}
+
+void
+ScriptPanel::codeDocumentTextInserted (juce::String const &, int)
+{
+  notifyKeys ();
+  repaint ();
+}
+
+void
+ScriptPanel::codeDocumentTextDeleted (int, int)
+{
+  notifyKeys ();
+  repaint ();
 }
 
 float
@@ -512,56 +551,10 @@ ScriptPanel::paintErrors (juce::Graphics &g)
 }
 
 void
-ScriptPanel::paintKeys (juce::Graphics &g)
-{
-  auto const key = [&g] (juce::Rectangle<int> at, char const *word,
-                         juce::Colour ink) {
-    if (at.isEmpty ())
-      return;
-    g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
-    g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
-    g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
-    g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
-                            theme ().strokeThin);
-
-    g.setColour (ink);
-    // What "save"/"cancel" may cost.
-    constexpr float scriptKeyCap = 16.f;
-    g.setFont (juce::Font (juce::FontOptions (
-        fittedFontHeight (at.getHeight () * 0.4f, scriptKeyCap))));
-    g.drawText (word, at, juce::Justification::centred);
-  };
-
-  auto const lit = readableInk (_channelColour, toColour (theme ().background),
-                                toColour (theme ().textPrimary));
-  auto const dark = toColour (theme ().textMuted, theme ().alphaDisabled);
-
-  // Lit only while there is something to keep, to lose or to take: a key
-  // offering to save nothing is a key you have to stop and think about.
-  // Save stays dark on a protected script however much has been typed --
-  // Save as is the way out, which is why it is lit in exactly that case.
-  auto const k = keys ();
-  // Flashing: the two ways out of an unsaved edit, in the warning colour the
-  // field's edge already wears for it.
-  auto const flash = toColour (theme ().warning);
-  key (_layout.fromClipButton, _fromLabel.toRawUTF8 (),
-       k.fromClip ? lit : dark);
-  key (_layout.cancelButton, "cancel",
-       _flashing  ? flash
-       : k.cancel ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
-                  : dark);
-  key (_layout.saveButton, "save", _flashing && k.save ? flash
-                                   : k.save            ? lit
-                                                       : dark);
-  key (_layout.saveAsButton, "save as", k.saveAs ? lit : dark);
-}
-
-void
 ScriptPanel::paint (juce::Graphics &g)
 {
   paintField (g);
   paintErrors (g);
-  paintKeys (g);
 }
 
 }

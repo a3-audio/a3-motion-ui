@@ -20,37 +20,19 @@
 
 #include "ScriptPanelLayout.hh"
 
-#include <a3-motion-ui/components/ControllerLayout.hh>
 
 namespace a3
 {
 
 ScriptPanelLayout
-layOutScriptPanel (juce::Rectangle<int> bounds, int buttonHeight,
-                   int errorLines, int lineHeight)
+layOutScriptPanel (juce::Rectangle<int> bounds, int errorLines,
+                   int lineHeight)
 {
   ScriptPanelLayout out;
   if (bounds.isEmpty ())
     return out;
 
-  auto const gap = juce::jmax (2, bounds.getHeight () / 40);
   auto area = bounds;
-
-  // At the top, where back and close stood before FILES lost them
-  // (2026-09-27): the keys of the whole page form one row there.
-  auto keys = area.removeFromTop (juce::jmin (
-      area.getHeight (), juce::jmax (fingertipSize, buttonHeight)));
-  area.removeFromTop (gap);
-
-  auto const keyW = (keys.getWidth () - 3 * gap) / 4;
-  out.fromClipButton = keys.removeFromLeft (keyW);
-  keys.removeFromLeft (gap);
-  out.cancelButton = keys.removeFromLeft (keyW);
-  keys.removeFromLeft (gap);
-  out.saveButton = keys.removeFromLeft (keyW);
-  keys.removeFromLeft (gap);
-  out.saveAsButton = keys;
-
   // Off the text, never over it, and never more than half of it.
   if (errorLines > 0)
     out.errorArea = area.removeFromBottom (

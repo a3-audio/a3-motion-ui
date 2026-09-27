@@ -64,12 +64,13 @@ TEST (ScriptPanel, TheEditorDoesNotClaimToBeOpaque)
 {
   ScriptPanel panel;
   auto found = false;
-  for (auto *child : panel.getChildren ())
-    if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
-      {
-        found = true;
-        EXPECT_FALSE (child->isOpaque ());
-      }
+  for (auto *frame : panel.getChildren ())
+    for (auto *child : frame->getChildren ())
+      if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
+        {
+          found = true;
+          EXPECT_FALSE (child->isOpaque ());
+        }
   EXPECT_TRUE (found);
 }
 
@@ -84,12 +85,13 @@ TEST (ScriptPanel, AChangeOfLanguageKeepsTheTextAndTheGround)
   EXPECT_FALSE (panel.hasUnsavedChanges ());
 
   auto editors = 0;
-  for (auto *child : panel.getChildren ())
-    if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
-      {
-        ++editors;
-        EXPECT_FALSE (child->isOpaque ());
-      }
+  for (auto *frame : panel.getChildren ())
+    for (auto *child : frame->getChildren ())
+      if (dynamic_cast<juce::CodeEditorComponent *> (child) != nullptr)
+        {
+          ++editors;
+          EXPECT_FALSE (child->isOpaque ());
+        }
   EXPECT_EQ (editors, 1) << "the old editor is gone";
 }
 
@@ -109,4 +111,20 @@ TEST (ScriptPanel, AColumnTooNarrowForALineTakesASmallerFont)
 
   panel.setBounds (0, 0, natural * 2, 400);
   EXPECT_EQ (panel.widthFor (line), natural) << "room enough: the usual size";
+}
+
+// JUCE's line numbers take a fixed 35 px and are set to its right edge; the
+// rest was empty room left of them (maintainer, 2026-09-27). The editor sits
+// shifted left in a frame that cuts that room off.
+TEST (ScriptPanel, TheLineNumbersKeepOnlyTheRoomTheyNeed)
+{
+  ScriptPanel panel;
+  panel.setBounds (0, 0, 600, 400);
+  juce::CodeEditorComponent *editor = nullptr;
+  for (auto *child : panel.getChildren ())
+    for (auto *inner : child->getChildren ())
+      if (auto *e = dynamic_cast<juce::CodeEditorComponent *> (inner))
+        editor = e;
+  ASSERT_NE (editor, nullptr) << "the editor stands in a frame";
+  EXPECT_LT (editor->getX (), 0) << "shifted left, the empty room cut off";
 }

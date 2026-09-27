@@ -77,6 +77,11 @@ struct BrowserLayout
   /** The library's own area, and the rows currently drawn in it. The rows are
    *  a window onto the library rather than all of it -- there are forty and
    *  more, and a row too short to hit is no use in a booth. */
+  /** The two grey tiles FILES stands on: the list's on the left, the
+   *  script's on the right (2026-09-27). */
+  juce::Rectangle<int> listTile;
+  juce::Rectangle<int> detailTile;
+
   juce::Rectangle<int> listArea;
   std::vector<juce::Rectangle<int>> rows;
   /** Beside the list, what the chosen row holds: its text, on every tab
@@ -115,16 +120,20 @@ struct BrowserLayout
   juce::Rectangle<int> loadButton;
   juce::Rectangle<int> filterButton;
   juce::Rectangle<int> renameButton;
-  /** Always empty since 2026-09-27: Save and Save as are the script panel's
-   *  on every tab. Kept so the strip's six keys stay one interface. */
+  /** The script panel's four keys, in the list's tile since 2026-09-27:
+   *  FROM under the folders, Cancel, Save and Save as at the foot. What they
+   *  do is the panel's (ScriptPanel::pressSave and the rest). */
+  juce::Rectangle<int> fromClipButton;
+  juce::Rectangle<int> cancelButton;
   juce::Rectangle<int> saveButton;
   juce::Rectangle<int> saveAsButton;
   juce::Rectangle<int> deleteButton;
 };
 
-/** Lays FILES out over the sphere: the script column on the right, as wide
- *  as `detailWidth` asks (none for 0), and on the left the list's keys, the
- *  four folders two by two, and the list. Reads no theme, so it can be
+/** Lays FILES out over the sphere on two tiles: the script column on the
+ *  right, as wide as `detailWidth` asks (none for 0); on the left, top to
+ *  bottom, the four folders two by two, FROM, the filter, the list, and the
+ *  other keys at the foot. Reads no theme, so it can be
  *  checked at sizes nobody has dialled in yet. */
 BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
                              float bodySize, BrowserList list,

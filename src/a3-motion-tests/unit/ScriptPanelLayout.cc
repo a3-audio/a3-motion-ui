@@ -28,33 +28,12 @@ using namespace a3;
 namespace
 {
 juce::Rectangle<int> const column{ 256, 60, 512, 560 };
-constexpr int buttonHeight = 44;
 constexpr int lineHeight = 16;
-}
-
-// Four keys in one row at the top, where back and close stood before FILES
-// lost them (2026-09-27), a fingertip each, in the order FROM, Cancel, Save,
-// Save as, none of them over the text.
-TEST (ScriptPanelLayout, FourKeysAtTheTopAFingertipEach)
-{
-  auto const l = layOutScriptPanel (column, buttonHeight, 0, lineHeight);
-  for (auto const &key : { l.fromClipButton, l.cancelButton, l.saveButton,
-                           l.saveAsButton })
-    {
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_GE (key.getHeight (), fingertipSize);
-      EXPECT_TRUE (column.contains (key));
-      EXPECT_FALSE (key.intersects (l.textArea));
-      EXPECT_EQ (key.getY (), column.getY ());
-    }
-  EXPECT_LT (l.fromClipButton.getRight (), l.cancelButton.getX () + 1);
-  EXPECT_LT (l.cancelButton.getRight (), l.saveButton.getX () + 1);
-  EXPECT_LT (l.saveButton.getRight (), l.saveAsButton.getX () + 1);
 }
 
 TEST (ScriptPanelLayout, NoErrorsNoStrip)
 {
-  auto const l = layOutScriptPanel (column, buttonHeight, 0, lineHeight);
+  auto const l = layOutScriptPanel (column, 0, lineHeight);
   EXPECT_TRUE (l.errorArea.isEmpty ());
 }
 
@@ -62,14 +41,15 @@ TEST (ScriptPanelLayout, NoErrorsNoStrip)
 // more than half of it.
 TEST (ScriptPanelLayout, ErrorsTakeTheirRoomOffTheText)
 {
-  auto const l = layOutScriptPanel (column, buttonHeight, 3, lineHeight);
+  auto const l = layOutScriptPanel (column, 3, lineHeight);
   EXPECT_EQ (l.errorArea.getHeight (), 3 * lineHeight);
   EXPECT_FALSE (l.errorArea.intersects (l.textArea));
-  EXPECT_GE (l.errorArea.getY (), l.saveButton.getBottom ());
   EXPECT_EQ (l.errorArea.getBottom (), column.getBottom ())
       << "under the text, at the foot";
+  EXPECT_EQ (l.textArea.getY (), column.getY ())
+      << "the keys stand in the list's tile since 2026-09-27";
 
-  auto const many = layOutScriptPanel (column, buttonHeight, 100, lineHeight);
+  auto const many = layOutScriptPanel (column, 100, lineHeight);
   EXPECT_GE (many.textArea.getHeight (), many.errorArea.getHeight ());
 }
 

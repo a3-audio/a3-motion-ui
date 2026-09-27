@@ -91,8 +91,19 @@ BrowserComponent::BrowserComponent ()
   makeButton (_loadTouch, &BrowserComponent::onLoadPressed);
   makeButton (_filterTouch, &BrowserComponent::onFilterPressed);
   makeButton (_renameTouch, &BrowserComponent::onRenamePressed);
-  makeButton (_saveTouch, &BrowserComponent::onSavePressed);
-  makeButton (_saveAsTouch, &BrowserComponent::onSaveAsPressed);
+  // The script panel's keys stand in this tile since 2026-09-27; a tap goes
+  // to the panel, which guards it with the rule that lights it.
+  auto const makeScriptKey = [this] (std::unique_ptr<TouchControl> &into,
+                                     void (ScriptPanel::*press) ()) {
+    into = std::make_unique<TouchControl> ();
+    into->onTap = [this, press] (int, int) { (_script.get ()->*press) (); };
+    addAndMakeVisible (*into);
+  };
+  makeScriptKey (_fromClipTouch, &ScriptPanel::pressFromClip);
+  makeScriptKey (_cancelTouch, &ScriptPanel::pressCancel);
+  makeScriptKey (_saveTouch, &ScriptPanel::pressSave);
+  makeScriptKey (_saveAsTouch, &ScriptPanel::pressSaveAs);
+  _script->onKeysChanged = [this] { repaint (); };
   makeButton (_deleteTouch, &BrowserComponent::onDeletePressed);
 
   // The rename types into the row, so the row's own component has to be the
@@ -117,7 +128,12 @@ BrowserComponent::resized ()
   // one row with the script's, the same height (2026-09-27).
   constexpr int scriptCharacters = 86;
   _script->setColumnsToFit (scriptCharacters);
-  _layout = layOutBrowser (getLocalBounds (), _script->keyHeight (),
+  // A fingertip, or twice the header size, whichever is more -- the height
+  // the ACTION page's keys always had.
+  auto const keyHeight
+      = juce::jmax (fingertipSize,
+                    juce::roundToInt (theme ().fontSize (FontRole::Header) * 2.f));
+  _layout = layOutBrowser (getLocalBounds (), keyHeight,
                            theme ().fontSize (FontRole::Body), _list,
                            _script->usualWidthFor (scriptCharacters));
 
@@ -141,6 +157,8 @@ BrowserComponent::resized ()
   _loadTouch->setBounds (_layout.loadButton);
   _filterTouch->setBounds (_layout.filterButton);
   _renameTouch->setBounds (_layout.renameButton);
+  _fromClipTouch->setBounds (_layout.fromClipButton);
+  _cancelTouch->setBounds (_layout.cancelButton);
   _saveTouch->setBounds (_layout.saveButton);
   _saveAsTouch->setBounds (_layout.saveAsButton);
   _deleteTouch->setBounds (_layout.deleteButton);
@@ -229,6 +247,12 @@ BrowserComponent::paint (juce::Graphics &g)
   // read. In the bar it did not need this -- the bar painted the ground.
   g.fillAll (toColour (theme ().surface));
 
+  // Two grey tiles, the list's and the script's (2026-09-27), the way every
+  // block of controls in the bar stands on a card.
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (_layout.listTile.toFloat (), theme ().radiusCard);
+  g.fillRoundedRectangle (_layout.detailTile.toFloat (), theme ().radiusCard);
+
   // Four words over the list: what a slot holds, the figures those are played
   // on, what ACT does to a slot, and the arrangement of all eight at once. All
   // four are chosen the same way, in the same place, so none of them is a mode
@@ -282,8 +306,7 @@ BrowserComponent::paint (juce::Graphics &g)
   paintButton (g, _layout.loadButton, _actionLabels[0], _actionEnabled[0]);
   paintButton (g, _layout.filterButton, _actionLabels[1], _actionEnabled[1]);
   paintButton (g, _layout.renameButton, _actionLabels[2], _actionEnabled[2]);
-  paintButton (g, _layout.saveButton, _actionLabels[3], _actionEnabled[3]);
-  paintButton (g, _layout.saveAsButton, _actionLabels[4], _actionEnabled[4]);
+  paintScriptKeys (g);
   paintButton (g, _layout.deleteButton, _actionLabels[5], _actionEnabled[5]);
 }
 
@@ -395,8 +418,25 @@ BrowserComponent::setActions (juce::StringArray const &labels,
 }
 
 void
+BrowserComponent::paintScriptKeys (juce::Graphics &g)
+{
+  auto const keys = _script->keys ();
+  // Flashing: the two ways out of unsaved text, in the warning colour the
+  // script's edge already wears for it.
+  auto const flash = _script->isFlashing () ? toColour (theme ().warning)
+                                            : juce::Colour{};
+  paintButton (g, _layout.fromClipButton, _script->fromLabel (),
+               keys.fromClip);
+  paintButton (g, _layout.cancelButton, "Cancel", keys.cancel, flash);
+  paintButton (g, _layout.saveButton, "Save", keys.save,
+               keys.save ? flash : juce::Colour{});
+  paintButton (g, _layout.saveAsButton, "Save as", keys.saveAs);
+}
+
+void
 BrowserComponent::paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
-                               juce::String const &label, bool enabled)
+                               juce::String const &label, bool enabled,
+                               juce::Colour ink)
 {
   // An empty label is a key that does not exist yet -- nothing is drawn at
   // all, rather than an outline with nothing in it, which reads as a fault.
@@ -412,10 +452,12 @@ BrowserComponent::paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
   g.setFont (juce::Font (juce::jmin (theme ().fontSize (FontRole::Body),
                                      bounds.getHeight () * 0.5f),
                          juce::Font::plain));
-  g.setColour (enabled ? toColour (theme ().textPrimary,
-                                   theme ().alphaTextStrong)
-                       : toColour (theme ().textPrimary,
-                                  theme ().alphaFillEmphasis));
+  g.setColour (!ink.isTransparent ()
+                   ? ink
+               : enabled ? toColour (theme ().textPrimary,
+                                     theme ().alphaTextStrong)
+                         : toColour (theme ().textPrimary,
+                                     theme ().alphaFillEmphasis));
   g.drawFittedText (label, bounds, juce::Justification::centred, 1);
 }
 

@@ -43,7 +43,9 @@ namespace a3
  *  than that it holds text, so the other kinds of file can be shown in it
  *  later.
  */
-class ScriptPanel : public juce::Component, public ThemedComponent
+class ScriptPanel : public juce::Component,
+                    public ThemedComponent,
+                    private juce::CodeDocument::Listener
 {
 public:
   ScriptPanel ();
@@ -81,9 +83,6 @@ public:
   /** The word on the FROM key -- what it takes the current state of. */
   void setFromLabel (juce::String const &label);
 
-  /** How tall the panel's keys are, so the page beside it can stand its own
-   *  in the same row. */
-  int keyHeight () const;
   /** How wide the panel has to be for `characters` of text in a line, line
    *  numbers, scroll bar and insets included -- so the page can give it just
    *  that. */
@@ -99,6 +98,21 @@ public:
    *  waiting for one of them (2026-09-27). */
   void flashKeys ();
 
+  /** The four keys stand in the list's tile since 2026-09-27; what they do
+   *  and whether they are lit is still the panel's. The page beside it draws
+   *  them from keys(), isFlashing() and fromLabel(), and passes a tap here --
+   *  where the same rule that lights a key guards it. */
+  ScriptKeyStates keys () const;
+  bool isFlashing () const { return _flashing; }
+  juce::String const &fromLabel () const { return _fromLabel; }
+  void pressFromClip ();
+  void pressCancel ();
+  void pressSave ();
+  void pressSaveAs ();
+  /** Something a key's look depends on changed -- the text, the lock, a
+   *  flash -- so the page drawing the keys draws them again. */
+  std::function<void ()> onKeysChanged;
+
   std::function<void ()> onSave;
   std::function<void ()> onSaveAs;
   std::function<void ()> onCancel;
@@ -112,11 +126,16 @@ private:
    *  the script font. Called whenever the skin changes. */
   void dressEditor ();
   void buildEditor ();
-  ScriptKeyStates keys () const;
 
   void paintField (juce::Graphics &g);
   void paintErrors (juce::Graphics &g);
-  void paintKeys (juce::Graphics &g);
+  void notifyKeys ();
+  /** How much of JUCE's fixed 35 px gutter is empty room left of the line
+   *  numbers, cut off by standing the editor that far left in _frame. */
+  int gutterTrim () const;
+
+  void codeDocumentTextInserted (juce::String const &, int) override;
+  void codeDocumentTextDeleted (int, int) override;
 
   void focusLost (FocusChangeType cause) override;
 
@@ -153,10 +172,8 @@ private:
   bool _slotHolds = false;
   bool _flashing = false;
 
-  std::unique_ptr<TouchControl> _fromClipTouch;
-  std::unique_ptr<TouchControl> _cancelTouch;
-  std::unique_ptr<TouchControl> _saveTouch;
-  std::unique_ptr<TouchControl> _saveAsTouch;
+  /** The editor stands in this, shifted left by gutterTrim(). */
+  std::unique_ptr<juce::Component> _frame;
 };
 
 }

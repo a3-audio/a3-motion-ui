@@ -48,7 +48,8 @@ defaultBrowser (BrowserList list = BrowserList::Clips)
 // page is for.
 TEST (BrowserLayout, ThereAreNoDestinationFieldsAnyMore)
 {
-  EXPECT_EQ (defaultBrowser ().listArea.getX (), 0);
+  // Nothing left of the list's tile; the list stands in it.
+  EXPECT_EQ (defaultBrowser ().listTile.getX (), 0);
 }
 
 TEST (BrowserLayout, EveryListRowIsBigEnoughToHit)
@@ -93,9 +94,9 @@ TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)
 }
 
 // Every tab has the script column (2026-09-27, evening): every file in FILES
-// is read and edited there. It is as wide as it asks -- a script line of
-// 85 characters fits without scrolling sideways -- and the list keeps the
-// rest, full height.
+// is read and edited there. It stands on a tile of its own, as wide as it
+// asks -- a script line of 85 characters fits without scrolling sideways --
+// and the list keeps the rest, on its own tile.
 TEST (BrowserLayout, EveryTabHasAScriptColumnAsWideAsItAsks)
 {
   for (auto const list : { BrowserList::Sessions, BrowserList::Clips,
@@ -103,77 +104,72 @@ TEST (BrowserLayout, EveryTabHasAScriptColumnAsWideAsItAsks)
     {
       auto const l = defaultBrowser (list);
       EXPECT_EQ (l.detailArea.getWidth (), scriptWidth);
+      EXPECT_TRUE (l.detailTile.contains (l.detailArea));
+      EXPECT_EQ (l.detailTile.getRight (), sphere.getRight ());
+      EXPECT_EQ (l.detailTile.getY (), sphere.getY ());
+      EXPECT_EQ (l.detailTile.getBottom (), sphere.getBottom ());
+      EXPECT_FALSE (l.listTile.intersects (l.detailTile));
+      EXPECT_TRUE (l.listTile.contains (l.listArea));
       EXPECT_EQ (l.listArea.getWidth (), defaultBrowser ().listArea.getWidth ())
           << "the columns stay put when the tab changes";
-      EXPECT_EQ (l.detailArea.getRight (), sphere.getRight ());
-      EXPECT_EQ (l.detailArea.getY (), sphere.getY ());
-      EXPECT_EQ (l.detailArea.getBottom (), sphere.getBottom ());
-      EXPECT_FALSE (l.listArea.intersects (l.detailArea));
-      EXPECT_LT (l.listArea.getRight (), l.detailArea.getX ());
     }
 }
 
-// A column that asks for more than there is leaves the list enough for its
-// keys and its tabs: three fingertips and the gaps between them.
+// A column that asks for more than there is leaves the list enough for a
+// row of three keys.
 TEST (BrowserLayout, AGreedyScriptLeavesTheListItsKeys)
 {
-  auto const l = layOutBrowser (sphere, buttonHeight, 12.f, BrowserList::Clips,
+  auto const l = layOutBrowser (sphere, buttonHeight, 12.f, BrowserList::Sessions,
                                 5000);
-  for (auto const &key : { l.filterButton, l.renameButton, l.deleteButton })
+  for (auto const &key : { l.renameButton, l.deleteButton, l.loadButton,
+                           l.cancelButton, l.saveButton, l.saveAsButton })
     EXPECT_GE (key.getWidth (), fingertipSize);
-  EXPECT_TRUE (sphere.contains (l.detailArea));
+  EXPECT_TRUE (sphere.contains (l.detailTile));
 }
 
-// The list's own keys stand at the top of its column, where back and close
-// stood, in one row with the script's keys beside them: same top, same
-// height. Load only on SETS -- a set is loaded on purpose, a clip by a tap.
-TEST (BrowserLayout, TheKeysFormOneRowAtTheTop)
-{
-  for (auto const list : { BrowserList::Sessions, BrowserList::Clips })
-    {
-      auto const l = defaultBrowser (list);
-      auto const panel = layOutScriptPanel (l.detailArea, buttonHeight, 0, 16);
-
-      std::vector<juce::Rectangle<int>> keys{ l.filterButton, l.renameButton,
-                                              l.deleteButton };
-      if (list == BrowserList::Sessions)
-        keys.insert (keys.begin (), l.loadButton);
-      else
-        EXPECT_TRUE (l.loadButton.isEmpty ());
-
-      for (size_t i = 0; i < keys.size (); ++i)
-        {
-          EXPECT_GE (keys[i].getWidth (), fingertipSize);
-          EXPECT_EQ (keys[i].getY (), panel.saveButton.getY ());
-          EXPECT_EQ (keys[i].getHeight (), panel.saveButton.getHeight ());
-          EXPECT_LE (keys[i].getRight (), l.detailArea.getX ());
-          if (i > 0)
-            EXPECT_LE (keys[i - 1].getRight (), keys[i].getX ());
-        }
-      EXPECT_TRUE (l.saveButton.isEmpty ()) << "the script carries Save";
-      EXPECT_TRUE (l.saveAsButton.isEmpty ());
-    }
-}
-
-// The four folders as two by two at the top of the list column, under its
-// keys: SETS CLIPS over SVG ACTIONS, all one size, clear of the list.
-TEST (BrowserLayout, TheFoldersStandTwoByTwoAboveTheList)
+// Down the list's tile (maintainer, 2026-09-27): the four folders two by
+// two, FROM, the filter, the list, and the other keys at its foot.
+TEST (BrowserLayout, TheListTileReadsTopToBottom)
 {
   auto const l = defaultBrowser ();
 
   EXPECT_EQ (l.setsTab.getY (), l.clipsTab.getY ());
   EXPECT_EQ (l.shapesTab.getY (), l.actionsTab.getY ());
-  EXPECT_LT (l.setsTab.getBottom (), l.shapesTab.getY () + 1);
+  EXPECT_LE (l.setsTab.getBottom (), l.shapesTab.getY ());
   EXPECT_LE (l.setsTab.getRight (), l.clipsTab.getX ());
-  EXPECT_LE (l.shapesTab.getRight (), l.actionsTab.getX ());
-
   for (auto const &tab : { l.setsTab, l.clipsTab, l.shapesTab, l.actionsTab })
     {
       EXPECT_EQ (tab.getWidth (), l.clipsTab.getWidth ());
-      EXPECT_EQ (tab.getHeight (), l.clipsTab.getHeight ());
       EXPECT_GE (tab.getWidth (), fingertipSize);
-      EXPECT_GE (tab.getY (), l.filterButton.getBottom ());
-      EXPECT_LE (tab.getBottom (), l.listArea.getY ());
-      EXPECT_LE (tab.getRight (), l.detailArea.getX ());
+      EXPECT_TRUE (l.listTile.contains (tab));
     }
+
+  EXPECT_GE (l.fromClipButton.getY (), l.shapesTab.getBottom ());
+  EXPECT_GE (l.filterButton.getY (), l.fromClipButton.getBottom ());
+  EXPECT_GE (l.listArea.getY (), l.filterButton.getBottom ());
+  EXPECT_EQ (l.fromClipButton.getWidth (), l.listArea.getWidth ());
+  EXPECT_EQ (l.filterButton.getWidth (), l.listArea.getWidth ());
+
+  for (auto const &key : { l.renameButton, l.deleteButton, l.cancelButton,
+                           l.saveButton, l.saveAsButton })
+    {
+      EXPECT_GE (key.getY (), l.listArea.getBottom ()) << "at the foot";
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_GE (key.getHeight (), fingertipSize);
+      EXPECT_TRUE (l.listTile.contains (key));
+    }
+  // Rename and Delete over Cancel, Save and Save as.
+  EXPECT_LE (l.renameButton.getBottom (), l.saveButton.getY ());
+  EXPECT_EQ (l.cancelButton.getY (), l.saveAsButton.getY ());
+  EXPECT_LE (l.cancelButton.getRight (), l.saveButton.getX ());
+  EXPECT_LE (l.saveButton.getRight (), l.saveAsButton.getX ());
+}
+
+// Load only on SETS -- a set is loaded on purpose, a clip by a tap.
+TEST (BrowserLayout, LoadStandsOnlyOnSets)
+{
+  EXPECT_FALSE (defaultBrowser (BrowserList::Sessions).loadButton.isEmpty ());
+  EXPECT_TRUE (defaultBrowser (BrowserList::Clips).loadButton.isEmpty ());
+  auto const sets = defaultBrowser (BrowserList::Sessions);
+  EXPECT_EQ (sets.loadButton.getY (), sets.renameButton.getY ());
 }
