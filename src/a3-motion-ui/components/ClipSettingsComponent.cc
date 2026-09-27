@@ -1649,10 +1649,10 @@ ClipSettingsComponent::paintLengthSection (juce::Graphics &g)
 void
 ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
 {
-  // The same wash and title every card wears, across both columns.
-  g.setColour (toColour (theme ().textPrimary, cardWash));
-  g.fillRoundedRectangle (_layout.recordCard.toFloat (), theme ().radiusCard);
-  paintSectionLabel (g, _layout.recordLabel, "Record", false);
+  // No card of its own since 2026-09-27: REC is one area of fields, and
+  // fade|bias share one, grounded like the keys around it.
+  if (!_layout.pageFields[5].isEmpty ())
+    paintBarButton (g, _layout.pageFields[5], {}, {}, false, false);
 
   // The rec mode in its own colour: how much of an old take this pass will
   // destroy, on the same scale the rest of the device uses. It carries a

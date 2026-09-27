@@ -172,8 +172,7 @@ TEST (ClipSettingsLayout, SectionCardsDoNotOverlapEachOther)
     { clip.sectionCards[0], clip.playCard, clip.lengthCard,
       clip.sectionCards[3] },
     { motion.sectionCards[2], motion.sectionCards[3] },
-    { rec.sectionCards[0], rec.recordCard, rec.lengthCard,
-      rec.sectionCards[3] },
+    { rec.sectionCards[0], rec.sectionCards[3] },
   };
 
   for (size_t page = 0; page < pages.size (); ++page)
@@ -726,30 +725,6 @@ TEST (ClipSettingsLayout, TheClipFieldStandsOverThePicture)
     }
 }
 
-TEST (ClipSettingsLayout, ThePictureIsTheBiggestThingInTheSection)
-{
-  // Guards the reason for the change rather than its mechanics. Not stated as
-  // a fraction of the card: twelve speed buttons in three rows leave the clip
-  // face less than a third, and a test demanding one would be demanding the
-  // buttons go away. What has to hold is that the picture outranks every
-  // single thing around it -- which is exactly what failed when it was a strip
-  // sharing its box with the name.
-  //
-  // REC only since 2026-09-27: CLIP is eight fields of one size by the
-  // maintainer's word, and the picture is one of them.
-  for (auto const page : { BarPage::Record })
-    {
-      auto const layout
-          = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
-      auto const face = page == BarPage::Clip ? "clip face" : "record face";
-
-      EXPECT_GT (layout.trajectoryIcon.getHeight (), layout.buttonHeight)
-          << face;
-      EXPECT_GT (layout.trajectoryIcon.getHeight (),
-                 layout.controls[0][1].getHeight ())
-          << face;
-    }
-}
 
 // ── The header keys are the pads, reached another way ────────────────────
 
@@ -1517,45 +1492,7 @@ TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
 
 // ── The REC page (2026-09-26) ─────────────────────────────────────────────
 
-// REC is the take being set up (2026-09-26): Shape on the left, the Record
-// card -- rec mode, fade, bias -- in the middle, and the four lengths on the
-// right, where they stand on CLIP too, since the lit one is the take's length.
-TEST (ClipSettingsLayout, TheRecordCardTakesTheMiddleColumn)
-{
-  auto const l = layOutClipSettings (
-      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
-      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
 
-  ASSERT_FALSE (l.recordCard.isEmpty ());
-  EXPECT_EQ (l.recordCard, l.playCard);
-  EXPECT_FALSE (l.recordCard.intersects (l.lengthCard));
-  EXPECT_FALSE (l.recordLabel.isEmpty ());
-  EXPECT_TRUE (l.recordCard.contains (l.recordLabel));
-
-  EXPECT_TRUE (lengthKeysStandOn (BarPage::Clip));
-  EXPECT_TRUE (lengthKeysStandOn (BarPage::Record));
-  EXPECT_FALSE (lengthKeysStandOn (BarPage::Motion));
-}
-
-TEST (ClipSettingsLayout, FadeAndBiasStandUnderTheRecModeInTheRecordCard)
-{
-  auto const l = defaultLayout ();
-  auto const fade = l.controls[2][8];
-  auto const bias = l.controls[2][9];
-
-  EXPECT_TRUE (l.recordCard.contains (l.recModeButton));
-  EXPECT_GE (l.recModeButton.getHeight (), fingertipSize);
-
-  for (auto const &knob : { fade, bias })
-    {
-      EXPECT_TRUE (l.recordCard.contains (knob));
-      EXPECT_GE (knob.getY (), l.recModeButton.getBottom ());
-      EXPECT_GE (knob.getHeight (), l.metrics.knobDiam);
-    }
-
-  EXPECT_EQ (fade.getY (), bias.getY ());
-  EXPECT_LE (fade.getRight (), bias.getX ());
-}
 
 // Motion keeps its first eight in its own card, on the MOTION page.
 TEST (ClipSettingsLayout, MotionKeepsEightKnobsOnTheMotionPage)
@@ -1807,4 +1744,58 @@ TEST (ClipSettingsLayout, TheMotionLocksStandOffTheKnobs)
           EXPECT_FALSE (lock.intersects (knobOf (cell)))
               << "section " << section;
     }
+}
+
+// ── REC as one area of eight fields (2026-09-27) ───────────────────────────
+
+// Like CLIP, with the take's settings where CLIP has dir and end: clip,
+// recmode and two lengths over the shape, fade|bias and the other two. Fade
+// and bias share a field -- one encoder, a click between them.
+TEST (ClipSettingsLayout, TheRecPageIsEightEqualFields)
+{
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l = layOutClipSettings (grownBar (defaultHeaderSize,
+                                                   defaultBodySize,
+                                                   defaultPotSize)
+                                             .withWidth (width),
+                                         defaultHeaderSize, defaultBodySize,
+                                         defaultPotSize, BarPage::Record);
+      auto const &f = l.pageFields;
+      auto const fade = l.controls[2][8];
+      auto const bias = l.controls[2][9];
+
+      std::array<juce::Rectangle<int>, 8> const expected{
+        l.clipField,       l.recModeButton,   l.speedButtons[0],
+        l.speedButtons[1], l.trajectoryIcon,  f[5],
+        l.speedButtons[2], l.speedButtons[3],
+      };
+      for (size_t i = 0; i < f.size (); ++i)
+        {
+          ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+          EXPECT_EQ (expected[i], f[i]) << "field " << i;
+          EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1);
+          EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1);
+        }
+
+      EXPECT_TRUE (f[5].contains (fade)) << "width " << width;
+      EXPECT_TRUE (f[5].contains (bias)) << "width " << width;
+      EXPECT_LE (fade.getRight (), bias.getX ()) << "fade, then bias";
+    }
+
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Clip));
+  EXPECT_TRUE (lengthKeysStandOn (BarPage::Record));
+  EXPECT_FALSE (lengthKeysStandOn (BarPage::Motion));
+}
+
+TEST (ClipSettingsLayout, TheRecPageHasNoHeadings)
+{
+  auto const l = layOutClipSettings (
+      grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+      defaultHeaderSize, defaultBodySize, defaultPotSize, BarPage::Record);
+
+  EXPECT_TRUE (l.sectionLabels[0].isEmpty ());
+  EXPECT_TRUE (l.recordLabel.isEmpty ());
+  EXPECT_TRUE (l.lengthLabel.isEmpty ());
+  EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
 }

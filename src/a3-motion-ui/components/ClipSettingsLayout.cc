@@ -301,7 +301,8 @@ cardOfControl (ClipSettingsLayout const &layout, int section, int sub)
     return layout.playCard.isEmpty () ? layout.sectionCards[0]
                                       : layout.playCard;
   if (section == 3 || (section == 2 && controlIsOnPage (2, sub, BarPage::Record)))
-    return layout.recordCard;
+    return layout.recordCard.isEmpty () ? layout.sectionCards[0]
+                                        : layout.recordCard;
 
   return layout.sectionCards[static_cast<size_t> (section)];
 }
@@ -398,11 +399,11 @@ lockInCorner (juce::Rectangle<int> field)
                      field.getY () + side / 4);
 }
 
-/** CLIP as one area of eight equal fields, no headings (2026-09-27): clip,
- *  dir and two lengths over the shape, end and the other two. The encoders
- *  stand four by two, and so do the fields they turn. */
-void
-layOutClipPage (ClipSettingsLayout &out)
+/** What CLIP and REC share since 2026-09-27: one area of eight equal fields,
+ *  no headings, with the clip, two lengths, the shape and the other two
+ *  lengths in the same places. The two fields between are each page's own. */
+std::array<juce::Rectangle<int>, 8> const &
+layOutPageOfFields (ClipSettingsLayout &out)
 {
   auto const gap = juce::jmax (2, out.buttonHeight / 8);
   auto const &f = out.pageFields
@@ -414,20 +415,44 @@ layOutClipPage (ClipSettingsLayout &out)
   out.playLabel = {};
   out.lengthCard = {};
   out.lengthLabel = {};
+  out.recordCard = {};
+  out.recordLabel = {};
 
   out.clipField = f[0];
-  out.directionButton = f[1];
   out.speedButtons[0] = f[2];
   out.speedButtons[1] = f[3];
   out.trajectoryIcon = f[4];
   out.trajectoryName = f[4];
-  out.endActionButton = f[5];
   out.speedButtons[2] = f[6];
   out.speedButtons[3] = f[7];
 
   out.sectionLocks[0] = lockInCorner (f[4]);
+  return f;
+}
+
+/** CLIP: dir over end between the clip and the lengths. */
+void
+layOutClipPage (ClipSettingsLayout &out)
+{
+  auto const &f = layOutPageOfFields (out);
+  out.directionButton = f[1];
+  out.endActionButton = f[5];
   out.controls[0] = { out.trajectoryIcon, out.clipField, out.directionButton,
                       out.endActionButton };
+}
+
+/** REC: the rec mode over fade|bias -- one field for the two, side by side,
+ *  since one encoder turns them with a click between. */
+void
+layOutRecordPage (ClipSettingsLayout &out)
+{
+  auto const &f = layOutPageOfFields (out);
+  out.recModeButton = f[1];
+
+  auto both = f[5];
+  auto const fade = both.removeFromLeft (both.getWidth () / 2);
+  out.controls[2][8] = textCell (fade, out.metrics.knobDiam);
+  out.controls[2][9] = textCell (both, out.metrics.knobDiam);
 }
 
 /** MOTION as one area, no headings (2026-09-27), in the rows the encoders
@@ -994,6 +1019,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     layOutClipPage (out);
   if (page == BarPage::Motion)
     layOutMotionPage (out);
+  if (page == BarPage::Record)
+    layOutRecordPage (out);
 
   return out;
 }
