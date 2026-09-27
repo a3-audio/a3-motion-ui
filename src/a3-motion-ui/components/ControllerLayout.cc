@@ -51,15 +51,9 @@ headerRowHeight (float headerSize)
 juce::Point<int>
 padCellInBox (index_t pad)
 {
-  switch (padFunctionByPadIndex[pad])
-    {
-    case PadFunction::PlayPause: return { 0, 0 };
-    case PadFunction::Stop:      return { 1, 0 };
-    case PadFunction::Action:    return { 0, 1 };
-    case PadFunction::Settings:  return { 1, 1 };
-    }
-
-  return { 0, 0 };
+  // As the panel stands: two columns of four, pads 0..3 down the left and
+  // 4..7 down the right (padFunctionByPadIndex says which is which).
+  return { static_cast<int> (pad / 4), static_cast<int> (pad % 4) };
 }
 }
 
@@ -71,9 +65,9 @@ controllerPreferredHeight (float headerSize, int)
   // make the grid, and above and below it sit the header, the modifier row
   // and the paddings. Anything else here would be a second guess at the
   // layout, and the two would drift.
-  auto const slots = static_cast<int> (numPadSlots);
-  auto const boxH = 2 * fingertipSize + padGap;
-  auto const gridH = slots * boxH + (slots - 1) * padGap;
+  // Four rows of pads and the gaps between them, one box per channel.
+  constexpr int padRows = 4;
+  auto const gridH = padRows * fingertipSize + (padRows - 1) * padGap;
 
   return gridH + headerRowHeight (headerSize) + 2 * minPadding;
 }
@@ -97,12 +91,14 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
   // Nine pad widths across: the scene column, then two per channel -- with a
   // gap between every two of them. Solved for the pad, because the scene pad
   // has to be exactly as wide as the pads it stands beside.
-  auto const columns = static_cast<int> (1 + 2 * numChannelColumns);
+  // Ten pad widths across since 2026-09-27: the scene block (two), then two
+  // per channel.
+  auto const columns = static_cast<int> (2 + 2 * numChannelColumns);
   auto const padW
       = juce::jmax (0, (area.getWidth () - (columns - 1) * gap) / columns);
   auto const boxW = 2 * padW + gap;
   auto const sceneX = area.getX ();
-  area.removeFromLeft (padW + gap);
+  area.removeFromLeft (2 * padW + 2 * gap);
   auto const slots = static_cast<int> (numPadSlots);
   auto const boxH
       = juce::jmax (0, (area.getHeight () - (slots - 1) * gap) / slots);
@@ -116,23 +112,26 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       {
-        auto const box = out.clipBoxes[channel][slotForPadIndex[pad]];
+        auto const box = out.clipBoxes[channel][0];
         auto const cell = padCellInBox (pad);
 
         auto const padW = juce::jmax (0, (box.getWidth () - gap) / 2);
-        auto const padH = juce::jmax (0, (box.getHeight () - gap) / 2);
+        auto const padH = juce::jmax (0, (box.getHeight () - 3 * gap) / 4);
 
         out.pads[channel][pad] = juce::Rectangle<int> (
             box.getX () + cell.x * (padW + gap),
             box.getY () + cell.y * (padH + gap), padW, padH);
       }
 
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (std::size_t row = 0; row < numSceneRows; ++row)
-      {
-        auto const pad = out.pads[0][padIndexFor (sceneRowFunction[row], slot)];
-        out.scenes[slot][row] = { sceneX, pad.getY (), padW, pad.getHeight () };
-      }
+  // The scene block, shaped like a channel: its pad `p` in the same cell as
+  // every channel's pad `p`, one column-and-a-gap apart.
+  for (std::size_t pad = 0; pad < numSceneRows; ++pad)
+    {
+      auto const level = out.pads[0][pad];
+      auto const cell = padCellInBox (static_cast<index_t> (pad));
+      out.scenes[0][pad] = { sceneX + cell.x * (padW + gap), level.getY (),
+                             padW, level.getHeight () };
+    }
 
   return out;
 }

@@ -57,6 +57,13 @@ namespace a3
 juce::Colour padBaseColour (PadFunction function, bool clipPlaying,
                             bool actionRunning, juce::Colour channel);
 
+/** Which status a pad is shaded by. Only Play/Pause follows its clip; an
+ *  action pad and PAGE carry their own state -- `assigned` (an action on the
+ *  button) and `lit` (its action running, or PAGE on the channel the screen
+ *  shows), answered as the status that shades that way. */
+Pattern::Status padShadeStatus (PadFunction function, Pattern::Status clip,
+                                bool assigned, bool lit);
+
 juce::Colour padStatusColour (juce::Colour base, Pattern::Status status,
                               Pattern::Status statusLast, int step,
                               bool oneShotRecording);

@@ -1451,14 +1451,14 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
 void
 ClipSettingsComponent::setChannelFaces (
     std::array<juce::Colour, numChannelColumns> colours,
-    std::array<int, numChannelColumns> slots, int shownChannel)
+    std::array<juce::String, numChannelColumns> clipNames, int shownChannel)
 {
-  if (colours == _channelFaceColours && slots == _channelFaceSlots
+  if (colours == _channelFaceColours && clipNames == _channelFaceClipNames
       && shownChannel == _shownChannel)
     return;
 
   _channelFaceColours = colours;
-  _channelFaceSlots = slots;
+  _channelFaceClipNames = clipNames;
   _shownChannel = shownChannel;
   repaint ();
 }
@@ -1533,18 +1533,11 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
                               shown ? theme ().strokeThick
                                     : theme ().strokeThin);
 
-      // And the number in it is the slot. Not the channel: which channel this
-      // is, is what the colour says, and it says it without being read. Which
-      // slot cannot be a colour, so it is the one thing here worth a glyph --
-      // and touching the face you are already on turns it over.
-      auto const slotName
-          = juce::String (juce::jlimit (0, static_cast<int> (numPadSlots) - 1,
-                                        _channelFaceSlots[channel])
-                          + 1);
-
       // The rest of the face is the clip's progress, filled from the left in
-      // the channel's colour as a clip slot fills in a DAW, with the slot
-      // number at its start.
+      // the channel's colour as a clip slot fills in a DAW, with the clip's
+      // name over it. Which channel this is, is what the colour says; since
+      // one clip per channel (2026-09-27) there is no slot to number, and the
+      // name is what the colour cannot say.
       auto const bar = _layout.channelFaceProgress[channel];
       g.setColour (colour.withAlpha (theme ().alphaOutline));
       g.fillRect (bar);
@@ -1552,17 +1545,28 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       g.setColour (colour);
       g.fillRect (fill);
 
-      // Black or white once the fill runs under the number, or it vanishes in
-      // its own colour; the channel's colour on the washed bar otherwise.
-      auto const numberArea = bar.withWidth (juce::jmin (
-          bar.getWidth (), bar.getHeight () * 3 / 2));
-      auto const onFill = fill.getRight () > numberArea.getCentreX ();
-      g.setFont (juce::Font (fontFor (FontRole::Header, numberArea, slotName),
+      auto const &name = _channelFaceClipNames[channel];
+      if (name.isEmpty ())
+        continue;
+
+      // Black or white where the fill runs under the name, or it vanishes in
+      // its own colour; the channel's colour on the washed bar otherwise. Two
+      // passes, each clipped to its half, so a name the fill is crossing reads
+      // along its whole length.
+      auto const nameArea = bar.reduced (bar.getHeight () / 4, 0);
+      g.setFont (juce::Font (fontFor (FontRole::Header, nameArea.withWidth (
+                                          bar.getHeight () * 3 / 2), "8"),
                              shown ? juce::Font::bold : juce::Font::plain));
-      g.setColour (onFill ? padGlyphInk (colour)
-                          : readableInk (colour, toColour (theme ().background),
-                                         toColour (theme ().textPrimary)));
-      g.drawText (slotName, numberArea, juce::Justification::centred);
+      auto const drawNameIn = [&] (juce::Rectangle<int> clip, juce::Colour ink) {
+        juce::Graphics::ScopedSaveState keep (g);
+        g.reduceClipRegion (clip);
+        g.setColour (ink);
+        g.drawText (name, nameArea, juce::Justification::centredLeft, true);
+      };
+      drawNameIn (fill, padGlyphInk (colour));
+      drawNameIn (bar.withLeft (fill.getRight ()),
+                  readableInk (colour, toColour (theme ().background),
+                               toColour (theme ().textPrimary)));
     }
 }
 

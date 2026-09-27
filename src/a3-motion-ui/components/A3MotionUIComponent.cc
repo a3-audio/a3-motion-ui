@@ -614,8 +614,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
             refreshRecArmed ();
             return;
           }
-        handlePadPress (_clipSettingsChannel,
-                        padIndexFor (PadFunction::Stop, _clipSettingsSlot));
+        // The panel has no Stop pad since 2026-09-27; the screen keeps its ■.
+        stopChannel (_clipSettingsChannel);
         return;
       case TransportKey::PlayPause:
         // Armed, ▶ starts the take set up on the REC page.
@@ -624,9 +624,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
             startArmedTake ();
             return;
           }
-        handlePadPress (
-            _clipSettingsChannel,
-            padIndexFor (PadFunction::PlayPause, _clipSettingsSlot));
+        handlePadPress (_clipSettingsChannel,
+                        padIndexFor (PadFunction::PlayPause));
         return;
       case TransportKey::Action:
         return;
@@ -648,7 +647,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           _actPressWasDiscard = false;
         return;
       }
-    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
+    // The chosen button's pad -- the one the ACTION page shows (2026-09-27).
+    auto const pad = padIndexForAction (
+        _chosenActionButton[_clipSettingsChannel]);
     if (held)
       handlePadPress (_clipSettingsChannel, pad);
     else
@@ -667,8 +668,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     auto const channel = _clipSettingsChannel;
     auto const slot = _clipSettingsSlot;
     if (held)
-      _engine.setChannelAction (channel,
-                                firedActionOf (channel, buttonForSlot (slot)));
+      _engine.setChannelAction (
+          channel, firedActionOf (channel, _chosenActionButton[channel]));
     _engine.setChannelAccentHeld (channel, held,
                                   held ? _patterns[channel][slot] : nullptr);
     updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
@@ -759,7 +760,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
 
   _action->onActionChosen = [this] (juce::String const &name) {
-    setButtonAction (_clipSettingsChannel, buttonForSlot (_clipSettingsSlot),
+    setButtonAction (_clipSettingsChannel,
+                     _chosenActionButton[_clipSettingsChannel],
                    name.isEmpty ()
                        ? juce::File{}
                        : namedFileIn (actionsDir (), name, ".scd"));
@@ -769,7 +771,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // The fat key under the knobs, which is the ACT pad in another place: same
   // handler, so the two cannot come to mean different things.
   _action->onFireHeld = [this] (bool held) {
-    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
+    auto const pad = padIndexForAction (
+        _chosenActionButton[_clipSettingsChannel]);
     if (held)
       handlePadPress (_clipSettingsChannel, pad);
     else
@@ -783,7 +786,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _action->onEditPressed = [this] {
     // The origin's second index is the button EDIT came from.
     _editOrigin = SlotRef{ _clipSettingsChannel,
-                           static_cast<index_t> (buttonForSlot (_clipSettingsSlot)) };
+                           static_cast<index_t> (
+                               _chosenActionButton[_clipSettingsChannel]) };
     showOverSphere (SphereOverlay::Files);
     _browserList = BrowserList::Actions;
     _browser->setShowingList (BrowserList::Actions);
@@ -1465,8 +1469,7 @@ A3MotionUIComponent::initializePatterns ()
     auto const bloom = namedFileIn (actionsDir (), "Bloom", ".scd");
     if (bloom.existsAsFile ())
       for (auto channel = 0u; channel < numChannels; ++channel)
-        for (auto slot = 0u; slot < numClipSlots; ++slot)
-          setButtonAction (channel, buttonForSlot (slot), bloom);
+        setButtonAction (channel, 0, bloom); // A1
   }
 
   // Load patterns from the library, one per clip slot; channels share the
@@ -2200,22 +2203,19 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
   // confirms if nothing came between its two taps (#32).
   disarmOnOtherInput ();
 
+  // One clip per channel since 2026-09-27: every pad is about slot 0.
+  index_t const slot = 0;
   auto const function = padFunctionByPadIndex[pad];
-  auto const slot = slotForPadIndex[pad];
+  auto const button = actionButtonForPad[pad];
   auto &pattern = _patterns[channel][slot];
 
-  char const *functionName = "";
-  switch (function)
-    {
-    case PadFunction::PlayPause: functionName = "PLAYPAUSE"; break;
-    case PadFunction::Stop:      functionName = "STOP";      break;
-    case PadFunction::Action:    functionName = "ACTION";    break;
-    case PadFunction::Settings:  functionName = "SETTINGS";  break;
-    }
-  updateControlReadout ("CH" + juce::String (channel + 1) + " "
-                        + functionName);
+  auto const name
+      = function == PadFunction::PlayPause ? juce::String ("PLAYPAUSE")
+        : function == PadFunction::Page    ? juce::String ("PAGE")
+                                           : "A" + juce::String (button + 1);
+  updateControlReadout ("CH" + juce::String (channel + 1) + " " + name);
 
-  // The bar follows the hand. Pressing play or the accent on a clip is saying
+  // The bar follows the hand. Pressing play or an action on a clip is saying
   // "this one", so the settings you are looking at should be its — otherwise
   // you sit there reading one clip's values while another one plays.
   //
@@ -2234,83 +2234,31 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
   switch (function)
     {
-    case PadFunction::PlayPause:
+    case PadFunction::Page:
       {
-        if (!pattern)
-          break;
-
-        // **On the next downbeat**, and with Shift on the spot.
-        //
-        // This used to be the next beat, on the reasoning that a bar is up to
-        // a metre's worth of beats away and a clip starting that late reads as
-        // a button that did not work. What that reasoning was missing is that
-        // a figure which does not begin on the one runs the whole pass against
-        // the music -- and it was written before the key blinked while it
-        // waited, which is what makes the wait legible rather than dead.
-        //
-        // Shift is the instant one beside it, the same pairing ACT has and the
-        // same pairing a deck offers: quantised is what you want almost
-        // always, and the other is for the moment that will not wait.
-        auto const on = isButtonPressed (Button::Shift)
-                            ? _now
-                            : TempoClock::nextDownBeat (_now);
-
-        auto const status = pattern->getStatus ();
-        if (status == Pattern::Status::Idle)
+        // Another channel's PAGE brings that channel up on the page you are
+        // on; the shown channel's steps through its pages, back with Shift.
+        // Whatever lies over the sphere goes first -- PAGE is about the clip.
+        if (_overSphere != SphereOverlay::None)
+          showOverSphere (SphereOverlay::None);
+        if (channel != _clipSettingsChannel)
           {
-            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
-            _engine.playPattern (pattern, on);
-          }
-        else if (status == Pattern::Status::Playing)
-          {
-            // On the next downbeat, like a start, and with Shift on the spot.
-            // From 2026-09-13 it finished the lap instead, so the figure was
-            // never cut off -- but a lap is the playback length, up to sixteen
-            // bars, and a pause that answers half a minute later reads as a
-            // key that does not work (maintainer, 2026-09-25). The key blinks
-            // while it waits; Stop is still the way out that does not wait.
-            _engine.stopPattern (pattern, on);
-          }
-        else if (status == Pattern::Status::ScheduledForPlaying)
-          {
-            // Not started yet, so there is no lap to finish: this is calling
-            // off the start that is waiting for the downbeat. Taken back
-            // rather than stopped -- a stop scheduled on top of a start is
-            // still a start, see cancelScheduledPlay().
-            _engine.cancelScheduledPlay (pattern);
-          }
-        break;
-      }
-    case PadFunction::Stop:
-      {
-        // Stop on the slot a take is going into ends the take, the same way
-        // REC does. Stopped alone, the engine finished it with nobody to mark
-        // it unsaved, and the next REC put the old clip back over it.
-        if (_recordingSlot.has_value ()
-            && *_recordingSlot == std::make_pair (channel, slot))
-          {
-            endRecording ();
+            selectClip (channel, slot);
             break;
           }
-
-        if (!pattern)
-          break;
-
-        // Now, not on a beat. Stop is the way out of a thing that is going
-        // wrong, and a way out that waits for the music is not one.
-        auto const status = pattern->getStatus ();
-        if (status == Pattern::Status::Playing
-            || status == Pattern::Status::Recording
-            || status == Pattern::Status::ScheduledForPlaying)
-          {
-            _engine.stopPattern (pattern, _now);
-          }
+        showBarPage (nextClipPage (_barPage, isButtonPressed (Button::Shift)));
         break;
       }
     case PadFunction::Action:
       {
+        // A button with nothing assigned does nothing (2026-09-27): six
+        // plain accents that look assigned would be six ways to be misled.
+        auto const fired = firedActionOf (channel, button);
+        if (!fired)
+          break;
+
         if (channel < _actionSlot.size ())
-          _actionSlot[channel] = static_cast<int> (slot);
+          _actionSlot[channel] = button;
 
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
@@ -2324,8 +2272,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // it: the engine takes the clip's settings down at the moment the
         // accent starts, and it can only do that if it already knows there is
         // something to put in their place.
-        _engine.setChannelAction (
-            channel, firedActionOf (channel, buttonForSlot (slot)));
+        _engine.setChannelAction (channel, fired);
         _engine.setChannelAccentHeld (channel, true, pattern);
 
         if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
@@ -2335,7 +2282,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
           {
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.setPreviewMode (channel, true);
-            _previewHeldPad[channel] = static_cast<int> (slot);
+            _previewHeldPad[channel] = button;
             _engine.playPattern (pattern, _now);
             setPreviewWithDisplayData (pattern);
             break;
@@ -2352,61 +2299,81 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         _engine.playPattern (pattern, _now);
 
         // In Hold the clip belongs to the finger for as long as it is down.
-        // Remembered here rather than worked out on release: the mode can be
-        // changed mid-press, and a gesture that ends under a different rule
-        // than it began under is one that sometimes leaves a clip running
-        // with nothing holding it.
-        // From the button: how it is played is the button's (2026-09-27).
-        if (_channelActions[channel][static_cast<size_t> (buttonForSlot (slot))]
-                .feel.actMode
-            == ActMode::Hold)
-          _actHeldSlot[channel] = static_cast<int> (slot);
-        break;
-      }
-    case PadFunction::Settings:
-      {
-        // Selecting alone was right on the panel, where the clip settings are
-        // always on screen, and did nothing visible from the pads page, which
-        // covers them. So it goes to the clip it names.
-        selectClip (channel, slot);
-        showBarPage (BarPage::Clip);
+        // Remembered here rather than worked out on release, and read from
+        // the button -- how it is played is the button's (2026-09-27).
+        if (fired->actMode == ActMode::Hold)
+          _actHeldSlot[channel] = button;
         break;
       }
     }
 }
 
 void
-A3MotionUIComponent::handleScenePress (index_t slot, std::size_t row)
+A3MotionUIComponent::stopChannel (index_t channel)
 {
-  if (slot >= numPadSlots || row >= numSceneRows)
+  index_t const slot = 0;
+
+  // Stop on the channel a take is going into ends the take, the same way REC
+  // does. Stopped alone, the engine finished it with nobody to mark it
+  // unsaved, and the next REC put the old clip back over it.
+  if (_recordingSlot.has_value ()
+      && *_recordingSlot == std::make_pair (channel, slot))
+    {
+      endRecording ();
+      return;
+    }
+
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
     return;
 
-  auto const function = sceneRowFunction[row];
-  auto const pad = padIndexFor (function, slot);
+  // Now, not on a beat. Stop is the way out of a thing that is going wrong,
+  // and a way out that waits for the music is not one.
+  auto const status = pattern->getStatus ();
+  if (status == Pattern::Status::Playing
+      || status == Pattern::Status::Recording
+      || status == Pattern::Status::ScheduledForPlaying)
+    _engine.stopPattern (pattern, _now);
+}
 
+void
+A3MotionUIComponent::handleScenePress (index_t, std::size_t pad)
+{
+  if (pad >= numSceneRows)
+    return;
+
+  auto const function = padFunctionByPadIndex[pad];
   for (index_t channel = 0; channel < _patterns.size (); ++channel)
     {
-      auto const &pattern = _patterns[channel][slot];
+      // The scene block's Page cell stops every channel: the panel has no
+      // Stop pads since 2026-09-27, and Page across four channels would
+      // only step the shown one's pages.
+      if (function == PadFunction::Page)
+        {
+          stopChannel (channel);
+          continue;
+        }
+
+      auto const &pattern = _patterns[channel][0];
       if (!pattern)
         continue;
-      // Play starts only what stands still; see sceneStartsClip(). Action
-      // fires on every clip of the row, running or not, as its pad does.
+      // Play starts only what stands still; see sceneStartsClip(). An action
+      // fires on every channel that has it, running or not, as its pad does.
       if (function == PadFunction::PlayPause
           && !sceneStartsClip (pattern->getStatus ()))
         continue;
-      handlePadPress (channel, pad);
+      handlePadPress (channel, static_cast<index_t> (pad));
     }
 }
 
 void
-A3MotionUIComponent::handleSceneRelease (index_t slot, std::size_t row)
+A3MotionUIComponent::handleSceneRelease (index_t, std::size_t pad)
 {
-  if (slot >= numPadSlots || row >= numSceneRows)
+  if (pad >= numSceneRows)
     return;
 
-  auto const pad = padIndexFor (sceneRowFunction[row], slot);
   for (index_t channel = 0; channel < _patterns.size (); ++channel)
-    handlePadRelease (channel, pad);
+    handlePadRelease (channel, static_cast<index_t> (pad));
 }
 
 void
@@ -2800,7 +2767,8 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
       auto const ch = _clipSettingsChannel;
       auto const sl = _clipSettingsSlot;
       auto const &action
-          = _channelActions[ch][static_cast<size_t> (buttonForSlot (sl))].file;
+          = _channelActions[ch][static_cast<size_t> (_chosenActionButton[ch])]
+                .file;
       _browser->setSelectedEntry (
           action.existsAsFile ()
               ? names.indexOf (action.getFileNameWithoutExtension ())
@@ -3155,7 +3123,7 @@ A3MotionUIComponent::ActionButton *
 A3MotionUIComponent::shownActionButton ()
 {
   auto const channel = _clipSettingsChannel;
-  auto const button = buttonForSlot (_clipSettingsSlot);
+  auto const button = _chosenActionButton[channel];
   if (channel >= _channelActions.size () || button >= numActionButtons)
     return nullptr;
   return &_channelActions[channel][static_cast<size_t> (button)];
@@ -3713,7 +3681,8 @@ public:
     auto const sl = _owner._clipSettingsSlot;
     return ch < _owner._patterns.size () && sl < _owner._patterns[ch].size ()
            && _owner._patterns[ch][sl] != nullptr
-           && _owner._channelActions[ch][static_cast<size_t> (buttonForSlot (sl))]
+           && _owner._channelActions[ch][static_cast<size_t> (
+                  _owner._chosenActionButton[ch])]
                   .file.existsAsFile ();
   }
 
@@ -3726,7 +3695,8 @@ public:
     if (!file.existsAsFile ())
       return;
     _owner.setButtonAction (_owner._clipSettingsChannel,
-                            buttonForSlot (_owner._clipSettingsSlot), file);
+                            _owner._chosenActionButton[_owner._clipSettingsChannel],
+                            file);
     _owner.updateControlReadout (
         "-- ACT " + file.getFileNameWithoutExtension ().toUpperCase ());
     _owner.refreshBrowser ();
@@ -4899,7 +4869,8 @@ A3MotionUIComponent::actionReadoutFor (int control, Pattern const &pattern)
 void
 A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
 {
-  auto const slot = slotForPadIndex[pad];
+  index_t const slot = 0;
+  auto const button = actionButtonForPad[pad];
 
   // Action released -> exit the Shift+Action preview gesture. OSC fires from
   // the current position, the pattern keeps playing.
@@ -4919,7 +4890,7 @@ A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
   // And in Hold the clip falls with it, now rather than on a beat. Hold is a
   // stab: the whole point is that it lasts exactly as long as the finger, so
   // quantising the end would be quantising away the gesture.
-  if (_actHeldSlot[channel] == static_cast<int> (slot))
+  if (_actHeldSlot[channel] == button)
     {
       _actHeldSlot[channel] = -1;
       if (auto const &held = _patterns[channel][slot])
@@ -4931,7 +4902,7 @@ A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
         }
     }
 
-  if (_previewHeldPad[channel] != static_cast<int> (slot))
+  if (_previewHeldPad[channel] != button)
     return;
 
   _engine.setPreviewMode (channel, false);
@@ -5498,13 +5469,13 @@ A3MotionUIComponent::padLEDCallback (int step)
       auto const accentActive = _engine.isChannelAccentActive (channel);
       for (auto pad = 0u; pad < _ioAdapter->getNumPadsPerChannel (); ++pad)
         {
-          // All 4 buttons of a clip slot share that slot's Pattern, so
-          // their LEDs stay in sync.
-          auto const slot = slotForPadIndex[pad];
-          auto const status = _patterns[channel][slot]
-                                   ? _patterns[channel][slot]->getStatus ()
-                                   : Pattern::Status::Empty;
-          auto const statusLast
+          index_t const slot = 0;
+          auto const function = padFunctionByPadIndex[pad];
+          auto const button = actionButtonForPad[pad];
+          auto const clipStatus = _patterns[channel][slot]
+                                      ? _patterns[channel][slot]->getStatus ()
+                                      : Pattern::Status::Empty;
+          auto const clipStatusLast
               = _patterns[channel][slot]
                     ? _patterns[channel][slot]->getLastStatus ()
                     : Pattern::Status::Empty;
@@ -5513,16 +5484,27 @@ A3MotionUIComponent::padLEDCallback (int step)
           // green while actually playing, channel colour otherwise (idle/
           // empty/recording), so play vs. paused/stopped is unambiguous.
           bool const clipPlaying
-              = status == Pattern::Status::Playing
-                || status == Pattern::Status::ScheduledForPlaying;
-          // The Action pad of the slot that fired the channel's accent, for as
+              = clipStatus == Pattern::Status::Playing
+                || clipStatus == Pattern::Status::ScheduledForPlaying;
+          // The Action pad whose button fired the channel's accent, for as
           // long as that accent runs -- the duration of the action, on the pad.
           bool const actionRunning
-              = accentActive && channel < _actionSlot.size ()
-                && _actionSlot[channel] == static_cast<int> (slot);
-          auto const base = padBaseColour (padFunctionByPadIndex[pad],
-                                           clipPlaying, actionRunning,
-                                           channelColour);
+              = accentActive && button >= 0 && channel < _actionSlot.size ()
+                && _actionSlot[channel] == button;
+          bool const assigned
+              = button < 0
+                || _channelActions[channel][static_cast<size_t> (button)]
+                       .file.existsAsFile ();
+          bool const lit = function == PadFunction::Page
+                               ? channel == _clipSettingsChannel
+                               : actionRunning;
+          auto const status
+              = padShadeStatus (function, clipStatus, assigned, lit);
+          auto const statusLast = function == PadFunction::PlayPause
+                                      ? clipStatusLast
+                                      : status;
+          auto const base = padBaseColour (function, clipPlaying,
+                                           actionRunning, channelColour);
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);
@@ -8176,11 +8158,11 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setRecMode (_recMode);
   _clipSettings->setElevationSubIndex (_clipSettingsSubIndex);
 
-  // The four faces: each channel's own colour and its own slot, and which of
-  // them the bar is describing.
+  // The four faces: each channel's own colour and its clip's name, and which
+  // of them the bar is describing.
   {
     std::array<juce::Colour, numChannelColumns> colours;
-    std::array<int, numChannelColumns> slots;
+    std::array<juce::String, numChannelColumns> clipNames;
     for (size_t ch = 0; ch < numChannelColumns; ++ch)
       {
         // From the theme where a channel has no state of its own: a literal
@@ -8189,10 +8171,12 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         colours[ch] = ch < _channelUIStates.size ()
                           ? _channelUIStates[ch]->colour
                           : toColour (theme ().textMuted);
-        slots[ch] = static_cast<int> (_channelSlot[ch]);
+        clipNames[ch] = ch < _slotClipFile.size () && !_slotClipFile[ch].empty ()
+                            ? _slotClipFile[ch][0].getFileNameWithoutExtension ()
+                            : juce::String ();
       }
 
-    _clipSettings->setChannelFaces (colours, slots,
+    _clipSettings->setChannelFaces (colours, clipNames,
                                     static_cast<int> (_clipSettingsChannel));
   }
   // The coverage the hand set, and where the swell is holding it now.

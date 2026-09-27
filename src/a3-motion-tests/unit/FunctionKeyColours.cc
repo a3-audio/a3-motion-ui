@@ -161,29 +161,27 @@ TEST (TransportLook, PlayIsGreenWhetherOrNotItIsRunning)
 
 TEST (TransportLook, APadReachesTheSameRuleAsTheHeaderKey)
 {
-  for (auto const function : { PadFunction::PlayPause, PadFunction::Stop,
-                               PadFunction::Action })
+  for (auto const function : { PadFunction::PlayPause, PadFunction::Action })
     EXPECT_EQ (padFunctionColour (function),
                transportColour (transportKeyForPad (function)))
         << "pad function " << static_cast<int> (function);
 }
 
-TEST (TransportLook, EveryPadFunctionButSettingsHasAShape)
+TEST (TransportLook, EveryPadFunctionButPageHasAShape)
 {
-  for (auto const function : { PadFunction::PlayPause, PadFunction::Stop,
-                               PadFunction::Action })
+  for (auto const function : { PadFunction::PlayPause, PadFunction::Action })
     EXPECT_TRUE (hasTransportGlyph (function));
 
-  // It opens a menu. There is no fifty-year-old shape for that, and one
+  // It turns the clip's pages. There is no fifty-year-old shape for that, and one
   // invented here would have to be learned -- which is what a word is.
-  EXPECT_FALSE (hasTransportGlyph (PadFunction::Settings));
+  EXPECT_FALSE (hasTransportGlyph (PadFunction::Page));
 }
 
-TEST (TransportLook, SettingsHasNoColourOfItsOwn)
+TEST (TransportLook, PageHasNoColourOfItsOwn)
 {
-  // It opens a menu. A colour that means nothing makes the ones that mean
+  // It turns pages. A colour that means nothing makes the ones that mean
   // something harder to read.
-  EXPECT_TRUE (padFunctionColour (PadFunction::Settings).isTransparent ());
+  EXPECT_TRUE (padFunctionColour (PadFunction::Page).isTransparent ());
 }
 
 TEST (TransportLook, TheRecordFunctionKeyIsTheSameRedAsTheTransportKey)

@@ -220,6 +220,10 @@ private:
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
   void setButtonAction (index_t channel, int button, juce::File const &file);
+  /** Stop now, or end the take going into this channel -- what the panel's
+   *  Stop pad did; the screen's STOP and Shift+Play reach it since the pad
+   *  became PAGE (2026-09-27). */
+  void stopChannel (index_t channel);
 
   /** The chosen action's file, shown in the panel beside the list. */
   void showChosenFileText ();
@@ -479,7 +483,7 @@ private:
   std::unique_ptr<PatternLibrary> _patternLibrary;
 
   // Pad row display (trajectory option bar) — one row per clip slot.
-  static auto constexpr numClipSlots = 2u;
+  static auto constexpr numClipSlots = numPadSlots;
   void createPadRowDisplays ();
   std::vector<std::unique_ptr<PadRowDisplay> > _padRowDisplays;
 
@@ -815,13 +819,9 @@ private:
     ActionFeel scriptFeel;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
-  /** Which button a slot's ACT pad fires until the panel switches to six
-   *  action pads: slot 1 fires A1, slot 2 fires A2. */
-  static constexpr int
-  buttonForSlot (index_t slot)
-  {
-    return static_cast<int> (slot);
-  }
+  /** Which of a channel's six buttons the ACTION page shows and edits, and
+   *  the screen's ACT fires (2026-09-27). A1 until one is chosen. */
+  std::array<int, numChannelsInitial> _chosenActionButton{};
   /** The button the ACTION page shows and edits. */
   ActionButton *shownActionButton ();
   /** What a button fires: its script's settings with its own feel on, or

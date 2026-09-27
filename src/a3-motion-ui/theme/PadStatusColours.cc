@@ -40,6 +40,17 @@ blinkIsLit (int step)
 }
 }
 
+Pattern::Status
+padShadeStatus (PadFunction function, Pattern::Status clip, bool assigned,
+                bool lit)
+{
+  if (function == PadFunction::PlayPause)
+    return clip;
+  if (lit)
+    return Pattern::Status::Playing;
+  return assigned ? Pattern::Status::Idle : Pattern::Status::Empty;
+}
+
 juce::Colour
 padStatusColour (juce::Colour base, Pattern::Status status,
                  Pattern::Status statusLast, int step, bool oneShotRecording)

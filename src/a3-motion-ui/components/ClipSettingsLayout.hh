@@ -196,6 +196,26 @@ constexpr std::array<BarPage, numBarPages> barPageOrder{
   BarPage::Record, BarPage::Motion,
 };
 
+/** The clip's pages in the header's order, which the PAGE pad steps through
+ *  (2026-09-27). */
+constexpr std::array<BarPage, numBarPages> clipViewOrder{
+  BarPage::Clip,  BarPage::Motion, BarPage::Action,
+  BarPage::Mixer, BarPage::Record,
+};
+
+/** The page the PAGE pad goes to from `current`: the next in the header's
+ *  order, or the one before with Shift; round at either end. */
+constexpr BarPage
+nextClipPage (BarPage current, bool backwards)
+{
+  auto at = 0;
+  for (auto i = 0; i < numBarPages; ++i)
+    if (clipViewOrder[static_cast<size_t> (i)] == current)
+      at = i;
+  auto const step = backwards ? numBarPages - 1 : 1;
+  return clipViewOrder[static_cast<size_t> ((at + step) % numBarPages)];
+}
+
 /** Pages that cover the clip area with something of their own.
  *
  *  The bar's sections must not be drawn under them — a page that does not
