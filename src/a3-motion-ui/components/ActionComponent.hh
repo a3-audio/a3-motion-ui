@@ -23,7 +23,6 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ActionLayout.hh>
-#include <a3-motion-ui/components/ScriptPanel.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -91,16 +90,11 @@ public:
   /** Which action clip this slot fires; empty for none. */
   void setActionName (juce::String const &name);
 
-  /** The script that action carries, in the panel where the editor stood.
-   *  Its own component since 2026-09-27 (ScriptPanel); the page above wires
-   *  it. */
-  ScriptPanel &scriptPanel () { return *_script; }
 
   /** What the action field's list offers. The empty string is "no action",
    *  the way entry 0 of the library is "no clip". */
   void setActionChoices (juce::StringArray const &names);
 
-  void stopEditingScript () { _script->stopEditing (); }
 
 
   /** A knob was turned: where it stands now. The nine envelope knobs are
@@ -117,6 +111,8 @@ public:
    *  is held, the way the ACT pad does. Held rather than tapped, because that
    *  is what the pad it stands for does. */
   std::function<void (bool held)> onFireHeld;
+  /** EDIT: open this action's script in FILES, beside the list there. */
+  std::function<void ()> onEditPressed;
 
 
 private:
@@ -124,9 +120,7 @@ private:
   void paintActionList (juce::Graphics &g);
 
 
-  void openActionList ();
-  void closeActionList ();
-  void updateScriptLayers ();
+  void paintEditKey (juce::Graphics &g);
   void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;
@@ -146,10 +140,7 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
-  /** The action's script, where the editor stood (ScriptPanel). */
-  std::unique_ptr<ScriptPanel> _script;
   juce::StringArray _choices;
-  bool _listOpen = false;
   /** The list's window, kept apart from which script is chosen -- see
    *  ListScroll. Twenty scripts do not fit in a field a few fingertips tall,
    *  and a list drawn from row zero with no window is one whose last entries
@@ -158,10 +149,10 @@ private:
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
   /** One per envelope control; the mode beside the name stays a key. */
   std::array<std::unique_ptr<PotKnob>, numControls> _knob;
-  /** The name field, which opens the list, and the script, which takes the
-   *  caret. Neither is a knob, so neither is in `controls`. */
-  std::unique_ptr<TouchControl> _actionTouch;
-  std::unique_ptr<TouchControl> _scriptTouch;
+  /** The list to assign from, and EDIT. Neither is a knob, so neither is in
+   *  `controls`. */
+  std::unique_ptr<TouchControl> _listTouch;
+  std::unique_ptr<TouchControl> _editTouch;
   std::unique_ptr<TouchControl> _fireTouch;
   bool _firing = false;
 };

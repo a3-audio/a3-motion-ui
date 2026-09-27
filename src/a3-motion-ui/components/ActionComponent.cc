@@ -95,70 +95,28 @@ ActionComponent::ActionComponent ()
       _touch[static_cast<size_t> (i)] = std::move (touch);
     }
 
-  // The keys have to land here rather than in the void: Onboard types into
-  // whatever has the focus, and a page that never asked for it gets nothing.
-  setWantsKeyboardFocus (true);
-
-  _actionTouch = std::make_unique<TouchControl> ();
-  _actionTouch->onTap = [this] (int, int) {
-    // Reaching for the list is leaving the editor, so the keyboard goes with
-    // it -- otherwise it stays up over the list it is covering.
-    stopEditingScript ();
-
-    // Tapping the name is how the list opens and how it closes again -- a
-    // control that only ever goes one way leaves you tapping elsewhere to
-    // undo what it did.
-    if (_listOpen)
-      closeActionList ();
-    else
-      openActionList ();
-
-    repaint ();
+  // The list to assign from, open all the time under the name since the
+  // editor it took turns with went to FILES (2026-09-27). A tap assigns the
+  // row under the finger; a drag scrolls it -- the page goes the finger's way.
+  _listTouch = std::make_unique<TouchControl> ();
+  _listTouch->onTapAt = [this] (int, int, juce::Point<int> at) {
+    chooseFromActionList (at);
   };
-  addAndMakeVisible (*_actionTouch);
-
-  // The action's script, where the editor stood: its own component since
-  // 2026-09-27 (ScriptPanel), so FILES can host the same one.
-  _script = std::make_unique<ScriptPanel> ();
-  addAndMakeVisible (*_script);
-
-  _scriptTouch = std::make_unique<TouchControl> ();
-  _scriptTouch->onTapAt = [this] (int, int, juce::Point<int> at) {
-    if (_listOpen)
-      {
-        chooseFromActionList (at);
-        return;
-      }
-
-    // With no action on the slot there is nothing to type into and nowhere to
-    // put it, so the tap opens the list instead -- which is what you would be
-    // reaching for next anyway.
-    if (_actionName.isEmpty ())
-      {
-        openActionList ();
-        repaint ();
-        return;
-      }
-
-    // The editor stands over this area and answers a touch itself; what is
-    // left here is the list, which lies over the editor when it is open.
-    repaint ();
-  };
-  _scriptTouch->onDragIncrement = [this] (int, int, int increment) {
-    // Only ever the open list: this area is shown while the list lies over the
-    // editor and hidden otherwise, and the editor scrolls itself. The list is
-    // a list like any other and follows the same rule -- the page goes the
-    // finger's way, which it used to return out of, leaving every script past
-    // the sixth unreachable.
+  _listTouch->onDragIncrement = [this] (int, int, int increment) {
     _listTop = a3::scrollBy (_listTop, increment,
                              actionListVisibleRows (_layout),
                              _choices.size ());
     repaint ();
   };
-  // Added, not shown: the editor stands in this area and answers touches
-  // itself. This one comes to the front only while the action list lies over
-  // it -- in front of the editor, because it is added after it.
-  addChildComponent (*_scriptTouch);
+  addAndMakeVisible (*_listTouch);
+
+  // Opens this action's script in FILES, beside the list there.
+  _editTouch = std::make_unique<TouchControl> ();
+  _editTouch->onTap = [this] (int, int) {
+    if (onEditPressed)
+      onEditPressed ();
+  };
+  addAndMakeVisible (*_editTouch);
 
   // Held, not tapped: it stands for the ACT pad, and that pad is held.
   _fireTouch = std::make_unique<TouchControl> ();
@@ -204,16 +162,12 @@ ActionComponent::resized ()
 
   _touch[ActMode]->setBounds (_layout.actModeField);
 
-  if (_actionTouch)
-    _actionTouch->setBounds (_layout.actionField);
-  if (_scriptTouch)
-    _scriptTouch->setBounds (_layout.scriptField);
+  if (_listTouch)
+    _listTouch->setBounds (_layout.actionListArea);
+  if (_editTouch)
+    _editTouch->setBounds (_layout.editButton);
   if (_fireTouch)
     _fireTouch->setBounds (_layout.fireButton);
-  if (_script)
-    _script->setBounds (_layout.scriptField);
-
-  updateScriptLayers ();
 }
 
 void
@@ -231,7 +185,6 @@ ActionComponent::setTarget (int channel, int slot, juce::Colour channelColour)
   _slot = slot;
   _channelColour = channelColour;
   putColourOnKnobs ();
-  _script->setChannelColour (channelColour);
   repaint ();
 }
 
@@ -299,57 +252,11 @@ ActionComponent::setActionChoices (juce::StringArray const &names)
 }
 
 void
-ActionComponent::openActionList ()
-{
-  // Reaching for the list is leaving the editor wherever the tap came from,
-  // and it is what takes the keyboard away with it.
-  stopEditingScript ();
-
-  _listOpen = true;
-  updateScriptLayers ();
-
-  // Opened onto whatever is already chosen, moved as little as possible: a
-  // list that always opens at the top makes you scroll back to where you were
-  // every single time.
-  _listTop = a3::scrollToShow (_listTop, _choices.indexOf (_actionName),
-                               actionListVisibleRows (_layout),
-                               _choices.size ());
-}
-
-void
-ActionComponent::closeActionList ()
-{
-  _listOpen = false;
-  updateScriptLayers ();
-}
-
-void
-ActionComponent::updateScriptLayers ()
-{
-  // The list and the editor stand in one area, and one of the two is on
-  // screen at a time. Drawing the list opaque is not enough: the editor is a
-  // child, a child is painted after its parent by construction, and its own
-  // ground is transparent so the field behind it can show -- so the script
-  // was drawn over the list whatever the list did, and the two were read at
-  // once. No toFront() helps; the editor has to go.
-  if (_script)
-    _script->setVisible (!_listOpen);
-
-  // The touch area goes the other way: it lies over the editor only while the
-  // list does, or it would answer every touch meant for the text.
-  if (_scriptTouch)
-    _scriptTouch->setVisible (_listOpen);
-}
-
-void
 ActionComponent::chooseFromActionList (juce::Point<int> point)
 {
-  closeActionList ();
-
+  // The touch covers the list exactly, so its own y is the list's.
   auto const rowH = juce::jmax (1, _layout.actionListRowHeight);
-  auto const inY = point.y
-                   - (_layout.actionListArea.getY ()
-                      - _layout.scriptField.getY ());
+  auto const inY = point.y;
 
   auto const row = _listTop + inY / rowH;
   if (juce::isPositiveAndBelow (row, _choices.size ()) && onActionChosen)
@@ -366,6 +273,11 @@ ActionComponent::setActionName (juce::String const &name)
     return;
 
   _actionName = name;
+  // The chosen one in view, moved as little as possible: a list that jumps
+  // to the top on every change makes you scroll back to where you were.
+  _listTop = a3::scrollToShow (_listTop, _choices.indexOf (_actionName),
+                               actionListVisibleRows (_layout),
+                               _choices.size ());
   repaint ();
 }
 
@@ -425,11 +337,32 @@ ActionComponent::paintActionField (juce::Graphics &g)
 }
 
 void
-ActionComponent::paintActionList (juce::Graphics &g)
+ActionComponent::paintEditKey (juce::Graphics &g)
 {
-  if (!_listOpen)
+  auto const at = _layout.editButton;
+  if (at.isEmpty ())
     return;
 
+  // A key like the script's own were: it goes somewhere rather than setting
+  // anything, so it wears no channel fill.
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
+
+  g.setColour (readableInk (_channelColour, toColour (theme ().background),
+                            toColour (theme ().textPrimary)));
+  // What "EDIT" may cost.
+  constexpr float editKeyCap = 18.f;
+  g.setFont (juce::Font (juce::FontOptions (
+      fittedFontHeight (at.getHeight () * 0.4f, editKeyCap))));
+  g.drawText ("EDIT", at, juce::Justification::centred);
+}
+
+void
+ActionComponent::paintActionList (juce::Graphics &g)
+{
   auto const area = _layout.actionListArea;
   auto const rowH = _layout.actionListRowHeight;
 
@@ -487,6 +420,7 @@ ActionComponent::paint (juce::Graphics &g)
   g.fillRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard);
 
   paintActionField (g);
+  paintEditKey (g);
 
   // Three envelopes, one row each, all the same shape: atk over atk over atk.
   // The accent is read first because it is what ACT has always done, then the

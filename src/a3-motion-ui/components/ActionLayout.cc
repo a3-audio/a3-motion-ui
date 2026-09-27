@@ -132,22 +132,23 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
                                          / 2);
   }
 
-  // What is left is the action's: its name and mode on one line, the script
-  // it carries under them.
+  // What is left is the action's: its name, its mode and EDIT on one line,
+  // the list to assign from under them. The editor that took turns with the
+  // list here went to FILES on 2026-09-27.
   auto const nameH = juce::jmax (fingertipSize,
                                  static_cast<int> (headerSize * 2.f));
   auto nameRow = content.removeFromTop (juce::jmin (nameH, content.getHeight ()));
-  out.actModeField = nameRow.removeFromRight (
-      juce::jmin (labelW + colW, nameRow.getWidth () / 3));
+  auto const sideW = juce::jmin (labelW + colW, nameRow.getWidth () / 4);
+  out.editButton = nameRow.removeFromRight (sideW);
+  nameRow.removeFromRight (gap);
+  out.actModeField = nameRow.removeFromRight (sideW);
   nameRow.removeFromRight (gap);
   out.actionField = nameRow;
 
   content.removeFromTop (gap);
-  out.scriptField = content;
-
   out.actionListRowHeight
-      = juce::jmax (fingertipSize, out.scriptField.getHeight () / 7);
-  out.actionListArea = out.scriptField;
+      = juce::jmax (fingertipSize, content.getHeight () / 7);
+  out.actionListArea = content;
 
   auto const columnGap = juce::jmax (2, colW / 20);
   out.metrics = ControlMetrics{

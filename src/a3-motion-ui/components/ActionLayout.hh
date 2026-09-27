@@ -49,16 +49,13 @@ struct ActionLayout
    *  tail of a row is not. */
   juce::Rectangle<int> actModeField;
 
-  /** The script the action carries, under its name and taking whatever the
-   *  card leaves. The ScriptPanel stands here and lays out its own text and
-   *  keys (2026-09-27). */
-  juce::Rectangle<int> scriptField;
+  /** Opens the action's script in FILES, beside the list there -- the
+   *  editor that stood on this page moved on 2026-09-27. */
+  juce::Rectangle<int> editButton;
 
 
-  /** Where the action field's list opens: over the script, which is what it
-   *  replaces for a moment. It cannot open outside the bar -- the sphere's GL
-   *  context composites above anything drawn over it -- and it must not open
-   *  over the knobs, which are what you are about to set. */
+  /** The list to assign an action from, open all the time under the name
+   *  (2026-09-27). Never over the knobs, which are what you set next. */
   juce::Rectangle<int> actionListArea;
   /** A row of that list. A fingertip, whatever the page's size: picking a
    *  script mid-set is a tap, and a row you have to aim at is one you miss. */

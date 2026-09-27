@@ -765,54 +765,18 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // The keyboard is the system's own, and it types into whatever has the
   // focus -- so opening the editor is what shows it and losing the editor is
   // what takes it away.
-  auto &actionScript = _action->scriptPanel ();
-  actionScript.onEditingChanged = [this] (bool editing) {
-    showKeyboard (editing);
-
-    // Leaving the editor no longer applies anything -- Save does that, and
-    // Cancel puts the text back. Walking away is neither, so what was typed
-    // stays in the editor with the edge still marked.
-  };
-
-  // Written only on Save, and running the script is the same gesture: half a
-  // line is not a script, and a file written from one is worse than no file.
-  // The fat key under the knobs, which is the ACT pad in another place: same
-  // handler, so the two cannot come to mean different things.
-  _action->onFireHeld = [this] (bool held) {
-    auto const pad = padIndexFor (PadFunction::Action, _clipSettingsSlot);
-    if (held)
-      handlePadPress (_clipSettingsChannel, pad);
-    else
-      handlePadRelease (_clipSettingsChannel, pad);
-  };
-
-  actionScript.onSave = [this] {
-    writeSlotActionScript ();
-    setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
-                   _slotAction[_clipSettingsChannel][_clipSettingsSlot].file);
-    _action->scriptPanel ().markSaved ();
-  };
-
-  actionScript.onSaveAs = [this] {
-    if (saveSlotActionScriptAs ().isNotEmpty ())
-      _action->scriptPanel ().markSaved ();
-  };
-
-  // Cancel puts the file's own text back, which is what the slot still holds.
-  actionScript.onCancel = [this] {
-    auto &panel = _action->scriptPanel ();
-    panel.setScript (
-        _slotAction[_clipSettingsChannel][_clipSettingsSlot].source);
-    panel.markSaved ();
-  };
-
-  // The clip as it stands, as a script to keep: on no disk yet, so Save or
-  // Save as decides where it goes.
-  actionScript.onFromClip = [this] {
-    auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
-    if (pattern)
-      _action->scriptPanel ().offerScript (
-          actionScriptFor (clipSettingsFrom (*pattern)));
+  // EDIT: the shown clip's action, opened beside the list in FILES. A Save
+  // as from there points this clip at the copy (slotToRepoint), as the
+  // editor on this page did before it moved (2026-09-27).
+  _action->onEditPressed = [this] {
+    _editOrigin = SlotRef{ _clipSettingsChannel, _clipSettingsSlot };
+    showOverSphere (SphereOverlay::Files);
+    _browserList = BrowserList::Actions;
+    _browser->setShowingList (BrowserList::Actions);
+    _deleteArmed = false;
+    _browser->cancelRename ();
+    refreshBrowser (BrowserSelection::PointAtTheSlot);
+    showChosenActionScript ();
   };
 
   // The browser: the library the shown slot is filled from. What a row means
@@ -2437,10 +2401,6 @@ A3MotionUIComponent::showBarPage (BarPage page)
       _action->setVisible (page == BarPage::Action);
       if (page == BarPage::Action)
         updateActionPage ();
-      else
-        // Leaving the page ends the edit, which is also what puts the
-        // keyboard away and makes the script live again.
-        _action->stopEditingScript ();
     }
   if (_mixerStrip)
     {
@@ -3103,75 +3063,6 @@ A3MotionUIComponent::syncClipUIParamsFromPattern (index_t channel,
   auto &params = _clipUIParams[channel][slot];
   params.direction = static_cast<int> (pattern->getPlayDirection ());
   params.endAction = static_cast<int> (pattern->getEndAction ());
-}
-
-void
-A3MotionUIComponent::writeSlotActionScript ()
-{
-  if (!_action)
-    return;
-
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto &action = _slotAction[channel][slot];
-
-  if (!action.file.existsAsFile ())
-    return;
-
-  action.source = _action->scriptPanel ().script ();
-
-  // Written on Save only: half a line is not a script (see ScriptPanel's
-  // keys). The edge marks what has not been kept yet.
-  if (!writeTextFile (action.file, action.source))
-    {
-      std::cerr << "could not write action " << action.file.getFullPathName ()
-                << std::endl;
-      return;
-    }
-
-  // Not re-run here: a script is applied when it is chosen, and re-applying
-  // it on every character would have half-typed lines setting values.
-}
-
-juce::String
-A3MotionUIComponent::saveSlotActionScriptAs ()
-{
-  if (!_action)
-    return {};
-
-  auto const channel = _clipSettingsChannel;
-  auto const slot = _clipSettingsSlot;
-  auto const from = _slotAction[channel][slot].file;
-
-  actionsDir ().createDirectory ();
-
-  // Named after the one it came from -- "Bloom 2" beside "Bloom" -- because
-  // this is how one of the instrument's own gets corrected: Save is dark on
-  // it, so what is kept is a copy, and a copy arriving as "Action 4" would
-  // have lost the only thing saying where it came from. Counted against both
-  // halves, or a new file would take a shipped name.
-  auto const base = from.existsAsFile ()
-                        ? from.getFileNameWithoutExtension ()
-                        : juce::String{ "Action" };
-  auto const file = freeFileIn (actionsDir (), base, ".scd");
-  auto const name = file.getFileNameWithoutExtension ();
-
-  if (!writeTextFile (file, _action->scriptPanel ().script ()))
-    {
-      std::cerr << "could not write action " << file.getFullPathName ()
-                << std::endl;
-      updateControlReadout ("-- SAVE FAILED");
-      return {};
-    }
-
-  // The slot fires the copy from here on. The alternative -- write the file
-  // and leave the slot on the original -- is a Save you have to go and find
-  // afterwards, and on a shipped script it would leave the page still
-  // refusing to save.
-  setSlotAction (channel, slot, file);
-  updateControlReadout ("-- SAVED " + name.toUpperCase ());
-  refreshBrowser ();
-  return name;
 }
 
 void
@@ -4484,24 +4375,9 @@ A3MotionUIComponent::updateActionPage ()
     choices.add (entry.name);
   _action->setActionChoices (choices);
 
-  auto &script = _action->scriptPanel ();
-  script.setScript (slotAction.source);
-  script.setErrors (slotAction.errors);
-  script.setHasFile (slotAction.file.existsAsFile ());
-  script.setSlotHolds (pattern != nullptr);
-
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
-
-  // Save is dark on one of the instrument's own unless developer mode says
-  // otherwise -- the same rule the clips follow, asked in the same words.
-  // Asked of the file rather than remembered, because a slot's action changes
-  // from half a dozen places and one of them would forget.
-  script.setProtected (
-      !shippedFileMayBeOverwritten (action.existsAsFile (),
-                                    isSystemFileIn (actionsDir (), action),
-                                    shippedClips ()));
 }
 
 void
