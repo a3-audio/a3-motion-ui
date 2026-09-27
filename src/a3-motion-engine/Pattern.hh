@@ -200,6 +200,14 @@ public:
   float getPlaySign () const;
   void setPlaySign (float sign);
 
+  /** Time through the clip's length since it started: the tick it is on and
+   *  how far that is, 0 to 1 (nextLapTick, lapProgress). What the channel
+   *  row's bar shows -- the play position is where in the figure, which under
+   *  Random is not time. */
+  index_t getLapTick () const;
+  float getLapProgress () const;
+  void setLap (index_t tick, float progress);
+
   /** Somebody pressed play on this while it was running: finish the lap and
    *  stop, whatever the end action says.
    *
@@ -466,6 +474,8 @@ private:
   std::atomic<ActMode> _actMode{ ActMode::OneShot };
   std::atomic<int> _speedLog2{ 0 };
   std::atomic<float> _playSign{ 1.f };
+  std::atomic<index_t> _lapTick{ 0 };
+  std::atomic<float> _lapProgress{ 0.f };
   std::atomic<bool> _stopAtEnd{ false };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<float> _squeezeX{ 0.f };

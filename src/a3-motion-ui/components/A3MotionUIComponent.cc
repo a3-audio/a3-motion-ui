@@ -24,7 +24,6 @@
 #include <a3-motion-engine/tempo/BeatTrace.hh>
 
 #include <a3-motion-ui/components/RecordingLength.hh>
-#include <a3-motion-ui/components/TickPlayheads.hh>
 
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/TempoLfo.hh>
@@ -7596,8 +7595,7 @@ A3MotionUIComponent::updateChannelProgress ()
         if (pattern != nullptr
             && pattern->getStatus () == Pattern::Status::Playing)
           {
-            positions[(size_t)channel] = leftToRightPosition (
-                pattern->getPlayPosition (), pattern->getPlaySign ());
+            positions[(size_t)channel] = pattern->getLapProgress ();
             break;
           }
       }

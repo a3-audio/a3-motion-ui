@@ -451,3 +451,28 @@ TEST (PlayheadAdvance, OnlyALoopRunningStraightTravelsTheWrap)
   EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Stop));
   EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Pause));
 }
+
+// The channel row's bar is time through the clip's length, not where the
+// playhead stands in the figure: under Random every pass starts at a random
+// point, so the position runs passes of random length (2026-09-27, the bar
+// "filled unevenly"). The lap is counted in whole ticks, one per tick, and
+// wraps at the length whatever the direction does.
+TEST (PlayheadAdvance, TheLapCountsEveryTickAndWrapsAtTheLength)
+{
+  constexpr index_t length = 512;
+  index_t tick = 0;
+  for (int i = 0; i < 3 * 512 + 100; ++i)
+    tick = nextLapTick (tick, length);
+  EXPECT_EQ (tick, 100u);
+
+  EXPECT_EQ (nextLapTick (length - 1, length), 0u);
+  EXPECT_FLOAT_EQ (lapProgress (256, length), 0.5f);
+}
+
+// A length turned shorter mid-lap still lands inside the new one.
+TEST (PlayheadAdvance, AShorterLengthPutsTheLapBackInside)
+{
+  EXPECT_LT (nextLapTick (400, 256), 256u);
+  EXPECT_EQ (nextLapTick (7, 0), 0u);
+  EXPECT_FLOAT_EQ (lapProgress (7, 0), 0.f);
+}
