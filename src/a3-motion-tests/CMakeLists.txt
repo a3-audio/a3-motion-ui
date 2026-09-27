@@ -54,7 +54,6 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternDisplay.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SphereMarks.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpaceTurn.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/Glide.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PadGlyphInk.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SceneLaunch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Theme.cc"

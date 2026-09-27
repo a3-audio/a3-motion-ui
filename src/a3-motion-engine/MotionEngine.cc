@@ -1259,9 +1259,6 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
     }
   channel._patternPlaying = channel._patternScheduledForPlaying;
   channel._patternPlaying->setStatus (Pattern::Status::Playing);
-  // A clip that starts starts on its line, not half way through a glide the
-  // last one left.
-  channel._glide = Glide{};
   // A decision made about a previous lap is not this lap's.
   channel._patternPlaying->setStopAtEnd (false);
   channel._playingStarted = _now;
@@ -1530,17 +1527,6 @@ MotionEngine::performPlayback ()
               playing.setPlayPosition (stepped.position);
               playing.setPlaySign (stepped.sign);
 
-              // Random dropped in somewhere new: the blob glides there from
-              // where it stands, a beat or as long as GAP-CONNECTOR's fade
-              // says.
-              if (stepped.jumped)
-                channel->_glide = startGlide (
-                    channel->getPosition (),
-                    glideTicks (playing.getFadeReach (),
-                                static_cast<index_t> (ticksPlaybackLength),
-                                static_cast<index_t> (
-                                    TempoClock::getTicksPerBeat ())));
-
               auto const lapLength
                   = static_cast<index_t> (ticksPlaybackLength);
               auto const lapTick
@@ -1633,8 +1619,7 @@ MotionEngine::performPlayback ()
                   auto position = turnedInSpace (
                       _heightMap.mapTo3D (position2D, params),
                       spaceTurnOf (playing));
-                  channel->setPosition (
-                      glidedPosition (channel->_glide, position));
+                  channel->setPosition (position);
                 }
             }
         }
