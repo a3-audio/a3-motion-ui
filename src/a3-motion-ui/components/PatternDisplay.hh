@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/ElevationSideView.hh>
+
 #include <utility>
 #include <vector>
 
@@ -30,6 +32,7 @@ namespace a3
 
 class Pattern;
 class PatternLibrary;
+class HeightMap;
 
 /** What the sphere draws of a clip: a line, or -- for a shape made of dots,
  *  which has none -- its dots. */
@@ -45,5 +48,20 @@ struct PatternDisplaySource
  *  its dots on the first knob turned. */
 PatternDisplaySource patternDisplayFor (Pattern const &pattern,
                                         PatternLibrary const &library);
+
+/** A clip in the elevation picture: the line it runs on, or -- for a shape
+ *  of dots -- its dots, each put through the same shaping, swept elevation and
+ *  height map the engine plays it through, and seen from the side the picture
+ *  looks from. The line sampled down to at most `maxPoints`. */
+struct ElevationFigure
+{
+  std::vector<ElevationSidePoint> line;
+  std::vector<ElevationSidePoint> dots;
+};
+
+ElevationFigure elevationFigureFor (Pattern const &pattern,
+                                    PatternLibrary const &library,
+                                    HeightMap const &heightMap,
+                                    SphereCamera camera, std::size_t maxPoints);
 
 }

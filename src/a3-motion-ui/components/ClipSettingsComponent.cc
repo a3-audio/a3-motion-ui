@@ -667,24 +667,50 @@ ClipSettingsComponent::setElevationFlatElevation (float flatElevation)
   repaint ();
 }
 
+namespace
+{
+bool
+samePoints (std::vector<ElevationSidePoint> const &a,
+            std::vector<ElevationSidePoint> const &b)
+{
+  return a.size () == b.size ()
+         && std::equal (a.begin (), a.end (), b.begin (),
+                        [] (auto const &p, auto const &q) {
+                          return std::abs (p.down - q.down) < 1e-4f
+                                 && std::abs (p.across - q.across) < 1e-4f
+                                 && p.behind == q.behind
+                                 && p.startsStroke == q.startsStroke;
+                        });
+}
+
+bool
+sameChannel (ElevationChannel const &a, ElevationChannel const &b)
+{
+  return a.colour == b.colour && a.headValid == b.headValid
+         && (!a.headValid
+             || (std::abs (a.head.down - b.head.down) < 1e-4f
+                 && std::abs (a.head.across - b.head.across) < 1e-4f))
+         && samePoints (a.figure.line, b.figure.line)
+         && samePoints (a.figure.dots, b.figure.dots);
+}
+}
+
 void
-ClipSettingsComponent::setElevationFigure (
-    std::vector<ElevationSidePoint> figure)
+ClipSettingsComponent::setElevationChannels (
+    std::array<ElevationChannel, numChannelColumns> const &channels,
+    int shownChannel)
 {
   // Compared before storing: this arrives on every timer tick while a clip
-  // plays, and a repaint of the whole bar for a figure that has not moved is
+  // plays, and a repaint of the whole bar for figures that have not moved is
   // a repaint the sphere could have had.
-  if (figure.size () == _elevationFigure.size ()
-      && std::equal (figure.begin (), figure.end (), _elevationFigure.begin (),
-                     [] (auto const &a, auto const &b) {
-                       return std::abs (a.down - b.down) < 1e-4f
-                              && std::abs (a.across - b.across) < 1e-4f
-                              && a.behind == b.behind
-                              && a.startsStroke == b.startsStroke;
-                     }))
+  auto same = shownChannel == _elevationShownChannel;
+  for (std::size_t c = 0; same && c < channels.size (); ++c)
+    same = sameChannel (channels[c], _elevationChannels[c]);
+  if (same)
     return;
 
-  _elevationFigure = std::move (figure);
+  _elevationChannels = channels;
+  _elevationShownChannel = shownChannel;
   repaint ();
 }
 
@@ -695,20 +721,6 @@ ClipSettingsComponent::setSphereCamera (SphereCamera camera)
     return;
 
   _sphereCamera = camera;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setElevationHead (ElevationSidePoint head, bool valid)
-{
-  if (valid == _elevationHeadValid
-      && (!valid
-          || (std::abs (head.down - _elevationHead.down) < 1e-4f
-              && std::abs (head.across - _elevationHead.across) < 1e-4f)))
-    return;
-
-  _elevationHead = head;
-  _elevationHeadValid = valid;
   repaint ();
 }
 
@@ -2236,26 +2248,60 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // Where the sound actually goes. The sphere above says where in the room the
   // figure is and this says what the sphere above has lost, whichever way it
   // is turned.
-  if (_elevationFigure.size () > 1)
+  // Every channel's, the shown one last and full, the others muted under
+  // it: which clip the bar is describing stays the one that stands out.
+  auto const channelsInOrder = [this] {
+    std::vector<std::size_t> order;
+    for (std::size_t c = 0; c < _elevationChannels.size (); ++c)
+      if (static_cast<int> (c) != _elevationShownChannel)
+        order.push_back (c);
+    if (_elevationShownChannel >= 0
+        && _elevationShownChannel < static_cast<int> (_elevationChannels.size ()))
+      order.push_back (static_cast<std::size_t> (_elevationShownChannel));
+    return order;
+  }();
+  auto const shade = [this] (std::size_t c) {
+    return static_cast<int> (c) == _elevationShownChannel ? 1.f : 0.45f;
+  };
+
+  for (auto const c : channelsInOrder)
     {
-      auto const near = _channelColour.withAlpha (theme ().alphaTextStrong);
-      auto const far = _channelColour.withAlpha (theme ().alphaFillEmphasis);
+      auto const &channel = _elevationChannels[c];
+      auto const &line = channel.figure.line;
+      auto const near
+          = channel.colour.withMultipliedAlpha (theme ().alphaTextStrong
+                                                * shade (c));
+      auto const far
+          = channel.colour.withMultipliedAlpha (theme ().alphaFillEmphasis
+                                                * shade (c));
 
-      auto previous = place (_elevationFigure.front ());
-      for (size_t i = 1; i < _elevationFigure.size (); ++i)
+      if (line.size () > 1)
         {
-          auto const point = place (_elevationFigure[i]);
-
-          // The pen lift is decided in the room, not here -- see
-          // ElevationSidePoint::startsStroke.
-          if (!_elevationFigure[i].startsStroke)
+          auto previous = place (line.front ());
+          for (size_t i = 1; i < line.size (); ++i)
             {
-              g.setColour (_elevationFigure[i].behind ? far : near);
-              g.drawLine (previous.x, previous.y, point.x, point.y,
-                          theme ().strokeMedium);
-            }
+              auto const point = place (line[i]);
 
-          previous = point;
+              // The pen lift is decided in the room, not here -- see
+              // ElevationSidePoint::startsStroke.
+              if (!line[i].startsStroke)
+                {
+                  g.setColour (line[i].behind ? far : near);
+                  g.drawLine (previous.x, previous.y, point.x, point.y,
+                              theme ().strokeMedium);
+                }
+
+              previous = point;
+            }
+        }
+
+      // A shape of dots is its dots here as on the sphere.
+      auto const dotR = juce::jmax (1.5f, r * 0.05f);
+      for (auto const &dot : channel.figure.dots)
+        {
+          auto const at = place (dot);
+          g.setColour (dot.behind ? far : near);
+          g.fillEllipse (at.x - dotR, at.y - dotR, dotR * 2.f, dotR * 2.f);
         }
     }
 
@@ -2320,17 +2366,21 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
   // everything, and outlined, because in a picture this small it is the only
   // mark that moves and it has to be findable at a glance -- the whole reason
   // to look here mid-set is "how high is it right now".
-  if (_elevationHeadValid)
+  for (auto const c : channelsInOrder)
     {
-      auto const at = place (_elevationHead);
+      auto const &channel = _elevationChannels[c];
+      if (!channel.headValid)
+        continue;
+
+      auto const at = place (channel.head);
       auto const ballR = juce::jmax (2.f, r * 0.11f);
 
       g.setColour (toColour (theme ().surface, outlineOpacity));
       g.fillEllipse (at.x - ballR - 1.f, at.y - ballR - 1.f,
                      (ballR + 1.f) * 2.f, (ballR + 1.f) * 2.f);
-      g.setColour (_elevationHead.behind
-                       ? _channelColour.withAlpha (theme ().alphaInactive)
-                       : _channelColour);
+      g.setColour (channel.head.behind
+                       ? channel.colour.withAlpha (theme ().alphaInactive)
+                       : channel.colour.withMultipliedAlpha (shade (c)));
       g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
     }
 }

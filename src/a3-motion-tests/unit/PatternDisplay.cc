@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-ui/components/PatternDisplay.hh>
 
 using namespace a3;
@@ -115,4 +116,37 @@ TEST (PatternDisplay, ATakeIsDrawnFromItsTicks)
 
   EXPECT_TRUE (shown.jumpDots.empty ());
   EXPECT_FALSE (shown.path.isEmpty ());
+}
+
+// The elevation picture draws what the sphere draws, from the same answer: a
+// shape of dots as its dots, a line as its line. It drew every clip from its
+// ticks, and a shape of jumps and holds is no line at all -- Cross was an
+// empty circle there.
+TEST (PatternDisplay, TheElevationPictureShowsADotShapeByItsDots)
+{
+  PatternLibrary library (aLibraryWithACrossAndALine ());
+  library.refresh ();
+  HeightMapSphere heightMap;
+  auto const cross = loaded (library, "Cross");
+  ASSERT_NE (cross, nullptr);
+
+  auto const figure = elevationFigureFor (*cross, library, heightMap, {}, 96);
+
+  EXPECT_EQ (figure.dots.size (), 4u);
+  EXPECT_TRUE (figure.line.empty ());
+}
+
+TEST (PatternDisplay, TheElevationPictureShowsALineByItsLine)
+{
+  PatternLibrary library (aLibraryWithACrossAndALine ());
+  library.refresh ();
+  HeightMapSphere heightMap;
+  auto const line = loaded (library, "Line");
+  ASSERT_NE (line, nullptr);
+
+  auto const figure = elevationFigureFor (*line, library, heightMap, {}, 96);
+
+  EXPECT_TRUE (figure.dots.empty ());
+  EXPECT_GE (figure.line.size (), 2u);
+  EXPECT_LE (figure.line.size (), 96u);
 }

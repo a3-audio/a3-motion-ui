@@ -7851,53 +7851,40 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   _clipSettings->setElevationClipTop (knobOf (Knob::ClipTop, 0.f));
   _clipSettings->setElevationClipBottom (knobOf (Knob::ClipBottom, 0.f));
 
-  // The figure itself in the side-on circle, and the sound running along it.
-  //
-  // Mapped here rather than in the bar, and through exactly the calls the
-  // engine plays it through (performPlayback): the same shaping, the same
-  // swept elevation, the same height map. A picture drawn through a second
-  // mapping is a picture that is right until one of them is touched.
-  if (pattern)
-    {
-      auto const shaping = shapingOf (*pattern);
-      auto const params
-          = sweptElevation (pattern->getElevationParams (), *pattern);
-      auto const &heightMap = _engine.getHeightMap ();
-
-      auto const ticks = pattern->getTicks ().positions;
-      std::vector<Pos> onSphere;
-      onSphere.reserve (ticks.size ());
-      for (auto const &tick : ticks)
-        onSphere.push_back (
-            tick.isValid ()
-                ? heightMap.mapTo3D (shapedPosition (tick, shaping), params)
-                : Pos::invalid);
-
-      // Projected from where the sphere above is being looked at, a quarter
-      // turn behind it. Two pictures of one room that disagree about which way
-      // it is facing are worse than one picture.
-      _clipSettings->setElevationFigure (elevationSideView (
-          onSphere, elevationFigureSamples, sphereCamera ()));
-    }
-  else
-    {
-      _clipSettings->setElevationFigure ({});
-    }
-
+  // Every channel's clip in the side-on circle (2026-09-27), and each one's
+  // sound running along it: the clip on each channel's face, the way the
+  // faces show it. Mapped by elevationFigureFor(), through exactly the calls
+  // the engine plays it through -- a picture drawn through a second mapping
+  // is a picture that is right until one of them is touched -- and projected
+  // from where the sphere above is being looked at, a quarter turn behind it.
   {
-    // Only while the slot on show is the one being heard. A ball parked on a
-    // figure nobody is playing says "this is where the sound is", which would
-    // be a lie the moment it mattered.
-    auto const onAir = pattern
-                       && pattern->getStatus () == Pattern::Status::Playing;
-    auto const position = _engine.getChannelPosition (channel);
-    auto const valid = onAir && position.isValid ();
+    std::array<ElevationChannel, numChannelColumns> channels;
+    auto const camera = sphereCamera ();
 
-    _clipSettings->setElevationHead (
-        valid ? elevationSideView (position, sphereCamera ())
-              : ElevationSidePoint{},
-        valid);
+    for (std::size_t c = 0; c < numChannelColumns; ++c)
+      {
+        auto const ch = static_cast<index_t> (c);
+        auto &into = channels[c];
+        into.colour = _channelUIStates[c]->colour;
 
+        auto const &shown = _patterns[ch][_channelSlot[c]];
+        if (!shown)
+          continue;
+
+        into.figure = elevationFigureFor (*shown, *_patternLibrary,
+                                          _engine.getHeightMap (), camera,
+                                          elevationFigureSamples);
+
+        // Only while that clip is the one being heard.
+        auto const position = _engine.getChannelPosition (ch);
+        into.headValid = shown->getStatus () == Pattern::Status::Playing
+                         && position.isValid ();
+        if (into.headValid)
+          into.head = elevationSideView (position, camera);
+      }
+
+    _clipSettings->setElevationChannels (channels,
+                                         static_cast<int> (channel));
     _clipSettings->setSphereCamera (sphereCamera ());
   }
 

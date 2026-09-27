@@ -40,6 +40,7 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/ElevationSideView.hh>
+#include <a3-motion-ui/components/PatternDisplay.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/VuMeterView.hh>
 #include <a3-motion-ui/components/ClipKnobs.hh>
@@ -52,6 +53,16 @@
 
 namespace a3
 {
+
+/** One channel in the elevation picture: what its clip draws there, where
+ *  its sound is, and its colour. */
+struct ElevationChannel
+{
+  ElevationFigure figure;
+  ElevationSidePoint head{};
+  bool headValid = false;
+  juce::Colour colour;
+};
 
 /**
  * ClipSettingsComponent
@@ -201,13 +212,14 @@ public:
    *  Pushed already mapped rather than as a shape to be mapped here: the
    *  engine's own mapping is the only one that can be right, and there is
    *  exactly one of it. */
-  void setElevationFigure (std::vector<ElevationSidePoint> figure);
-
-  /** And where on that figure the sound is at this moment. `valid` is false
-   *  when the slot is not playing, and then no ball is drawn -- an empty
-   *  circle says "nothing is running" better than a ball parked somewhere
-   *  does. */
-  void setElevationHead (ElevationSidePoint head, bool valid);
+  /** Every channel's clip at once (2026-09-27), in its channel's colour: the
+   *  shown channel's drawn last and full, the other three under it, muted.
+   *  A shape of dots comes as its dots. Each with the ball where its sound is
+   *  -- only while that clip is heard: a ball parked on a figure nobody is
+   *  playing says "this is where the sound is", which would be a lie. */
+  void setElevationChannels (
+      std::array<ElevationChannel, numChannelColumns> const &channels,
+      int shownChannel);
 
   /** Where the sphere above is being looked at from. The circle is a second
    *  view of the same room, kept a quarter turn from it, so it has to be told
@@ -662,10 +674,9 @@ private:
   std::array<bool, numClipSections> _locked{ false, false, false };
   float _elevationReach = 0.5f;
   float _elevationBase = 0.f;
-  std::vector<ElevationSidePoint> _elevationFigure;
-  ElevationSidePoint _elevationHead{};
+  std::array<ElevationChannel, numChannelColumns> _elevationChannels{};
+  int _elevationShownChannel = 0;
   SphereCamera _sphereCamera{};
-  bool _elevationHeadValid = false;
   bool _elevationMirrorSouth = false;
   float _elevationClipTop = 0.0f;
   float _elevationClipBottom = 0.0f;

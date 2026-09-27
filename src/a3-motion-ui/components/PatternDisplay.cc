@@ -22,7 +22,10 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/TrajectoryShape.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
+#include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-ui/Helpers.hh>
 
 namespace a3
@@ -57,6 +60,41 @@ patternDisplayFor (Pattern const &pattern, PatternLibrary const &library)
         shown.path.lineTo (segment[i].x (), segment[i].y ());
     }
   return shown;
+}
+
+ElevationFigure
+elevationFigureFor (Pattern const &pattern, PatternLibrary const &library,
+                    HeightMap const &heightMap, SphereCamera camera,
+                    std::size_t maxPoints)
+{
+  // Through exactly the calls the engine plays it through (performPlayback):
+  // the same shaping, the same swept elevation, the same height map.
+  auto const shaping = shapingOf (pattern);
+  auto const params = sweptElevation (pattern.getElevationParams (), pattern);
+  auto const onSphere = [&] (Pos const &recorded) {
+    return heightMap.mapTo3D (shapedPosition (recorded, shaping), params);
+  };
+
+  ElevationFigure figure;
+
+  auto const shown = patternDisplayFor (pattern, library);
+  if (!shown.jumpDots.empty ())
+    {
+      for (auto const &[x, y] : shown.jumpDots)
+        figure.dots.push_back (
+            elevationSideView (onSphere (Pos::fromCartesian (x, y, 0.f)),
+                               camera));
+      return figure;
+    }
+
+  auto const ticks = pattern.getTicks ().positions;
+  std::vector<Pos> directions;
+  directions.reserve (ticks.size ());
+  for (auto const &tick : ticks)
+    directions.push_back (tick.isValid () ? onSphere (tick) : Pos::invalid);
+
+  figure.line = elevationSideView (directions, maxPoints, camera);
+  return figure;
 }
 
 }
