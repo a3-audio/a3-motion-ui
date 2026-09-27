@@ -484,12 +484,15 @@ MotionEngine::applyAccentHeld (index_t channel, bool held,
   // the fall lasts while it is falling.
   if (held && pattern)
     {
-      // Fired once, on the way down, and only onto a clip that is not already
-      // wearing an action: a second press during the fall must not take the
-      // action's own settings down as the thing to fall back to.
-      if (_channelAction[channel] && !_accentRestore[channel])
+      // The clip's own settings are taken once, on the first press: a second
+      // press during the fall must not take an action's settings down as the
+      // thing to fall back to. What it wears is the latest press's action,
+      // over those own settings -- six buttons per channel since 2026-09-27,
+      // and the last one pressed wins.
+      if (_channelAction[channel])
         {
-          _accentRestore[channel] = clipSettingsFrom (*pattern);
+          if (!_accentRestore[channel])
+            _accentRestore[channel] = clipSettingsFrom (*pattern);
           applyClipSettings (
               *pattern,
               actionOver (*_accentRestore[channel], *_channelAction[channel]));

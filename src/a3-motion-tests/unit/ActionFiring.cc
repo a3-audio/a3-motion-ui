@@ -283,6 +283,41 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 }
 
+// Six action buttons per channel (2026-09-27): a second button pressed while
+// the first one's accent is still up takes over -- last press wins -- and the
+// clip still comes home to its own settings, not to the first action's.
+// Before, the second press kept the first action on, since a clip already
+// wearing an action was not given another.
+TEST (ActionFiring, ASecondButtonDuringAnAccentTakesOver)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+
+  auto pattern = clipWithAShortAccent (ActMode::Hold);
+  auto const before = clipSettingsFrom (*pattern);
+
+  ClipSettings first;
+  first.spin = -4;
+  engine.setChannelAction (0, first);
+  engine.setChannelAccentHeld (0, true, pattern);
+  ASSERT_TRUE (waitUntil ([&] { return pattern->getSpin () == -4; }))
+      << "the first action never reached the clip";
+
+  ClipSettings second;
+  second.spin = 3;
+  engine.setChannelAction (0, second);
+  engine.setChannelAccentHeld (0, true, pattern);
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getSpin () == 3; }))
+      << "the second button did not take over";
+
+  engine.setChannelAccentHeld (0, false, nullptr);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the clip came back to the first action, not to itself";
+  EXPECT_EQ (clipSettingsFrom (*pattern), before);
+}
+
 // A slot with nothing assigned fires the accent and leaves the clip alone --
 // which is every slot until somebody saves an action, so it is the case that
 // has to stay silent.
