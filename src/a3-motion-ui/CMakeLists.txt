@@ -87,6 +87,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/LibraryKeys.cc
     components/ActionEditing.cc
     components/ActionEditing.hh
+    components/ScriptPanelLayout.cc
+    components/ScriptPanelLayout.hh
     components/LibraryList.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
