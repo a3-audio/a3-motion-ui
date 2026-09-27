@@ -320,44 +320,9 @@ TEST (ActionLayout, EveryListRowIsAFingertip)
 
 // ── Save and cancel ──────────────────────────────────────────────────────
 
-// Typing used to write on every keystroke. That is fine for a file and wrong
-// for a person: there was no way to try a line and take it back. Two keys at
-// the foot of the editor, both a fingertip, side by side and inside it.
-TEST (ActionLayout, TheEditorHasSaveAndCancelAtItsFoot)
-{
-  for (int height : { 200, 300, 400 })
-    {
-      auto const l
-          = layOutActionPage ({ 0, 0, 768, height }, headerSize, 14.f, 1.f, {});
-
-      ASSERT_FALSE (l.saveButton.isEmpty ()) << "at " << height;
-      ASSERT_FALSE (l.cancelButton.isEmpty ()) << "at " << height;
-
-      EXPECT_TRUE (l.scriptField.contains (l.saveButton));
-      EXPECT_TRUE (l.scriptField.contains (l.cancelButton));
-      EXPECT_FALSE (l.saveButton.intersects (l.cancelButton));
-
-      EXPECT_GE (l.saveButton.getHeight (), fingertipSize) << "at " << height;
-      EXPECT_GE (l.cancelButton.getHeight (), fingertipSize) << "at " << height;
-      EXPECT_GE (l.saveButton.getWidth (), fingertipSize) << "at " << height;
-      EXPECT_GE (l.cancelButton.getWidth (), fingertipSize) << "at " << height;
-
-      // At the foot, so the text above them is never written over.
-      EXPECT_GE (l.saveButton.getY (), l.scriptField.getCentreY ());
-    }
-}
-
-// And the text keeps its own room: the keys take theirs off the bottom rather
-// than being drawn across the last lines.
-TEST (ActionLayout, TheKeysDoNotCoverTheText)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
-
-  ASSERT_FALSE (l.scriptTextField.isEmpty ());
-  EXPECT_FALSE (l.scriptTextField.intersects (l.saveButton));
-  EXPECT_FALSE (l.scriptTextField.intersects (l.cancelButton));
-  EXPECT_TRUE (l.scriptField.contains (l.scriptTextField));
-}
+// The keys under the script and the room the text keeps are the ScriptPanel's
+// since 2026-09-27: see unit/ScriptPanelLayout.cc
+// (FourKeysAtTheFootAFingertipEach, ErrorsTakeTheirRoomOffTheText).
 
 /** The list opens over the script field, its rows are a fingertip tall, and
  *  there are twenty-one things to choose from once the folder is full. Those
@@ -374,31 +339,4 @@ TEST (ActionLayout, TheActionListShowsFewerRowsThanThereAreScripts)
   EXPECT_LE (rows * layout.actionListRowHeight,
              layout.actionListArea.getHeight ())
       << "a row counted as visible must actually be inside the field";
-}
-
-
-
-// Three keys under the script now, not two: writing back over the file,
-// writing a copy of your own, and walking away. Equal width, in that order,
-// and each still a fingertip.
-TEST (ActionLayout, TheScriptCarriesThreeKeys)
-{
-  auto const layout = layOutActionPage ({ 0, 0, 768, 300 }, 18.f, 14.f, 1.f, {});
-
-  ASSERT_FALSE (layout.saveButton.isEmpty ());
-  ASSERT_FALSE (layout.saveAsButton.isEmpty ());
-  ASSERT_FALSE (layout.cancelButton.isEmpty ());
-
-  EXPECT_LE (layout.saveButton.getRight (), layout.saveAsButton.getX ());
-  EXPECT_LE (layout.saveAsButton.getRight (), layout.cancelButton.getX ());
-
-  for (auto const &key : { layout.saveButton, layout.saveAsButton,
-                           layout.cancelButton })
-    {
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_GE (key.getHeight (), fingertipSize);
-    }
-
-  EXPECT_NEAR (layout.saveButton.getWidth (), layout.cancelButton.getWidth (), 2);
-  EXPECT_NEAR (layout.saveAsButton.getWidth (), layout.cancelButton.getWidth (), 2);
 }

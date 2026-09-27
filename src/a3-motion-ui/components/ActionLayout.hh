@@ -50,20 +50,10 @@ struct ActionLayout
   juce::Rectangle<int> actModeField;
 
   /** The script the action carries, under its name and taking whatever the
-   *  card leaves. */
+   *  card leaves. The ScriptPanel stands here and lays out its own text and
+   *  keys (2026-09-27). */
   juce::Rectangle<int> scriptField;
 
-  /** The text of the script, which is the editor less the two keys at its
-   *  foot. Kept apart so a line is never drawn under a key. */
-  juce::Rectangle<int> scriptTextField;
-  /** Keep what was typed, or throw it away. Typing used to write on every
-   *  keystroke -- fine for a file, wrong for a person, who needs to be able
-   *  to try a line and take it back. */
-  /** The three keys under the script: write it back, write a copy of your
-   *  own, walk away. */
-  juce::Rectangle<int> saveButton;
-  juce::Rectangle<int> saveAsButton;
-  juce::Rectangle<int> cancelButton;
 
   /** Where the action field's list opens: over the script, which is what it
    *  replaces for a moment. It cannot open outside the bar -- the sphere's GL

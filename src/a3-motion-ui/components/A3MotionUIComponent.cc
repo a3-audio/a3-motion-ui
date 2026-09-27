@@ -765,7 +765,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // The keyboard is the system's own, and it types into whatever has the
   // focus -- so opening the editor is what shows it and losing the editor is
   // what takes it away.
-  _action->onScriptEditingChanged = [this] (bool editing) {
+  auto &actionScript = _action->scriptPanel ();
+  actionScript.onEditingChanged = [this] (bool editing) {
     showKeyboard (editing);
 
     // Leaving the editor no longer applies anything -- Save does that, and
@@ -785,18 +786,33 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       handlePadRelease (_clipSettingsChannel, pad);
   };
 
-  _action->onScriptSaved = [this] {
+  actionScript.onSave = [this] {
     writeSlotActionScript ();
     setSlotAction (_clipSettingsChannel, _clipSettingsSlot,
                    _slotAction[_clipSettingsChannel][_clipSettingsSlot].file);
+    _action->scriptPanel ().markSaved ();
   };
 
-  _action->onScriptSavedAs = [this] { saveSlotActionScriptAs (); };
+  actionScript.onSaveAs = [this] {
+    if (saveSlotActionScriptAs ().isNotEmpty ())
+      _action->scriptPanel ().markSaved ();
+  };
 
   // Cancel puts the file's own text back, which is what the slot still holds.
-  _action->onScriptCancelled = [this] {
-    _action->setScript (
+  actionScript.onCancel = [this] {
+    auto &panel = _action->scriptPanel ();
+    panel.setScript (
         _slotAction[_clipSettingsChannel][_clipSettingsSlot].source);
+    panel.markSaved ();
+  };
+
+  // The clip as it stands, as a script to keep: on no disk yet, so Save or
+  // Save as decides where it goes.
+  actionScript.onFromClip = [this] {
+    auto const &pattern = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+    if (pattern)
+      _action->scriptPanel ().offerScript (
+          actionScriptFor (clipSettingsFrom (*pattern)));
   };
 
   // The browser: the library the shown slot is filled from. What a row means
@@ -3088,13 +3104,10 @@ A3MotionUIComponent::writeSlotActionScript ()
   if (!action.file.existsAsFile ())
     return;
 
-  action.source = _action->script ();
+  action.source = _action->scriptPanel ().script ();
 
-  // Written on every keystroke rather than on the way out. A device in a
-  // booth loses power without warning, the file is a few hundred bytes, and
-  // an editor whose work only survives if you remember to leave it properly
-  // is one nobody trusts. The mark on the field says it has been touched
-  // since it last *ran*, which is the thing worth knowing.
+  // Written on Save only: half a line is not a script (see ScriptPanel's
+  // keys). The edge marks what has not been kept yet.
   if (!writeTextFile (action.file, action.source))
     {
       std::cerr << "could not write action " << action.file.getFullPathName ()
@@ -3129,7 +3142,7 @@ A3MotionUIComponent::saveSlotActionScriptAs ()
   auto const file = freeFileIn (actionsDir (), base, ".scd");
   auto const name = file.getFileNameWithoutExtension ();
 
-  if (!writeTextFile (file, _action->script ()))
+  if (!writeTextFile (file, _action->scriptPanel ().script ()))
     {
       std::cerr << "could not write action " << file.getFullPathName ()
                 << std::endl;
@@ -4396,8 +4409,11 @@ A3MotionUIComponent::updateActionPage ()
     choices.add (entry.name);
   _action->setActionChoices (choices);
 
-  _action->setScript (slotAction.source);
-  _action->setScriptErrors (slotAction.errors);
+  auto &script = _action->scriptPanel ();
+  script.setScript (slotAction.source);
+  script.setErrors (slotAction.errors);
+  script.setHasFile (slotAction.file.existsAsFile ());
+  script.setSlotHolds (pattern != nullptr);
 
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
@@ -4407,7 +4423,7 @@ A3MotionUIComponent::updateActionPage ()
   // otherwise -- the same rule the clips follow, asked in the same words.
   // Asked of the file rather than remembered, because a slot's action changes
   // from half a dozen places and one of them would forget.
-  _action->setScriptIsProtected (
+  script.setProtected (
       !shippedFileMayBeOverwritten (action.existsAsFile (),
                                     isSystemFileIn (actionsDir (), action),
                                     shippedClips ()));

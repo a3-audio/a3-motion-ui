@@ -117,31 +117,10 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_actionTouch);
 
-  // The script is JUCE's editor, read-only until it is touched -- see
-  // ScriptEditor for the three things a finger needs on top of it.
-  _editor = std::make_unique<ScriptEditor> (_document, &_tokeniser);
-  _editor->onStartEditing = [this] {
-    if (_actionName.isEmpty ())
-      {
-        openActionList ();
-        repaint ();
-        return;
-      }
-
-    if (!_editing)
-      {
-        _editing = true;
-        _editor->setReadOnly (false);
-        _editor->grabKeyboardFocus ();
-        if (onScriptEditingChanged)
-          onScriptEditingChanged (true);
-      }
-
-    repaint ();
-  };
-  _editor->onEscape = [this] { stopEditingScript (); };
-  addAndMakeVisible (*_editor);
-  dressEditor ();
+  // The action's script, where the editor stood: its own component since
+  // 2026-09-27 (ScriptPanel), so FILES can host the same one.
+  _script = std::make_unique<ScriptPanel> ();
+  addAndMakeVisible (*_script);
 
   _scriptTouch = std::make_unique<TouchControl> ();
   _scriptTouch->onTapAt = [this] (int, int, juce::Point<int> at) {
@@ -197,48 +176,6 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_fireTouch);
 
-  _saveAsTouch = std::make_unique<TouchControl> ();
-  _saveAsTouch->onTap = [this] (int, int) {
-    if (!_document.hasChangedSinceSavePoint ())
-      return;
-
-    // The text goes to a file of the performer's own; the page is told what
-    // it is called when the slot comes back with it. Saved here as well as in
-    // the slot, because setScript() returns early on text it already holds --
-    // so the save point would never be reached from outside and the edge would
-    // stay marked on a script that is safely on disk.
-    _document.setSavePoint ();
-    stopEditingScript ();
-    if (onScriptSavedAs)
-      onScriptSavedAs ();
-
-    repaint ();
-  };
-  addAndMakeVisible (*_saveAsTouch);
-
-  _saveTouch = std::make_unique<TouchControl> ();
-  _saveTouch->onTap = [this] (int, int) {
-    if (!_document.hasChangedSinceSavePoint () || _protected)
-      return;
-
-    _document.setSavePoint ();
-    stopEditingScript ();
-    if (onScriptSaved)
-      onScriptSaved ();
-
-    repaint ();
-  };
-  addAndMakeVisible (*_saveTouch);
-
-  _cancelTouch = std::make_unique<TouchControl> ();
-  _cancelTouch->onTap = [this] (int, int) {
-    stopEditingScript ();
-    if (onScriptCancelled)
-      onScriptCancelled ();
-
-    repaint ();
-  };
-  addAndMakeVisible (*_cancelTouch);
 }
 
 ActionComponent::~ActionComponent () = default;
@@ -246,61 +183,8 @@ ActionComponent::~ActionComponent () = default;
 void
 ActionComponent::applyTheme ()
 {
-  dressEditor ();
   resized ();
   repaint ();
-}
-
-void
-ActionComponent::dressEditor ()
-{
-  if (!_editor)
-    return;
-
-  // The skin's colours, through the editor's own ids -- the same way a slider
-  // gets its channel colour. The field behind it is already drawn darker than
-  // the page, so the editor itself stays transparent to it.
-  _editor->setColour (juce::CodeEditorComponent::backgroundColourId,
-                      juce::Colours::transparentBlack);
-  _editor->setColour (juce::CodeEditorComponent::defaultTextColourId,
-                      toColour (theme ().textPrimary,
-                                theme ().alphaTextStrong));
-  _editor->setColour (juce::CodeEditorComponent::lineNumberBackgroundId,
-                      juce::Colours::transparentBlack);
-  _editor->setColour (juce::CodeEditorComponent::lineNumberTextId,
-                      toColour (theme ().textMuted, theme ().alphaMuted));
-  _editor->setColour (juce::CodeEditorComponent::highlightColourId,
-                      _channelColour.withAlpha (theme ().alphaFillEmphasis));
-
-  // What the tokeniser names, in the skin's words: a comment is what tells a
-  // written-out script from one somebody explained, which is why it was the
-  // one thing the hand-drawn editor coloured at all.
-  juce::CodeEditorComponent::ColourScheme scheme;
-  scheme.set ("Comment", toColour (theme ().textMuted, theme ().alphaInactive));
-  scheme.set ("String", toColour (theme ().accent));
-  scheme.set ("Integer", toColour (theme ().accent));
-  scheme.set ("Float", toColour (theme ().accent));
-  scheme.set ("Keyword", toColour (theme ().highlight));
-  scheme.set ("Operator", toColour (theme ().textPrimary, theme ().alphaSecondary));
-  scheme.set ("Bracket", toColour (theme ().textPrimary, theme ().alphaSecondary));
-  scheme.set ("Punctuation", toColour (theme ().textPrimary, theme ().alphaSecondary));
-  scheme.set ("Identifier", toColour (theme ().textPrimary, theme ().alphaTextStrong));
-  scheme.set ("Error", toColour (theme ().danger));
-  _editor->setColourScheme (scheme);
-
-  _editor->setFont (scriptFont ());
-
-  // The bars that come with it: the skin's grey, and as wide as a line is
-  // tall rather than JUCE's sixteen pixels -- everything here is measured in
-  // what it stands next to.
-  _editor->setColour (juce::ScrollBar::backgroundColourId,
-                      juce::Colours::transparentBlack);
-  _editor->setColour (juce::ScrollBar::thumbColourId,
-                      toColour (theme ().textMuted, theme ().alphaGuide));
-  _editor->setColour (juce::ScrollBar::trackColourId,
-                      juce::Colours::transparentBlack);
-  _editor->setScrollbarThickness (
-      juce::jmax (1, juce::roundToInt (scriptFont ().getHeight () / 2.f)));
 }
 
 void
@@ -323,18 +207,11 @@ ActionComponent::resized ()
   if (_actionTouch)
     _actionTouch->setBounds (_layout.actionField);
   if (_scriptTouch)
-    _scriptTouch->setBounds (_layout.scriptTextField);
+    _scriptTouch->setBounds (_layout.scriptField);
   if (_fireTouch)
     _fireTouch->setBounds (_layout.fireButton);
-  if (_saveTouch)
-    _saveTouch->setBounds (_layout.saveButton);
-  if (_saveAsTouch)
-    _saveAsTouch->setBounds (_layout.saveAsButton);
-  if (_cancelTouch)
-    _cancelTouch->setBounds (_layout.cancelButton);
-
-  if (_editor)
-    _editor->setBounds (scriptTextArea ());
+  if (_script)
+    _script->setBounds (_layout.scriptField);
 
   updateScriptLayers ();
 }
@@ -354,6 +231,7 @@ ActionComponent::setTarget (int channel, int slot, juce::Colour channelColour)
   _slot = slot;
   _channelColour = channelColour;
   putColourOnKnobs ();
+  _script->setChannelColour (channelColour);
   repaint ();
 }
 
@@ -411,31 +289,6 @@ ActionComponent::setQEnvelope (int attackStep, int decayStep, float max)
 }
 
 void
-ActionComponent::setScript (juce::String const &script)
-{
-  // Never while it is being typed into, and otherwise only when it is
-  // actually different: the page refreshes on a timer, and either would throw
-  // away what is being written and put the caret back at the top.
-  if (_editing || script == _document.getAllContent ())
-    return;
-
-  _document.replaceAllContent (script);
-  _document.clearUndoHistory ();
-  _document.setSavePoint ();
-  repaint ();
-}
-
-void
-ActionComponent::setScriptErrors (juce::StringArray const &errors)
-{
-  if (errors == _scriptErrors)
-    return;
-
-  _scriptErrors = errors;
-  repaint ();
-}
-
-void
 ActionComponent::setActionChoices (juce::StringArray const &names)
 {
   if (names == _choices)
@@ -444,49 +297,6 @@ ActionComponent::setActionChoices (juce::StringArray const &names)
   _choices = names;
   repaint ();
 }
-
-void
-ActionComponent::setScriptIsProtected (bool locked)
-{
-  if (_protected == locked)
-    return;
-
-  _protected = locked;
-  repaint ();
-}
-
-void
-ActionComponent::stopEditingScript ()
-{
-  if (!_editing)
-    return;
-
-  _editing = false;
-  _editor->setReadOnly (true);
-  if (onScriptEditingChanged)
-    onScriptEditingChanged (false);
-
-  repaint ();
-}
-
-void
-ActionComponent::focusLost (FocusChangeType)
-{
-  // The keyboard follows the focus, so losing it is the end of the edit
-  // whatever took it away.
-  stopEditingScript ();
-}
-
-int
-ActionComponent::visibleScriptLines () const
-{
-  auto const lineH = scriptLineHeight ();
-  if (lineH <= 0)
-    return 1;
-
-  return juce::jmax (1, scriptTextArea ().getHeight () / lineH);
-}
-
 
 void
 ActionComponent::openActionList ()
@@ -522,8 +332,8 @@ ActionComponent::updateScriptLayers ()
   // ground is transparent so the field behind it can show -- so the script
   // was drawn over the list whatever the list did, and the two were read at
   // once. No toFront() helps; the editor has to go.
-  if (_editor)
-    _editor->setVisible (!_listOpen);
+  if (_script)
+    _script->setVisible (!_listOpen);
 
   // The touch area goes the other way: it lies over the editor only while the
   // list does, or it would answer every touch meant for the text.
@@ -614,149 +424,6 @@ ActionComponent::paintActionField (juce::Graphics &g)
               juce::Justification::centredRight);
 }
 
-juce::Font
-ActionComponent::scriptFont () const
-{
-  // Monospaced, because a script is read by column as much as by line: what
-  // lines up under what is half of how you find your way in one.
-  auto const size = juce::jlimit (
-      9.f, 15.f, theme ().fontSize (FontRole::Body) * 0.8f);
-
-  return juce::Font (juce::FontOptions (
-      juce::Font::getDefaultMonospacedFontName (), size, juce::Font::plain));
-}
-
-juce::Rectangle<int>
-ActionComponent::scriptTextArea () const
-{
-  auto area = _layout.scriptTextField.reduced (
-      juce::jmax (6, _layout.scriptField.getHeight () / 40));
-
-  // The errors take their room off the text rather than being drawn over it:
-  // a message on top of the line it is about hides the line it is about.
-  if (!_scriptErrors.isEmpty ())
-    area.removeFromBottom (
-        juce::jmin (area.getHeight () / 2,
-                    _scriptErrors.size () * scriptLineHeight ()));
-
-  return area;
-}
-
-int
-ActionComponent::scriptLineHeight () const
-{
-  return juce::jmax (1, juce::roundToInt (scriptFont ().getHeight () * 1.25f));
-}
-
-float
-ActionComponent::scriptCharacterWidth () const
-{
-  // Every character is the same width in a monospaced face, so one of them
-  // measures all of them.
-  return juce::jmax (1.f, juce::GlyphArrangement::getStringWidth (
-                              scriptFont (), "M"));
-}
-
-void
-ActionComponent::paintScriptField (juce::Graphics &g)
-{
-  auto const bounds = _layout.scriptField;
-  if (bounds.isEmpty ())
-    return;
-
-  // Darker than the page and squared off, because this is a terminal and
-  // reads as one: a script is text you scan line by line, not a control.
-  g.setColour (toColour (theme ().background).darker (0.4f));
-  g.fillRect (bounds);
-
-  // The edge says whether it is being typed into and whether what is in it
-  // has been written -- three states, one line, no words spent on any of it.
-  auto const edited = _document.hasChangedSinceSavePoint ();
-  g.setColour (edited     ? toColour (theme ().warning)
-               : _editing ? _channelColour
-                          : toColour (theme ().textPrimary,
-                                      theme ().alphaOutline));
-  g.drawRect (bounds, juce::roundToInt (_editing || edited
-                                            ? theme ().strokeThick
-                                            : theme ().strokeThin));
-
-  // The text itself is the editor's (ScriptEditor), which stands inside this
-  // frame and draws its own lines, numbers and caret.
-  if (_document.getNumCharacters () == 0 && !_editing)
-    {
-      g.setColour (toColour (theme ().textMuted, theme ().alphaMuted));
-      g.setFont (scriptFont ());
-      g.drawText ("-- no script --", scriptTextArea (),
-                  juce::Justification::topLeft);
-    }
-}
-
-void
-ActionComponent::paintScriptErrors (juce::Graphics &g)
-{
-  if (_scriptErrors.isEmpty ())
-    return;
-
-  auto const lineH = scriptLineHeight ();
-  auto at = _layout.scriptTextField
-                .reduced (juce::jmax (6, _layout.scriptField.getHeight () / 40))
-                .removeFromBottom (_scriptErrors.size () * lineH);
-
-  g.setFont (scriptFont ());
-  g.setColour (toColour (theme ().danger));
-
-  for (auto const &error : _scriptErrors)
-    {
-      g.drawText (error, at.removeFromTop (lineH),
-                  juce::Justification::centredLeft);
-      if (at.isEmpty ())
-        break;
-    }
-}
-
-void
-ActionComponent::paintScriptKeys (juce::Graphics &g)
-{
-  if (_layout.saveButton.isEmpty ())
-    return;
-
-  auto const edited = _document.hasChangedSinceSavePoint ();
-
-  auto const key = [&g, this] (juce::Rectangle<int> at, char const *word,
-                               juce::Colour ink) {
-    g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
-    g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
-    g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
-    g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
-                            theme ().strokeThin);
-
-    g.setColour (ink);
-    // What "save"/"cancel" may cost.
-    constexpr float scriptKeyCap = 16.f;
-    g.setFont (juce::Font (juce::FontOptions (
-        fittedFontHeight (at.getHeight () * 0.4f, scriptKeyCap))));
-    g.drawText (word, at, juce::Justification::centred);
-  };
-
-  auto const lit = readableInk (_channelColour, toColour (theme ().background),
-                                toColour (theme ().textPrimary));
-  auto const dark = toColour (theme ().textMuted, theme ().alphaDisabled);
-
-  // Lit only while there is something to keep or to lose: a key offering to
-  // save nothing is a key you have to stop and think about.
-  //
-  // Save stays dark on a protected action however much has been typed --
-  // one of the instrument's own, with developer mode off. Writing over it
-  // would take it from every clip that fires it with no way back. Save as is
-  // the way out, which is why it is lit in exactly that case. Same rule the
-  // clips follow: shippedFileMayBeOverwritten().
-  key (_layout.saveButton, "save", edited && !_protected ? lit : dark);
-  key (_layout.saveAsButton, "save as", edited ? lit : dark);
-  key (_layout.cancelButton, "cancel",
-       edited ? toColour (theme ().textPrimary, theme ().alphaTextStrong)
-              : dark);
-}
-
 void
 ActionComponent::paintActionList (juce::Graphics &g)
 {
@@ -820,9 +487,6 @@ ActionComponent::paint (juce::Graphics &g)
   g.fillRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard);
 
   paintActionField (g);
-  paintScriptField (g);
-  paintScriptErrors (g);
-  paintScriptKeys (g);
 
   // Three envelopes, one row each, all the same shape: atk over atk over atk.
   // The accent is read first because it is what ACT has always done, then the
