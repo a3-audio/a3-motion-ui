@@ -1,4 +1,5 @@
 // Rewind -- the take runs backwards, one step quicker, and bounces out.
+// Mood: less -- runs backwards and bounces out; a dub trick, uneasy.
 //
 // Reversing a movement is the cheapest way to make a familiar clip
 // unfamiliar, and at double speed it lands back where it started.

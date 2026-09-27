@@ -1,4 +1,5 @@
 // Resonate -- held, the resonance comes up on its own.
+// Mood: more -- resonance creeps up; slow tension (Q3 -> Q2).
 //
 // The cutoff barely moves and the Q goes most of the way, which is the pair
 // of settings that turns a pad into a tone. Slow enough to ride a whole

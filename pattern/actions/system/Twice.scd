@@ -1,4 +1,5 @@
 // Twice -- Half read the other way: more of whatever the clip is doing.
+// Mood: more -- more of whatever the clip is doing; energy up.
 //
 // Reach, spin, swell and fade all doubled from where they stand. Held rather
 // than one-shot, because "more" is something you want to be able to back out

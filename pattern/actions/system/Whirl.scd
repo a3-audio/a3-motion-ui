@@ -1,4 +1,5 @@
 // Whirl -- the trajectory turns as fast as it can, once.
+// Mood: more -- the extreme spin, once; euphoric or chaotic (Q1/Q2).
 //
 // Spin is a signed power of two in bars per cycle and eight is the fastest
 // step there is, so the whole shape goes round underneath the blob. Bounce

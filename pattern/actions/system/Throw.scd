@@ -1,4 +1,5 @@
 // Throw -- a hard swing out and a filter that opens behind it.
+// Mood: more -- a hard push out; high energy (Q1/Q2).
 //
 // A script is read once, top to bottom, when it is chosen. ~name on the
 // right reads what the clip has now, so a line can move a value rather than

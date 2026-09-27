@@ -1,4 +1,5 @@
 // Scatter -- somewhere else every time it is chosen.
+// Mood: more -- a surprise, somewhere else each time; playful.
 //
 // rrand and .choose throw their dice when the script is picked, so choosing
 // it again is how you ask for another one. The same seed gives the same

@@ -1,4 +1,5 @@
 // Rise -- held, the sound climbs overhead and stays while the finger does.
+// Mood: more -- lifts overhead; pleasant, building (Q4 -> Q1).
 //
 // The base is the trajectory's midpoint, 0 at the north pole: setting it to
 // zero lifts the whole clip over the listener rather than moving it through

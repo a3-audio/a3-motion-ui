@@ -1,4 +1,5 @@
 // Halt -- everything that moves on its own stops, and the pass ends.
+// Mood: less -- everything stops; the reset.
 //
 // Pause leaves the playhead where it is, so releasing and starting again
 // carries on rather than restarting. The one action that takes things away

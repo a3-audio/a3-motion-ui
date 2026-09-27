@@ -1,9 +1,16 @@
 // A3 Motion -- action scripts
 //
-// An action is a script. ACT on a pad runs it, and what it leaves behind is
-// what the clip in that slot is set to. This file is a script too: every line
-// of it is a comment, so firing it changes nothing. It is here to be read in
-// the editor on the ACTION page, where the scripts are.
+// An action is a script. Each channel has six action buttons, A1 to A6 --
+// six pads on the panel, six fields on the ACTION page -- and each carries
+// one script. Pressing the button runs it over the channel's clip for as long
+// as the accent lasts, then the clip comes back to itself. This file is a
+// script too: every line of it is a comment, so firing it changes nothing.
+// It is here to be read in the editor in FILES > ACTIONS.
+//
+// Every shipped script carries a "Mood:" line under its title: "more" moves
+// the clip towards energy and openness, "less" towards calm and weight. The
+// shipped sets put "more" in the left column (A1 A3 A5) and "less" in the
+// right (A2 A4 A6), gentle at the top and extreme at the bottom.
 //
 //
 // ---- The shape of it ------------------------------------------------------
@@ -45,9 +52,11 @@
 //     ~reach = reach + 0.1;          a name on the right reads what it is now
 //     ~clipTop = reach * 0.5;        ... including one an earlier line set
 //
-// The randomness is seeded per firing, so the same clip fired again with the
-// same seed throws the same numbers. That is what makes a random action
-// something you can rehearse rather than something that happens to you.
+// The dice are thrown when a script is put on a button, and kept: every press
+// of that button lands in the same place, worked out against the clip as it
+// is at the press. That is what makes a random action something you can
+// rehearse rather than something that happens to you. Put the script on the
+// button again to throw again.
 //
 // A line the reader cannot make sense of is reported under the editor and the
 // rest of the script still runs. A value outside its range is brought back to
@@ -129,11 +138,11 @@
 //
 // ---- ACTION: the accent ---------------------------------------------------
 //
-// These nine and ~act belong to the slot, not to the action. A fired action
-// leaves them alone whatever it says, because the ACTION page is showing them
-// and a page that showed an attack the action had quietly replaced would be a
-// page that lies. Write them in a clip file or dial them on the page; writing
-// them here is harmless and does nothing.
+// These nine and ~act are how the button plays the action -- its feel. They
+// are read from the script when it is put on a button, and from then on they
+// belong to that button: the ACTION page's knobs and mode key change them for
+// that button only, and the set remembers what was changed. A line left
+// commented out takes the clip's value at the moment the script is assigned.
 //
 //   ~attack          0..6    how long the accent takes to rise while ACT is
 //                            held: 1/16 of a bar, 1/8, 1/4, 1/2, 1, 2, 4.
@@ -154,8 +163,8 @@
 //
 // ---- Writing one ----------------------------------------------------------
 //
-// Dial a clip until it sounds the way ACT should make it sound, then Save
-// Action in FILES. That writes every name above with the clip's value, which
+// Dial a clip until it sounds the way the button should make it sound, then
+// FROM CLIP in FILES > ACTIONS. That writes every name above with the clip's value, which
 // is a good place to start reading from -- and a bad action to keep, because
 // an action that names everything overwrites everything. Comment out the
 // lines you did not mean and keep the two or three you did; the commented

@@ -1,4 +1,5 @@
 // Ground -- the same cap, at the far pole.
+// Mood: less -- settles at the far pole; weight (Q3).
 //
 // Overhead's opposite number, and the pair reads as a jump between two
 // places rather than a movement between them.

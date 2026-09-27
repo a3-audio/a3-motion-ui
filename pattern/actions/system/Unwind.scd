@@ -1,4 +1,5 @@
 // Unwind -- the same turn, the other way and slower.
+// Mood: less -- the same turn, the other way and slower; release.
 //
 // Fired after Whirl it reads as the room settling back. The sign is the
 // direction; the magnitude is the speed.

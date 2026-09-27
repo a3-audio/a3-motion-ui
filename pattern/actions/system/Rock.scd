@@ -1,4 +1,5 @@
 // Rock -- held, the whole figure swings up and down the room.
+// Mood: more -- the figure swings up and down; groove (Q1).
 //
 // Sway moves the elevation base, so this is the one that moves the figure
 // bodily rather than reshaping it: the take keeps its plan and the room tips

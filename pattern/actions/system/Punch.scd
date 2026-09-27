@@ -1,4 +1,5 @@
 // Punch -- depth and nothing else.
+// Mood: more -- depth hits, nothing moves; driving (Q2).
 //
 // Not one movement value is named, and a script starts from the clip's own
 // settings, so the trajectory goes on doing exactly what it was doing and
