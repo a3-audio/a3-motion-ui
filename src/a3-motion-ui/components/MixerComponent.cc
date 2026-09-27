@@ -23,7 +23,6 @@
 #include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
-#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -391,14 +390,9 @@ MixerComponent::applyTheme ()
 void
 MixerComponent::resized ()
 {
-  // Back and close float in the top right of whatever overlay is open, and
-  // they are drawn after it. The band they stand in is kept clear rather than
-  // laid out under them: the menu's panel is narrow enough to miss them, and
-  // a mixer that filled the width put its fourth strip's top control under a
-  // key that answers for something else.
+  // The whole area: back and close no longer float over the mixer -- its
+  // own key closes it (2026-09-27).
   auto area = getLocalBounds ();
-  area.removeFromTop (OverlayButtons::preferredHeight ()
-                      + 2 * OverlayButtons::preferredMargin ());
 
   _layout = layOutMixerOverlay (area, _metrics);
 

@@ -1313,28 +1313,60 @@ control here that has to be hit *in time* and a tempo tap that misses is worse t
 takes a second go. Record needs no screen twin: the strip's REC button already records into the
 shown clip.
 
-#### The ACTION page's script
+#### Every file beside its list: `ScriptPanel` in FILES
 
-The editor is `juce::CodeEditorComponent` over a `juce::CodeDocument`
-(`components/ScriptEditor.{hh,cc}`) — line numbers, undo, syntax colours and a caret that can be
-asked where it is, none of which the hand-rolled one had. What the subclass adds is the touch part,
-and it is one rule: **a finger is scrolling until it has come up without moving.** It starts
-read-only; `mouseDown` only remembers where it landed, `mouseDrag` scrolls in both directions, and
-`mouseUp` begins editing — forwarding the press and release on so the caret lands where the finger
-did — but only if nothing was dragged. Editing on the press instead meant every drag moved the caret
-and nothing ever scrolled. Escape leaves the editor (`onEscape`); it does not quit the app.
+**Where it stands (2026-09-27).** The editor left the ACTION page and stands in FILES beside the list
+-- on every tab: sets, clips and shapes are read and edited as text like the actions (JSON, and SVG
+coloured as XML, `languageFor`). `ScriptPanel` (`components/ScriptPanel.{hh,cc}`) is a plain text
+editor with an error strip and four keys; `BrowserComponent` places it in `BrowserLayout::detailArea`,
+as wide as a shipped action's longest line needs (`ScriptPanel::usualWidthFor`, measured the way
+JUCE's editor measures itself -- a character is "0", the gutter a fixed 35 px, less the empty room
+left of the numbers that the panel's frame cuts off). The text reads at the list's size; a line
+longer than the column scrolls. The list keeps the
+rest: its own keys (Load on SETS, All, Rename, Delete) at the top in one row with the panel's -- where
+back and close stood, which now appear only on the main menu (`overlayKeysAreShown`) -- and the four
+folders two by two above the rows.
 
-**Three keys under it: save, save as, cancel**, equal width, in that order. Save writes the
-editor's text over the file the slot came from; **it stays dark on one of the instrument's own
+What a file means stays each list's (`LibraryList`: `fileAt`, `folder`, `extension`,
+`currentStateText`, `afterSaving`, `afterCopying`), and every decision stays in
+`A3MotionUIComponent`:
+
+- the panel holds the file it was loaded from (`_panelFile`); when the list's chosen row moves under
+  it, it reloads, or -- holding unsaved text -- the row goes back to it (`panelSyncFor`,
+  `syncFilePanel`), so one file's text is never saved into another;
+- a tap on any tab **chooses and shows** and loads nothing; **Load** (on every tab) puts the row on
+  the shown slot -- its clip, its figure, its action (`LibraryList::assign`) -- or loads the set.
+  The drift dot stays on the row of the slot's own clip, not on the chosen one;
+- **Save** writes the file and what uses it takes it up now (`afterSaving`): every clip firing an
+  action (`slotsFiring`), every slot holding a clip (`applyClip`) or a figure (`putFigureInSlot`,
+  a playing one plays on from the next beat); a set is only written -- loading stays Load's;
+- **Save as** writes a copy into the user half, named after the original (`freeFileIn`,
+  `copyBaseFor`); on ACTIONS the clip EDIT came from fires it, once (`takeEditOrigin`);
+- **FROM** ("from clip", on SETS "from set") puts the current state in as the file's text,
+  unsaved, written by the same writers Save used to call straight into the file
+  (`currentStateText` through a temporary file) -- so there is one pair of Save keys, and you see
+  what is kept before it is kept;
+- a set or SVG that does not parse is **not written** (`fileErrorsOf`, `errorsBlockSaving`); a script
+  with an error still is, as before; the error stands in the strip;
+- **unsaved text holds the list and the tabs**: a row tap, Rename, Delete or another tab say
+  `-- SAVE OR CANCEL` and flash the two keys (`listWaitsFor`, `fileTextHoldsTheList`).
+
+The rules are pure functions in `ActionEditing.hh`, `ScriptPanelLayout.hh` (`scriptKeysFor`) and
+`BrowserLayout`, tested there; the panel lights and guards its keys by the same `scriptKeysFor`, so a
+dark key is also a dead one. JUCE's code editor calls itself opaque but is drawn transparent; the
+panel says so (`setOpaque (false)`), or a scroll over the sphere let the trajectory through.
+
+**Four keys over it: from clip, cancel, save, save as**, equal width, in that order. Save writes
+the editor's text over the chosen file; **it stays dark on one of the instrument's own
 while developer mode is off**, because writing over a shipped script takes it from every clip that
 fires it with no way back. Save as is the way out of exactly that: it writes the text to a new file
 in `user/`, **named after the one it came from** — "Bloom 2" beside "Bloom", counted against both
-halves — and points the slot at the copy, so the page is writable from there on. Cancel puts the
-file's own text back. All three are lit only while something has been typed.
+halves. Cancel puts the file's own text back. Save, Save as and Cancel are lit only while something
+has been typed; FROM CLIP whenever the shown slot holds a clip.
 
 **That lock is one rule for clips and scripts alike** — `shippedFileMayBeOverwritten (fileExists,
 fileIsShipped, shippedClips ())`, which is why its name no longer says clip. The page is told the
-answer (`setScriptIsProtected`), not the ingredients, and it is told again whenever developer mode
+answer (`ScriptPanel::setProtected`), not the ingredients, and it is told again whenever developer mode
 is switched, or the key would stay dark and make the switch look broken. Two rules for one question
 is how they come to differ, and the difference then has to be explained on a screen with no room to
 explain it. Whether a *script* is shipped is `isSystemFileIn()`, asked of the file rather than
@@ -1343,16 +1375,14 @@ remembered; whether a *clip* is, is `slotClipIsShipped()`.
 Developer mode is what let eleven shipped clips be written over on 2026-09-22 — the lock worked, it
 was simply unlocked (`config/ui_state.json`, `"developerMode": true`).
 
-The save point is set in the key handler, not by the slot coming back: `setScript()` returns early
-on text the document already holds, so a file written with exactly what is on screen would never
-clear the edited edge.
+The save point is set by the host once the file is written (`markSaved`), not by the key: a write
+that fails leaves the edge marked, and `setScript()` returns early on text the document already
+holds, so nothing else would clear it.
 
-**The list and the editor stand in one area, and exactly one of them is on screen**
-(`updateScriptLayers()`). Drawing the list opaque is not enough and was tried: the editor is a
-child component, a child is painted *after* its parent, and its own ground is `transparentBlack` so
-the darker field behind it can show — so the script was drawn over the list however opaque the list
-made itself, and both were read at once. No `toFront()` helps. This is the mirror image of the trap
-the clip bar's lists carry, and it is what changes the moment a painted layer becomes a child.
+**The list and the editor no longer share an area.** Until 2026-09-27 they stood in one field on
+ACTION and took turns (`updateScriptLayers()`), because the editor, a child with a transparent
+ground, was painted over the list however opaque the list made itself. Side by side in FILES, and
+with ACTION's list standing open on its own, that trap is gone rather than worked around.
 
 **Every script names every parameter, and comments out what it does not touch** (asked for on
 2026-09-23: *„alle Action skripte alle parameter enthalten. wo nichts passieren soll bitte

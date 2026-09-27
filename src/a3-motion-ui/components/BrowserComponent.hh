@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BrowserLayout.hh>
+#include <a3-motion-ui/components/ScriptPanel.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
@@ -31,35 +32,6 @@
 namespace a3
 {
 
-/** Which of the three folders the browser is listing.
- *
- *  It lived inside A3MotionUIComponent, which is what *decides* the list; this
- *  is what shows it, and a page that draws three tabs cannot be handed a bool
- *  saying which of two it is on. */
-/** How far the library list is narrowed: everything, only what the performer
- *  made, only what the instrument shipped with. Beside BrowserList because it
- *  is the same kind of thing -- which list, and how much of it. */
-enum class ClipFilter
-{
-  All,
-  User,
-  System
-};
-
-enum class BrowserList
-{
-  Clips,
-  /** The figures the clips name. Choosing one swaps the slot's figure and
-   *  leaves its values alone -- the same thing the picture on the CLIP page
-   *  does, which is the other place a shape is chosen. */
-  Shapes,
-  /** Action clips -- what ACT does to a slot. Structurally a clip with no
-   *  shape: a set of settings, kept in actions/ rather than clips/ because
-   *  what it is for is different even though what it holds is the same. */
-  Actions,
-  /** The arrangement of all eight clips at once. */
-  Sessions,
-};
 
 /** The browser page: the library, filling whatever clip the bar is showing.
  *
@@ -119,6 +91,10 @@ public:
   void setChannelColour (juce::Colour colour);
 
   void setShowingList (BrowserList list);
+
+  /** The chosen action's script, beside the list on ACTIONS (2026-09-27).
+   *  The page above fills and wires it; this component only places it. */
+  ScriptPanel &scriptPanel () { return *_script; }
 
   /** Which folder the list should show. One callback per tab rather than one
    *  carrying the choice: the tabs are three separate things a finger lands
@@ -182,7 +158,11 @@ private:
   juce::Colour _channelColour;
   void paintRow (juce::Graphics &g, int row);
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
-                    juce::String const &label, bool enabled);
+                    juce::String const &label, bool enabled,
+                    juce::Colour ink = {});
+  /** The script panel's four keys, in this tile, from the panel's own
+   *  states. */
+  void paintScriptKeys (juce::Graphics &g);
 
   void mouseWheelMove (juce::MouseEvent const &event,
                        juce::MouseWheelDetails const &wheel) override;
@@ -193,6 +173,7 @@ private:
   void endRename (bool keep);
 
   BrowserLayout _layout;
+  std::unique_ptr<ScriptPanel> _script;
 
   juce::StringArray _actionLabels{ "", "", "Rename", "Save", "", "" };
   std::array<bool, 6> _actionEnabled{ false, false, false,
@@ -209,6 +190,8 @@ private:
   std::unique_ptr<TouchControl> _shapesTabTouch;
   std::unique_ptr<TouchControl> _actionsTabTouch;
   std::unique_ptr<TouchControl> _setsTabTouch;
+  std::unique_ptr<TouchControl> _fromClipTouch;
+  std::unique_ptr<TouchControl> _cancelTouch;
   std::unique_ptr<TouchControl> _filterTouch;
   std::unique_ptr<TouchControl> _renameTouch;
   std::unique_ptr<TouchControl> _saveTouch;

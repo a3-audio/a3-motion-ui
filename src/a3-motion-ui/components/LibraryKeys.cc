@@ -38,8 +38,9 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
 
   // The shipped ones load like any other -- they are there to be played. It is
   // writing over them that the split forbids.
-  auto const canLoad
-      = list == BrowserList::Sessions && facts.chosenHasFile;
+  // Every tab since 2026-09-27: a tap only chooses and shows, Load puts the
+  // row on the shown slot or loads the set -- whatever has a file.
+  auto const canLoad = facts.chosenHasFile;
 
   // Nothing shipped may be written over, wherever it lives: that is what the
   // split buys besides the filter, and it is the half that matters. Before
@@ -76,12 +77,12 @@ libraryKeysFor (BrowserList list, LibraryKeyFacts const &facts)
  *  the row means.
  */
 int
-driftedRowIn (BrowserList list, int chosenRow, bool slotHasDrifted)
+driftedRowIn (BrowserList list, int slotRow, bool slotHasDrifted)
 {
-  if (list != BrowserList::Clips || !slotHasDrifted || chosenRow <= 0)
+  if (list != BrowserList::Clips || !slotHasDrifted || slotRow <= 0)
     return -1;
 
-  return chosenRow;
+  return slotRow;
 }
 
 }

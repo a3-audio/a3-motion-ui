@@ -48,6 +48,7 @@
 #include <a3-motion-ui/components/EncoderMap.hh>
 #include <a3-motion-ui/components/KnobHold.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
+#include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
@@ -215,18 +216,37 @@ private:
   void showBarPage (BarPage page);
   /** Record's page gesture: to the take's face, or back off it. */
   /** Push the shown clip's envelope and act mode to the ACTION page. */
-  /** Give the chosen field's slot an action, or take its action away. */
-  void assignActionEntry (int row);
 
   /** Point a slot's ACT key at an action file, reading it in. An empty file,
    *  or one that will not read, leaves the slot firing the accent alone. */
   void setSlotAction (index_t channel, index_t slot, juce::File const &file);
 
-  /** Put what is in the editor back into the slot's script file. */
-  void writeSlotActionScript ();
-  juce::String saveSlotActionScriptAs ();
-  /** Keep the chosen slot's settings as a new action clip. */
-  juce::String saveSlotAsAction ();
+  /** The chosen action's file, shown in the panel beside the list. */
+  void showChosenFileText ();
+  /** The file behind the chosen row, whichever list is showing. */
+  juce::File chosenRowFile () const;
+  /** Puts `errors` in the panel's strip and says whether the text may be
+   *  written (errorsBlockSaving); the readout says why not. */
+  bool fileTextIsFitToWrite (juce::StringArray const &errors,
+                             juce::File const &file);
+  /** A file's text in the panel, and the panel told which file it is. */
+  void showFileText (juce::File const &file);
+  /** The panel told the lock, the colour and whether the slot holds a clip,
+   *  for its file and the shown clip as they are now. */
+  void dressFilePanel ();
+  /** The panel brought to the list's chosen row, or the row back to the
+   *  panel when it holds unsaved text (panelSyncFor). */
+  void syncFilePanel ();
+  /** The panel's text over the chosen action's file, then re-run on every
+   *  clip that fires it. */
+  void saveFileText ();
+  /** A copy of the panel's text; the EDIT origin, if any, fires the copy. */
+  void saveFileTextAs ();
+  /** Whether the FILES list has to wait for the script beside it -- unsaved
+   *  on ACTIONS -- and says so if it does (listWaitsFor). */
+  bool fileTextHoldsTheList ();
+  /** Every slot's action file, channel by slot, for slotsFiring(). */
+  std::vector<std::vector<juce::File>> slotActionFiles () const;
   /** Write what is on show back over the file it came from. Per tab: the
    *  slot's own clip, the slot's own action, the set that is loaded. */
   void saveChosen ();
@@ -239,8 +259,6 @@ private:
   /** The shown clip copied to a clip file of its own, the slot pointed at the
    *  copy. The same thing Save does to a factory clip, asked for outright. */
   juce::String saveSlotClipAsCopy ();
-  /** The shown clip's settings written over the slot's own action file. */
-  void saveSlotActionInPlace ();
   /** The arrangement written over the set it was loaded from. */
   void saveSessionInPlace ();
   /** Give the chosen row another name, and carry across everything that named
@@ -415,6 +433,11 @@ private:
 
   void refreshBrowser (BrowserSelection selection = BrowserSelection::Keep);
   void assignBrowserEntry (int index);
+  /** A library figure into a slot, keeping the slot's values: what a tap on
+   *  SVG does (selecting and playing it), and what a saved shape does to the
+   *  slots already holding it (neither, unless one was playing). */
+  void putFigureInSlot (index_t channel, index_t slot, int index, bool select,
+                        bool play);
 
   void handlePadPress (index_t channel, index_t pad);
   /** The other half of a pad gesture. Shift+Action previews for as long as it
@@ -800,6 +823,12 @@ private:
    *  presses -- and anything else that happens disarms it, because an armed
    *  key you have forgotten about is worse than no key. */
   bool _deleteArmed = false;
+  /** The clip EDIT on ACTION opened FILES for: a Save as there points it at
+   *  the copy. Cleared when FILES is left, so it lasts one visit. */
+  std::optional<SlotRef> _editOrigin;
+  /** The file the script beside the FILES list was loaded from. Save writes
+   *  here, never to whichever row is chosen -- the two can differ. */
+  juce::File _panelFile;
 
   /** Which slot each channel's face stands for. Per channel rather than one
    *  shared setting: the two slot keys used to be shared, so choosing slot 2

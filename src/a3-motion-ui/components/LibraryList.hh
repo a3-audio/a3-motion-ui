@@ -84,6 +84,22 @@ public:
    *  say before it happens. Most lists cost nothing to say. */
   virtual juce::String costOfRemoving (int row) const;
 
+  /** The file behind a row: what FILES shows beside the list, as text. */
+  virtual juce::File fileAt (int row) const = 0;
+  /** The split folder the list reads (system/ and user/ under it); a copy of
+   *  your own is written into its user half. */
+  virtual juce::File folder () const = 0;
+  /** The extension its files carry, dot included. */
+  virtual juce::String extension () const = 0;
+  /** The current state -- the shown clip, or the arrangement -- as this
+   *  list's file text: what FROM puts in the panel. Empty when there is
+   *  nothing to take. */
+  virtual juce::String currentStateText () const = 0;
+  /** One of its files was written: what uses it takes it up now. */
+  virtual void afterSaving (juce::File const &file) = 0;
+  /** A copy was written: the list sees it, and whatever the copy is for. */
+  virtual void afterCopying (juce::File const &copy) = 0;
+
   /** Which entry of the PatternLibrary a row of this list stands for, or -1.
    *
    *  Every list can answer it and most answer "none" -- the actions and the

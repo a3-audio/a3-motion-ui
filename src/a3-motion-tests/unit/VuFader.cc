@@ -22,7 +22,6 @@
 
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
-#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/VuFader.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
@@ -70,8 +69,6 @@ TEST (MixerFaders, EachChannelMeterCarriesOne)
   mixer.setBounds (0, 0, roomy, roomy);
 
   auto area = mixer.getLocalBounds ();
-  area.removeFromTop (OverlayButtons::preferredHeight ()
-                      + 2 * OverlayButtons::preferredMargin ());
   auto const layout = layOutMixerOverlay (area, mixerControlMetrics ());
 
   auto moved = -1.f;
@@ -103,8 +100,6 @@ TEST (MixerFaders, TwoTapsOnAChannelFaderAskForFullVolume)
   mixer.setBounds (0, 0, roomy, roomy);
 
   auto area = mixer.getLocalBounds ();
-  area.removeFromTop (OverlayButtons::preferredHeight ()
-                      + 2 * OverlayButtons::preferredMargin ());
   auto const layout = layOutMixerOverlay (area, mixerControlMetrics ());
 
   auto asked = -1;
@@ -128,8 +123,6 @@ TEST (MixerFaders, TheMastersFaderHasNoDoubleTap)
   mixer.setBounds (0, 0, roomy, roomy);
 
   auto area = mixer.getLocalBounds ();
-  area.removeFromTop (OverlayButtons::preferredHeight ()
-                      + 2 * OverlayButtons::preferredMargin ());
   auto const layout = layOutMixerOverlay (area, mixerControlMetrics ());
 
   auto *fader = faderOver (mixer, layout.masterMeter);

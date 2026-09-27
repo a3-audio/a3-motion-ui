@@ -68,6 +68,9 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingIndicator.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingName.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LibraryKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionEditing.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptPanelLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptPanel.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SplitFolder.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TextFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingLength.cc"
@@ -187,6 +190,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ChannelValueReset.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/RecordingIndicator.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LibraryKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ActionEditing.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ScriptPanelLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/LibraryList.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/SkinGroups.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/VuFader.cc"
@@ -200,6 +205,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/SkinParameters.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/theme/TextInput.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/SkinEditorComponent.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ScriptPanel.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/ScriptEditor.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TouchGrabs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/TrajectoryIcon.cc"
@@ -255,6 +262,9 @@ target_link_libraries(a3-motion-tests PUBLIC
     juce::juce_graphics
     # LookAndFeel_V4 and the ColourIds it defines live here.
     juce::juce_gui_basics
+    # The code editor the script panel is built on (CodeEditorComponent), so
+    # the panel can be tested where it is built rather than only on the rig.
+    juce::juce_gui_extra
     gtest
 )
 

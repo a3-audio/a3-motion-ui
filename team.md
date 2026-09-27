@@ -133,6 +133,20 @@ Bestätigung:
 
 Konfiguration erfolgt über `config.json`/UserConfig (`oscReceiver`, `oscSender`).
 
+### 3.5 FILES and ACTION (2026-09-27)
+
+- **ACTION**: the shown clip's action by name, its mode, EDIT, the assignment list (a tap assigns:
+  `onActionChosen` → `setSlotAction`), the envelope knobs and ACT (`onFireHeld`).
+- **EDIT** (`ActionComponent::onEditPressed`) sets `_editOrigin`, opens FILES on ACTIONS; the panel
+  follows the chosen row through `refreshBrowser` → `syncFilePanel`.
+- **FILES**, every tab: the chosen row's file in the panel (`showFileText`). Keys:
+  - Save → `saveFileText` (lock, `fileErrorsOf`/`errorsBlockSaving`, write, `afterSaving`);
+  - Save as → `saveFileTextAs` (copy into the user half, `afterCopying`);
+  - Cancel → `showFileText (_panelFile)`;
+  - FROM → `offerScript (currentList ().currentStateText ())`.
+- Unsaved text holds rows, Rename, Delete and the tabs (`fileTextHoldsTheList`). Leaving FILES stops
+  editing and clears `_editOrigin` (`showOverSphere`).
+
 ## 4. ClockMode und zeitliches Verhalten
 
 `_clockMode` kodiert:

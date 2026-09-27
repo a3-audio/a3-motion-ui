@@ -132,46 +132,23 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
                                          / 2);
   }
 
-  // What is left is the action's: its name and mode on one line, the script
-  // it carries under them.
+  // What is left is the action's: its name, its mode and EDIT on one line,
+  // the list to assign from under them. The editor that took turns with the
+  // list here went to FILES on 2026-09-27.
   auto const nameH = juce::jmax (fingertipSize,
                                  static_cast<int> (headerSize * 2.f));
   auto nameRow = content.removeFromTop (juce::jmin (nameH, content.getHeight ()));
-  out.actModeField = nameRow.removeFromRight (
-      juce::jmin (labelW + colW, nameRow.getWidth () / 3));
+  auto const sideW = juce::jmin (labelW + colW, nameRow.getWidth () / 4);
+  out.editButton = nameRow.removeFromRight (sideW);
+  nameRow.removeFromRight (gap);
+  out.actModeField = nameRow.removeFromRight (sideW);
   nameRow.removeFromRight (gap);
   out.actionField = nameRow;
 
   content.removeFromTop (gap);
-  out.scriptField = content;
-
-  // Two keys at the foot, taken off the text rather than drawn across it.
-  {
-    auto keys = out.scriptField;
-    auto const keyH = juce::jmax (
-        fingertipSize, juce::jmin (keys.getHeight () / 4,
-                                   static_cast<int> (headerSize * 2.f)));
-
-    auto row = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
-    out.scriptTextField = keys.withTrimmedBottom (gap / 2);
-
-    auto const keyGap = juce::jmax (2, row.getWidth () / 40);
-    // Three of them, in the order a hand reads: save, save as, cancel.
-    auto const keyW
-        = juce::jmax (fingertipSize, (row.getWidth () - 2 * keyGap) / 3);
-
-    out.cancelButton = row.removeFromRight (keyW);
-    row.removeFromRight (keyGap);
-    out.saveAsButton = row.removeFromRight (
-        juce::jmin (keyW, juce::jmax (fingertipSize, row.getWidth ())));
-    row.removeFromRight (keyGap);
-    out.saveButton = row.removeFromRight (
-        juce::jmin (keyW, juce::jmax (fingertipSize, row.getWidth ())));
-  }
-
   out.actionListRowHeight
-      = juce::jmax (fingertipSize, out.scriptField.getHeight () / 7);
-  out.actionListArea = out.scriptField;
+      = juce::jmax (fingertipSize, content.getHeight () / 7);
+  out.actionListArea = content;
 
   auto const columnGap = juce::jmax (2, colW / 20);
   out.metrics = ControlMetrics{

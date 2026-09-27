@@ -81,6 +81,7 @@ LibraryKeyStates libraryKeysFor (BrowserList list,
  *  from; an action and a set are written whole. A dot that meant something
  *  else on each tab would have to be read instead of glanced at.
  */
-int driftedRowIn (BrowserList list, int chosenRow, bool slotHasDrifted);
+/** @param slotRow the row of the clip the shown slot came from. */
+int driftedRowIn (BrowserList list, int slotRow, bool slotHasDrifted);
 
 }

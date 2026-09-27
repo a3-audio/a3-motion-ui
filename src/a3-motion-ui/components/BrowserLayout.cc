@@ -24,60 +24,86 @@ namespace a3
 {
 
 BrowserLayout
-layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
+layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
+               BrowserList list, int detailWidth)
 {
   BrowserLayout out;
 
   if (bounds.isEmpty ())
     return out;
 
-  auto const gap = juce::jmax (2, bounds.getHeight () / 40);
+  // Half the bar's usual gap: over the sphere the height is three times the
+  // bar's, and a fortieth of it between keys took the characters a script
+  // line needed (2026-09-27). The tiles keep the same pad inside.
+  auto const gap = juce::jmax (2, bounds.getHeight () / 80);
+  auto const pad = gap;
+  auto const keyH
+      = juce::jmin (bounds.getHeight (), juce::jmax (fingertipSize, buttonHeight));
 
-  // The whole area is the library. The eight destinations that used to take
-  // the left of it are the header's channel faces now -- see BrowserLayout's
-  // own note -- and what is being read here is a list of names, which is the
-  // one thing on this page that gets better with width.
+  // Never less than a row of three keys, so the foot of the list fits.
+  constexpr int keysInARow = 3;
+  auto const listMinW
+      = keysInARow * fingertipSize + (keysInARow - 1) * gap + 2 * pad;
+
   auto area = bounds;
 
-  // Four words over the list: one question -- which folder -- asked of four
-  // folders, so all four are the same size. Any one of them drawn larger
-  // would read as the list's real subject with the others as afterthoughts.
-  auto tabRow = area.removeFromTop (
-      juce::jmin (area.getHeight () / 4, buttonHeight));
-  auto const tabW = (tabRow.getWidth () - gap * 3) / 4;
-  // In the order the work is done in: a set holds clips, a clip holds a
-  // shape, and an action is what you reach for once all three are standing.
-  out.setsTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.clipsTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.shapesTab = tabRow.removeFromLeft (tabW);
-  tabRow.removeFromLeft (gap);
-  out.actionsTab = tabRow.removeFromLeft (tabW);
+  // The script's tile first, as wide as it asks -- a line of a shipped action
+  // fits without scrolling sideways -- and the list's tile the rest.
+  if (detailWidth > 0)
+    {
+      auto const width = juce::jlimit (
+          0, juce::jmax (0, area.getWidth () - listMinW - gap),
+          detailWidth + 2 * pad);
+      out.detailTile = area.removeFromRight (width);
+      out.detailArea = out.detailTile.reduced (pad);
+      area.removeFromRight (gap);
+    }
+  out.listTile = area;
 
-  area.removeFromTop (gap * 2);
-  out.listArea = area;
+  auto inside = area.reduced (pad);
+  auto const row = [&inside, keyH] (int fromTop) {
+    return fromTop > 0 ? inside.removeFromTop (juce::jmin (keyH, inside.getHeight ()))
+                       : inside.removeFromBottom (juce::jmin (keyH, inside.getHeight ()));
+  };
+  // A row of `n` equal keys, left to right.
+  auto const split = [gap] (juce::Rectangle<int> r, int n,
+                            std::vector<juce::Rectangle<int> *> const &into) {
+    auto const w = (r.getWidth () - (n - 1) * gap) / n;
+    for (size_t i = 0; i < into.size (); ++i)
+      {
+        *into[i] = i + 1 < into.size () ? r.removeFromLeft (w) : r.withWidth (w);
+        r.removeFromLeft (gap);
+      }
+  };
 
-  // The strip along the bottom first, so the list is whatever is left rather
-  // than the list deciding how much room the buttons get.
-  {
-    auto strip = out.listArea.removeFromBottom (
-        juce::jmin (out.listArea.getHeight () / 3, buttonHeight));
-    out.listArea.removeFromBottom (gap);
+  // The four folders two by two, in the order the work is done in: a set
+  // holds clips, a clip holds a shape, and an action is what you reach for
+  // once all three are standing.
+  split (row (1), 2, { &out.setsTab, &out.clipsTab });
+  inside.removeFromTop (gap);
+  split (row (1), 2, { &out.shapesTab, &out.actionsTab });
+  inside.removeFromTop (gap);
 
-    auto const buttonW = (strip.getWidth () - 5 * gap) / 6;
-    out.loadButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.filterButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.renameButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.saveButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.saveAsButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.deleteButton = strip;
-  }
+  // FROM between the folders and the filter, the filter over the list it
+  // narrows (maintainer, 2026-09-27).
+  out.fromClipButton = row (1);
+  inside.removeFromTop (gap);
+  out.filterButton = row (1);
+  inside.removeFromTop (gap * 2);
+
+  // The rest of the keys at the foot: what the text is kept by at the very
+  // bottom, what the row is renamed or deleted by over it. Load only on SETS.
+  split (row (0), keysInARow,
+         { &out.cancelButton, &out.saveButton, &out.saveAsButton });
+  inside.removeFromBottom (gap);
+  // Load on every tab (2026-09-27): a tap only chooses. So the keys are the
+  // same on every tab and `list` does not change them any more.
+  juce::ignoreUnused (list);
+  split (row (0), keysInARow,
+         { &out.renameButton, &out.deleteButton, &out.loadButton });
+  inside.removeFromBottom (gap * 2);
+
+  out.listArea = inside;
 
   // A row is hit with a finger, so it is a fingertip tall whatever the font
   // says -- and the list shows as many as fit rather than squeezing all of
@@ -92,14 +118,6 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
     out.rows.push_back (rows.removeFromTop (out.rowHeight));
 
   return out;
-}
-
-BrowserLayout
-layOutBrowserOverSphere (juce::Rectangle<int> bounds, int overlayKeysBand,
-                         int buttonHeight, float bodySize)
-{
-  bounds.removeFromTop (juce::jmax (0, overlayKeysBand));
-  return layOutBrowser (bounds, buttonHeight, bodySize);
 }
 
 }

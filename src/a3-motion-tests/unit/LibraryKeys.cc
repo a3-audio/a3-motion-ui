@@ -125,15 +125,16 @@ TEST (LibraryKeys, ARowWithNoFileBehindItCanBeNeitherRenamedNorDeleted)
 // only way to *reach* a set -- so renaming or deleting one meant loading it
 // first, and losing the arrangement you were working on to do it.
 
-TEST (LibraryKeys, OnlyASetCanBeLoaded)
+// Since 2026-09-27 on every tab: a tap only chooses and shows the file, Load
+// puts it on the shown slot -- the clip, the figure, the action -- or loads
+// the set (maintainer: "den load button will ich auf jeder ebene").
+TEST (LibraryKeys, EveryListLoadsWhatItShows)
 {
   auto facts = plenty ();
 
-  EXPECT_TRUE (libraryKeysFor (BrowserList::Sessions, facts).load);
-
-  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
-                           BrowserList::Actions })
-    EXPECT_FALSE (libraryKeysFor (list, facts).load) << "list";
+  for (auto const list : { BrowserList::Sessions, BrowserList::Clips,
+                           BrowserList::Shapes, BrowserList::Actions })
+    EXPECT_TRUE (libraryKeysFor (list, facts).load) << static_cast<int> (list);
 }
 
 TEST (LibraryKeys, ASetWithNoFileCannotBeLoaded)

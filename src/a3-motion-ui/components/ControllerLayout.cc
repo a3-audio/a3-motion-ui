@@ -137,12 +137,4 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
   return out;
 }
 
-ControllerLayout
-layOutControllerOverSphere (juce::Rectangle<int> bounds, int overlayKeysBand,
-                            float headerSize, int buttonHeight)
-{
-  bounds.removeFromTop (juce::jmax (0, overlayKeysBand));
-  return layOutController (bounds, headerSize, buttonHeight);
-}
-
 }

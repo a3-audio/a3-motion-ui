@@ -293,25 +293,3 @@ TEST (ControllerLayout, TheScenePadsStayInsideTheBarAndOffThePads)
             EXPECT_FALSE (scene.intersects (pad));
       }
 }
-
-// Over the sphere since 2026-09-27, like FILES and MAINMIX: back and close
-// float in the top right of every overlay, so no pad or scene key may lie
-// under them.
-TEST (ControllerLayout, OverTheSphereTheBandForBackAndCloseStaysClear)
-{
-  juce::Rectangle<int> const sphere{ 0, 0, 768, 660 };
-  constexpr int band = 60;
-  auto const l
-      = layOutControllerOverSphere (sphere, band, headerSize, buttonHeight);
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (auto const &pad : l.pads[channel])
-      {
-        EXPECT_FALSE (pad.isEmpty ());
-        EXPECT_GE (pad.getY (), band);
-        EXPECT_TRUE (sphere.contains (pad));
-      }
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (auto const &scene : l.scenes[slot])
-      EXPECT_GE (scene.getY (), band);
-}
