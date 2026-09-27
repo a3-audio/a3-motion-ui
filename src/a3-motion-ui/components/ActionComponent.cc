@@ -110,6 +110,18 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_listTouch);
 
+  // The six buttons: a tap chooses one.
+  for (size_t button = 0; button < _fieldTouch.size (); ++button)
+    {
+      auto touch = std::make_unique<TouchControl> ();
+      touch->onTap = [this, button] (int, int) {
+        if (onButtonChosen)
+          onButtonChosen (static_cast<int> (button));
+      };
+      addAndMakeVisible (*touch);
+      _fieldTouch[button] = std::move (touch);
+    }
+
   // Opens this action's script in FILES, beside the list there.
   _editTouch = std::make_unique<TouchControl> ();
   _editTouch->onTap = [this] (int, int) {
@@ -161,6 +173,10 @@ ActionComponent::resized ()
         _layout.controls[static_cast<size_t> (i)]);
 
   _touch[ActMode]->setBounds (_layout.actModeField);
+
+  for (size_t button = 0; button < _fieldTouch.size (); ++button)
+    if (_fieldTouch[button])
+      _fieldTouch[button]->setBounds (_layout.actionFields[button]);
 
   if (_listTouch)
     _listTouch->setBounds (_layout.actionListArea);
@@ -292,48 +308,89 @@ ActionComponent::setActMode (int mode)
 }
 
 void
-ActionComponent::paintActionField (juce::Graphics &g)
+ActionComponent::setActionButtons (std::array<juce::String, 6> const &names,
+                                   int chosen)
 {
-  auto const bounds = _layout.actionField;
-  if (bounds.isEmpty ())
+  if (names == _buttonNames && chosen == _chosenButton)
     return;
 
-  auto const named = _actionName.isNotEmpty ();
+  _buttonNames = names;
+  _chosenButton = chosen;
+  repaint ();
+}
 
-  // A field that carries something stands in the channel's colour, the way
-  // everything else on the device says whose it is. It was one grey for every
-  // channel, which reads as furniture rather than as a thing that belongs to
-  // the deck you are on.
-  g.setColour (named ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
-                     : toColour (theme ().textPrimary, theme ().alphaFill));
-  g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
-  g.setColour (named ? _channelColour.withAlpha (theme ().alphaInactive)
-                     : toColour (theme ().textPrimary, theme ().alphaOutline));
-  g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
-                          theme ().strokeThin);
+void
+ActionComponent::setRunningButton (int button)
+{
+  if (button == _runningButton)
+    return;
 
-  // The channel's colour where it can be read on this ground, the theme's
-  // text where it cannot -- channel four's blue vanished into the bar. See
-  // readableInk().
+  _runningButton = button;
+  repaint ();
+}
+
+void
+ActionComponent::paintActionFields (juce::Graphics &g)
+{
   auto const ground = toColour (theme ().background);
-  g.setColour (named ? readableInk (_channelColour, ground,
-                                    toColour (theme ().textPrimary))
-                     : toColour (theme ().textMuted, theme ().alphaMuted));
-  // What the action's own name may cost.
-  constexpr float actionNameCap = 24.f;
-  g.setFont (juce::Font (juce::FontOptions (
-      fittedFontHeight (bounds.getHeight () * 0.45f, actionNameCap))));
-  g.drawText (named ? _actionName : juce::String ("no action"),
-              bounds.reduced (bounds.getHeight () / 3, 0),
-              juce::Justification::centredLeft);
+  auto const text = toColour (theme ().textPrimary);
 
-  g.setColour (toColour (theme ().textMuted, theme ().alphaSecondary));
-  // What the "action" caption beside it may cost.
-  constexpr float actionCaptionCap = 12.f;
-  g.setFont (juce::Font (juce::FontOptions (
-      fittedFontHeight (bounds.getHeight () / 4.f, actionCaptionCap))));
-  g.drawText ("action", bounds.reduced (bounds.getHeight () / 3, 0),
-              juce::Justification::centredRight);
+  for (size_t button = 0; button < _layout.actionFields.size (); ++button)
+    {
+      auto const bounds = _layout.actionFields[button];
+      if (bounds.isEmpty ())
+        continue;
+
+      auto const &name = _buttonNames[button];
+      auto const named = name.isNotEmpty ();
+      auto const chosen = static_cast<int> (button) == _chosenButton;
+      auto const running = static_cast<int> (button) == _runningButton;
+
+      // White while its action runs, as its pad goes white; otherwise the
+      // channel's colour when it carries an action, and a grey when it does
+      // not -- the same three states the pad shows.
+      auto const fill
+          = running ? text
+                    : named ? _channelColour.withAlpha (
+                                  chosen ? theme ().alphaInactive
+                                         : theme ().alphaFillEmphasis)
+                            : toColour (theme ().textPrimary,
+                                        theme ().alphaFill);
+      g.setColour (fill);
+      g.fillRoundedRectangle (bounds.toFloat (), theme ().radiusControl);
+
+      // The chosen one is the one everything right of it acts on, so it
+      // carries the thick outline the shown channel's face carries.
+      g.setColour (chosen ? _channelColour
+                          : _channelColour.withAlpha (theme ().alphaDisabled));
+      g.drawRoundedRectangle (bounds.toFloat (), theme ().radiusControl,
+                              chosen ? theme ().strokeThick
+                                     : theme ().strokeThin);
+
+      auto const ink
+          = running ? padGlyphInk (text)
+                    : named ? readableInk (_channelColour, ground, text)
+                            : toColour (theme ().textMuted,
+                                        theme ().alphaMuted);
+      auto inner = bounds.reduced (bounds.getHeight () / 8);
+      auto const numberRow = inner.removeFromTop (inner.getHeight () / 2);
+
+      // What the button's number (A1..A6) may cost.
+      constexpr float buttonNumberCap = 20.f;
+      g.setColour (ink);
+      g.setFont (juce::Font (juce::FontOptions (
+          fittedFontHeight (numberRow.getHeight () * 0.8f, buttonNumberCap),
+          juce::Font::bold)));
+      g.drawText ("A" + juce::String (button + 1), numberRow,
+                  juce::Justification::centredLeft);
+
+      // What an action's name in its field may cost.
+      constexpr float buttonNameCap = 14.f;
+      g.setFont (juce::Font (juce::FontOptions (
+          fittedFontHeight (inner.getHeight () * 0.7f, buttonNameCap))));
+      g.drawText (named ? name : juce::String ("--"), inner,
+                  juce::Justification::centredLeft, true);
+    }
 }
 
 void
@@ -406,6 +463,32 @@ ActionComponent::paintActionList (juce::Graphics &g)
 }
 
 void
+ActionComponent::paintFireKey (juce::Graphics &g)
+{
+  if (_layout.fireButton.isEmpty ())
+    return;
+
+  // Filled rather than outlined: it is the one thing on this page that
+  // happens now, pressed with one hand while the other is on the crossfader.
+  auto const at = _layout.fireButton.toFloat ();
+
+  // Full opacity while firing rather than an alpha rung: firing has always
+  // meant no dimming at all, which the alpha-less colour already says. See
+  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
+  g.setColour (_firing ? _channelColour
+                       : _channelColour.withAlpha (theme ().alphaSecondary));
+  g.fillRoundedRectangle (at, theme ().radiusControl);
+  g.setColour (_channelColour);
+  g.drawRoundedRectangle (at, theme ().radiusControl, theme ().strokeThick);
+
+  // The ACT mark rather than the word (2026-09-28): the same mark the strip's
+  // key and the pads wear, so the three read as one function.
+  g.setColour (readableInk (toColour (theme ().textPrimary), _channelColour,
+                            toColour (theme ().background)));
+  drawTransportGlyph (g, transportGlyphArea (at), TransportFace::Action);
+}
+
+void
 ActionComponent::paint (juce::Graphics &g)
 {
   // Solid, because this covers the clip bar's sections rather than sitting
@@ -419,7 +502,7 @@ ActionComponent::paint (juce::Graphics &g)
   g.setColour (toColour (theme ().textPrimary, theme ().alphaFill));
   g.fillRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard);
 
-  paintActionField (g);
+  paintActionFields (g);
   paintEditKey (g);
 
   // Three envelopes, one row each, all the same shape: atk over atk over atk.
@@ -488,39 +571,7 @@ ActionComponent::paint (juce::Graphics &g)
                   juce::Justification::centred);
     }
 
-  // And the key that fires it, under the knobs it sets. Filled rather than
-  // outlined: it is the one thing on this page that happens now, and it is
-  // pressed with one hand while the other is on the crossfader.
-  if (!_layout.fireButton.isEmpty ())
-    {
-      auto const at = _layout.fireButton.toFloat ();
-
-      // Full opacity while firing rather than an alpha rung: firing has
-      // always meant no dimming at all, which the alpha-less colour already
-      // says. This used to be `_firing ? 1.f : 0.75f`; 1.f fits no rung, and
-      // full opacity is the absence of an emphasis decision rather than one
-      // of its rungs, so it deliberately gets no role of its own. See
-      // issues/a3-motion-ui-metric-role-deviations.md (Task 16). The resting
-      // branch is a second, separate deviation: 0.75f itself fits no rung
-      // either -- see theme ().alphaSecondary above.
-      g.setColour (_firing ? _channelColour
-                           : _channelColour.withAlpha (
-                                 theme ().alphaSecondary));
-      g.fillRoundedRectangle (at, theme ().radiusControl);
-      g.setColour (_channelColour);
-      g.drawRoundedRectangle (at, theme ().radiusControl,
-                              theme ().strokeThick);
-
-      g.setColour (readableInk (toColour (theme ().textPrimary),
-                                _channelColour,
-                                toColour (theme ().background)));
-      // What "ACT" itself may cost -- the loudest label on this page.
-      constexpr float fireButtonLabelCap = 26.f;
-      g.setFont (juce::Font (juce::FontOptions (
-          fittedFontHeight (at.getHeight () * 0.5f, fireButtonLabelCap),
-          juce::Font::bold)));
-      g.drawText ("ACT", _layout.fireButton, juce::Justification::centred);
-    }
+  paintFireKey (g);
 
   // Last, so it covers what it opens over.
   paintActionList (g);

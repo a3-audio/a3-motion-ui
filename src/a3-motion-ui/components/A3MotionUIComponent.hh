@@ -224,6 +224,9 @@ private:
    *  Stop pad did; the screen's STOP and Shift+Play reach it since the pad
    *  became PAGE (2026-09-27). */
   void stopChannel (index_t channel);
+  /** Chooses which of the shown channel's six action buttons ACTION, the
+   *  list, FILES' Load and the screen's ACT act on. Clamped to A1..A6. */
+  void chooseActionButton (int button);
 
   /** The chosen action's file, shown in the panel beside the list. */
   void showChosenFileText ();

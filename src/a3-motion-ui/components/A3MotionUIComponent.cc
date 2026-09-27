@@ -759,6 +759,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
+  // A tap on one of the six fields chooses it: the list, the keys, the card
+  // and the screen's ACT act on it from then on.
+  _action->onButtonChosen = [this] (int button) {
+    chooseActionButton (button);
+  };
+
   _action->onActionChosen = [this] (juce::String const &name) {
     setButtonAction (_clipSettingsChannel,
                      _chosenActionButton[_clipSettingsChannel],
@@ -4655,6 +4661,25 @@ A3MotionUIComponent::updateActionPage ()
   _action->setActionName (action.existsAsFile ()
                               ? action.getFileNameWithoutExtension ()
                               : juce::String{});
+
+  std::array<juce::String, numActionButtons> names;
+  for (size_t button = 0; button < names.size (); ++button)
+    {
+      auto const &file = _channelActions[channel][button].file;
+      names[button] = file.existsAsFile () ? file.getFileNameWithoutExtension ()
+                                           : juce::String{};
+    }
+  _action->setActionButtons (names, _chosenActionButton[channel]);
+}
+
+void
+A3MotionUIComponent::chooseActionButton (int button)
+{
+  auto const channel = _clipSettingsChannel;
+  _chosenActionButton[channel]
+      = juce::jlimit (0, static_cast<int> (numActionButtons) - 1, button);
+  updateActionPage ();
+  refreshBrowser ();
 }
 
 void
@@ -5505,6 +5530,14 @@ A3MotionUIComponent::padLEDCallback (int step)
                                       : status;
           auto const base = padBaseColour (function, clipPlaying,
                                            actionRunning, channelColour);
+          if (_action && channel == _clipSettingsChannel
+              && function == PadFunction::Action)
+            {
+              if (actionRunning)
+                _action->setRunningButton (button);
+              else if (!accentActive)
+                _action->setRunningButton (-1);
+            }
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);
@@ -8012,6 +8045,12 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
 
     case EncoderTarget::Kind::MixerKey:
       // A key is pressed, not turned -- see handleEncoderPress().
+      return;
+
+    case EncoderTarget::Kind::ActionButton:
+      chooseActionButton (_chosenActionButton[shown] + increment);
+      updateControlReadout (
+          "A" + juce::String (_chosenActionButton[shown] + 1));
       return;
 
     case EncoderTarget::Kind::ColumnChannelPot:

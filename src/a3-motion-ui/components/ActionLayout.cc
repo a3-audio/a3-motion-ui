@@ -97,7 +97,6 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   // The global strip's rows still win when it offers a set that fits, so the
   // two blocks read across at one height -- but never lower than the top,
   // which is what "centred" was really costing.
-  auto const blockH = ActionLayout::numRows * rowH;
   auto const top = referenceFits
                        ? juce::jmax (grid.getY (), gridReference.getY ())
                        : grid.getY ();
@@ -116,36 +115,36 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
             = band.removeFromLeft (colW).reduced (juce::roundToInt (theme ().paddingHair));
     }
 
-  // And the key that fires it, in everything the knobs left -- all the way to
-  // the foot of the card. It is the one thing on this page that happens now,
-  // pressed mid-set with one hand while the other is on the crossfader, so
-  // the room it is given is the room there is. A key sized to a knob would be
-  // a knob's worth of target for the only thing here that cannot be aimed at
-  // twice.
-  {
-    auto below = grid.withTop (top + blockH + gap);
-    if (below.getHeight () >= fingertipSize)
-      out.fireButton = below.withWidth (juce::jmin (gridW, below.getWidth ()))
-                           .withX (below.getX ()
-                                   + (below.getWidth ()
-                                      - juce::jmin (gridW, below.getWidth ()))
-                                         / 2);
-  }
+  // Left of the card, left to right (2026-09-28): the six buttons, the list
+  // the chosen one is assigned from, and a column of keys -- the mode, EDIT,
+  // and ACT at the foot taking what the column has left. ACT is the one thing
+  // here that happens now, so it gets the room; the others are preparation.
+  auto const keyH = juce::jmax (fingertipSize,
+                                static_cast<int> (headerSize * 2.f));
+  auto keys = content.removeFromRight (
+      juce::jmax (fingertipSize * 3 / 2, content.getWidth () / 7));
+  content.removeFromRight (gap);
+  out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromTop (gap);
+  out.editButton = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromTop (gap);
+  out.fireButton = keys;
 
-  // What is left is the action's: its name, its mode and EDIT on one line,
-  // the list to assign from under them. The editor that took turns with the
-  // list here went to FILES on 2026-09-27.
-  auto const nameH = juce::jmax (fingertipSize,
-                                 static_cast<int> (headerSize * 2.f));
-  auto nameRow = content.removeFromTop (juce::jmin (nameH, content.getHeight ()));
-  auto const sideW = juce::jmin (labelW + colW, nameRow.getWidth () / 4);
-  out.editButton = nameRow.removeFromRight (sideW);
-  nameRow.removeFromRight (gap);
-  out.actModeField = nameRow.removeFromRight (sideW);
-  nameRow.removeFromRight (gap);
-  out.actionField = nameRow;
+  // Three rows of two, as the pads stand on the panel: A1 A2 / A3 A4 / A5 A6.
+  auto const fieldW = juce::jmax (fingertipSize, content.getWidth () / 5);
+  auto fields = content.removeFromLeft (2 * fieldW + gap);
+  content.removeFromLeft (gap);
+  auto const fieldH = (fields.getHeight () - 2 * gap) / 3;
+  for (int row = 0; row < 3; ++row)
+    {
+      auto band = fields.withTrimmedTop (row * (fieldH + gap))
+                      .withHeight (fieldH);
+      out.actionFields[static_cast<size_t> (row * 2)]
+          = band.removeFromLeft (fieldW);
+      band.removeFromLeft (gap);
+      out.actionFields[static_cast<size_t> (row * 2 + 1)] = band;
+    }
 
-  content.removeFromTop (gap);
   out.actionListRowHeight
       = juce::jmax (fingertipSize, content.getHeight () / 7);
   out.actionListArea = content;
