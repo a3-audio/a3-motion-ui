@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/tempo/ExternalTempo.hh>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/MotionEngine.hh>
@@ -135,6 +137,10 @@ public:
   void handleMessage (juce::OSCMessage const &message, int clockMode);
 
 private:
+  /** The tempo the engine runs at in EXT and PIO, followed from the one each
+   *  /beat reports. Only this handler's thread touches it. */
+  ExternalTempoFollower _externalTempo;
+
   OscAddresses _addresses;
   MotionEngine &_engine;
   Listener &_listener;

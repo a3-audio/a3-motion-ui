@@ -20,14 +20,28 @@
 
 #include <a3-motion-engine/tempo/BeatSync.hh>
 
+#include <cmath>
+
 #include <gtest/gtest.h>
 
 namespace a3
 {
 
+namespace
+{
+BeatSyncCorrection
+firstBeat (double position, int arriving, int beatsPerBar = 4)
+{
+  BeatPhaseFollower follower;
+  return follower.onBeat (position, arriving, beatsPerBar);
+}
+}
+
 TEST (BeatSync, OnTheBeatNothingMoves)
 {
-  EXPECT_DOUBLE_EQ (beatSyncShift (2.0, 2, 4), 0.0);
+  auto const c = firstBeat (2.0, 2);
+  EXPECT_DOUBLE_EQ (c.timeShift, 0.0);
+  EXPECT_EQ (c.beatsToAdd, 0);
 }
 
 TEST (BeatSync, ASmallLagIsPulledInGently)
@@ -35,14 +49,14 @@ TEST (BeatSync, ASmallLagIsPulledInGently)
   // Measured 2026-09-17: the engine drifts about ten milliseconds a beat
   // against the beat it is sent. Pulled in by a share each beat, that is a
   // correction nobody hears; pulled in whole, every beat would be a jolt.
-  auto const shift = beatSyncShift (0.96, 1, 4);
+  auto const shift = firstBeat (0.96, 1).timeShift;
   EXPECT_GT (shift, 0.0);
   EXPECT_LT (shift, 0.04);
 }
 
 TEST (BeatSync, ASmallLeadIsHeldBackGently)
 {
-  auto const shift = beatSyncShift (1.04, 1, 4);
+  auto const shift = firstBeat (1.04, 1).timeShift;
   EXPECT_LT (shift, 0.0);
   EXPECT_GT (shift, -0.04);
 }
@@ -51,34 +65,61 @@ TEST (BeatSync, TheBarLineIsNotAWholeBarAway)
 {
   // Just before the downbeat and the one arriving are a hair apart, not a
   // bar: the error is taken the short way round.
-  auto const shift = beatSyncShift (3.98, 0, 4);
-  EXPECT_GT (shift, 0.0);
-  EXPECT_LT (shift, 0.02);
+  auto const c = firstBeat (3.98, 0);
+  EXPECT_GT (c.timeShift, 0.0);
+  EXPECT_LT (c.timeShift, 0.02);
+  EXPECT_EQ (c.beatsToAdd, 0);
 }
 
-TEST (BeatSync, FarOffItJumpsTheWholeWay)
+// a3-motion-ui#36: past the lock window the engine used to jump the whole
+// way, and an unsteady clock's outliers -- up to 400 ms at 70 BPM -- made it
+// jump its phase. One beat far off is a stray now, and changes nothing.
+TEST (BeatSync, OneBeatFarOffIsAStray)
 {
-  // Off by more than the lock window the engine is on the wrong beat, and
-  // easing there over many beats is many beats out of time. One jump, the
-  // short way round.
-  EXPECT_DOUBLE_EQ (beatSyncShift (3.5, 0, 4), 0.5);
-  EXPECT_DOUBLE_EQ (beatSyncShift (1.5, 0, 4), -1.5);
-  // Exactly half a bar either way: forwards, so the engine never stands
-  // still for two beats when it could catch up instead.
-  EXPECT_DOUBLE_EQ (beatSyncShift (2.0, 0, 4), 2.0);
+  BeatPhaseFollower follower;
+  follower.onBeat (1.0, 1, 4);
+  auto const c = follower.onBeat (2.4, 2, 4);
+  EXPECT_DOUBLE_EQ (c.timeShift, 0.0);
+  EXPECT_EQ (c.beatsToAdd, 0);
 }
 
-TEST (BeatSync, WhereTheDownbeatIsComesFromTheSource)
+// Far off twice in a row is a real offset, and it is caught up -- in steps
+// no bigger than beatSyncMaxStep, never in one jump.
+TEST (BeatSync, AConfirmedOffsetIsCaughtUpWithoutAJump)
 {
-  // On the right beat of the wrong place in the bar is still wrong: the
-  // "one" is what a clip starting on a downbeat waits for.
-  EXPECT_DOUBLE_EQ (beatSyncShift (1.0, 3, 4), 2.0);
+  BeatPhaseFollower follower;
+  auto lag = 0.4; // behind by this much of a beat
+  follower.onBeat (1.0 - lag, 1, 4);
+
+  for (int beat = 0; beat < 20; ++beat)
+    {
+      auto const c = follower.onBeat (2.0 - lag, 2, 4);
+      EXPECT_LE (std::abs (c.timeShift), beatSyncMaxStep + 1e-12)
+          << "beat " << beat;
+      lag -= c.timeShift;
+    }
+  EXPECT_LT (std::abs (lag), 0.02) << "never caught up";
+}
+
+// On the wrong beat of the bar, the engine's beat is renumbered rather than
+// moved: which beat it is changes, where it is in time does not -- so a
+// clip plays on without a burst of ticks. Once confirmed, like any offset.
+TEST (BeatSync, AWrongBeatIsRenumberedNotJumped)
+{
+  BeatPhaseFollower follower;
+  auto const first = follower.onBeat (1.0, 3, 4);
+  EXPECT_EQ (first.beatsToAdd, 0) << "renumbered on a single beat";
+
+  auto const second = follower.onBeat (2.0, 0, 4);
+  EXPECT_EQ (second.beatsToAdd, 2);
+  EXPECT_NEAR (second.timeShift, 0.0, 1e-12);
 }
 
 TEST (BeatSync, ABeatNumberOutsideTheBarIsFoldedIn)
 {
-  EXPECT_DOUBLE_EQ (beatSyncShift (1.0, 5, 4), 0.0);
-  EXPECT_DOUBLE_EQ (beatSyncShift (1.0, -3, 4), 0.0);
+  EXPECT_EQ (firstBeat (1.0, 5).beatsToAdd, 0);
+  EXPECT_DOUBLE_EQ (firstBeat (1.0, 5).timeShift, 0.0);
+  EXPECT_DOUBLE_EQ (firstBeat (1.0, -3).timeShift, 0.0);
 }
 
 }
