@@ -366,11 +366,12 @@ public:
   /** Whether camera mode is on, so the picture's field can wear it. */
   void setCameraMode (bool on);
 
-  /** MAINMIX was tapped: open or close the big mixer. Not a page -- the
-   *  mixer lies over the sphere, and the bar stays on the page it was on. */
-  std::function<void ()> onMainMixTapped;
-  /** Whether the big mixer is open, so MAINMIX can wear it. */
-  void setMainMixOpen (bool open);
+  /** MAINMIX or FILES was tapped. Not pages -- the big mixer and the browser
+   *  lie over the sphere, and the bar stays on the page it was on. */
+  std::function<void (SphereOverlay overlay)> onSphereOverlayTapped;
+  /** What is over the sphere, so its key can wear it and the page's tab go
+   *  dark. */
+  void setOverSphere (SphereOverlay overlay);
   /** Tapped, except Action, which is held for as long as the finger is down --
    *  the same distinction the pads make, because these are the same four
    *  things and two ways to do one thing must not behave differently. */
@@ -756,7 +757,7 @@ private:
   bool _cameraMode = false;
   std::unique_ptr<TouchControl> _tabRecordTouch;
   std::unique_ptr<TouchControl> _tabMotionTouch;
-  bool _mainMixOpen = false;
+  SphereOverlay _overSphere = SphereOverlay::None;
   std::array<std::unique_ptr<TouchControl>, numSpeedButtons> _speedTouch;
 
   std::unique_ptr<TouchControl> _recModeTouch;

@@ -1222,7 +1222,7 @@ TEST (ClipSettingsLayout, FilesMainmixAndPadsLeadTheGlobalStrip)
 TEST (ClipSettingsLayout, EveryChannelHasAFaceOnEveryPage)
 {
   for (auto const page : { BarPage::Clip, BarPage::Controller,
-                           BarPage::Browser })
+                           BarPage::Action })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, 768, 300 }, 14.f, 12.f, 1.f, page);
@@ -1328,7 +1328,7 @@ TEST (ClipSettingsLayout, TheFacesAndTheTransportHaveTheirOwnFrames)
 TEST (ClipSettingsLayout, TheTransportIsFourEqualKeysOnEveryPage)
 {
   for (auto const page : { BarPage::Clip,
-                           BarPage::Controller, BarPage::Browser })
+                           BarPage::Controller, BarPage::Action })
     {
       auto const l
           = layOutClipSettings ({ 0, 0, 768, 400 }, 14.f, 12.f, 1.f, page);
@@ -1481,13 +1481,21 @@ TEST (SelectionAfterRemoving, ARowBeforeTheStartIsRowZero)
 // MAINMIX is a tab like the others since 2026-09-26, not a toggle: while the
 // big mixer is shown, MAINMIX is the one lit tab, and the page underneath
 // does not also claim to be selected. With the mixer away, the shown page is.
-TEST (ClipSettingsLayout, OneTabIsLitAndMainMixTakesItWhileOpen)
+// FILES lies over the sphere the same way since 2026-09-27, and takes the
+// light the same way.
+TEST (ClipSettingsLayout, OneTabIsLitAndAnOverlayTakesItWhileOpen)
 {
-  EXPECT_TRUE (pageTabIsLit (BarPage::Clip, BarPage::Clip, false));
-  EXPECT_FALSE (pageTabIsLit (BarPage::Action, BarPage::Clip, false));
+  EXPECT_TRUE (
+      pageTabIsLit (BarPage::Clip, BarPage::Clip, SphereOverlay::None));
+  EXPECT_FALSE (
+      pageTabIsLit (BarPage::Action, BarPage::Clip, SphereOverlay::None));
 
-  EXPECT_FALSE (pageTabIsLit (BarPage::Clip, BarPage::Clip, true))
+  EXPECT_FALSE (
+      pageTabIsLit (BarPage::Clip, BarPage::Clip, SphereOverlay::MainMix))
       << "the page under the big mixer is lit beside MAINMIX";
+  EXPECT_FALSE (
+      pageTabIsLit (BarPage::Clip, BarPage::Clip, SphereOverlay::Files))
+      << "the page under the browser is lit beside FILES";
 }
 
 // ── The REC page (2026-09-26) ─────────────────────────────────────────────
@@ -1543,7 +1551,7 @@ TEST (ClipSettingsLayout, EachControlStandsOnItsOwnPage)
   EXPECT_FALSE (controlIsOnPage (global, 0, BarPage::Clip));
 
   for (auto const page : { BarPage::Action, BarPage::Controller,
-                           BarPage::Mixer, BarPage::Browser })
+                           BarPage::Mixer })
     EXPECT_FALSE (controlIsOnPage (shape, 0, page));
 }
 
