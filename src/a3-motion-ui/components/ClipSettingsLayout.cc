@@ -310,14 +310,14 @@ juce::Rectangle<int>
 fieldCaptionPlate (juce::Rectangle<int> field, float captionSize,
                    float textWidth)
 {
+  // A tab set into the corner: flush with the field's top and left edges and
+  // down to where the knobs begin, so the label band is the tab's own.
   auto const inset = fieldCaptionInset ();
-  auto const height = fieldCaptionHeight (field, captionSize);
-  // Air on either side of the words: half the plate's height, so a taller
-  // caption gets a proportionally wider margin.
+  auto const height = inset + fieldCaptionHeight (field, captionSize);
+  // Air on either side of the words, growing with the tab's height.
   auto const width = static_cast<int> (std::ceil (textWidth)) + height;
-  auto const inside = field.reduced (inset);
-  return inside.withHeight (height).withWidth (
-      std::min (width, inside.getWidth ()));
+  return field.withHeight (height).withWidth (
+      std::min (width, field.getWidth ()));
 }
 
 juce::Rectangle<int>

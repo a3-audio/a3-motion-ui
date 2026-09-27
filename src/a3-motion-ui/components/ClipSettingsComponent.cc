@@ -53,10 +53,13 @@ namespace
 constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
-/** A field's name plate: the ground a shade darker under the words, and a
- *  quiet edge round them. */
-constexpr float captionPlateWash = 0.35f;
-constexpr float captionPlateEdge = 0.35f;
+/** A field's name tab, engraved: the ground sunk a shade darker, deepest
+ *  under its top edge, a lit edge where the cut meets the field, and the words
+ *  cut in with a faint light copy below them. */
+constexpr float captionTabDeep = 0.55f;
+constexpr float captionTabShallow = 0.3f;
+constexpr float captionTabLitEdge = 0.14f;
+constexpr float captionEngraveLight = 0.12f;
 /** How much the TAP key comes up on a beat. A fifth of the wash a press
  *  makes: this is the metronome you notice without looking at it, and it was
  *  taken out once already for being louder than that. */
@@ -2327,24 +2330,52 @@ ClipSettingsComponent::paintFieldCaption (juce::Graphics &g,
     return;
 
   juce::Font const font{ juce::FontOptions (_layout.metrics.captionSize) };
-  auto const plate
+  auto const hair = theme ().strokeThin;
+  // Inside the field's own outline, so the field keeps its edge all round.
+  auto const tab
       = fieldCaptionPlate (field, _layout.metrics.captionSize,
                            juce::GlyphArrangement::getStringWidth (font, text))
-            .toFloat ();
+            .toFloat ()
+            .withTrimmedLeft (hair)
+            .withTrimmedTop (hair);
 
-  // A plate a shade darker than the field, with a hairline round it snapped
-  // to whole pixels like the encoders' frames: the name is set off from the
-  // field it names without shouting over the value in the middle.
-  auto const radius = juce::jmin (theme ().radiusRow, plate.getHeight () / 2.f);
-  g.setColour (toColour (theme ().background, captionPlateWash));
-  g.fillRoundedRectangle (plate, radius);
-  g.setColour (toColour (theme ().textMuted, captionPlateEdge));
-  g.drawRoundedRectangle (plate.reduced (theme ().strokeThin * 0.5f), radius,
-                          theme ().strokeThin);
+  // Rounded where the field is (top left) and where the cut turns back into
+  // the field (bottom right); square along the two edges it shares.
+  auto const radius
+      = juce::jmin (theme ().radiusControl, tab.getHeight () / 2.f);
+  juce::Path shape;
+  shape.addRoundedRectangle (tab.getX (), tab.getY (), tab.getWidth (),
+                             tab.getHeight (), radius, radius, true, false,
+                             false, true);
 
+  // Sunk into the field: darkest under its top edge, as if that edge threw a
+  // shadow into the cut.
+  g.setGradientFill (juce::ColourGradient (
+      toColour (theme ().background, captionTabDeep), tab.getTopLeft (),
+      toColour (theme ().background, captionTabShallow), tab.getBottomLeft (),
+      false));
+  g.fillPath (shape);
+
+  // The cut's far walls catch the light: a hairline down its right side and
+  // along its foot, round the corner between them.
+  auto const right = tab.getRight () - hair * 0.5f;
+  auto const bottom = tab.getBottom () - hair * 0.5f;
+  juce::Path litEdge;
+  litEdge.startNewSubPath (right, tab.getY ());
+  litEdge.lineTo (right, bottom - radius);
+  litEdge.quadraticTo (right, bottom, right - radius, bottom);
+  litEdge.lineTo (tab.getX (), bottom);
+  g.setColour (toColour (theme ().textPrimary, captionTabLitEdge));
+  g.strokePath (litEdge, juce::PathStrokeType (hair));
+
+  // The words cut in: a faint light copy a hairline lower, then the words.
   g.setFont (font);
+  auto const words = tab.toNearestInt ();
+  g.setColour (toColour (theme ().textPrimary, captionEngraveLight));
+  g.drawText (text, words.translated (0, juce::roundToInt (hair)),
+              juce::Justification::centred, true);
   g.setColour (toColour (theme ().textMuted));
-  g.drawText (text, plate.toNearestInt (), juce::Justification::centred, true);
+  g.drawText (text, words, juce::Justification::centred, true);
 }
 
 void

@@ -1847,6 +1847,19 @@ TEST (ClipSettingsLayout, AFieldsCaptionSitsOnAPlateInItsTopLeftCorner)
   EXPECT_TRUE (field.contains (long_)) << "never wider than the field";
 }
 
+// The caption is a tab (2026-09-27, evening): set into the field's top left
+// corner flush with its edges, down to where the knobs begin -- the label
+// band is the tab's, not a plate floating inside the field.
+TEST (ClipSettingsLayout, AFieldsCaptionIsATabSetIntoItsTopLeftCorner)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const tab = fieldCaptionPlate (field, 12.f, 40.f);
+
+  EXPECT_EQ (tab.getTopLeft (), field.getTopLeft ());
+  EXPECT_EQ (tab.getBottom (), fieldBelowCaption (field, 12.f).getY ())
+      << "the tab fills the label band down to the knobs";
+}
+
 // What each field is called (2026-09-27): CLIP and REC name the clip, the
 // picture and their own two; MOTION one name per field. The lengths name
 // themselves by their value.

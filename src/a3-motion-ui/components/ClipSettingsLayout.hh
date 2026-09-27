@@ -601,9 +601,9 @@ juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
  *  way. */
 juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
 
-/** Where a field's caption stands: small, in its top left corner, clear of
- *  the value in the middle (2026-09-27), on a plate as wide as its words and
- *  some air -- `textWidth` -- and never wider than the field. */
+/** Where a field's caption stands: a tab set into its top left corner, flush
+ *  with its edges and down to where the knobs begin (2026-09-27), as wide as
+ *  its words and some air -- `textWidth` -- and never wider than the field. */
 juce::Rectangle<int> fieldCaptionPlate (juce::Rectangle<int> field,
                                         float captionSize, float textWidth);
 
