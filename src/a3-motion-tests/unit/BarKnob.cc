@@ -164,7 +164,7 @@ accentPixels (bool encoderMarked)
 TEST (BarKnob, TheKnobAnEncoderIsOnIsFramed)
 {
   EXPECT_EQ (accentPixels (false), 0);
-  EXPECT_GT (accentPixels (true), 40);
+  EXPECT_GT (accentPixels (true), 20);
 }
 
 // The frame is only as wide as the widest knob caption needs, and every
@@ -181,6 +181,19 @@ TEST (BarKnob, EveryEncoderFrameIsOneSizeAndFitsItsKnob)
   EXPECT_LT (wide.getWidth (), 200.f) << "not the whole cell";
   EXPECT_GE (wide.getWidth (), static_cast<float> (metrics.knobDiam));
   EXPECT_FLOAT_EQ (wide.getCentreX (), 100.f) << "centred on the knob";
+}
+
+// A bit taller than the knob and its caption, with air above and below --
+// and in a tall cell no taller than that (2026-09-27).
+TEST (BarKnob, AFrameLeavesItsKnobAirAboveAndBelow)
+{
+  ControlMetrics const metrics{ 30, 10.f, 10.f };
+  auto const frame = encoderMarkBounds ({ 0, 0, 120, 200 }, metrics);
+
+  EXPECT_GT (frame.getHeight (), static_cast<float> (metrics.knobDiam) + 10.f)
+      << "knob, caption and air";
+  EXPECT_LT (frame.getHeight (), 200.f) << "not the whole tall cell";
+  EXPECT_FLOAT_EQ (frame.getCentreY (), 100.f);
 }
 
 TEST (BarKnob, AFrameNeverLeavesItsCell)

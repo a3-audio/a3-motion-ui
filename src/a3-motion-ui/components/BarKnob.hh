@@ -61,8 +61,9 @@ std::vector<std::pair<float, float> > modulationArcs (float valueAngle,
                                                       float sweep, bool wraps);
 
 /** Where the frame of the knob an encoder is on is drawn: as wide as the
- *  widest caption of the bar's knobs needs, and no wider -- so every frame is
- *  one size -- centred in the knob's cell and never out of it. */
+ *  widest caption of the bar's knobs needs and as tall as a knob with its
+ *  caption, each with a little air, and no bigger -- so every frame is one
+ *  size -- centred in the knob's cell and never out of it. */
 juce::Rectangle<float> encoderMarkBounds (juce::Rectangle<int> bounds,
                                           ControlMetrics metrics);
 

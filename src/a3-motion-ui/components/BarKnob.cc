@@ -92,6 +92,17 @@ widestKnobCaption (float size)
 }
 }
 
+/** How tall a knob and its caption stand together: the knob, the caption's
+ *  row under it, and the cell's own padding. A cell taller than this keeps
+ *  them together in its middle rather than pulling them apart. */
+float
+knobBlockHeight (ControlMetrics metrics)
+{
+  return static_cast<float> (metrics.knobDiam)
+         + std::ceil (metrics.captionSize * rowHeightFactor)
+         + 2.f * theme ().paddingTight;
+}
+
 juce::Rectangle<float>
 encoderMarkBounds (juce::Rectangle<int> bounds, ControlMetrics metrics)
 {
@@ -102,7 +113,11 @@ encoderMarkBounds (juce::Rectangle<int> bounds, ControlMetrics metrics)
   // touch the frame.
   auto const air = std::max (theme ().paddingTight, metrics.captionSize * 0.5f);
   auto const width = std::min (cell.getWidth (), inner + 2.f * air);
-  return cell.withSizeKeepingCentre (width, cell.getHeight ());
+  // And as tall as the knob with its caption, with the same air above and
+  // below.
+  auto const height
+      = std::min (cell.getHeight (), knobBlockHeight (metrics) + 2.f * air);
+  return cell.withSizeKeepingCentre (width, height);
 }
 
 void
@@ -125,13 +140,24 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
   if (encoderMarked)
     {
       g.setColour (toColour (theme ().accent));
+      // On whole pixels, the line on their centres: a thin line between two
+      // pixels is drawn as a blur across both.
       g.drawRoundedRectangle (encoderMarkBounds (bounds, metrics)
-                                  .reduced (theme ().paddingHair),
+                                  .toNearestInt ()
+                                  .toFloat ()
+                                  .reduced (theme ().strokeThin * 0.5f),
                               theme ().radiusControl,
-                              juce::jmax (2.f, theme ().strokeMedium));
+                              theme ().strokeThin);
     }
 
+  // Knob and caption together in the middle of a tall cell, not the knob up
+  // top and the caption at the foot (2026-09-27).
   auto content = bounds.reduced (juce::roundToInt (theme ().paddingTight));
+  content = content.withSizeKeepingCentre (
+      content.getWidth (),
+      std::min (content.getHeight (),
+                juce::roundToInt (knobBlockHeight (metrics)
+                                  - 2.f * theme ().paddingTight)));
 
   auto labelArea
       = content.removeFromBottom (textRowHeight (content, metrics.captionSize));

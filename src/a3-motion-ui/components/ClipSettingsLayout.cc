@@ -443,8 +443,8 @@ layOutRecordPage (ClipSettingsLayout &out)
 
   auto both = f[5];
   auto const fade = both.removeFromLeft (both.getWidth () / 2);
-  out.controls[2][8] = textCell (fade, out.metrics.knobDiam);
-  out.controls[2][9] = textCell (both, out.metrics.knobDiam);
+  out.controls[2][8] = fade;
+  out.controls[2][9] = both;
 }
 
 /** MOTION as eight fields, one per encoder (2026-09-27), as CLIP and REC:
@@ -463,12 +463,13 @@ layOutMotionPage (ClipSettingsLayout &out)
   out.sectionLabels[2] = {};
   out.sectionLabels[1] = {};
 
-  // The field's two halves, each a knob's cell.
-  auto const halves = [&out] (juce::Rectangle<int> field) {
+  // The field's two halves, each a knob's whole cell: the knob keeps itself
+  // and its caption together in the middle, and the encoder's frame gets the
+  // air round them.
+  auto const halves = [] (juce::Rectangle<int> field) {
     auto right = field;
     auto const left = right.removeFromLeft (field.getWidth () / 2);
-    return std::pair{ textCell (left, out.metrics.knobDiam),
-                      textCell (right, out.metrics.knobDiam) };
+    return std::pair{ left, right };
   };
 
   auto &m = out.controls[2];
