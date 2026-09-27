@@ -178,7 +178,7 @@ advancePlayhead (Playhead current, float delta, PlayDirection direction,
     return endTheTravel (current, sign, endAction, stopAtEnd,
                          [randomPhase, sign] {
                            return Playhead{ wrapIntoPass (randomPhase), sign,
-                                            false };
+                                            false, true };
                          });
 
   return endTheTravel (current, sign, endAction, stopAtEnd, [next, sign] {

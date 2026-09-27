@@ -370,6 +370,27 @@ layOutMixerOverlay (juce::Rectangle<int> area, ControlMetrics metrics)
   return out;
 }
 
+juce::Rectangle<int>
+mixerStripFieldOf (MixerLayout const &layout, MixerControl control)
+{
+  auto const field = [control] {
+    switch (control)
+      {
+      case MixerControl::Gain: return 0;
+      case MixerControl::EqHigh: return 1;
+      case MixerControl::EqMid: return 2;
+      case MixerControl::EqLow: return 3;
+      case MixerControl::FxSend: return 4;
+      case MixerControl::Pfl: return 5;
+      case MixerControl::Fx: return 6;
+      default: return -1;
+      }
+  }();
+  if (field < 0)
+    return {};
+  return layout.stripFields[static_cast<std::size_t> (field)];
+}
+
 MixerLayout
 layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
 {
@@ -411,26 +432,18 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
             = { fieldsArea.getX () + column * (cellW + gap),
                 fieldsArea.getY () + row * (rowH + gap), cellW, rowH };
 
-  auto const fieldOf = [] (MixerControl control) {
-    switch (control)
-      {
-      case MixerControl::Gain: return 0;
-      case MixerControl::EqHigh: return 1;
-      case MixerControl::EqMid: return 2;
-      case MixerControl::EqLow: return 3;
-      case MixerControl::FxSend: return 4;
-      case MixerControl::Pfl: return 5;
-      case MixerControl::Fx: return 6;
-      default: return 7;
-      }
-  };
 
   for (int i = 0; i < numMixerFaceControls; ++i)
     {
       auto const index = static_cast<std::size_t> (i);
-      auto const cell = out.stripFields[static_cast<std::size_t> (
-          fieldOf (mixerFaceOrder[index]))];
-      out.controls[0][index] = cell;
+      auto const control = mixerFaceOrder[index];
+      auto const cell = mixerStripFieldOf (out, control);
+      // A pot stands under its field's engraved tab (2026-09-27); a key fills
+      // its field and carries its word on its face.
+      out.controls[0][index]
+          = mixerControlIsAToggle (control)
+                ? cell
+                : fieldBelowCaption (cell, metrics.captionSize);
       if (cell.getWidth () < floor_ || cell.getHeight () < floor_)
         cellsFit = false;
     }

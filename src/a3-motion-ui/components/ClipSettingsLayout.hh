@@ -612,8 +612,8 @@ juce::Rectangle<int> fieldCaptionPlate (juce::Rectangle<int> field,
 juce::Rectangle<int> fieldBelowCaption (juce::Rectangle<int> field,
                                         float captionSize);
 
-/** The caption over a page's field, in fieldGrid()'s order; empty for a
- *  field that names itself (the lengths) and on a page without fields. */
+/** The caption over a page's field, in fieldGrid()'s order; empty on a page
+ *  without fields. */
 char const *fieldCaptionOf (BarPage page, int field);
 
 /** A control's box: as tall as the knob box, but the cell's full width —

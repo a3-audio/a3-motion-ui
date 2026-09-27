@@ -55,4 +55,10 @@ void paintBarButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                      bool isActive, bool isSelected,
                      juce::Colour valueColour = {});
 
+/** A field's name as an engraved tab in its top left corner -- see
+ *  fieldCaptionPlate(). The bar's CLIP, MOTION and REC fields and CHMIX's pots
+ *  draw it the same way. Nothing for an empty name. */
+void paintFieldCaptionTab (juce::Graphics &g, juce::Rectangle<int> field,
+                           juce::String const &text, float captionSize);
+
 }

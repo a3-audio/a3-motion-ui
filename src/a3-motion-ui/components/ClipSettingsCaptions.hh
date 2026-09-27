@@ -207,6 +207,7 @@ constexpr char const *direction = "DIRECTION";
 constexpr char const *endAction = "END-ACTION";
 constexpr char const *recMode = "RECMODE";
 constexpr char const *gapConnector = "GAP-CONNECTOR";
+constexpr char const *length = "LENGTH";
 constexpr char const *motion[] = { "ROTATION",  "REACH",     "SQUEEZE X",
                                    "SQUEEZE Y", "ELEVATION", "ELEVATION CLIP",
                                    "TILT",      "ROLL" };

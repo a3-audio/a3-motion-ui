@@ -161,4 +161,9 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
 MixerLayout layOutMixerStrip (juce::Rectangle<int> area,
                               ControlMetrics metrics);
 
+/** The CHMIX field a channel control stands in; empty for one the strip does
+ *  not show. */
+juce::Rectangle<int> mixerStripFieldOf (MixerLayout const &layout,
+                                        MixerControl control);
+
 }

@@ -913,7 +913,8 @@ corner the pads give to Settings. The 4x3 grid and the six function keys that st
 The ACTION page used to line its rows up with the grid's (`setGridReference`); with the grid gone it
 lays out freely, and `layOutActionPage` is handed an empty reference.
 
-The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
+The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. (The MAINMIX key reads
+**MIXER** since 2026-09-27 evening; the code keeps the name MainMix.) CHMIX is the shown channel's
 strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
 is up; a second tap takes it away again, and so does any other tab (`pageTabIsLit`). It stood in the
 status bar as a MIX toggle until then.
