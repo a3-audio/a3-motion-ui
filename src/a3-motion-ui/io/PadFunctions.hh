@@ -22,6 +22,7 @@
 
 #include <array>
 
+#include <a3-motion-engine/ClipSettings.hh> // numActionButtons
 #include <a3-motion-engine/util/Types.hh>
 
 namespace a3
@@ -39,43 +40,53 @@ namespace a3
 /** Per channel. Two clip slots of four functions each. */
 constexpr index_t numPadsPerChannel = 8;
 
+/** What a pad does since one clip per channel (2026-09-27): Play/Pause,
+ *  PAGE -- which steps through the clip's pages -- and six action buttons.
+ *  Named Page rather than Menu in code, because FunctionKey::Menu is already
+ *  the settings menu; the pad may still be called MENU on the panel. */
 enum class PadFunction
 {
   PlayPause,
-  Stop,
+  Page,
   Action,
-  Settings,
 };
 
-/** Fixed per-channel pad-index -> function mapping (same for all channels). */
+/** As the panel stands, two columns of four: Play where slot 1's Play was,
+ *  Page where Stop was, and the six actions in reading order below them --
+ *  A1 A2 / A3 A4 / A5 A6. The firmware only knows pad indices, so nothing
+ *  on the device changes; what a pad means changes here. */
 constexpr std::array<PadFunction, numPadsPerChannel> padFunctionByPadIndex{
   PadFunction::PlayPause, PadFunction::Action,
-  PadFunction::PlayPause, PadFunction::Action,
-  PadFunction::Stop,      PadFunction::Settings,
-  PadFunction::Stop,      PadFunction::Settings,
+  PadFunction::Action,    PadFunction::Action,
+  PadFunction::Page,      PadFunction::Action,
+  PadFunction::Action,    PadFunction::Action,
 };
 
-/** Fixed per-channel pad-index -> clip-slot mapping (same for all channels).
- *  Slot 0 = upper quadrant {0,1,4,5}, slot 1 = lower quadrant {2,3,6,7}. */
-constexpr std::array<index_t, numPadsPerChannel> slotForPadIndex{
-  0, 0, 1, 1, 0, 0, 1, 1,
+/** Which action button a pad is, or -1 for Play and Page. */
+constexpr std::array<int, numPadsPerChannel> actionButtonForPad{
+  -1, 0, 2, 4, -1, 1, 3, 5,
 };
 
-/** How many clips a channel's pads reach. */
-constexpr index_t numPadSlots = 2;
+/** One clip per channel. Kept as a count until the slot dimension is taken
+ *  out of the containers (step G of the one-clip plan). */
+constexpr index_t numPadSlots = 1;
 
-/** The pad that is this function on this slot -- the tables above, read the
- *  other way round.
- *
- *  Anything that is one of these four things without being a pad (the bar's
- *  transport keys) goes through the pad handler rather than repeating what it
- *  does. Two routes to one function that each decide for themselves what it
- *  means will differ eventually, and the difference will show up mid-set. */
+/** The pad of Play/Pause or Page. */
 constexpr index_t
-padIndexFor (PadFunction function, index_t slot)
+padIndexFor (PadFunction function)
 {
   for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-    if (padFunctionByPadIndex[pad] == function && slotForPadIndex[pad] == slot)
+    if (padFunctionByPadIndex[pad] == function)
+      return pad;
+  return 0;
+}
+
+/** The pad of action button `button` (0..5). */
+constexpr index_t
+padIndexForAction (int button)
+{
+  for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
+    if (actionButtonForPad[pad] == button)
       return pad;
   return 0;
 }

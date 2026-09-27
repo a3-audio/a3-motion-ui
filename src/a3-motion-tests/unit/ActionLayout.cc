@@ -102,39 +102,7 @@ TEST (ActionLayout, EveryRowIsNamedBesideIt)
     }
 }
 
-// The mode stands beside the action's name, not at the end of a row: it says
-// what a press does to all three envelopes, so it belongs to none of them --
-// and what fires and how then sit on one line, which is one glance.
-TEST (ActionLayout, TheModeStandsBesideTheActionsName)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
 
-  ASSERT_FALSE (l.actModeField.isEmpty ());
-  EXPECT_FALSE (l.actModeField.intersects (l.actionField));
-  EXPECT_GE (l.actModeField.getX (), l.actionField.getRight ());
-
-  // Clear of the knobs left and right rather than above them: the knobs sit
-  // at the top of their own card now, so the two blocks stand side by side
-  // and it is the column that has to be kept, not the row.
-  for (auto const &control : l.controls)
-    EXPECT_LE (l.actModeField.getRight (), control.getX ());
-
-  EXPECT_GE (l.actModeField.getWidth (), fingertipSize);
-  EXPECT_GE (l.actModeField.getHeight (), fingertipSize);
-}
-
-// What the slot fires is named beside the controls and clear of them.
-TEST (ActionLayout, TheActionFieldSitsClearOfTheControls)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
-
-  ASSERT_FALSE (l.actionField.isEmpty ());
-  for (auto const &control : l.controls)
-    {
-      EXPECT_LE (l.actionField.getRight (), control.getX ());
-      EXPECT_FALSE (l.actionField.intersects (control));
-    }
-}
 
 // Everything inside the page it was given.
 TEST (ActionLayout, NothingEscapesThePage)
@@ -142,8 +110,12 @@ TEST (ActionLayout, NothingEscapesThePage)
   auto const page = juce::Rectangle<int>{ 0, 0, 640, 200 };
   auto const l = layOutActionPage (page, headerSize, 14.f, 1.f, {});
 
-  EXPECT_TRUE (page.contains (l.actionField));
+  for (auto const &field : l.actionFields)
+    EXPECT_TRUE (page.contains (field));
+  EXPECT_TRUE (page.contains (l.actionListArea));
   EXPECT_TRUE (page.contains (l.actModeField));
+  EXPECT_TRUE (page.contains (l.editButton));
+  EXPECT_TRUE (page.contains (l.fireButton));
   for (auto const &control : l.controls)
     EXPECT_TRUE (page.contains (control));
   for (auto const &label : l.rowLabels)
@@ -232,32 +204,6 @@ TEST (ActionLayout, ItWillNotLineUpOverTheCardsName)
     EXPECT_GE (control.getY (), l.cardCaption.getBottom ());
 }
 
-// The knobs are the first thing under that name, and what they leave under
-// them is the key that fires the action. They used to be centred, which put
-// them halfway down a card with nothing beneath them.
-TEST (ActionLayout, TheKnobsAreAtTheTopAndTheKeyIsUnderThem)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f,
-                                   {});
-
-  ASSERT_FALSE (l.fireButton.isEmpty ());
-
-  for (auto const &control : l.controls)
-    {
-      EXPECT_GE (control.getY (), l.cardCaption.getBottom ());
-      EXPECT_LE (control.getBottom (), l.fireButton.getY ());
-    }
-
-  EXPECT_GE (l.fireButton.getHeight (), fingertipSize)
-      << "the one key on this page that happens now is not a fingertip";
-  EXPECT_LE (l.fireButton.getBottom (), l.card.getBottom ());
-
-  // And it takes everything the knobs left, down to the foot of the card. A
-  // key sized to a knob is a knob's worth of target for the only thing on
-  // this page that cannot be aimed at twice.
-  EXPECT_GE (l.fireButton.getHeight (), l.controls.front ().getHeight ())
-      << "the key is no bigger than one of the knobs above it";
-}
 
 // A reference that would push the rows off the page is ignored rather than
 // obeyed -- and so is one whose rows are too short to land a finger on.
@@ -288,35 +234,7 @@ TEST (ActionLayout, ARowTooShortToHitIsIgnoredToo)
 
 // ── The list the action field opens ──────────────────────────────────────
 
-// ACTION without the editor (2026-09-27): the name, the mode and EDIT on one
-// line, the assignment list under them, the knobs and ACT on the right.
-TEST (ActionLayout, EditStandsBesideTheMode)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
 
-  ASSERT_FALSE (l.editButton.isEmpty ());
-  EXPECT_GE (l.editButton.getWidth (), fingertipSize);
-  EXPECT_GE (l.editButton.getHeight (), fingertipSize);
-  EXPECT_FALSE (l.editButton.intersects (l.actModeField));
-  EXPECT_FALSE (l.editButton.intersects (l.actionField));
-  EXPECT_EQ (l.editButton.getY (), l.actModeField.getY ());
-  EXPECT_LE (l.editButton.getRight (), l.card.getX ());
-}
-
-// The list stands open where the editor took turns with it, and it never
-// covers a knob.
-TEST (ActionLayout, TheListTakesTheRoomTheEditorLeft)
-{
-  auto const l = layOutActionPage ({ 0, 0, 768, 300 }, headerSize, 14.f, 1.f, {});
-
-  ASSERT_FALSE (l.actionListArea.isEmpty ());
-  EXPECT_GE (l.actionListArea.getY (), l.actionField.getBottom ());
-  EXPECT_LE (l.actionListArea.getRight (), l.card.getX ());
-  EXPECT_GE (actionListVisibleRows (l), 3);
-  for (auto const &control : l.controls)
-    EXPECT_FALSE (l.actionListArea.intersects (control))
-        << "the list covers a knob";
-}
 
 // Every row of it is a fingertip, whatever the page's size -- picking a
 // script mid-set is a tap, and a row you have to aim at is a row you miss.
@@ -353,4 +271,90 @@ TEST (ActionLayout, TheActionListShowsFewerRowsThanThereAreScripts)
   EXPECT_LE (rows * layout.actionListRowHeight,
              layout.actionListArea.getHeight ())
       << "a row counted as visible must actually be inside the field";
+}
+
+
+// -- Six buttons, the list, the keys, the card (2026-09-28) -------------------
+//
+// Left to right: the six action buttons, three rows of two as on the panel;
+// the list the chosen one is assigned from; a column of keys, ACT at its foot
+// with EDIT and the mode above; and the card of nine knobs for the chosen
+// button's feel.
+
+namespace
+{
+ActionLayout
+pageLayout ()
+{
+  return layOutActionPage ({ 0, 0, 576, 300 }, headerSize, 14.f, 1.f, {});
+}
+}
+
+TEST (ActionLayout, TheSixButtonsStandThreeRowsOfTwoAsOnThePanel)
+{
+  auto const l = pageLayout ();
+  for (size_t row = 0; row < 3; ++row)
+    {
+      auto const &left = l.actionFields[row * 2];
+      auto const &right = l.actionFields[row * 2 + 1];
+      EXPECT_EQ (left.getY (), right.getY ()) << row;
+      EXPECT_LE (left.getRight (), right.getX ()) << row;
+      if (row > 0)
+        {
+          EXPECT_GE (left.getY (), l.actionFields[(row - 1) * 2].getBottom ())
+              << row;
+          EXPECT_EQ (left.getX (), l.actionFields[0].getX ()) << row;
+        }
+    }
+}
+
+TEST (ActionLayout, EveryActionButtonIsAFingertip)
+{
+  for (int height : { 200, 256, 300 })
+    {
+      auto const l
+          = layOutActionPage ({ 0, 0, 576, height }, headerSize, 14.f, 1.f, {});
+      for (auto const &field : l.actionFields)
+        {
+          EXPECT_GE (field.getWidth (), fingertipSize) << height;
+          EXPECT_GE (field.getHeight (), fingertipSize) << height;
+        }
+    }
+}
+
+TEST (ActionLayout, TheListStandsBetweenTheButtonsAndTheKeys)
+{
+  auto const l = pageLayout ();
+  ASSERT_FALSE (l.actionListArea.isEmpty ());
+  for (auto const &field : l.actionFields)
+    EXPECT_LE (field.getRight (), l.actionListArea.getX ());
+  EXPECT_LE (l.actionListArea.getRight (), l.fireButton.getX ());
+  EXPECT_GE (actionListVisibleRows (l), 3);
+}
+
+TEST (ActionLayout, TheKeysStandInAColumnWithActAtItsFoot)
+{
+  auto const l = pageLayout ();
+  for (auto const key : { l.actModeField, l.editButton, l.fireButton })
+    {
+      ASSERT_FALSE (key.isEmpty ());
+      EXPECT_EQ (key.getX (), l.fireButton.getX ());
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_GE (key.getHeight (), fingertipSize);
+      EXPECT_LE (key.getRight (), l.card.getX ());
+    }
+  EXPECT_LE (l.actModeField.getBottom (), l.editButton.getY ());
+  EXPECT_LE (l.editButton.getBottom (), l.fireButton.getY ());
+
+  // The one key that happens now takes what the column has left.
+  EXPECT_EQ (l.fireButton.getBottom (), l.actionListArea.getBottom ());
+  EXPECT_GE (l.fireButton.getHeight (), l.editButton.getHeight ());
+}
+
+TEST (ActionLayout, TheCardHoldsOnlyTheKnobs)
+{
+  auto const l = pageLayout ();
+  EXPECT_FALSE (l.card.intersects (l.fireButton));
+  for (auto const &control : l.controls)
+    EXPECT_TRUE (l.card.contains (control));
 }

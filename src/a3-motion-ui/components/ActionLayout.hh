@@ -31,22 +31,20 @@ namespace a3
 
 /** Where the ACTION page puts things.
  *
- *  Two halves. On the right, a card of nine knobs -- three envelopes by
- *  attack, decay and ceiling -- laid out and positioned to read straight
- *  across into the global strip's channel grid beside it. On the left, which
- *  action this slot fires and the script that action carries.
+ *  On the right, a card of nine knobs -- three envelopes by attack, decay and
+ *  ceiling -- for the chosen button's feel, positioned to read straight
+ *  across into the global strip's channel grid beside it. Left of it, left
+ *  to right: the six action buttons, the list the chosen one is assigned
+ *  from, and a column of keys with ACT at its foot (2026-09-28).
  */
 struct ActionLayout
 {
-  /** Which action clip the ACT key fires on this slot, named. Chosen from the
-   *  list it opens, so what stands here is a reading as much as a control. */
-  juce::Rectangle<int> actionField;
+  /** The six action buttons, three rows of two as on the panel: A1 A2 /
+   *  A3 A4 / A5 A6, indexed by button. */
+  std::array<juce::Rectangle<int>, 6> actionFields;
 
-  /** The mode, beside the name rather than at the end of a row.
-   *
-   *  It says what a press does to all three envelopes, so it belongs to none
-   *  of them -- and it is a state you want to find without reading, which the
-   *  tail of a row is not. */
+  /** The chosen button's mode, at the top of the key column. It says what a
+   *  press does to all three envelopes, so it belongs to none of the rows. */
   juce::Rectangle<int> actModeField;
 
   /** Opens the action's script in FILES, beside the list there -- the
@@ -54,8 +52,8 @@ struct ActionLayout
   juce::Rectangle<int> editButton;
 
 
-  /** The list to assign an action from, open all the time under the name
-   *  (2026-09-27). Never over the knobs, which are what you set next. */
+  /** The list the chosen button is assigned from, open all the time between
+   *  the buttons and the keys. Never over the knobs. */
   juce::Rectangle<int> actionListArea;
   /** A row of that list. A fingertip, whatever the page's size: picking a
    *  script mid-set is a tap, and a row you have to aim at is one you miss. */
@@ -70,9 +68,9 @@ struct ActionLayout
    *  beside a script is a card you have to work out. */
   juce::Rectangle<int> cardCaption;
 
-  /** Fires the action on the shown slot, under the knobs it sets.
+  /** Fires the chosen button's action, at the foot of the key column.
    *
-   *  Fat on purpose: it is the one thing on this page that happens *now*,
+   *  Tall on purpose: it is the one thing on this page that happens *now*,
    *  and it is pressed mid-set with one hand while the other is on the
    *  crossfader. Everything else here is preparation. */
   juce::Rectangle<int> fireButton;

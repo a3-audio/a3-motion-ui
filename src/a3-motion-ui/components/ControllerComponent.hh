@@ -69,9 +69,8 @@ public:
   std::function<void (index_t channel, index_t pad)> onPadPressed;
   std::function<void (index_t channel, index_t pad)> onPadReleased;
 
-  /** A scene pad went down or came up. `row` as in sceneRowFunction: the
-   *  slot's row of Play pads, or its row of Action pads, across every
-   *  channel. The release matters for the same reason a pad's does -- an
+  /** A scene pad went down or came up. `row` is a pad index: that pad on
+   *  every channel, Stop all where a channel has Page. The release matters for the same reason a pad's does -- an
    *  action lasts for as long as it is held. */
   std::function<void (index_t slot, std::size_t row)> onScenePressed;
   std::function<void (index_t slot, std::size_t row)> onSceneReleased;

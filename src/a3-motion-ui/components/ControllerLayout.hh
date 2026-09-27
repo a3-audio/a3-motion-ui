@@ -35,23 +35,21 @@ namespace a3
  *  standard build cannot start a single clip. See
  *  issues/a3-motion-ui-pads-not-reachable-from-the-gui.md.
  *
- *  Laid out as a **box per clip**: channels across, slots down, and where the
- *  two meet sits one clip with its four pads. The pads inside a box keep the
- *  panel's own arrangement — play and action above, stop and settings below —
- *  and their identity comes from `padFunctionByPadIndex` / `slotForPadIndex`,
+ *  Laid out as a **box per channel**, each holding its clip's eight pads in
+ *  the panel's own arrangement — two columns of four, Play top left, Page top
+ *  right, the six actions below — and their identity comes from
+ *  `padFunctionByPadIndex` / `actionButtonForPad`,
  *  the same tables the hardware is read with, so the screen cannot quietly
  *  come to mean something else.
  */
-/** A scene pad fires one pad row across every channel: the row of a slot's
- *  Play pads, or the row of its Action pads. */
-constexpr std::size_t numSceneRows = 2;
-constexpr std::array<PadFunction, numSceneRows> sceneRowFunction{
-  PadFunction::PlayPause, PadFunction::Action
-};
+/** The scene block is shaped like a channel (2026-09-27): one scene pad per
+ *  pad, `scenes[0][pad]`, firing that pad across every channel -- Stop all
+ *  where a channel has Page. */
+constexpr std::size_t numSceneRows = numPadsPerChannel;
 
 struct ControllerLayout
 {
-  /** The box a clip's four pads share. [channel][slot]. */
+  /** The box a channel's eight pads share. [channel][slot], one slot. */
   std::array<std::array<juce::Rectangle<int>, numPadSlots>, numChannelColumns>
       clipBoxes;
 
@@ -60,9 +58,9 @@ struct ControllerLayout
   std::array<std::array<juce::Rectangle<int>, numPadsPerChannel>,
              numChannelColumns>
       pads;
-  /** The column left of the channels: one pad per pad row, `scenes[slot][row]`,
-   *  row as in sceneRowFunction. Lined up with the row it fires and as wide as
-   *  a pad, so it reads as one more pad rather than a margin. */
+  /** The block left of the channels: `scenes[0][pad]`, lined up with the pad
+   *  it fires and as wide as one, so it reads as one more pad rather than a
+   *  margin. */
   std::array<std::array<juce::Rectangle<int>, numSceneRows>, numPadSlots>
       scenes;
 };

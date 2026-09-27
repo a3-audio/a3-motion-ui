@@ -40,7 +40,7 @@ std::vector<juce::Colour>
 padGrounds ()
 {
   return { padFunctionColour (PadFunction::PlayPause),
-           padFunctionColour (PadFunction::Stop),
+           padFunctionColour (PadFunction::Action),
            juce::Colour (167, 79, 12),   juce::Colour (252, 202, 65),
            juce::Colour (242, 19, 142),  juce::Colour (48, 172, 237),
            juce::Colours::black,         juce::Colours::white,

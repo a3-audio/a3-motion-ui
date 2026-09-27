@@ -50,9 +50,8 @@ padName (index_t pad)
   switch (padFunctionByPadIndex[pad])
     {
     case PadFunction::PlayPause: return "PLAY";
-    case PadFunction::Stop:      return "STOP";
+    case PadFunction::Page:      return "PAGE";
     case PadFunction::Action:    return "ACT";
-    case PadFunction::Settings:  return "SET";
     }
 
   return "";
@@ -297,12 +296,17 @@ ControllerComponent::paintScene (juce::Graphics &g, index_t slot,
   g.setColour (toColour (theme ().textPrimary, edgeWash));
   g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
 
-  // The mark of the row it fires, black or white like every pad's.
-  auto const function = sceneRowFunction[row];
+  // The mark of the pad it fires across the channels, black or white like
+  // every pad's -- Stop where the channels have Page: the scene block stops
+  // them all, since the panel lost its Stop pads (2026-09-27).
+  auto const function = padFunctionByPadIndex[row];
   auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
       bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
   g.setColour (padGlyphInk (ground));
-  drawTransportGlyph (g, glyph, transportKeyForPad (function));
+  drawTransportGlyph (g, glyph,
+                      function == PadFunction::Page
+                          ? TransportKey::Stop
+                          : transportKeyForPad (function));
 }
 
 

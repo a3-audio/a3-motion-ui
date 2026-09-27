@@ -241,10 +241,10 @@ public:
   void setMotionEndAction (int endAction);
   void setMotionActMode (int mode);
 
-  /** The four faces: what colour each channel is, which slot it is showing,
-   *  and which of them is the one the bar describes. */
+  /** The four faces: what colour each channel is, the name of its clip, and
+   *  which of them is the one the bar describes. */
   void setChannelFaces (std::array<juce::Colour, numChannelColumns> colours,
-                        std::array<int, numChannelColumns> slots,
+                        std::array<juce::String, numChannelColumns> clipNames,
                         int shownChannel);
 
   /** Which of the Motion section's 3 controls (0 = speed, 1 = direction,
@@ -740,7 +740,7 @@ private:
    *  the colour it wears. Fed from the bar's owner, which is the one place
    *  that knows all four. */
   std::array<juce::Colour, numChannelColumns> _channelFaceColours;
-  std::array<int, numChannelColumns> _channelFaceSlots{};
+  std::array<juce::String, numChannelColumns> _channelFaceClipNames{};
   std::array<float, numChannelColumns> _channelProgress{ -1.f, -1.f, -1.f, -1.f };
   int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;

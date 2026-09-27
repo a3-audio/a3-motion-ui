@@ -87,8 +87,16 @@ public:
   /** 0 = one-shot, 1 = hold. */
   void setActMode (int mode);
 
-  /** Which action clip this slot fires; empty for none. */
+  /** The chosen button's action, which the list marks; empty for none. */
   void setActionName (juce::String const &name);
+
+  /** The six buttons' action names (empty = nothing assigned) and which one
+   *  is chosen -- the one the list, the keys and the card act on. */
+  void setActionButtons (std::array<juce::String, 6> const &names,
+                         int chosen);
+  /** The button whose action runs now, -1 for none: that field goes white,
+   *  as its pad does. */
+  void setRunningButton (int button);
 
 
   /** What the action field's list offers. The empty string is "no action",
@@ -105,6 +113,9 @@ public:
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
+  /** A button's field was tapped: it becomes the chosen one. */
+  std::function<void (int button)> onButtonChosen;
+
   /** A name was picked out of the action list; empty means "fire nothing". */
   std::function<void (juce::String const &name)> onActionChosen;
   /** The fat key under the knobs: fires this slot's action for as long as it
@@ -116,7 +127,8 @@ public:
 
 
 private:
-  void paintActionField (juce::Graphics &g);
+  void paintActionFields (juce::Graphics &g);
+  void paintFireKey (juce::Graphics &g);
   void paintActionList (juce::Graphics &g);
 
 
@@ -140,6 +152,10 @@ private:
   float _qMax = 0.f;
   int _actMode = 0;
   juce::String _actionName;
+  std::array<juce::String, 6> _buttonNames;
+  int _chosenButton = 0;
+  int _runningButton = -1;
+  std::array<std::unique_ptr<TouchControl>, 6> _fieldTouch;
   juce::StringArray _choices;
   /** The list's window, kept apart from which script is chosen -- see
    *  ListScroll. Twenty scripts do not fit in a field a few fingertips tall,

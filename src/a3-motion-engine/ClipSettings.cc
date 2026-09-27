@@ -242,25 +242,52 @@ defaultElevationBase (float clipTop, float clipBottom)
   return (std::min (ceiling, floor) + std::max (ceiling, floor)) * 0.5f;
 }
 
+bool
+operator== (ActionFeel const &a, ActionFeel const &b)
+{
+  return a.envelopeAttack == b.envelopeAttack
+         && a.envelopeDecay == b.envelopeDecay
+         && a.envelopeMax == b.envelopeMax && a.freqAttack == b.freqAttack
+         && a.freqDecay == b.freqDecay && a.freqMax == b.freqMax
+         && a.qAttack == b.qAttack && a.qDecay == b.qDecay
+         && a.qMax == b.qMax && a.actMode == b.actMode;
+}
+
+ActionFeel
+actionFeelFrom (ClipSettings const &s)
+{
+  return { s.envelopeAttack, s.envelopeDecay, s.envelopeMax,
+           s.freqAttack,     s.freqDecay,     s.freqMax,
+           s.qAttack,        s.qDecay,        s.qMax,
+           s.actMode };
+}
+
+ClipSettings
+withFeel (ClipSettings settings, ActionFeel const &feel)
+{
+  settings.envelopeAttack = feel.envelopeAttack;
+  settings.envelopeDecay = feel.envelopeDecay;
+  settings.envelopeMax = feel.envelopeMax;
+  settings.freqAttack = feel.freqAttack;
+  settings.freqDecay = feel.freqDecay;
+  settings.freqMax = feel.freqMax;
+  settings.qAttack = feel.qAttack;
+  settings.qDecay = feel.qDecay;
+  settings.qMax = feel.qMax;
+  settings.actMode = feel.actMode;
+  return settings;
+}
+
 ClipSettings
 actionOver (ClipSettings const &current, ClipSettings const &action)
 {
-  auto fired = action;
-
-  // Named one by one rather than copied as a block: this is the list the
-  // ACTION page owns, and a field that joins it has to be added here too.
-  fired.envelopeAttack = current.envelopeAttack;
-  fired.envelopeDecay = current.envelopeDecay;
-  fired.envelopeMax = current.envelopeMax;
-  fired.freqAttack = current.freqAttack;
-  fired.freqDecay = current.freqDecay;
-  fired.freqMax = current.freqMax;
-  fired.qAttack = current.qAttack;
-  fired.qDecay = current.qDecay;
-  fired.qMax = current.qMax;
-  fired.actMode = current.actMode;
-
-  return fired;
+  // The whole action, how it is played included: since 2026-09-27 each of a
+  // channel's six buttons carries its own feel (ActionFeel) in the action it
+  // fires, and nothing of the clip's stays on during the accent. `current`
+  // is kept as the parameter the callers already pass -- it is what the
+  // accent falls back to, not what it is played with.
+  juce::ignoreUnused (current);
+  return action;
 }
 
 }

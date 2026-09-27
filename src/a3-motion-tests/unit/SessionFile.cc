@@ -553,3 +553,101 @@ TEST (SessionFile, AWrongNumberOfSpeedKeysIsIgnored)
 
   file.deleteFile ();
 }
+
+// ── One clip per channel, six actions (2026-09-27) ───────────────────────
+
+// Six action buttons per channel, each by the script's name (a set travels)
+// and with how it is played -- written only where that differs from the
+// defaults, like a slot's overrides.
+TEST (SessionFile, AChannelCarriesSixActionsWithTheirFeel)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  auto &actions = set.channels[0].actions;
+  actions[0].script = "Bloom";
+  ActionFeel feel;
+  feel.envelopeAttack = 5;
+  feel.actMode = ActMode::Hold;
+  actions[0].feel = feel;
+  actions[3].script = "Ground";
+
+  auto const file = tempSet ("a3-session-actions.json");
+  ASSERT_TRUE (saveSession (file, set));
+  auto const read = loadSession (file, 1, 1);
+
+  EXPECT_EQ (read.channels[0].actions[0].script, "Bloom");
+  ASSERT_TRUE (read.channels[0].actions[0].feel.has_value ());
+  EXPECT_EQ (*read.channels[0].actions[0].feel, feel);
+  EXPECT_EQ (read.channels[0].actions[3].script, "Ground");
+  EXPECT_FALSE (read.channels[0].actions[3].feel.has_value ());
+  EXPECT_TRUE (read.channels[0].actions[1].script.empty ());
+
+  // "slots" stays, so an older build still reads a new set.
+  EXPECT_TRUE (file.loadFileAsString ().contains ("\"slots\""));
+  file.deleteFile ();
+}
+
+// An old set had an action per slot, two per channel. Read by this build it
+// keeps the clip of slot 1 -- and both actions, as A1 and A2, with the
+// envelope each slot had been turned to.
+TEST (SessionFile, AnOldSetsTwoSlotActionsBecomeA1AndA2)
+{
+  auto const file = tempSet ("a3-session-two-slots.json");
+  ASSERT_TRUE (file.replaceWithText (R"({ "channels": [ { "slots": [
+      { "pattern": "Wave", "action": "Slam",
+        "overrides": { "envAttack": 5, "actMode": "hold" } },
+      { "pattern": "Arc", "action": "Bloom" } ] } ] })"));
+
+  auto const read = loadSession (file, 1, 1);
+  ASSERT_EQ (read.channels[0].slots.size (), 1u);
+  EXPECT_EQ (read.channels[0].slots[0].patternName, "Wave");
+
+  auto const &actions = read.channels[0].actions;
+  EXPECT_EQ (actions[0].script, "Slam");
+  ASSERT_TRUE (actions[0].feel.has_value ());
+  EXPECT_EQ (actions[0].feel->envelopeAttack, 5);
+  EXPECT_EQ (actions[0].feel->actMode, ActMode::Hold);
+  EXPECT_EQ (actions[1].script, "Bloom");
+  EXPECT_FALSE (actions[1].feel.has_value ()) << "nothing turned: the script's";
+  file.deleteFile ();
+}
+
+// The first start of the one-clip build copies every two-slot set aside
+// before anything writes one back with one slot -- once, deleting nothing.
+TEST (SessionFile, TwoSlotSetsAreCopiedAsideOnce)
+{
+  auto const root = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-two-slot-backup");
+  root.deleteRecursively ();
+  ASSERT_TRUE (root.getChildFile ("sessions/user").createDirectory ());
+  ASSERT_TRUE (root.getChildFile ("current.json").replaceWithText ("{}"));
+  ASSERT_TRUE (root.getChildFile ("sessions/user/Mine.json").replaceWithText ("{}"));
+
+  EXPECT_TRUE (migrateTwoSlotSets (root));
+  auto const backup = root.getChildFile ("backup-two-slots");
+  EXPECT_TRUE (backup.getChildFile ("current.json").existsAsFile ());
+  EXPECT_TRUE (backup.getChildFile ("sessions/user/Mine.json").existsAsFile ());
+  EXPECT_TRUE (root.getChildFile ("current.json").existsAsFile ())
+      << "a copy, not a move";
+
+  EXPECT_FALSE (migrateTwoSlotSets (root)) << "once";
+  root.deleteRecursively ();
+}
+
+// A set with no action on any button says nothing about actions, so the
+// slots' own still reach A1 and A2 when it is read -- an empty list written
+// by a build that had not filled the buttons yet would otherwise wipe them.
+TEST (SessionFile, NoActionsWrittenLeavesTheSlotsActionsToBeRead)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].action = "Slam";
+
+  auto const file = tempSet ("a3-session-no-actions.json");
+  ASSERT_TRUE (saveSession (file, set));
+  EXPECT_FALSE (file.loadFileAsString ().contains ("\"actions\""));
+  EXPECT_EQ (loadSession (file, 1, 1).channels[0].actions[0].script, "Slam");
+  file.deleteFile ();
+}

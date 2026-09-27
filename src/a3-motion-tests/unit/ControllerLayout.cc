@@ -50,7 +50,7 @@ defaultLayout ()
 }
 
 // The one that matters. A pad on the screen means what the same pad on the
-// panel means, because both read it out of slotForPadIndex — not because
+// panel means, because both read it out of padFunctionByPadIndex — not because
 // somebody arranged the picture to match and will keep it matching. The
 // grouping the maintainer asked for falls out of it: channel across, slot
 // down, and every pad inside the box of the clip it fires.
@@ -61,7 +61,7 @@ TEST (ControllerLayout, EveryPadSitsInTheBoxOfTheClipItFires)
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       {
-        auto const slot = slotForPadIndex[pad];
+        index_t const slot = 0; // one clip per channel since 2026-09-27
         auto const box = l.clipBoxes[channel][slot];
 
         // Asked first, because an empty rectangle is contained in an empty
@@ -169,25 +169,52 @@ TEST (ControllerLayout, NoTwoPadsOverlap)
           << all[i].toString () << " overlaps " << all[j].toString ();
 }
 
-// Breaks if padCellInBox() ever maps two functions to one cell — then one of
-// the four would be drawn on top of another and the clip would be missing a
+// Breaks if padCellInBox() ever maps two pads to one cell -- then one of the
+// eight would be drawn on top of another and the channel would be missing a
 // function with nothing to show for it.
-TEST (ControllerLayout, AClipsFourPadsTakeFourDifferentCorners)
+TEST (ControllerLayout, AChannelsEightPadsTakeEightCells)
 {
   auto const l = defaultLayout ();
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      {
-        std::set<std::pair<int, int> > corners;
-        for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-          if (slotForPadIndex[pad] == slot)
-            corners.insert ({ l.pads[channel][pad].getX (),
-                              l.pads[channel][pad].getY () });
+    {
+      std::set<std::pair<int, int> > cells;
+      for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
+        cells.insert ({ l.pads[channel][pad].getX (),
+                        l.pads[channel][pad].getY () });
+      EXPECT_EQ (cells.size (), 8u) << "channel " << channel;
+    }
+}
 
-        EXPECT_EQ (corners.size (), 4u)
-            << "channel " << channel << ", slot " << slot;
-      }
+// As the panel stands (2026-09-27): two columns of four, pads 0..3 down the
+// left, 4..7 down the right -- Play top left, Page top right, the six below.
+TEST (ControllerLayout, ThePadsStandAsThePanelDoes)
+{
+  auto const l = defaultLayout ();
+  auto const &p = l.pads[0];
+
+  for (index_t pad = 1; pad < 4; ++pad)
+    {
+      EXPECT_EQ (p[pad].getX (), p[0].getX ()) << pad;
+      EXPECT_GT (p[pad].getY (), p[pad - 1].getY ()) << pad;
+      EXPECT_EQ (p[pad + 4].getY (), p[pad].getY ()) << pad;
+      EXPECT_GT (p[pad + 4].getX (), p[pad].getX ()) << pad;
+    }
+}
+
+// The scene block is shaped like a channel, left of the four: a pad in it
+// fires the same pad on every channel (Stop all where a channel has Page).
+TEST (ControllerLayout, TheScenesAreAChannelOfTheirOwn)
+{
+  auto const l = defaultLayout ();
+  for (std::size_t pad = 0; pad < numSceneRows; ++pad)
+    {
+      auto const scene = l.scenes[0][pad];
+      ASSERT_FALSE (scene.isEmpty ()) << pad;
+      EXPECT_LT (scene.getRight (), l.clipBoxes[0][0].getX () + 1) << pad;
+      EXPECT_EQ (scene.getY (), l.pads[0][pad].getY ()) << pad;
+      EXPECT_EQ (scene.getWidth (), l.pads[0][pad].getWidth ()) << pad;
+    }
 }
 
 // Breaks if any of it grows past the area it was handed — which on this bar
@@ -207,48 +234,13 @@ TEST (ControllerLayout, EverythingStaysInsideTheBar)
 }
 
 
-// Read off the device, not derived: pressing the pad drawn top-right reported
-// STOP and the one drawn bottom-left reported ACTION, so the two were the
-// wrong way round. Pinned here because it is a fact about the panel that
-// nothing else in the build can check — the tables say which pad is which
-// function, but only the hardware says where that function sits under a hand.
-TEST (ControllerLayout, TheClipsPadsSitWhereThePanelsDo)
-{
-  auto const l = defaultLayout ();
-
-  auto const cornerOf = [&l] (index_t channel, PadFunction function,
-                              index_t slot) {
-    for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-      if (padFunctionByPadIndex[pad] == function
-          && slotForPadIndex[pad] == slot)
-        return l.pads[channel][pad];
-    return juce::Rectangle<int>{};
-  };
-
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      {
-        auto const play = cornerOf (channel, PadFunction::PlayPause, slot);
-        auto const stop = cornerOf (channel, PadFunction::Stop, slot);
-        auto const action = cornerOf (channel, PadFunction::Action, slot);
-        auto const settings = cornerOf (channel, PadFunction::Settings, slot);
-
-        // Top row: play beside stop. Bottom row: action beside settings.
-        EXPECT_EQ (play.getY (), stop.getY ());
-        EXPECT_LT (play.getX (), stop.getX ());
-
-        EXPECT_EQ (action.getY (), settings.getY ());
-        EXPECT_LT (action.getX (), settings.getX ());
-
-        EXPECT_LT (play.getY (), action.getY ());
-      }
-}
-
 // -- The scene column --------------------------------------------------------
 //
-// One more pad per pad row, left of the four channels: it fires that row across
-// every channel -- a slot's Play pads, or its Action pads. Asked for on
-// 2026-09-22, the way a scene is launched on a deck-side controller.
+// A block shaped like a channel, left of the four: each of its pads fires the
+// same pad across every channel -- Play all, Stop all where a channel has
+// Page, and each action on every channel. Asked for on 2026-09-22 as a column,
+// the way a scene is launched on a deck-side controller; a block since one clip
+// per channel (2026-09-27).
 
 TEST (ControllerLayout, TheScenePadsStandLeftOfEveryChannel)
 {
@@ -267,8 +259,9 @@ TEST (ControllerLayout, EachScenePadLinesUpWithThePadRowItFires)
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     for (std::size_t row = 0; row < numSceneRows; ++row)
       {
-        auto const pad
-            = layout.pads[0][padIndexFor (sceneRowFunction[row], slot)];
+        // The scene block is shaped like a channel: its pad `row` stands
+        // level with every channel's pad `row` (2026-09-27).
+        auto const pad = layout.pads[0][row];
         EXPECT_EQ (layout.scenes[slot][row].getY (), pad.getY ());
         EXPECT_EQ (layout.scenes[slot][row].getHeight (), pad.getHeight ());
       }

@@ -59,10 +59,9 @@ transportKeyForPad (PadFunction function)
 {
   switch (function)
     {
-    case PadFunction::Stop: return TransportKey::Stop;
     case PadFunction::Action: return TransportKey::Action;
     case PadFunction::PlayPause:
-    case PadFunction::Settings: break;
+    case PadFunction::Page: break;
     }
 
   return TransportKey::PlayPause;
@@ -71,7 +70,8 @@ transportKeyForPad (PadFunction function)
 bool
 hasTransportGlyph (PadFunction function)
 {
-  return function != PadFunction::Settings;
+  // PAGE draws the menu mark instead (drawMenuGlyph), as Settings did.
+  return function != PadFunction::Page;
 }
 
 void

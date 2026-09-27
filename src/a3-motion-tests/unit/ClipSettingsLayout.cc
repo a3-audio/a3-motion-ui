@@ -735,44 +735,24 @@ TEST (ClipSettingsLayout, TheClipFieldStandsOverThePicture)
 
 TEST (ClipSettingsLayout, EveryTransportKeyNamesTheRightPad)
 {
-  // The bar's four keys go through the pad handler, so this lookup decides
-  // what each of them does. Action and Stop were swapped on the pads page once
-  // by deriving the order rather than reading it off the tables; this reads it
-  // off the tables and checks it round-trips.
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (auto const function : { PadFunction::PlayPause, PadFunction::Stop,
-                                 PadFunction::Action, PadFunction::Settings })
-      {
-        auto const pad = padIndexFor (function, slot);
-
-        EXPECT_EQ (padFunctionByPadIndex[pad], function)
-            << "slot " << slot << ", pad " << pad;
-        EXPECT_EQ (slotForPadIndex[pad], slot)
-            << "slot " << slot << ", pad " << pad;
-      }
-}
-
-TEST (ClipSettingsLayout, TheFourTransportKeysAreFourDifferentPads)
-{
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
+  // The bar's PLAY and ACT keys go through the pad handler, so this lookup
+  // decides what each of them does; STOP has no pad since one clip per channel
+  // (2026-09-27) and stops the channel directly. Read off the tables and
+  // checked to round-trip, because Action and Stop were swapped on the pads
+  // page once by deriving the order instead.
+  EXPECT_EQ (padFunctionByPadIndex[padIndexFor (PadFunction::PlayPause)],
+             PadFunction::PlayPause);
+  std::set<index_t> pads;
+  for (int button = 0; button < numActionButtons; ++button)
     {
-      std::set<index_t> pads;
-      for (auto const key : transportKeyOrder)
-        {
-          auto const function = key == TransportKey::Record
-                                    ? PadFunction::PlayPause
-                                    : key == TransportKey::Stop
-                                          ? PadFunction::Stop
-                                          : key == TransportKey::PlayPause
-                                                ? PadFunction::PlayPause
-                                                : PadFunction::Action;
-          pads.insert (padIndexFor (function, slot));
-        }
-      // Record and PlayPause deliberately name the same pad -- recording is
-      // armed by Play|Pause with Record held -- so three distinct pads.
-      EXPECT_EQ (pads.size (), 3u) << "slot " << slot;
+      auto const pad = padIndexForAction (button);
+      EXPECT_EQ (padFunctionByPadIndex[pad], PadFunction::Action) << button;
+      EXPECT_EQ (actionButtonForPad[pad], button) << button;
+      pads.insert (pad);
     }
+  EXPECT_EQ (pads.size (), static_cast<size_t> (numActionButtons));
 }
+
 TEST (ClipSettingsLayout, TheClipFacesStillHaveTheirTransportKeys)
 {
   for (auto const page : { BarPage::Clip })

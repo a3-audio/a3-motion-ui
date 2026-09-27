@@ -188,7 +188,29 @@ TEST (PadBaseColour, OtherwiseEveryPadWearsItsChannel)
              channel);
   EXPECT_EQ (padBaseColour (PadFunction::Action, true, false, channel),
              channel);
-  EXPECT_EQ (padBaseColour (PadFunction::Stop, true, true, channel), channel);
-  EXPECT_EQ (padBaseColour (PadFunction::Settings, true, true, channel),
-             channel);
+  EXPECT_EQ (padBaseColour (PadFunction::Page, true, true, channel), channel);
+}
+
+// One clip per channel (2026-09-27): only Play/Pause follows the clip's
+// state. Six action pads blinking with the clip's schedule would say nothing
+// Play does not already say. An action pad is at the idle shade when it has an
+// action and at the empty one when it has none, and full while its action runs;
+// PAGE is at the idle shade, full on the channel the screen shows.
+TEST (PadStatusColours, OnlyPlayFollowsTheClip)
+{
+  using S = Pattern::Status;
+  EXPECT_EQ (padShadeStatus (PadFunction::PlayPause, S::ScheduledForPlaying,
+                             true, false),
+             S::ScheduledForPlaying);
+  EXPECT_EQ (padShadeStatus (PadFunction::Action, S::ScheduledForPlaying, true,
+                             false),
+             S::Idle);
+  EXPECT_EQ (padShadeStatus (PadFunction::Action, S::Playing, false, false),
+             S::Empty);
+  EXPECT_EQ (padShadeStatus (PadFunction::Action, S::Idle, true, true),
+             S::Playing);
+  EXPECT_EQ (padShadeStatus (PadFunction::Page, S::Recording, true, false),
+             S::Idle);
+  EXPECT_EQ (padShadeStatus (PadFunction::Page, S::Empty, true, true),
+             S::Playing);
 }

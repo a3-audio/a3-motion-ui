@@ -41,14 +41,10 @@ using namespace a3;
 
 namespace
 {
-/** The fields ACT plays rather than aims: the two envelopes' times and
- *  ceilings and whether ACT is a stab or a hold. They belong to the slot
- *  because that is what the ACTION page shows and edits. */
-std::vector<std::string> const slotOwned{
-  "envelopeAttack", "envelopeDecay", "envelopeMax", "freqAttack",
-  "freqDecay",      "freqMax",       "qAttack",     "qDecay",
-  "qMax",           "actMode",
-};
+/** The fields a fired action leaves with the clip. None since 2026-09-27:
+ *  how ACT is played -- the envelopes and the mode -- came to each of the six
+ *  buttons (ActionFeel), which the action carries when it is fired. */
+std::vector<std::string> const slotOwned{};
 
 bool
 isSlotOwned (char const *field)
@@ -87,46 +83,30 @@ TEST (ActionFiring, AnActionDrivesWhereTheClipGoes)
   EXPECT_EQ (fired.bridgeBias, -3);
 }
 
-TEST (ActionFiring, HowTheAccentIsPlayedStaysWithTheSlot)
+// How the accent is played comes with the button that fired it (2026-09-27):
+// six buttons on one clip are six feels, so the envelopes and the mode travel
+// in the action rather than staying the clip's. The mode is still read when
+// ACT goes down, from the button, so it cannot change mid-gesture.
+TEST (ActionFiring, HowTheAccentIsPlayedComesWithTheButton)
 {
   ClipSettings current;
   current.envelopeAttack = 0;
   current.envelopeDecay = 5;
-  current.envelopeMax = 0.4f;
-  current.freqAttack = 1;
-  current.freqDecay = 6;
-  current.freqMax = 0.7f;
-  current.qAttack = 5;
-  current.qDecay = 1;
-  current.qMax = 0.3f;
   current.actMode = ActMode::Hold;
 
-  ClipSettings action;
-  action.envelopeAttack = 6;
-  action.envelopeDecay = 0;
-  action.envelopeMax = 1.f;
-  action.freqAttack = 6;
-  action.freqDecay = 0;
-  action.freqMax = 0.f;
-  action.qAttack = 0;
-  action.qDecay = 6;
-  action.qMax = 1.f;
-  action.actMode = ActMode::OneShot;
+  ActionFeel feel;
+  feel.envelopeAttack = 6;
+  feel.envelopeDecay = 0;
+  feel.qMax = 1.f;
+  feel.actMode = ActMode::OneShot;
+  auto const action = withFeel (ClipSettings{}, feel);
 
   auto const fired = actionOver (current, action);
 
-  EXPECT_EQ (fired.envelopeAttack, 0);
-  EXPECT_EQ (fired.envelopeDecay, 5);
-  EXPECT_FLOAT_EQ (fired.envelopeMax, 0.4f);
-  EXPECT_EQ (fired.freqAttack, 1);
-  EXPECT_EQ (fired.freqDecay, 6);
-  EXPECT_FLOAT_EQ (fired.freqMax, 0.7f);
-  EXPECT_EQ (fired.qAttack, 5);
-  EXPECT_EQ (fired.qDecay, 1);
-  EXPECT_FLOAT_EQ (fired.qMax, 0.3f);
-  EXPECT_EQ (fired.actMode, ActMode::Hold)
-      << "the mode was read when ACT went down; changing it mid-gesture "
-         "leaves a held clip with nothing holding it";
+  EXPECT_EQ (fired.envelopeAttack, 6);
+  EXPECT_EQ (fired.envelopeDecay, 0);
+  EXPECT_FLOAT_EQ (fired.qMax, 1.f);
+  EXPECT_EQ (fired.actMode, ActMode::OneShot);
 }
 
 // A field added to ClipSettings and forgotten here would quietly join the
@@ -144,7 +124,7 @@ TEST (ActionFiring, EveryFieldIsEitherDrivenOrLeftWithTheSlot)
 
       if (isSlotOwned (name))
         EXPECT_EQ (fired, ClipSettings{})
-            << name << " is the slot's, so a fired action must not move it";
+            << name << " is the clip's, so a fired action must not move it";
       else
         EXPECT_NE (fired, ClipSettings{})
             << name << " is not driven by a fired action -- if that is right, "
@@ -171,8 +151,8 @@ TEST (ActionFiring, FallingBackPutsEveryFieldWhereItWas)
 
   applyClipSettings (pattern, actionOver (before, action));
   EXPECT_NE (clipSettingsFrom (pattern), before) << "the action did nothing";
-  EXPECT_EQ (pattern.getEnvelopeAttack (), 1)
-      << "the accent's shape is not the action's to change";
+  EXPECT_EQ (pattern.getEnvelopeAttack (), action.envelopeAttack)
+      << "the accent is played the way the button says (2026-09-27)";
 
   applyClipSettings (pattern, before);
   EXPECT_EQ (clipSettingsFrom (pattern), before);
@@ -283,6 +263,41 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
   EXPECT_EQ (clipSettingsFrom (*pattern), before);
 }
 
+// Six action buttons per channel (2026-09-27): a second button pressed while
+// the first one's accent is still up takes over -- last press wins -- and the
+// clip still comes home to its own settings, not to the first action's.
+// Before, the second press kept the first action on, since a clip already
+// wearing an action was not given another.
+TEST (ActionFiring, ASecondButtonDuringAnAccentTakesOver)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+
+  auto pattern = clipWithAShortAccent (ActMode::Hold);
+  auto const before = clipSettingsFrom (*pattern);
+
+  ClipSettings first;
+  first.spin = -4;
+  engine.setChannelAction (0, first);
+  engine.setChannelAccentHeld (0, true, pattern);
+  ASSERT_TRUE (waitUntil ([&] { return pattern->getSpin () == -4; }))
+      << "the first action never reached the clip";
+
+  ClipSettings second;
+  second.spin = 3;
+  engine.setChannelAction (0, second);
+  engine.setChannelAccentHeld (0, true, pattern);
+  EXPECT_TRUE (waitUntil ([&] { return pattern->getSpin () == 3; }))
+      << "the second button did not take over";
+
+  engine.setChannelAccentHeld (0, false, nullptr);
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the clip came back to the first action, not to itself";
+  EXPECT_EQ (clipSettingsFrom (*pattern), before);
+}
+
 // A slot with nothing assigned fires the accent and leaves the clip alone --
 // which is every slot until somebody saves an action, so it is the case that
 // has to stay silent.
@@ -375,4 +390,31 @@ TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
       << "q could not outrun freq -- they are still riding one envelope";
 
   engine.setChannelAccentHeld (0, false, nullptr);
+}
+
+// How an action is played -- its three envelopes and its mode -- belongs to
+// each of the six buttons from 2026-09-27, not to the clip. It is carried as
+// an ActionFeel and put onto settings field by field.
+TEST (ActionFiring, AFeelIsTheEnvelopesAndTheMode)
+{
+  ClipSettings clip;
+  clip.envelopeAttack = 5;
+  clip.qMax = 0.25f;
+  clip.actMode = ActMode::Hold;
+  clip.spin = 3;
+
+  auto const feel = actionFeelFrom (clip);
+  EXPECT_EQ (feel.envelopeAttack, 5);
+  EXPECT_FLOAT_EQ (feel.qMax, 0.25f);
+  EXPECT_EQ (feel.actMode, ActMode::Hold);
+
+  auto const back = withFeel (ClipSettings{}, feel);
+  EXPECT_EQ (back.envelopeAttack, 5);
+  EXPECT_EQ (back.actMode, ActMode::Hold);
+  EXPECT_EQ (back.spin, ClipSettings{}.spin) << "only the feel is put on";
+}
+
+TEST (ActionFiring, AFreshFeelIsTheClipDefaults)
+{
+  EXPECT_EQ (ActionFeel{}, actionFeelFrom (ClipSettings{}));
 }

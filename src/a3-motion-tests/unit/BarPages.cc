@@ -66,3 +66,17 @@ TEST (BarPages, OnlyThePagesWithSomethingOfTheirOwnCoverTheClipArea)
   EXPECT_TRUE (pageCoversClipArea (BarPage::Mixer));
 }
 
+
+// The PAGE pad (2026-09-27) steps through the clip's pages in the header's
+// order, and back with Shift; round at either end.
+TEST (BarPages, PageStepsThroughTheClipsPagesInTheHeadersOrder)
+{
+  EXPECT_EQ (nextClipPage (BarPage::Clip, false), BarPage::Motion);
+  EXPECT_EQ (nextClipPage (BarPage::Motion, false), BarPage::Action);
+  EXPECT_EQ (nextClipPage (BarPage::Action, false), BarPage::Mixer);
+  EXPECT_EQ (nextClipPage (BarPage::Mixer, false), BarPage::Record);
+  EXPECT_EQ (nextClipPage (BarPage::Record, false), BarPage::Clip);
+
+  EXPECT_EQ (nextClipPage (BarPage::Clip, true), BarPage::Record);
+  EXPECT_EQ (nextClipPage (BarPage::Motion, true), BarPage::Clip);
+}

@@ -116,12 +116,22 @@ struct Session
     std::optional<ClipSettings> overrides;
   };
 
+  /** One of a channel's six action buttons (2026-09-27): the script by name,
+   *  as a clip is named, and how it is played where that was turned from the
+   *  script's own -- empty means "as the script says". */
+  struct ActionEntry
+  {
+    std::string script;
+    std::optional<ActionFeel> feel;
+  };
+
   struct Channel
   {
     float threeD = 0.f;
     float freq = 0.f;
     float q = 0.f;
     std::vector<Slot> slots;
+    std::array<ActionEntry, numActionButtons> actions;
   };
 
   /** What this session is called. Empty for the automatic one, which has no
@@ -153,5 +163,11 @@ bool saveSession (juce::File const &file, Session const &set);
  *
  *  @returns true if it moved something. */
 bool migrateSetToCurrent (juce::File const &root);
+
+/** The first start of the one-clip build (2026-09-27): copies current.json
+ *  and every set under sessions/ into backup-two-slots/ once, before anything
+ *  writes one back with a single slot. Deletes nothing. The folder existing is
+ *  the marker; false when it already did or there was nothing to copy. */
+bool migrateTwoSlotSets (juce::File const &root);
 
 }

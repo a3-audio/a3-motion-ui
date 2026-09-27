@@ -142,6 +142,10 @@ encoderTarget (BarPage page, int column, int row, bool clicked, bool shift)
     case BarPage::Record: return onRecord (column, row, clicked);
     case BarPage::Motion: return onMotion (column, row, clicked);
     case BarPage::Mixer: return onMixer (column, row);
+    case BarPage::Action:
+      if (column == 0 && row == 0)
+        return { EncoderTarget::Kind::ActionButton };
+      return columnChannelPot (row);
     default: return columnChannelPot (row);
     }
 }

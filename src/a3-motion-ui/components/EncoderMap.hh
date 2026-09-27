@@ -50,6 +50,8 @@ struct EncoderTarget
     /** One of the shown channel's two keys, PFL or FX (CHMIX): a press
      *  flips it, a turn does nothing. */
     MixerKey,
+    /** ACTION: steps the chosen action button, A1..A6. */
+    ActionButton,
     /** FREQ or Q of the encoder's own column's channel. */
     ColumnChannelPot,
   };
