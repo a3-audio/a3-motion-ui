@@ -97,6 +97,10 @@
 //                            table as spin. Positive pulls it out, negative
 //                            presses it flat. What swell is to reach.
 //   ~strY           -8..8    the same for ~sqzY.
+//   ~tilt           -1..1    the figure's plane leant forward (+) or back.
+//   ~roll           -1..1    the figure's plane leant to the left (+) or right.
+//   ~tswp           -8..8    ~tilt's own sweep, out and back.
+//   ~rswp           -8..8    ~roll's own sweep, out and back.
 //   ~spin           -8..8    how fast the whole figure turns under the blob,
 //                            as bars per revolution: |1| is 32 bars, then
 //                            16, 8, 4, 2, 1, 1/2, and |8| is a quarter bar.

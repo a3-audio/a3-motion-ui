@@ -82,7 +82,7 @@ widestKnobCaption (float size)
 {
   juce::Font const font{ juce::FontOptions (size) };
   auto widest = 0.f;
-  for (int sub = 0; sub < 10; ++sub)
+  for (int sub = 0; sub < numMotionKnobs; ++sub)
     widest = std::max (widest, juce::GlyphArrangement::getStringWidth (
                                    font, motionKnobSpec (sub).label));
   for (int sub = 0; sub < 4; ++sub)

@@ -73,6 +73,18 @@ TEST (UnderlayLook, TurningTheViewDrawsItAgain)
   EXPECT_NE (look, aLook ());
 }
 
+// The take leant by tilt or roll is drawn leant: a changed lean is a new
+// picture (2026-09-27).
+TEST (UnderlayLook, LeaningTheTakeDrawsItAgain)
+{
+  auto look = aLook ();
+  look.turn.tilt = 0.3f;
+  EXPECT_NE (look, aLook ());
+  look = aLook ();
+  look.turn.roll = -0.2f;
+  EXPECT_NE (look, aLook ());
+}
+
 TEST (UnderlayLook, AResizedSphereDrawsItAgain)
 {
   auto look = aLook ();

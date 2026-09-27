@@ -96,12 +96,14 @@ onMotion (int column, int row, bool clicked)
       return control (motion, clicked ? standing[column] : sweeps[column]);
     }
 
-  // sway clip-top; a click: elv clip-bottom. Nothing under strX and strY.
+  // sway clip-top tswp rswp; a click: elv clip-bottom tilt roll.
   if (column == 0)
     return control (elevation, clicked ? 3 : 2);
   if (column == 1)
     return control (elevation, clicked ? 0 : 1);
-  return {};
+  if (column == 2)
+    return control (motion, clicked ? 10 : 11);
+  return control (motion, clicked ? 12 : 13);
 }
 
 EncoderTarget
@@ -148,7 +150,7 @@ bool
 encoderPressClicks (BarPage page, int column, int row)
 {
   if (page == BarPage::Motion)
-    return row == 0 || column < 2;
+    return true;
   if (page == BarPage::Record)
     return column == 1 && row == 1;
   return false;

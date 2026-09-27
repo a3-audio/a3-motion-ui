@@ -78,6 +78,14 @@ struct ClipSettings
    *  out and back, negative presses it flat and back. */
   int squeezeXLfo = 0;
   int squeezeYLfo = 0;
+  /** How far the figure's plane is leant in the room (2026-09-27): tilt
+   *  forward or back, roll to either side, bipolar with zero upright and a
+   *  quarter turn at the ends -- see SpaceTurn. Each with its own sweep, a
+   *  signed TempoLfo step, the way the squeezes have theirs. */
+  float tilt = 0.f;
+  float roll = 0.f;
+  int tiltLfo = 0;
+  int rollLfo = 0;
 
   /** How far the trajectory spreads from the elevation base, and which way.
    *  The size is the extent, -1..1; the sign says down or up. It ran 0.05..1
@@ -175,6 +183,9 @@ operator== (ClipSettings const &a, ClipSettings const &b)
          && a.squeezeY == b.squeezeY               //
          && a.squeezeXLfo == b.squeezeXLfo         //
          && a.squeezeYLfo == b.squeezeYLfo         //
+         && a.tilt == b.tilt && a.roll == b.roll   //
+         && a.tiltLfo == b.tiltLfo                 //
+         && a.rollLfo == b.rollLfo                 //
          && a.reach == b.reach                     //
          && a.clipTop == b.clipTop                 //
          && a.clipBottom == b.clipBottom           //

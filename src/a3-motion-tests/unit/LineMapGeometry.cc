@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-ui/components/LineMapGeometry.hh>
 
 #include <algorithm>
@@ -118,6 +119,29 @@ TEST (LineMapGeometry, BothEndsAreWhereTheEngineWouldPutTheBlob)
   EXPECT_NEAR (line.points.front ().y, first.y, 1e-5f);
   EXPECT_NEAR (line.points.back ().x, last.x, 1e-5f);
   EXPECT_NEAR (line.points.back ().y, last.y, 1e-5f);
+}
+
+// Leant by tilt and roll exactly as the engine leans the blob -- after the
+// height map, the same call (2026-09-27).
+TEST (LineMapGeometry, ALeantLineIsWhereTheEngineWouldPutTheBlob)
+{
+  HeightMapSphere heightMap;
+  ElevationParams params;
+  params.reach = 0.7f;
+  SpaceTurn const turn{ 0.4f, -0.3f };
+  SphereCamera const camera{ 0.6f, -0.9f };
+
+  auto const line = projectLine (strokeFrom (0.1f, 0.2f, 0.4f, -0.1f), params,
+                                 heightMap, {}, camera, turn);
+  ASSERT_GE (line.points.size (), 2u);
+
+  auto const first = cartesian2DHOA2JUCE (asSeenFrom (
+      turnedInSpace (heightMap.mapTo3D (Pos::fromCartesian (0.1f, 0.2f, 0.f),
+                                        params),
+                     turn),
+      camera));
+  EXPECT_NEAR (line.points.front ().x, first.x, 1e-5f);
+  EXPECT_NEAR (line.points.front ().y, first.y, 1e-5f);
 }
 
 TEST (LineMapGeometry, DepthIsHowFarTowardsTheViewer)

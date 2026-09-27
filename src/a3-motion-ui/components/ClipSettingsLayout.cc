@@ -32,6 +32,7 @@
 
 #include "ControllerLayout.hh"
 
+#include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -179,7 +180,8 @@ numControlsInSection (int sectionIndex)
       // swell, sqzX, strX, sqzY, strY, fade, bias -- because everything in
       // the section had to move anyway when the lists left, and an order that
       // is the order things are read in is one nobody has to look up.
-      return 10;
+      // Then tilt, tswp, roll, rswp (2026-09-27).
+      return numMotionKnobs;
     case 3:
       return 1; // rec mode — the global section's only encoder-ish value
     default:
@@ -460,7 +462,7 @@ layOutRecordPage (ClipSettingsLayout &out)
 /** MOTION as eight fields, one per encoder (2026-09-27), as CLIP and REC:
  *  each holds what its encoder turns, the knob it turns at rest on the left
  *  and the one a click gives on the right -- spin|rot, swell|reach, strX|sqzX,
- *  strY|sqzY over sway|elv, clip-top|clip-bot, and two empty fields. */
+ *  strY|sqzY over sway|elv, clip-top|clip-bot, tswp|tilt, rswp|roll. */
 void
 layOutMotionPage (ClipSettingsLayout &out)
 {
@@ -491,6 +493,8 @@ layOutMotionPage (ClipSettingsLayout &out)
   auto &e = out.controls[1];
   std::tie (e[2], e[3]) = halves (f[4]); // sway | elv
   std::tie (e[1], e[0]) = halves (f[5]); // clip-top | clip-bot
+  std::tie (m[11], m[10]) = halves (f[6]); // tswp | tilt
+  std::tie (m[13], m[12]) = halves (f[7]); // rswp | roll
 }
 
 /** The frame's inset round the faces: what it was in the global strip, a
@@ -877,6 +881,14 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       textCell (strYArea, metrics.knobDiam),  // 7 strY
       {},                                     // 8 fade, on REC -- below
       {},                                     // 9 bias, on REC -- below
+      // tilt and roll with their sweeps stand only on MOTION, laid out by
+      // its fields (layOutMotionPage). Here, on the pages where they are not
+      // shown, they share the bottom row's cells so every control still has
+      // a place inside its card.
+      textCell (sqzXArea, metrics.knobDiam), // 10 tilt
+      textCell (strXArea, metrics.knobDiam), // 11 tswp
+      textCell (sqzYArea, metrics.knobDiam), // 12 roll
+      textCell (strYArea, metrics.knobDiam), // 13 rswp
     };
   }
 

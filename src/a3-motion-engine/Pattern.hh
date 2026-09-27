@@ -249,6 +249,23 @@ public:
   float getSqueezeYLfoPhase () const;
   void setSqueezeYLfoPhase (float phase);
 
+  /** How far the figure's plane is leant in the room, and each lean's own
+   *  sweep (2026-09-27) -- see SpaceTurn and ClipSettings::tilt. Bipolar,
+   *  clamped to -1..1; the sweeps are signed TempoLfo steps with their running
+   *  phases, reset when playback starts. */
+  float getTilt () const;
+  void setTilt (float amount);
+  float getRoll () const;
+  void setRoll (float amount);
+  int getTiltLfo () const;
+  void setTiltLfo (int step);
+  int getRollLfo () const;
+  void setRollLfo (int step);
+  float getTiltLfoPhase () const;
+  void setTiltLfoPhase (float phase);
+  float getRollLfoPhase () const;
+  void setRollLfoPhase (float phase);
+
   /** How fast the whole trajectory turns around the vertical axis while the
    *  blob runs along it, as the signed power-of-two step TrajectorySpin
    *  describes. Zero stands still.
@@ -457,6 +474,12 @@ private:
   std::atomic<int> _squeezeYLfo{ 0 };
   std::atomic<float> _squeezeXLfoPhase{ 0.f };
   std::atomic<float> _squeezeYLfoPhase{ 0.f };
+  std::atomic<float> _tilt{ 0.f };
+  std::atomic<float> _roll{ 0.f };
+  std::atomic<int> _tiltLfo{ 0 };
+  std::atomic<int> _rollLfo{ 0 };
+  std::atomic<float> _tiltLfoPhase{ 0.f };
+  std::atomic<float> _rollLfoPhase{ 0.f };
   std::atomic<int> _spin{ 0 };
   std::atomic<float> _spinPhase{ 0.f };
   std::atomic<int> _reachLfo{ 0 };

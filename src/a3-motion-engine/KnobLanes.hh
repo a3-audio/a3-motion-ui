@@ -47,8 +47,12 @@ enum class Knob
   ClipTop,
   Sway,
   Elevation,
+  Tilt,
+  TiltSweep,
+  Roll,
+  RollSweep,
 };
-constexpr int numKnobs = 12;
+constexpr int numKnobs = 16;
 
 /** The name a clip file stores a knob's lane under -- the knob's caption. */
 constexpr char const *
@@ -68,6 +72,10 @@ knobName (Knob knob)
     case Knob::ClipTop: return "clip-top";
     case Knob::Sway: return "sway";
     case Knob::Elevation: return "elv";
+    case Knob::Tilt: return "tilt";
+    case Knob::TiltSweep: return "tswp";
+    case Knob::Roll: return "roll";
+    case Knob::RollSweep: return "rswp";
     }
   return "";
 }

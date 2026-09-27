@@ -44,6 +44,7 @@
 #include <a3-motion-ui/components/LineMapGeometry.hh>
 #include <a3-motion-ui/components/LineMapStrokes.hh>
 #include <a3-motion-ui/components/SphereMarks.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace
@@ -1875,6 +1876,8 @@ drawPathOnSphere (juce::Path const &displayPath,
                   juce::Graphics &g,
                   PlaneShaping const &shaping,
                   SphereCamera const &camera,
+                  /** The clip's lean in the room -- spaceTurnOf(). */
+                  SpaceTurn turn,
                   /** Where this line's strokes for the shader's map are
                    *  collected, or nullptr for a line the glow is not asked
                    *  to follow. */
@@ -1898,7 +1901,7 @@ drawPathOnSphere (juce::Path const &displayPath,
   // Where the line runs, as the camera sees it: projectLine() is the one
   // place that decides, for this and for the GPU pass (a3-motion-ui#34).
   auto const onSphere = projectLine (displayPath, elevationParams, heightMap,
-                                 shaping, camera);
+                                 shaping, camera, turn);
 
   if (onSphere.points.size () < 2)
     return;
@@ -2058,6 +2061,9 @@ MotionComponent::drawRecordingTrail (Pattern const &pattern, juce::Graphics &g)
   drawPathOnSphere (path, lineThickness, 0.9f, _uiStates[ch]->colour, true,
                     pattern.getElevationParams (), _engine.getHeightMap (), g,
                     PlaneShaping{}, _sphereShader.getCamera (),
+                    // Leant, though: the finger was turned back before the
+                    // take wrote it, so the trail leans again to lie under it.
+                    spaceTurnOf (pattern),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
 }
@@ -2092,7 +2098,8 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
                            _imageBlend->getHeight (),
                            colour,
                            underlayOpacity,
-                           lineThickness };
+                           lineThickness,
+                           spaceTurnOf (pattern) };
   if (look != _underlayLook || !_underlayImage.isValid ())
     {
       _underlayImage
@@ -2111,7 +2118,8 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
 
       drawPathOnSphere (path, lineThickness, underlayOpacity, colour, true,
                         params, _engine.getHeightMap (), picture,
-                        PlaneShaping{}, _sphereShader.getCamera ());
+                        PlaneShaping{}, _sphereShader.getCamera (),
+                        spaceTurnOf (pattern));
       _underlayLook = look;
     }
 
@@ -2134,7 +2142,9 @@ MotionComponent::drawRecordingUnderlay (Pattern const &pattern,
   if (!position2D.isValid ())
     return;
 
-  auto const position = _engine.getHeightMap ().mapTo3D (position2D, params);
+  auto const position = turnedInSpace (
+      _engine.getHeightMap ().mapTo3D (position2D, params),
+      spaceTurnOf (pattern));
   if (!position.isValid ())
     return;
 
@@ -2172,10 +2182,12 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
       auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
-          auto pos3D = heightMap.mapTo3D (
-              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                              shaping),
-              params);
+          auto pos3D = turnedInSpace (
+              heightMap.mapTo3D (
+                  shapedPosition (
+                      Pos::fromCartesian (dot.first, dot.second, 0.f), shaping),
+                  params),
+              spaceTurnOf (pattern));
           auto posJuce = projectToScreen (pos3D);
           pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           g.setColour (colour);
@@ -2192,7 +2204,7 @@ MotionComponent::drawPatternPreview (Pattern const &pattern,
   // preview was not there at all.
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     false, params, heightMap, g, shaping,
-                    _sphereShader.getCamera (),
+                    _sphereShader.getCamera (), spaceTurnOf (pattern),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
 }
@@ -2231,10 +2243,12 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
       auto const dotSize = jumpDotDiameter (lineThickness);
       for (auto const &dot : displayData.jumpDots)
         {
-          auto pos3D = heightMap.mapTo3D (
-              shapedPosition (Pos::fromCartesian (dot.first, dot.second, 0.f),
-                              shaping),
-              params);
+          auto pos3D = turnedInSpace (
+              heightMap.mapTo3D (
+                  shapedPosition (
+                      Pos::fromCartesian (dot.first, dot.second, 0.f), shaping),
+                  params),
+              spaceTurnOf (pattern));
           auto posJuce = projectToScreen (pos3D);
           pos3D = asSeenFrom (pos3D, _sphereShader.getCamera ());
           float fade = (pos3D.z () < 0.f)
@@ -2251,7 +2265,7 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
   // ── Draw from SVG displayPath projected onto sphere ──
   drawPathOnSphere (displayData.displayPath, lineThickness, 1.0f, colour,
                     true, params, heightMap, g, shaping,
-                    _sphereShader.getCamera (),
+                    _sphereShader.getCamera (), spaceTurnOf (pattern),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
 }

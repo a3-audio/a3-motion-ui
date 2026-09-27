@@ -83,6 +83,9 @@ elevationKnobSpec (int sub)
 }
 
 
+/** How many knobs the Motion section has -- motionKnobSpec (0 .. n-1). */
+constexpr int numMotionKnobs = 14;
+
 /** The Motion section, in reading order: a standing value beside the sweep
  *  that works on it -- rot with its spin, reach with its swell, each squeeze
  *  with its stretch, the fade with the bias.
@@ -114,6 +117,11 @@ motionKnobSpec (int sub)
     case 8: return { 0.0, 1.0, 0.0, 0.0, false, false, caption::fade };
     // Which way a bridge leans, in whole notches either side of the middle.
     case 9: return { -4.0, 4.0, 1.0, 0.0, true, false, caption::bias };
+    // The figure's plane leant in the room, each lean beside its sweep.
+    case 10: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::tilt };
+    case 11: return sweep (caption::tiltSweep);
+    case 12: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::roll };
+    case 13: return sweep (caption::rollSweep);
     default: return {};
     }
 }
