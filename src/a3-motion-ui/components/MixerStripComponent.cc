@@ -273,26 +273,26 @@ MixerStripComponent::paint (juce::Graphics &g)
     if (!field.isEmpty ())
       a3::paintBarButton (g, field, _metrics, colour, {}, {}, false, false);
 
-  // Each pot's name as an engraved tab in its field's corner, the way CLIP,
-  // MOTION and REC name theirs. The two keys carry their word on their face.
-  for (auto const control : mixerFaceOrder)
-    if (!mixerControlIsAToggle (control))
-      paintFieldCaptionTab (g, mixerStripFieldOf (_layout, control),
-                            mixerControlLabel (control),
-                            _metrics.captionSize);
-
+  // The two keys light the whole field, with no word on their face: the tab
+  // names them like every other field here (2026-09-27). MAINMIX keeps its
+  // keys as they were -- it has no tabs.
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)
     {
       auto const control = mixerFaceOrder[i];
       if (!mixerControlIsAToggle (control))
-        continue; // a knob of its own now -- see PotKnob
+        continue; // a knob of its own -- see PotKnob
 
-      paintMixerChannelControl (g, _layout.controls[0][i], _metrics, colour,
-                                control,
-                                _state.channelValue (_channel, control),
-                                _state.channelToggle (_channel, control));
+      auto const isOn = _state.channelToggle (_channel, control);
+      a3::paintBarButton (g, _layout.controls[0][i], _metrics, colour, {}, {},
+                          isOn, isOn);
     }
+
+  // Every field's name as an engraved tab in its corner, the way CLIP,
+  // MOTION and REC name theirs -- last, so a lit key does not cover it.
+  for (auto const control : mixerFaceOrder)
+    paintFieldCaptionTab (g, mixerStripFieldOf (_layout, control),
+                          mixerControlLabel (control), _metrics.captionSize);
 
   // The meter is a component of its own (VuMeterView), standing under the
   // fader at the far right of the band, and it paints itself.

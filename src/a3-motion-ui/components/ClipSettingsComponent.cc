@@ -1247,7 +1247,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
             _overSphere == SphereOverlay::Pads);
   paintTab (_layout.tabMixer, "CHMIX",
             pageTabIsLit (BarPage::Mixer, _page, _overSphere));
-  paintTab (_layout.tabMainMix, "MAINMIX",
+  paintTab (_layout.tabMainMix, "MIXER",
             _overSphere == SphereOverlay::MainMix);
   paintTab (_layout.tabRecord, "REC",
             pageTabIsLit (BarPage::Record, _page, _overSphere));
