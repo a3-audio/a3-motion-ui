@@ -290,14 +290,64 @@ shapeFieldIconArea (juce::Rectangle<int> field)
   return juce::Rectangle<int> (side, side).withCentre (field.getCentre ());
 }
 
-juce::Rectangle<int>
-fieldCaptionArea (juce::Rectangle<int> field, float captionSize)
+namespace
 {
-  auto const inset = juce::roundToInt (theme ().paddingSmall);
-  auto const height = static_cast<int> (std::ceil (captionSize * rowHeightFactor));
-  return field.reduced (inset)
-      .withHeight (std::min (height, field.getHeight () / 4))
-      .withWidth (field.getWidth () / 2);
+int
+fieldCaptionInset ()
+{
+  return juce::roundToInt (theme ().paddingSmall);
+}
+
+int
+fieldCaptionHeight (juce::Rectangle<int> field, float captionSize)
+{
+  return std::min (static_cast<int> (std::ceil (captionSize * rowHeightFactor)),
+                   field.getHeight () / 4);
+}
+}
+
+juce::Rectangle<int>
+fieldCaptionPlate (juce::Rectangle<int> field, float captionSize,
+                   float textWidth)
+{
+  auto const inset = fieldCaptionInset ();
+  auto const height = fieldCaptionHeight (field, captionSize);
+  // Air on either side of the words: half the plate's height, so a taller
+  // caption gets a proportionally wider margin.
+  auto const width = static_cast<int> (std::ceil (textWidth)) + height;
+  auto const inside = field.reduced (inset);
+  return inside.withHeight (height).withWidth (
+      std::min (width, inside.getWidth ()));
+}
+
+juce::Rectangle<int>
+fieldBelowCaption (juce::Rectangle<int> field, float captionSize)
+{
+  return field.withTrimmedTop (fieldCaptionInset ()
+                               + fieldCaptionHeight (field, captionSize));
+}
+
+char const *
+fieldCaptionOf (BarPage page, int field)
+{
+  if (field < 0 || field >= 8)
+    return "";
+
+  if (page == BarPage::Motion)
+    return fieldCaption::motion[field];
+
+  if (page != BarPage::Clip && page != BarPage::Record)
+    return "";
+
+  auto const clip = page == BarPage::Clip;
+  switch (field)
+    {
+    case 0: return fieldCaption::clip;
+    case 1: return clip ? fieldCaption::direction : fieldCaption::recMode;
+    case 4: return fieldCaption::svg;
+    case 5: return clip ? fieldCaption::endAction : fieldCaption::gapConnector;
+    default: return "";
+    }
 }
 
 juce::Rectangle<int>
@@ -453,7 +503,7 @@ layOutRecordPage (ClipSettingsLayout &out)
   auto const &f = layOutPageOfFields (out);
   out.recModeButton = f[1];
 
-  auto both = f[5];
+  auto both = fieldBelowCaption (f[5], out.metrics.captionSize);
   auto const fade = both.removeFromLeft (both.getWidth () / 2);
   out.controls[2][8] = fade;
   out.controls[2][9] = both;
@@ -478,9 +528,9 @@ layOutMotionPage (ClipSettingsLayout &out)
   // The field's two halves, each a knob's whole cell: the knob keeps itself
   // and its caption together in the middle, and the encoder's frame gets the
   // air round them.
-  auto const halves = [] (juce::Rectangle<int> field) {
-    auto right = field;
-    auto const left = right.removeFromLeft (field.getWidth () / 2);
+  auto const halves = [&out] (juce::Rectangle<int> field) {
+    auto right = fieldBelowCaption (field, out.metrics.captionSize);
+    auto const left = right.removeFromLeft (right.getWidth () / 2);
     return std::pair{ left, right };
   };
 

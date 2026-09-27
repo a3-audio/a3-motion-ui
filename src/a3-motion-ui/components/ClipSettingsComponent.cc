@@ -53,6 +53,10 @@ namespace
 constexpr float cardWash = 0.08f;
 constexpr float highlightWash = 0.18f;
 constexpr float trackWash = 0.18f;
+/** A field's name plate: the ground a shade darker under the words, and a
+ *  quiet edge round them. */
+constexpr float captionPlateWash = 0.35f;
+constexpr float captionPlateEdge = 0.35f;
 /** How much the TAP key comes up on a beat. A fifth of the wash a press
  *  makes: this is the metronome you notice without looking at it, and it was
  *  taken out once already for being louder than that. */
@@ -1066,22 +1070,27 @@ ClipSettingsComponent::paint (juce::Graphics &g)
     {
       paintMotionSection (g, _selectedIndex == motionIndex);
       paintElevationSection (g, _selectedIndex == elevationIndex);
-      return;
     }
-
-  paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
-
-  if (_page == BarPage::Record)
+  else if (_page == BarPage::Record)
     {
       // The take being set up: its settings in the middle, its length on the
       // right, where the lengths stand on CLIP too.
+      paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
       paintRecordSection (g);
       paintLengthSection (g);
-      return;
+    }
+  else
+    {
+      paintTrajectorySection (g, _selectedIndex == trajectoryIndex);
+      paintPlaySection (g);
+      paintLengthSection (g);
     }
 
-  paintPlaySection (g);
-  paintLengthSection (g);
+  // Over the fields' grounds, so nothing a field draws covers its name.
+  for (int field = 0; field < static_cast<int> (_layout.pageFields.size ());
+       ++field)
+    paintFieldCaption (g, _layout.pageFields[static_cast<size_t> (field)],
+                       fieldCaptionOf (_page, field));
 
   // Last, so it covers whichever section it belongs to.
 }
@@ -1564,11 +1573,9 @@ ClipSettingsComponent::paintPlaySection (juce::Graphics &g)
   paintBarButton (g, _layout.directionButton,
                   value::directionNames[_motionDirection], {},
                   _trajectorySubIndex == 2 && isSelected, false);
-  paintFieldCaption (g, _layout.directionButton, caption::direction);
   paintBarButton (g, _layout.endActionButton,
                   value::endActionNames[_motionEndAction], {},
                   _trajectorySubIndex == 3 && isSelected, false);
-  paintFieldCaption (g, _layout.endActionButton, caption::endAction);
 }
 
 void
@@ -1607,7 +1614,6 @@ ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
   auto const look = functionKeyLook ();
   paintBarButton (g, _layout.recModeButton, recModeName (_recMode), {},
                   false, false, functionKeyColour (FunctionKey::RecMode, look));
-  paintFieldCaption (g, _layout.recModeButton, "recmode");
 
   // Fade and bias are knobs and draw themselves (PotKnob).
 }
@@ -1930,10 +1936,7 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   // On a page of fields the picture has a field of its own, grounded like the
   // seven keys around it.
   if (!_layout.pageFields[4].isEmpty ())
-    {
-      paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
-      paintFieldCaption (g, _layout.trajectoryIcon, "shape");
-    }
+    paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
 
   // Pictogram, in the middle of the field and off its edge -- see
   // shapeFieldIconArea().
@@ -2311,10 +2314,28 @@ ClipSettingsComponent::paintFieldCaption (juce::Graphics &g,
                                           juce::Rectangle<int> field,
                                           juce::String const &text)
 {
-  auto const area = fieldCaptionArea (field, _layout.metrics.captionSize);
-  g.setFont (juce::Font (juce::FontOptions (_layout.metrics.captionSize)));
+  if (text.isEmpty () || field.isEmpty ())
+    return;
+
+  juce::Font const font{ juce::FontOptions (_layout.metrics.captionSize) };
+  auto const plate
+      = fieldCaptionPlate (field, _layout.metrics.captionSize,
+                           juce::GlyphArrangement::getStringWidth (font, text))
+            .toFloat ();
+
+  // A plate a shade darker than the field, with a hairline round it snapped
+  // to whole pixels like the encoders' frames: the name is set off from the
+  // field it names without shouting over the value in the middle.
+  auto const radius = juce::jmin (theme ().radiusRow, plate.getHeight () / 2.f);
+  g.setColour (toColour (theme ().background, captionPlateWash));
+  g.fillRoundedRectangle (plate, radius);
+  g.setColour (toColour (theme ().textMuted, captionPlateEdge));
+  g.drawRoundedRectangle (plate.reduced (theme ().strokeThin * 0.5f), radius,
+                          theme ().strokeThin);
+
+  g.setFont (font);
   g.setColour (toColour (theme ().textMuted));
-  g.drawText (text, area, juce::Justification::topLeft, true);
+  g.drawText (text, plate.toNearestInt (), juce::Justification::centred, true);
 }
 
 void

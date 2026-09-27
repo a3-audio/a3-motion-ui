@@ -641,9 +641,19 @@ juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
 juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
 
 /** Where a field's caption stands: small, in its top left corner, clear of
- *  the value in the middle (2026-09-27). */
-juce::Rectangle<int> fieldCaptionArea (juce::Rectangle<int> field,
-                                       float captionSize);
+ *  the value in the middle (2026-09-27), on a plate as wide as its words and
+ *  some air -- `textWidth` -- and never wider than the field. */
+juce::Rectangle<int> fieldCaptionPlate (juce::Rectangle<int> field,
+                                        float captionSize, float textWidth);
+
+/** What is left of a field under its caption plate: where its knobs stand,
+ *  so neither they nor an encoder's frame run under the words. */
+juce::Rectangle<int> fieldBelowCaption (juce::Rectangle<int> field,
+                                        float captionSize);
+
+/** The caption over a page's field, in fieldGrid()'s order; empty for a
+ *  field that names itself (the lengths) and on a page without fields. */
+char const *fieldCaptionOf (BarPage page, int field);
 
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value

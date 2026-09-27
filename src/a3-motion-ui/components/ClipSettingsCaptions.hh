@@ -196,6 +196,22 @@ shownEndAction (int endAction)
   return std::clamp (endAction, 0, value::numEndActions - 1);
 }
 
+/** The names over the fields of CLIP, MOTION and REC (2026-09-27): what a
+ *  field holds, in capitals, on a plate in its top left corner. The knobs'
+ *  own captions under them stay as they are. */
+namespace fieldCaption
+{
+constexpr char const *clip = "CLIP";
+constexpr char const *svg = "SVG";
+constexpr char const *direction = "DIRECTION";
+constexpr char const *endAction = "END-ACTION";
+constexpr char const *recMode = "RECMODE";
+constexpr char const *gapConnector = "GAP-CONNECTOR";
+constexpr char const *motion[] = { "ROTATION",  "REACH",     "SQUEEZE X",
+                                   "SQUEEZE Y", "ELEVATION", "ELEVATION CLIP",
+                                   "TILT",      "ROLL" };
+}
+
 /** A string drawn on a control, together with the number of columns its
  *  section splits its width into — Elevation and Filter place two controls
  *  side by side, Motion three, so the same string has less room in
