@@ -46,6 +46,7 @@
 #include <a3-motion-ui/PendingTakes.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
+#include <a3-motion-ui/components/EncoderMap.hh>
 #include <a3-motion-ui/components/KnobHold.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
@@ -825,6 +826,9 @@ private:
   /** Which knobs a hand is on, and the pattern those holds were last handed
    *  to -- see pushKnobHolds(). */
   KnobHold _knobHold;
+  /** Each encoder's click, [column][row]: on MOTION and REC a press switches
+   *  what it turns. Let go of on every page change. */
+  std::array<std::array<bool, 2>, numChannelsInitial> _encoderClicked{};
   std::weak_ptr<Pattern> _knobHoldPattern;
 
   std::unique_ptr<BrowserComponent> _browser;
@@ -927,6 +931,14 @@ private:
    *  encoder's hold runs out without anything happening. Lets go of the clip
    *  the holds were on when another one is shown, and keeps the hands. */
   void pushKnobHolds ();
+  /** A length key given another length, or chosen -- by touch or encoder. */
+  void dragSpeedKey (int index, int increment);
+  void chooseSpeedKey (int index);
+  /** The panel's eight encoders: what each turns is encoderTarget()'s to say
+   *  (EncoderMap.hh); a press clicks between two things where there are two. */
+  EncoderTarget encoderTargetAt (int column, int row);
+  void handleEncoderTurn (int column, int row, int increment);
+  void handleEncoderPress (int column, int row);
   /** A face chosen: its clip on show. `mayTurnOver` for a tap, which turns
    *  the face already on show to its other slot; not for its pot. */
   void chooseChannelFace (index_t channel, bool mayTurnOver);

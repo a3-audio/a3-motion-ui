@@ -587,21 +587,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // to, which is how a speed the four do not name is reached and then found
   // again the next time.
   _clipSettings->onSpeedDragged = [this] (int index, int increment) {
-    if (index < 0 || index >= numSpeedButtons || increment == 0)
-      return;
-    _pendingTakes.disarm ();
-    refreshTakeState ();
-
-    auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
-    auto const moved = draggedSpeedLog2 (carried, increment);
-    if (moved == carried)
-      return;
-
-    carried = moved;
-    _clipSettings->setSpeedButtons (_speedButtonLog2);
-    persistSettings ();
-    scheduleSetSave ();
-    applySpeedLog2ToShownClip (moved);
+    dragSpeedKey (index, increment);
   };
 
   _clipSettings->onLockToggled = [this] (int section) {
@@ -687,12 +673,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // it outright rather than stepping towards it — that is what the keys are
   // for, and it is untouched by the keys becoming assignable.
   _clipSettings->onSpeedChosen = [this] (int index) {
-    if (index < 0 || index >= numSpeedButtons)
-      return;
-    _pendingTakes.disarm ();
-    refreshTakeState ();
-
-    applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
+    chooseSpeedKey (index);
   };
 
   _clipSettings->onAccentHeld = [this] (bool held) {
@@ -1719,56 +1700,41 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
       for (auto channel = 0u; channel < _ioAdapter->getNumChannels ();
            ++channel)
         {
-          // The encoders have one job each now, the same one whatever is
-          // on screen: freq and Q for their channel. They used to scroll
-          // the bar's sections and drive the menu — that is all touch now,
-          // so nothing here depends on what happens to be open.
+          // The encoders turn the field they stand under on CLIP, MOTION,
+          // REC and CHMIX, four by two as the fields are (2026-09-27); with
+          // Shift, and on the other pages, their channel's FREQ and Q as
+          // before. What each one turns is encoderTarget()'s to say.
+          for (int row = 0; row < 2; ++row)
+            {
+              auto &turned = _ioAdapter->getEncoderIncrement (
+                  channel, static_cast<index_t> (row));
+              if (value.refersToSameSourceAs (turned))
+                {
+                  auto const increment
+                      = static_cast<int> (turned.getValue ());
+                  if (increment != 0)
+                    {
+                      // An encoder step is an input like a touch; the analog
+                      // pots are not -- their noise would drop an armed
+                      // DISCARD before the second tap could land (#32).
+                      disarmOnOtherInput ();
+                      handleEncoderTurn (static_cast<int> (channel), row,
+                                         increment);
+                    }
+                  return;
+                }
+
+              auto &pressed = _ioAdapter->getEncoderPress (
+                  channel, static_cast<index_t> (row));
+              if (value.refersToSameSourceAs (pressed))
+                {
+                  if (static_cast<bool> (pressed.getValue ()))
+                    handleEncoderPress (static_cast<int> (channel), row);
+                  return;
+                }
+            }
+
           if (value.refersToSameSourceAs (
-                  _ioAdapter->getEncoderIncrement (channel)))
-            {
-              auto const increment = static_cast<int> (
-                  _ioAdapter->getEncoderIncrement (channel).getValue ());
-              if (increment != 0)
-                {
-                  // An encoder step is an input like a touch; the analog pots
-                  // are not -- their noise would drop an armed DISCARD before
-                  // the second tap could land (#32).
-                  disarmOnOtherInput ();
-                  handleChannelValueChange (channel, ChannelPot::Freq,
-                                            increment);
-                  updateControlReadout (
-                      "CH" + juce::String (channel + 1) + " FREQ "
-                      + juce::String (_engine.getChannelPot1 (channel), 2));
-                }
-              return;
-            }
-          else if (value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderIncrement (channel, 1)))
-            {
-              auto const increment = static_cast<int> (
-                  _ioAdapter->getEncoderIncrement (channel, 1).getValue ());
-              if (increment != 0)
-                {
-                  disarmOnOtherInput ();
-                  handleChannelValueChange (channel, ChannelPot::Q, increment);
-                  updateControlReadout (
-                      "CH" + juce::String (channel + 1) + " Q "
-                      + juce::String (_engine.getChannelPot2 (channel), 2));
-                }
-              return;
-            }
-          else if (value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderPress (channel))
-                   || value.refersToSameSourceAs (
-                       _ioAdapter->getEncoderPress (channel, 1)))
-            {
-              // Nothing. Pressing used to arm a menu row or cycle a
-              // section's sub-element; both are reached by touch now, and a
-              // press that does something different depending on what is
-              // open is exactly what this rework got rid of.
-              return;
-            }
-          else if (value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 0))
                    || value.refersToSameSourceAs (
                        _ioAdapter->getPot (channel, 1)))
@@ -2382,6 +2348,8 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _pendingTakes.disarm ();
   refreshTakeState ();
   _barPage = page;
+  // A click belongs to the page it was made on.
+  _encoderClicked = {};
   _clipSettings->setPage (page);
   _controller->setVisible (page == BarPage::Controller);
   if (_action)
@@ -7646,6 +7614,137 @@ A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
   // for its clip, and the face brings that view back with it.
   if (!describesAClip)
     showBarPage (BarPage::Clip);
+}
+
+void
+A3MotionUIComponent::dragSpeedKey (int index, int increment)
+{
+  if (index < 0 || index >= numSpeedButtons || increment == 0)
+    return;
+  _pendingTakes.disarm ();
+  refreshTakeState ();
+
+  auto &carried = _speedButtonLog2[static_cast<size_t> (index)];
+  auto const moved = draggedSpeedLog2 (carried, increment);
+  if (moved == carried)
+    return;
+
+  carried = moved;
+  _clipSettings->setSpeedButtons (_speedButtonLog2);
+  persistSettings ();
+  scheduleSetSave ();
+  applySpeedLog2ToShownClip (moved);
+}
+
+void
+A3MotionUIComponent::chooseSpeedKey (int index)
+{
+  if (index < 0 || index >= numSpeedButtons)
+    return;
+  _pendingTakes.disarm ();
+  refreshTakeState ();
+
+  applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
+}
+
+EncoderTarget
+A3MotionUIComponent::encoderTargetAt (int column, int row)
+{
+  return encoderTarget (
+      _barPage, column, row,
+      _encoderClicked[static_cast<size_t> (column)][static_cast<size_t> (row)],
+      isButtonPressed (Button::Shift));
+}
+
+void
+A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
+{
+  auto const target = encoderTargetAt (column, row);
+  auto const shown = _clipSettingsChannel;
+
+  switch (target.kind)
+    {
+    case EncoderTarget::Kind::None:
+      return;
+
+    case EncoderTarget::Kind::Control:
+      // The rec mode is a key, stepped the way pressing it steps it.
+      if (target.section == ClipSettingsComponent::globalIndex
+          && target.sub == 0)
+        {
+          auto const count = static_cast<int> (recMenuModes.size ());
+          auto const step = increment > 0 ? 1 : count - 1;
+          applyRecMode ((recMenuIndex (_recMode) + step) % count);
+          updateClipSettingsDisplay ();
+          return;
+        }
+      handleClipSettingsValueChange (shown, target.section, target.sub,
+                                     increment);
+      return;
+
+    case EncoderTarget::Kind::Speed:
+      dragSpeedKey (target.speed, increment);
+      return;
+
+    case EncoderTarget::Kind::Mixer:
+      {
+        auto const channel = static_cast<int> (shown);
+        auto const value = juce::jlimit (
+            0.f, 1.f,
+            _mixerState.channelValue (channel, target.mixer)
+                + 0.02f * static_cast<float> (increment));
+        _mixerState.setChannelFromTouch (channel, target.mixer, value);
+        _mixer->syncControls ();
+        _mixerStrip->syncControls ();
+        updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                              + mixerControlLabel (target.mixer) + " "
+                              + juce::String (value, 2));
+        return;
+      }
+
+    case EncoderTarget::Kind::ShownChannelPot:
+    case EncoderTarget::Kind::ColumnChannelPot:
+      {
+        auto const channel
+            = target.kind == EncoderTarget::Kind::ShownChannelPot
+                  ? shown
+                  : static_cast<index_t> (column);
+        handleChannelValueChange (channel, target.pot, increment);
+        updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                              + channelPotLabel (target.pot) + " "
+                              + juce::String (channelPotValue (channel,
+                                                               target.pot),
+                                              2));
+        return;
+      }
+    }
+}
+
+void
+A3MotionUIComponent::handleEncoderPress (int column, int row)
+{
+  disarmOnOtherInput ();
+
+  // A click switches what the encoder turns, where there are two things
+  // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.
+  if (encoderPressClicks (_barPage, column, row)
+      && !isButtonPressed (Button::Shift))
+    {
+      auto &clicked = _encoderClicked[static_cast<size_t> (column)]
+                                     [static_cast<size_t> (row)];
+      clicked = !clicked;
+      auto const target = encoderTargetAt (column, row);
+      auto const spec = target.section == elevationSection
+                            ? elevationKnobSpec (target.sub)
+                            : motionKnobSpec (target.sub);
+      updateControlReadout (juce::String ("-- ") + spec.label);
+      return;
+    }
+
+  // A press on a length chooses it, as a tap does.
+  auto const target = encoderTargetAt (column, row);
+  if (target.kind == EncoderTarget::Kind::Speed)
+    chooseSpeedKey (target.speed);
 }
 
 void
