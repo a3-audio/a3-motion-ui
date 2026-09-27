@@ -32,6 +32,36 @@
 namespace a3
 {
 
+/** Which of the three folders the browser is listing.
+ *
+ *  It lived inside A3MotionUIComponent, which is what *decides* the list; this
+ *  is what shows it, and a page that draws three tabs cannot be handed a bool
+ *  saying which of two it is on. */
+/** How far the library list is narrowed: everything, only what the performer
+ *  made, only what the instrument shipped with. Beside BrowserList because it
+ *  is the same kind of thing -- which list, and how much of it. */
+enum class ClipFilter
+{
+  All,
+  User,
+  System
+};
+
+enum class BrowserList
+{
+  Clips,
+  /** The figures the clips name. Choosing one swaps the slot's figure and
+   *  leaves its values alone -- the same thing the picture on the CLIP page
+   *  does, which is the other place a shape is chosen. */
+  Shapes,
+  /** Action clips -- what ACT does to a slot. Structurally a clip with no
+   *  shape: a set of settings, kept in actions/ rather than clips/ because
+   *  what it is for is different even though what it holds is the same. */
+  Actions,
+  /** The arrangement of all eight clips at once. */
+  Sessions,
+};
+
 /** The browser page: what there is to put in the clip on show.
  *
  *  It used to carry the device's eight clips down the left, laid out the way
@@ -49,6 +79,9 @@ struct BrowserLayout
    *  more, and a row too short to hit is no use in a booth. */
   juce::Rectangle<int> listArea;
   std::vector<juce::Rectangle<int>> rows;
+  /** Beside the list, what the chosen row holds -- on ACTIONS its script,
+   *  since 2026-09-27; empty on the other tabs until they have one. */
+  juce::Rectangle<int> detailArea;
   /** How many rows the area has room for at this size. */
   int visibleRows = 0;
   int rowHeight = 0;
@@ -93,7 +126,7 @@ struct BrowserLayout
 /** Lays the browser out in the given area. Reads no theme, so it can be
  *  checked at sizes nobody has dialled in yet. */
 BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
-                             float bodySize);
+                             float bodySize, BrowserList list);
 
 /** The same, over the sphere, where it stands since 2026-09-27. The top
  *  `overlayKeysBand` pixels are left clear for back and close, which float in
@@ -102,6 +135,6 @@ BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
  *  for something else. */
 BrowserLayout layOutBrowserOverSphere (juce::Rectangle<int> bounds,
                                        int overlayKeysBand, int buttonHeight,
-                                       float bodySize);
+                                       float bodySize, BrowserList list);
 
 }

@@ -24,7 +24,8 @@ namespace a3
 {
 
 BrowserLayout
-layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
+layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
+               BrowserList list)
 {
   BrowserLayout out;
 
@@ -58,6 +59,19 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
   area.removeFromTop (gap * 2);
   out.listArea = area;
 
+  // On ACTIONS the list keeps a third and the chosen script takes the rest
+  // (2026-09-27). The split is the layout's, so the other tabs can take a
+  // column of their own later without the list moving.
+  auto const withDetail = list == BrowserList::Actions;
+  if (withDetail)
+    {
+      // Two thirds of what is left once the gap between them is taken, so
+      // the gap comes out of both columns rather than out of the list.
+      out.detailArea = out.listArea.removeFromRight (
+          (out.listArea.getWidth () - gap) * 2 / 3);
+      out.listArea.removeFromRight (gap);
+    }
+
   // The strip along the bottom first, so the list is whatever is left rather
   // than the list deciding how much room the buttons get.
   {
@@ -65,18 +79,32 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
         juce::jmin (out.listArea.getHeight () / 3, buttonHeight));
     out.listArea.removeFromBottom (gap);
 
-    auto const buttonW = (strip.getWidth () - 5 * gap) / 6;
-    out.loadButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.filterButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.renameButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.saveButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.saveAsButton = strip.removeFromLeft (buttonW);
-    strip.removeFromLeft (gap);
-    out.deleteButton = strip;
+    // The list's own keys only: on ACTIONS the script beside it carries Save
+    // and Save as, and nothing is loaded from there.
+    if (withDetail)
+      {
+        auto const buttonW = (strip.getWidth () - 2 * gap) / 3;
+        out.filterButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.renameButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.deleteButton = strip;
+      }
+    else
+      {
+        auto const buttonW = (strip.getWidth () - 5 * gap) / 6;
+        out.loadButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.filterButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.renameButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.saveButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.saveAsButton = strip.removeFromLeft (buttonW);
+        strip.removeFromLeft (gap);
+        out.deleteButton = strip;
+      }
   }
 
   // A row is hit with a finger, so it is a fingertip tall whatever the font
@@ -96,10 +124,10 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
 
 BrowserLayout
 layOutBrowserOverSphere (juce::Rectangle<int> bounds, int overlayKeysBand,
-                         int buttonHeight, float bodySize)
+                         int buttonHeight, float bodySize, BrowserList list)
 {
   bounds.removeFromTop (juce::jmax (0, overlayKeysBand));
-  return layOutBrowser (bounds, buttonHeight, bodySize);
+  return layOutBrowser (bounds, buttonHeight, bodySize, list);
 }
 
 }

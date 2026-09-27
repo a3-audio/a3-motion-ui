@@ -31,7 +31,7 @@ namespace
 BrowserLayout
 defaultBrowser ()
 {
-  return layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f);
+  return layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f, BrowserList::Clips);
 }
 }
 
@@ -59,7 +59,7 @@ TEST (BrowserLayout, EveryListRowIsBigEnoughToHit)
   // the list shows as many as fit and scrolls for the rest.
   for (int height : { 160, 200, 250, 320, 400 })
     {
-      auto const l = layOutBrowser ({ 0, 0, 578, height }, 34, 12.f);
+      auto const l = layOutBrowser ({ 0, 0, 578, height }, 34, 12.f, BrowserList::Clips);
 
       EXPECT_GE (l.rowHeight, fingertipSize) << "height " << height;
       EXPECT_GE (l.visibleRows, 1) << "height " << height;
@@ -116,7 +116,7 @@ TEST (BrowserLayout, TheActionStripSitsUnderTheListAndNotInIt)
 
 TEST (BrowserLayout, AnEmptyAreaProducesNothingRatherThanNonsense)
 {
-  auto const l = layOutBrowser ({}, 34, 12.f);
+  auto const l = layOutBrowser ({}, 34, 12.f, BrowserList::Clips);
 
   EXPECT_TRUE (l.rows.empty ());
   EXPECT_TRUE (l.listArea.isEmpty ());
@@ -135,7 +135,7 @@ TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
   for (int width : { 480, 640, 768, 1024 })
     for (int height : { 160, 250, 400 })
       {
-        auto const l = layOutBrowser ({ 0, 0, width, height }, 34, 14.f);
+        auto const l = layOutBrowser ({ 0, 0, width, height }, 34, 14.f, BrowserList::Clips);
 
         ASSERT_FALSE (l.clipsTab.isEmpty ()) << width << "x" << height;
         ASSERT_FALSE (l.actionsTab.isEmpty ()) << width << "x" << height;
@@ -178,7 +178,7 @@ TEST (BrowserLayout, TheListSaysWhichOfTheThreeFoldersItShows)
 TEST (BrowserLayout, SixKeysStayWiderThanAFingertip)
 {
   // The device's screen, and the bar at the height the browser gets.
-  auto const l = layOutBrowser ({ 0, 0, 768, 360 }, 34, 12.f);
+  auto const l = layOutBrowser ({ 0, 0, 768, 360 }, 34, 12.f, BrowserList::Clips);
 
   for (auto const &key : { l.loadButton, l.filterButton, l.renameButton,
                            l.saveButton, l.saveAsButton, l.deleteButton })
@@ -193,7 +193,7 @@ TEST (BrowserLayout, OverTheSphereTheOverlayKeysBandIsKeptClear)
 {
   juce::Rectangle<int> const sphere{ 0, 0, 1024, 520 };
   int const band = 50;
-  auto const l = layOutBrowserOverSphere (sphere, band, 34, 12.f);
+  auto const l = layOutBrowserOverSphere (sphere, band, 34, 12.f, BrowserList::Clips);
 
   auto const clear = sphere.withHeight (band);
   for (auto const &r :
@@ -211,9 +211,51 @@ TEST (BrowserLayout, OverTheSphereTheOverlayKeysBandIsKeptClear)
 // seventy names wants rows. In the bar's content area it showed a handful.
 TEST (BrowserLayout, OverTheSphereTheListShowsMoreRowsThanInTheBar)
 {
-  auto const bar = layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f);
+  auto const bar = layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f, BrowserList::Clips);
   auto const over
-      = layOutBrowserOverSphere ({ 0, 0, 1024, 520 }, 50, 34, 12.f);
+      = layOutBrowserOverSphere ({ 0, 0, 1024, 520 }, 50, 34, 12.f, BrowserList::Clips);
 
   EXPECT_GT (over.visibleRows, bar.visibleRows);
+}
+
+// FILES › ACTIONS (2026-09-27): the list on the left third, the script on
+// the rest, the list's own keys under the list. Load, Save and Save as are
+// not the list's there -- the script panel carries its own.
+TEST (BrowserLayout, ActionsStandBesideTheirScript)
+{
+  juce::Rectangle<int> const area{ 0, 0, 768, 620 };
+  auto const l = layOutBrowserOverSphere (area, 60, 44, 14.f,
+                                          BrowserList::Actions);
+
+  ASSERT_FALSE (l.detailArea.isEmpty ());
+  EXPECT_FALSE (l.listArea.intersects (l.detailArea));
+  EXPECT_NEAR (l.listArea.getWidth (), area.getWidth () / 3, 8);
+  EXPECT_GE (l.detailArea.getX (), l.listArea.getRight ());
+  EXPECT_EQ (l.detailArea.getBottom (), area.getBottom ());
+
+  for (auto const &key : { l.filterButton, l.renameButton, l.deleteButton })
+    {
+      EXPECT_GE (key.getWidth (), fingertipSize);
+      EXPECT_LE (key.getRight (), l.listArea.getRight ());
+      EXPECT_FALSE (key.intersects (l.detailArea));
+    }
+  EXPECT_TRUE (l.loadButton.isEmpty ());
+  EXPECT_TRUE (l.saveButton.isEmpty ());
+  EXPECT_TRUE (l.saveAsButton.isEmpty ());
+  for (auto const &row : l.rows)
+    EXPECT_FALSE (row.intersects (l.detailArea));
+}
+
+// The other tabs are laid out as before: no detail column, six keys.
+TEST (BrowserLayout, TheOtherTabsKeepTheWholeWidth)
+{
+  juce::Rectangle<int> const area{ 0, 0, 768, 620 };
+  for (auto const list : { BrowserList::Clips, BrowserList::Shapes,
+                           BrowserList::Sessions })
+    {
+      auto const l = layOutBrowserOverSphere (area, 60, 44, 14.f, list);
+      EXPECT_TRUE (l.detailArea.isEmpty ());
+      EXPECT_EQ (l.listArea.getWidth (), area.getWidth ());
+      EXPECT_FALSE (l.saveButton.isEmpty ());
+    }
 }

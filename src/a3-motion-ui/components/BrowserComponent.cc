@@ -115,7 +115,7 @@ BrowserComponent::resized ()
       getLocalBounds (),
       OverlayButtons::preferredHeight ()
           + 2 * OverlayButtons::preferredMargin (),
-      fingertipSize, theme ().fontSize (FontRole::Body));
+      fingertipSize, theme ().fontSize (FontRole::Body), _list);
 
   for (size_t i = 0; i < _rowTouch.size (); ++i)
     {
@@ -209,6 +209,8 @@ BrowserComponent::setShowingList (BrowserList list)
     return;
 
   _list = list;
+  // The layout depends on the list since ACTIONS has a script beside it.
+  resized ();
   repaint ();
 }
 
