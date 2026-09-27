@@ -121,12 +121,23 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // pass through nothing and come out spreading downwards, which is the
   // figure turning inside out rather than breathing.
   //
+  // A lane playing one of these plays over what was passed in -- see
+  // Pattern::getKnob().
+  if (auto const played = pattern.getKnobPlayed (Knob::Reach))
+    params.reach = *played;
+  if (auto const played = pattern.getKnobPlayed (Knob::ClipTop))
+    params.clipTop = *played;
+  if (auto const played = pattern.getKnobPlayed (Knob::ClipBottom))
+    params.clipBottom = *played;
+  if (auto const played = pattern.getKnobPlayed (Knob::Elevation))
+    params.elevationBase = *played;
+
   auto const towards = params.reach < 0.f ? -1.f : 1.f;
 
+  auto const swell = pattern.getKnobStep (Knob::Swell);
   auto reach = std::abs (params.reach);
-  if (pattern.getReachLfo () != 0)
-    reach = lfoSweep (reach, pattern.getReachLfo (),
-                      pattern.getReachLfoPhase ());
+  if (swell != 0)
+    reach = lfoSweep (reach, swell, pattern.getReachLfoPhase ());
 
   // The base is held inside the clips before anything else is asked of it.
   //
@@ -155,9 +166,10 @@ sweptElevation (ElevationParams params, Pattern const &pattern)
   // reads as the sway travelling through the part of the room that was taken
   // away. Where there is no cut there is no bound and it still goes pole to
   // pole -- the bound is the cut, not a second opinion about the sweep.
-  if (pattern.getElevationLfo () != 0)
+  auto const sway = pattern.getKnobStep (Knob::Sway);
+  if (sway != 0)
     {
-      auto const to = pattern.getElevationLfo () > 0
+      auto const to = sway > 0
                           ? 1.f - std::clamp (params.clipBottom, 0.f, 1.f)
                           : std::clamp (params.clipTop, 0.f, 1.f);
 

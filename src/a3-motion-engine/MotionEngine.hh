@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/KnobLanes.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -400,6 +401,8 @@ private:
    *  the finger lifts, so it must outlive the release that invalidates
    *  _recordingPosition2D. Both are reset when a take starts. */
   bool _recordingHasTouched = false;
+  /** The knobs' own touch histories for the take that is running. */
+  KnobRecorders _knobRecorders;
   Pos _recordingHeldPosition2D = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */
   std::atomic<float> _recordingProgress{ -1.f };

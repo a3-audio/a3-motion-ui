@@ -39,11 +39,12 @@ squeezeFactor (float amount)
 float
 turnsOf (Pattern const &pattern)
 {
-  auto const spun
-      = pattern.getSpin () == 0 ? 0.f : pattern.getSpinPhase ();
+  auto const spun = pattern.getKnobStep (Knob::Spin) == 0
+                        ? 0.f
+                        : pattern.getSpinPhase ();
 
   // Wrapped, so a reader has a position rather than a running total.
-  auto wrapped = std::fmod (pattern.getRotate () + spun, 1.f);
+  auto wrapped = std::fmod (pattern.getKnob (Knob::Rotate) + spun, 1.f);
   if (wrapped < 0.f)
     wrapped += 1.f;
 
@@ -62,10 +63,12 @@ shapingOf (Pattern const &pattern)
   // of zero and one -- pressing an axis flat and pulling it out are the two
   // directions, and a sweep has to be able to ask for either.
   shaping.squeezeX
-      = lfoSweepBipolar (pattern.getSqueezeX (), pattern.getSqueezeXLfo (),
+      = lfoSweepBipolar (pattern.getKnob (Knob::SqueezeX),
+                         pattern.getKnobStep (Knob::StretchX),
                          pattern.getSqueezeXLfoPhase ());
   shaping.squeezeY
-      = lfoSweepBipolar (pattern.getSqueezeY (), pattern.getSqueezeYLfo (),
+      = lfoSweepBipolar (pattern.getKnob (Knob::SqueezeY),
+                         pattern.getKnobStep (Knob::StretchY),
                          pattern.getSqueezeYLfoPhase ());
 
   return shaping;

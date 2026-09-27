@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/RecMode.hh>
 
+#include <array>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -119,5 +120,9 @@ private:
   bool _hasTouched = false;
   long long _ticksAtLift = 0;
 };
+
+/** A clip's lanes, one per knob in Knob's order. */
+using KnobLanes = std::array<KnobLane, numKnobs>;
+using KnobRecorders = std::array<KnobRecorder, numKnobs>;
 
 }

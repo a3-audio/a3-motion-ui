@@ -1184,6 +1184,10 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   _recordingLap = 0;
   _recordingTicksAtLift = 0;
   _recordingFingerWasDown = false;
+  // A new take is new knob lanes too: they belong to the path they were
+  // turned over.
+  _knobRecorders = KnobRecorders{};
+  pattern->clearLanes ();
 
   // Calculate adaptive sub-sampling factor based on recording length
   _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
@@ -1416,6 +1420,18 @@ MotionEngine::performRecording ()
                   static_cast<long long> (ticksSinceStart));
           }
 
+      // The knobs are written by the same rule as the path, and played back
+      // at once, so a lap turned over is heard -- and drawn -- on the next.
+      {
+        auto const mode = _recMode.load (std::memory_order_relaxed);
+        for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
+          _patternRecording->recordKnobs (
+              _knobRecorders, mode, static_cast<long long> (baseIndex + slot),
+              static_cast<long long> (ticksPatternLength));
+        _patternRecording->playKnobs (static_cast<double> (
+            baseIndex % std::max<std::size_t> (ticksPatternLength, 1)));
+      }
+
       if (_recordingPosition.isValid ())
         {
           // The finger's own direction, not a round trip through the pattern
@@ -1499,6 +1515,10 @@ MotionEngine::performPlayback ()
                   playPosition, ticksPatternLength, playing.getPlayDirection ());
               auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
 
+              // Before anything reads a knob: the lanes play over the
+              // settings this tick -- see Pattern::getKnob().
+              playing.playKnobs (fractionalTick);
+
               // The whole shape turns under the blob. One tick's worth here,
               // and the renderer turns the drawn line by the same phase — the
               // blob has to stay on its line.
@@ -1506,19 +1526,24 @@ MotionEngine::performPlayback ()
                   = static_cast<float> (TempoClock::getTicksPerBeat ())
                     * static_cast<float> (_tempoClock.getBeatsPerBar ());
               playing.setSpinPhase (advanceLfoPhase (
-                  playing.getSpinPhase (), playing.getSpin (), ticksPerBar));
+                  playing.getSpinPhase (), playing.getKnobStep (Knob::Spin),
+                  ticksPerBar));
               playing.setReachLfoPhase (
                   advanceLfoPhase (playing.getReachLfoPhase (),
-                                   playing.getReachLfo (), ticksPerBar));
+                                   playing.getKnobStep (Knob::Swell),
+                  ticksPerBar));
               playing.setElevationLfoPhase (
                   advanceLfoPhase (playing.getElevationLfoPhase (),
-                                   playing.getElevationLfo (), ticksPerBar));
+                                   playing.getKnobStep (Knob::Sway),
+                  ticksPerBar));
               playing.setSqueezeXLfoPhase (
                   advanceLfoPhase (playing.getSqueezeXLfoPhase (),
-                                   playing.getSqueezeXLfo (), ticksPerBar));
+                                   playing.getKnobStep (Knob::StretchX),
+                  ticksPerBar));
               playing.setSqueezeYLfoPhase (
                   advanceLfoPhase (playing.getSqueezeYLfoPhase (),
-                                   playing.getSqueezeYLfo (), ticksPerBar));
+                                   playing.getKnobStep (Knob::StretchY),
+                  ticksPerBar));
 
               if (position2D.isValid ())
                 {
