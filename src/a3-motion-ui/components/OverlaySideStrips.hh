@@ -26,6 +26,7 @@
 #include <functional>
 #include <memory>
 
+#include <a3-motion-ui/components/SphereOverlay.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
 
 namespace a3
@@ -71,9 +72,12 @@ namespace a3
  *  this one says which overlay is being answered for. */
 constexpr bool
 sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
-                     bool colourPickerOpen, bool mixerOpen)
+                     bool colourPickerOpen, SphereOverlay overSphere)
 {
-  if (mixerOpen || colourPickerOpen)
+  // The browser is a list, but one that scrolls under the finger itself and
+  // fills the width: its tabs and keys reach both edges, so strips over them
+  // would take those touches for the menu behind.
+  if (overSphere != SphereOverlay::None || colourPickerOpen)
     return false;
 
   return globalSettingsOpen || skinEditorOpen;

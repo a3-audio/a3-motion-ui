@@ -20,6 +20,7 @@
 
 #include "ControllerComponent.hh"
 
+#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
@@ -177,9 +178,13 @@ ControllerComponent::applyTheme ()
 void
 ControllerComponent::resized ()
 {
-  _layout = layOutController (getLocalBounds (),
-                              theme ().fontSize (FontRole::Header),
-                              fingertipSize);
+  // Over the sphere, under back and close: their band is kept clear the way
+  // the browser and the big mixer keep it.
+  _layout = layOutControllerOverSphere (
+      getLocalBounds (),
+      OverlayButtons::preferredHeight ()
+          + 2 * OverlayButtons::preferredMargin (),
+      theme ().fontSize (FontRole::Header), fingertipSize);
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
@@ -193,6 +198,10 @@ ControllerComponent::resized ()
 void
 ControllerComponent::paint (juce::Graphics &g)
 {
+  // Opaque, like the browser and the big mixer beside it over the sphere. In
+  // the bar it did not need this -- the bar painted the ground.
+  g.fillAll (toColour (theme ().surface));
+
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t slot = 0; slot < numPadSlots; ++slot)
       {

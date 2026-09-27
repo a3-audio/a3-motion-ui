@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/ClipFile.hh>
 
+#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -108,8 +109,13 @@ BrowserComponent::applyTheme ()
 void
 BrowserComponent::resized ()
 {
-  _layout = layOutBrowser (getLocalBounds (), fingertipSize,
-                           theme ().fontSize (FontRole::Body));
+  // Over the sphere, under back and close: their band is kept clear the way
+  // the big mixer keeps it (MixerComponent::resized).
+  _layout = layOutBrowserOverSphere (
+      getLocalBounds (),
+      OverlayButtons::preferredHeight ()
+          + 2 * OverlayButtons::preferredMargin (),
+      fingertipSize, theme ().fontSize (FontRole::Body));
 
   for (size_t i = 0; i < _rowTouch.size (); ++i)
     {
@@ -209,6 +215,11 @@ BrowserComponent::setShowingList (BrowserList list)
 void
 BrowserComponent::paint (juce::Graphics &g)
 {
+  // Opaque, like the big mixer beside it over the sphere: names are read here,
+  // and a moving room behind seventy lines of text is what makes them hard to
+  // read. In the bar it did not need this -- the bar painted the ground.
+  g.fillAll (toColour (theme ().surface));
+
   // Four words over the list: what a slot holds, the figures those are played
   // on, what ACT does to a slot, and the arrangement of all eight at once. All
   // four are chosen the same way, in the same place, so none of them is a mode

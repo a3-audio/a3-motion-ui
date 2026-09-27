@@ -90,9 +90,18 @@ struct BrowserLayout
   juce::Rectangle<int> deleteButton;
 };
 
-/** Lays the browser out inside the bar's content area. Reads no theme, so it
- *  can be checked at sizes nobody has dialled in yet. */
+/** Lays the browser out in the given area. Reads no theme, so it can be
+ *  checked at sizes nobody has dialled in yet. */
 BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
                              float bodySize);
+
+/** The same, over the sphere, where it stands since 2026-09-27. The top
+ *  `overlayKeysBand` pixels are left clear for back and close, which float in
+ *  the top right of every overlay -- the band the big mixer keeps clear for
+ *  the same reason, so the folder tabs are not drawn under a key that answers
+ *  for something else. */
+BrowserLayout layOutBrowserOverSphere (juce::Rectangle<int> bounds,
+                                       int overlayKeysBand, int buttonHeight,
+                                       float bodySize);
 
 }

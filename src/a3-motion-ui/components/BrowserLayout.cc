@@ -94,4 +94,12 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize)
   return out;
 }
 
+BrowserLayout
+layOutBrowserOverSphere (juce::Rectangle<int> bounds, int overlayKeysBand,
+                         int buttonHeight, float bodySize)
+{
+  bounds.removeFromTop (juce::jmax (0, overlayKeysBand));
+  return layOutBrowser (bounds, buttonHeight, bodySize);
+}
+
 }

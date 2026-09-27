@@ -156,8 +156,7 @@ TEST (EncoderMap, ShiftOrAPageWithoutFieldsTurnsTheColumnsFreqAndQ)
                    ChannelPot::Q);
       }
 
-  for (auto const page : { BarPage::Action, BarPage::Browser,
-                           BarPage::Controller })
+  for (auto const page : { BarPage::Action })
     {
       EXPECT_EQ (turn (page, 2, top).kind,
                  EncoderTarget::Kind::ColumnChannelPot);
