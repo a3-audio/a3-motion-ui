@@ -27,6 +27,7 @@
 #include <a3-motion-engine/Config.hh>
 
 #include <a3-motion-ui/io/PadFunctions.hh>
+#include <a3-motion-ui/components/SphereOverlay.hh>
 
 #include <array>
 #include <vector>
@@ -165,16 +166,11 @@ enum class BarPage
    *  already as narrow as a fingertip allows -- a fourth would take the shape
    *  its picture. */
   Action,
-  Controller,
   /** One channel's mixer strip: the channel of the clip this bar describes.
    *  The whole mixer is an overlay reached from the status bar -- this is the
    *  one-handed reach to the channel you are already looking at, without
    *  laying anything over the sphere. */
   Mixer,
-  /** Somewhere else entirely: what is stored, rather than what is loaded. The
-   *  eight clips of the device down one side and the library down the other,
-   *  so a clip is put where it goes rather than dialled to. */
-  Browser,
   /** The take about to be made: Shape as CLIP shows it, beside one card with
    *  the rec mode, fade and bias. The bar's own sections, so it covers
    *  nothing. */
@@ -185,18 +181,19 @@ enum class BarPage
   Motion,
 };
 
-constexpr int numBarPages = 7;
+// FILES and PADS were pages here until 2026-09-27. They lie over the sphere
+// now, the way MAINMIX does -- see SphereOverlay.hh.
+constexpr int numBarPages = 5;
 
 /** Every page, once. `BarPages.EveryPageAppearsInTheOrderExactlyOnce` fails
  *  if a page is missing from here or listed twice -- nothing in the compiler
  *  checks that on its own, since this is data, not a case of an enum. Kept
- *  beside pageCoversClipArea and pageDescribesAClip because a page has to be
- *  added here too, alongside a case in each of them, and a forgotten one
+ *  beside pageCoversClipArea because a page has to be
+ *  added here too, alongside a case in it, and a forgotten one
  *  answers wrong quietly forever if this test does not walk it. */
 constexpr std::array<BarPage, numBarPages> barPageOrder{
-  BarPage::Clip,       BarPage::Action,
-  BarPage::Controller, BarPage::Mixer,  BarPage::Browser,
-  BarPage::Record,    BarPage::Motion,
+  BarPage::Clip,   BarPage::Action, BarPage::Mixer,
+  BarPage::Record, BarPage::Motion,
 };
 
 /** Pages that cover the clip area with something of their own.
@@ -232,48 +229,12 @@ pageCoversClipArea (BarPage page)
     case BarPage::Motion:
       return false;
     case BarPage::Action:
-    case BarPage::Controller:
     case BarPage::Mixer:
-    case BarPage::Browser:
       return true;
     }
   // Every case above returns, so this is never reached -- it exists only to
   // stop -Wreturn-type complaining that the function might fall off the end,
   // which would otherwise drown out the one warning that matters here.
-  __builtin_unreachable ();
-}
-
-/** Pages that are about one clip, so a tap on a channel face steps that
- *  channel's slot and leaves the page where it is.
- *
- *  PADS is the exception: it shows every slot at once, so reaching for a
- *  channel there is reaching for its clip, and the face brings the CLIP view
- *  back with it. FILES has a clip in mind too — the one a picked file is put
- *  into — so choosing the slot and then choosing the file is one errand, and
- *  being thrown back to CLIP halfway through it meant tabbing back and losing
- *  the list you were reading. MIX is the same errand from the other side: the
- *  strip on show is the shown clip's channel, so a face is how you get to the
- *  next channel's strip and being thrown to CLIP would undo the reach.
- *
- *  A `switch` with no `default:` for the same reason as pageCoversClipArea
- *  above -- `-Wswitch-enum` is what says a new page forgot to answer. */
-constexpr bool
-pageDescribesAClip (BarPage page)
-{
-  switch (page)
-    {
-    case BarPage::Clip:
-    case BarPage::Action:
-    case BarPage::Mixer:
-    case BarPage::Browser:
-    case BarPage::Record:
-    case BarPage::Motion:
-      return true;
-    case BarPage::Controller:
-      return false;
-    }
-  // Every case above returns, so this is never reached -- see the matching
-  // comment in pageCoversClipArea.
   __builtin_unreachable ();
 }
 
@@ -358,12 +319,13 @@ lengthKeysStandOn (BarPage page)
   return page == BarPage::Clip || page == BarPage::Record;
 }
 
-/** Whether a page's tab is lit: the page on show, unless the big mixer is
- *  over the sphere -- then MAINMIX is the lit tab. */
+/** Whether a page's tab is lit: the page on show, unless something is over
+ *  the sphere -- then MAINMIX or FILES is the lit key, and the page underneath
+ *  does not also claim to be what you are looking at. */
 constexpr bool
-pageTabIsLit (BarPage tab, BarPage shown, bool mainMixOpen)
+pageTabIsLit (BarPage tab, BarPage shown, SphereOverlay overSphere)
 {
-  return !mainMixOpen && tab == shown;
+  return overSphere == SphereOverlay::None && tab == shown;
 }
 
 /** Whether a tap on this control flips it. True for the two-state ones —
@@ -522,8 +484,7 @@ struct ClipSettingsLayout
    *  on CLIP, and its title row. */
   juce::Rectangle<int> recordCard;
   juce::Rectangle<int> recordLabel;
-  /** The way to the browser. A folder rather than a fourth word: the three
-   *  tabs are views of the clip you are on, and this leaves it. */
+  /** FILES: the way to the browser, which lies over the sphere. */
   juce::Rectangle<int> tabBrowser;
   /** The last-operated control, at the top of the **global strip** — the one
    *  part of the bar that stands on both pages. */

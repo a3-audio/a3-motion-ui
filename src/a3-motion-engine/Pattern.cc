@@ -867,6 +867,25 @@ Pattern::setPlayPosition (float playPosition)
   _playPosition = playPosition;
 }
 
+index_t
+Pattern::getLapTick () const
+{
+  return _lapTick.load (std::memory_order_relaxed);
+}
+
+float
+Pattern::getLapProgress () const
+{
+  return _lapProgress.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setLap (index_t tick, float progress)
+{
+  _lapTick.store (tick, std::memory_order_relaxed);
+  _lapProgress.store (progress, std::memory_order_relaxed);
+}
+
 float
 Pattern::getReach () const
 {

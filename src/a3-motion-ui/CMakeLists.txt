@@ -119,8 +119,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/SphereShader.cc
     components/SphereShader.hh
     components/TickIndicator.cc
-    components/TickPlayheads.cc
-    components/TickPlayheads.hh
     components/TickIndicator.hh
     components/LoopLengthDisplay.cc
     components/LoopLengthDisplay.hh

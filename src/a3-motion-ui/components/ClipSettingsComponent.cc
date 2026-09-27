@@ -240,9 +240,7 @@ ClipSettingsComponent::createTouchControls ()
 
   makeTab (_tabClipTouch, BarPage::Clip);
   makeTab (_tabActionTouch, BarPage::Action);
-  makeTab (_tabControllerTouch, BarPage::Controller);
   makeTab (_tabMixerTouch, BarPage::Mixer);
-  makeTab (_tabBrowserTouch, BarPage::Browser);
   makeTab (_tabRecordTouch, BarPage::Record);
   makeTab (_tabMotionTouch, BarPage::Motion);
 
@@ -257,12 +255,20 @@ ClipSettingsComponent::createTouchControls ()
   };
   addAndMakeVisible (*_elevationPictureTouch);
 
-  _tabMainMixTouch = std::make_unique<TouchControl> ();
-  _tabMainMixTouch->onTap = [this] (int, int) {
-    if (onMainMixTapped)
-      onMainMixTapped ();
+  // FILES, MAINMIX and PADS are not pages: each lays its overlay over the
+  // sphere and leaves the bar on the page it was on.
+  auto const makeOverlayKey = [this] (std::unique_ptr<TouchControl> &into,
+                                      SphereOverlay overlay) {
+    into = std::make_unique<TouchControl> ();
+    into->onTap = [this, overlay] (int, int) {
+      if (onSphereOverlayTapped)
+        onSphereOverlayTapped (overlay);
+    };
+    addAndMakeVisible (*into);
   };
-  addAndMakeVisible (*_tabMainMixTouch);
+  makeOverlayKey (_tabBrowserTouch, SphereOverlay::Files);
+  makeOverlayKey (_tabMainMixTouch, SphereOverlay::MainMix);
+  makeOverlayKey (_tabControllerTouch, SphereOverlay::Pads);
 
 
   auto const makeButton
@@ -1062,7 +1068,7 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   paintGlobalSection (g, _selectedIndex == globalIndex);
 
   if (pageCoversClipArea (_page))
-    return; // ControllerComponent / BrowserComponent draws the rest
+    return; // the page's own component draws the rest
 
   // Which cards a page shows (2026-09-26): CLIP the shape, dir and end, and
   // the lengths; MOTION the movement; REC the shape and the take.
@@ -1237,18 +1243,19 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
     }
 
   paintTab (_layout.tabClip, "CLIP",
-            pageTabIsLit (BarPage::Clip, _page, _mainMixOpen));
+            pageTabIsLit (BarPage::Clip, _page, _overSphere));
   paintTab (_layout.tabAction, "ACTION",
-            pageTabIsLit (BarPage::Action, _page, _mainMixOpen));
+            pageTabIsLit (BarPage::Action, _page, _overSphere));
   paintTab (_layout.tabController, "PADS",
-            pageTabIsLit (BarPage::Controller, _page, _mainMixOpen));
+            _overSphere == SphereOverlay::Pads);
   paintTab (_layout.tabMixer, "CHMIX",
-            pageTabIsLit (BarPage::Mixer, _page, _mainMixOpen));
-  paintTab (_layout.tabMainMix, "MAINMIX", _mainMixOpen);
+            pageTabIsLit (BarPage::Mixer, _page, _overSphere));
+  paintTab (_layout.tabMainMix, "MAINMIX",
+            _overSphere == SphereOverlay::MainMix);
   paintTab (_layout.tabRecord, "REC",
-            pageTabIsLit (BarPage::Record, _page, _mainMixOpen));
+            pageTabIsLit (BarPage::Record, _page, _overSphere));
   paintTab (_layout.tabMotion, "MOTION",
-            pageTabIsLit (BarPage::Motion, _page, _mainMixOpen));
+            pageTabIsLit (BarPage::Motion, _page, _overSphere));
 
   // A word like the three beside it. It was a folder mark, on the reasoning
   // that the tabs are views of the clip and this one leaves it -- but once
@@ -1256,7 +1263,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   // one out rather than the distinct one, and at this size it read as a
   // smudge.
   paintTab (_layout.tabBrowser, "FILES",
-            pageTabIsLit (BarPage::Browser, _page, _mainMixOpen));
+            _overSphere == SphereOverlay::Files);
 
 }
 
@@ -1296,13 +1303,15 @@ ClipSettingsComponent::setCameraMode (bool on)
 }
 
 void
-ClipSettingsComponent::setMainMixOpen (bool open)
+ClipSettingsComponent::setOverSphere (SphereOverlay overlay)
 {
-  if (_mainMixOpen == open)
+  if (_overSphere == overlay)
     return;
 
-  _mainMixOpen = open;
-  repaint (_layout.tabMainMix);
+  _overSphere = overlay;
+  // Every tab, not only the two keys: the page's own tab goes dark while
+  // either is up and comes back when it goes.
+  repaint ();
 }
 
 juce::Rectangle<int>

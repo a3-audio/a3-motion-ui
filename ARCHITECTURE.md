@@ -566,11 +566,12 @@ and an empty field (`--`) is a slot playing a figure with no clip behind it. The
 the **drift dot** — warning-coloured, the same mark the slot keys used to have, saying the values
 have been turned since they were loaded and something is waiting to be written.
 
-**The header's channel faces keep the page on FILES too.** A face selects the clip the settings area
-describes, and FILES has one in mind — the slot a picked file is put into. Being thrown back to CLIP
-halfway through "choose the slot, then choose the file" meant tabbing back and losing the list you
-were reading. `selectClip()` refreshes the browser while that page is on screen so the highlighted
-row follows the slot; only while it is on screen, because refreshing walks the pattern folder.
+**The header's channel faces keep the browser open.** A face selects the clip the settings area
+describes, and FILES has one in mind — the slot a picked file is put into. Being thrown out of the
+list halfway through "choose the slot, then choose the file" meant losing the list you were reading.
+FILES lies over the sphere since 2026-09-27 (below), so a face changes the bar underneath and leaves
+the browser where it is; `selectClip()` refreshes the browser while it is open so the highlighted
+row follows the slot — only while it is open, because refreshing walks the pattern folder.
 
 **`rot` is a closed ring**, the only control in the bar that is. A rotation comes round to itself, so
 its scale has to: on the usual 270-degree sweep the two ends are the same angle with a dead zone
@@ -914,8 +915,28 @@ lays out freely, and `layOutActionPage` is handed an empty reference.
 
 The header row reads **CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS**. CHMIX is the shown channel's
 strip (the MIX tab before). MAINMIX shows the big mixer over the sphere and is the lit tab while it
-is up; a second tap leaves it up, any other tab takes it away (`pageTabIsLit`). It stood in the
+is up; a second tap takes it away again, and so does any other tab (`pageTabIsLit`). It stood in the
 status bar as a MIX toggle until then.
+
+**FILES lies over the sphere too** (2026-09-27), the same way: it is not a `BarPage` any more but
+one value of `SphereOverlay` (`None`, `MainMix`, `Files`, `Pads`), and `showOverSphere()` is the
+one place that shows any of them. One value, not a flag each, because they share one rectangle —
+MAINMIX while the browser is up swaps it for the mixer, and so on. **The three keys toggle**
+(2026-09-27): a tap on the lit key takes its overlay away, a tap on another swaps that one in
+(`overlayAfterTap`), so only one is ever on. Any page tab, Back, Close and the Menu key take it away; the bar underneath stays
+on the page it was on and its tab goes dark while the overlay is lit. It moved because a list of
+seventy names showed a handful of rows in the clip area and shows most of a folder over the sphere.
+Like the mixer it is opaque and keeps the band for back and close clear
+(`layOutBrowserOverSphere`), and the side strips stay away while it is in front
+(`sideStripsHaveAList`) — its edges are its own tabs and keys. Closing it ends a rename without
+keeping it and disarms Delete, as leaving any mask does. The encoders follow the page underneath,
+as they do under the mixer.
+
+**PADS followed the same day**, for the same reasons: `BarPage::Controller` is gone, the pads lie
+opaque over the sphere (`layOutControllerOverSphere` keeps the back/close band clear), and with it
+went `pageDescribesAClip` — PADS was the one page that did not describe one clip, where a channel
+face brought CLIP back. Every page left describes one, so a face now only selects (and turns over
+the face you are on), whatever lies over the sphere.
 
 **CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
 card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,

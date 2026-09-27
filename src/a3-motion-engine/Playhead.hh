@@ -154,6 +154,24 @@ Playhead advancePlayhead (Playhead current, float delta,
                           PlayDirection direction, EndAction endAction,
                           float randomPhase, bool stopAtEnd = false);
 
+/** The lap one tick on: time through the clip's length, counted in whole
+ *  ticks and wrapped at the length, whatever the playhead does. Random starts
+ *  every pass at a random point, so the position is not time; this is. A
+ *  length of zero keeps it at the start. */
+constexpr index_t
+nextLapTick (index_t tick, index_t length)
+{
+  return length > 0 ? (tick + 1) % length : 0;
+}
+
+/** How far through its length a lap is, 0 to 1. */
+constexpr float
+lapProgress (index_t tick, index_t length)
+{
+  return length > 0 ? static_cast<float> (tick) / static_cast<float> (length)
+                    : 0.f;
+}
+
 /** Where in the take a play position lands, as a fractional tick index.
  *
  *  Loop spans the full tick count: its last tick is joined to its first, that

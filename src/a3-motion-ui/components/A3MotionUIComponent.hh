@@ -594,14 +594,17 @@ private:
    *  Those three have no other source, so a redirected callback would take
    *  the sphere its glow and the speaker lights their light. */
   VuLevels _vuLevels;
-  bool _mixerOpen = false;
+  /** What lies over the sphere: the big mixer, the browser or neither. One
+   *  value because the two share one rectangle (SphereOverlay.hh). */
+  SphereOverlay _overSphere = SphereOverlay::None;
   /** Camera mode: the elevation picture is selected and the sphere turns the
    *  view. */
   bool _cameraMode = false;
-  /** Open or close it and tell everything that shows the state -- the key in
-   *  the status bar and the overlay's own buttons. One place, because Back,
-   *  Close and the key itself all reach it. */
-  void showMixer (bool open);
+  /** Lay the mixer or the browser over the sphere, or take either away, and
+   *  tell everything that shows the state -- the two keys in the bar and the
+   *  overlay's own buttons. One place, because Back, Close, the page tabs and
+   *  the keys themselves all reach it. */
+  void showOverSphere (SphereOverlay overlay);
   bool  _globalSettingsOpen        = false;
   bool  _globalSettingsValueFieldSelected = false;
   // 0 = Clockmode, 1 = Pot Size, 2 = Font Size

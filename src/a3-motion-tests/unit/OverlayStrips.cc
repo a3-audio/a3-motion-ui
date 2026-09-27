@@ -30,14 +30,14 @@ using namespace a3;
 // the row they are on.
 TEST (OverlayStrips, TheMenuAndTheSkinEditorGetTheStrips)
 {
-  EXPECT_TRUE (sideStripsHaveAList (true, false, false, false));
-  EXPECT_TRUE (sideStripsHaveAList (false, true, false, false));
+  EXPECT_TRUE (sideStripsHaveAList (true, false, false, SphereOverlay::None));
+  EXPECT_TRUE (sideStripsHaveAList (false, true, false, SphereOverlay::None));
 }
 
 // Nothing open, nothing to walk.
 TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
 {
-  EXPECT_FALSE (sideStripsHaveAList (false, false, false, false));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, false, SphereOverlay::None));
 }
 
 // The one this exists for. MAINMIX is reachable whatever else is up, so
@@ -48,16 +48,16 @@ TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
 // which changed and was applied on release.
 TEST (OverlayStrips, TheMixerInFrontTakesTheStripsAwayFromTheMenu)
 {
-  EXPECT_FALSE (sideStripsHaveAList (true, false, false, true));
-  EXPECT_FALSE (sideStripsHaveAList (false, true, false, true));
-  EXPECT_FALSE (sideStripsHaveAList (true, true, false, true));
+  EXPECT_FALSE (sideStripsHaveAList (true, false, false, SphereOverlay::MainMix));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, false, SphereOverlay::MainMix));
+  EXPECT_FALSE (sideStripsHaveAList (true, true, false, SphereOverlay::MainMix));
 }
 
 // The mixer is opened from outside the overlay chain, so it can also be the
 // only thing on screen. No list either way.
 TEST (OverlayStrips, TheMixerAloneHasNoListEither)
 {
-  EXPECT_FALSE (sideStripsHaveAList (false, false, false, true));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, false, SphereOverlay::MainMix));
 }
 
 // The same fault one level down, and the reason this grew a fourth flag.
@@ -68,9 +68,9 @@ TEST (OverlayStrips, TheMixerAloneHasNoListEither)
 // fifths scrolled a list nobody could see instead of moving hue.
 TEST (OverlayStrips, TheColourPickerInFrontTakesTheStripsFromTheSkinEditor)
 {
-  EXPECT_FALSE (sideStripsHaveAList (true, true, true, false));
-  EXPECT_FALSE (sideStripsHaveAList (false, true, true, false));
-  EXPECT_FALSE (sideStripsHaveAList (true, false, true, false));
+  EXPECT_FALSE (sideStripsHaveAList (true, true, true, SphereOverlay::None));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, true, SphereOverlay::None));
+  EXPECT_FALSE (sideStripsHaveAList (true, false, true, SphereOverlay::None));
 }
 
 // And with both of the two in front, the mixer is the innermost room --
@@ -78,8 +78,19 @@ TEST (OverlayStrips, TheColourPickerInFrontTakesTheStripsFromTheSkinEditor)
 // is a list, so the answer is the same whichever is nearer the eye.
 TEST (OverlayStrips, TheMixerOverTheColourPickerIsStillNoList)
 {
-  EXPECT_FALSE (sideStripsHaveAList (false, true, true, true));
-  EXPECT_FALSE (sideStripsHaveAList (false, false, true, true));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, true, SphereOverlay::MainMix));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, true, SphereOverlay::MainMix));
+}
+
+// FILES stands where the mixer does since 2026-09-27, over whatever else is
+// open, and it is a list that scrolls under the finger by itself. Its edges
+// are its tabs, its rows and its keys -- a strip over them would take those
+// touches and scroll the menu behind it.
+TEST (OverlayStrips, TheBrowserInFrontTakesTheStripsAwayFromTheMenu)
+{
+  EXPECT_FALSE (sideStripsHaveAList (true, false, false, SphereOverlay::Files));
+  EXPECT_FALSE (sideStripsHaveAList (false, true, false, SphereOverlay::Files));
+  EXPECT_FALSE (sideStripsHaveAList (false, false, false, SphereOverlay::Files));
 }
 
 // Both strips scroll, and neither changes a value: "kein edit ohne
