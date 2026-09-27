@@ -22,7 +22,6 @@
 
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
-#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/VuMeterView.hh>
 
 using namespace a3;
@@ -61,8 +60,6 @@ TEST (VuMeterView, TheOverlayGivesEveryMeterOne)
   mixer.setBounds (0, 0, roomy, roomy);
 
   auto area = mixer.getLocalBounds ();
-  area.removeFromTop (OverlayButtons::preferredHeight ()
-                      + 2 * OverlayButtons::preferredMargin ());
   auto const layout = layOutMixerOverlay (area, mixerControlMetrics ());
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)

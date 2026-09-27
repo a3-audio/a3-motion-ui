@@ -20,7 +20,6 @@
 
 #include "ControllerComponent.hh"
 
-#include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
@@ -178,13 +177,11 @@ ControllerComponent::applyTheme ()
 void
 ControllerComponent::resized ()
 {
-  // Over the sphere, under back and close: their band is kept clear the way
-  // the browser and the big mixer keep it.
-  _layout = layOutControllerOverSphere (
-      getLocalBounds (),
-      OverlayButtons::preferredHeight ()
-          + 2 * OverlayButtons::preferredMargin (),
-      theme ().fontSize (FontRole::Header), fingertipSize);
+  // The whole area over the sphere: PADS closes with its own key, so no
+  // back and close float over it (2026-09-27).
+  _layout = layOutController (getLocalBounds (),
+                              theme ().fontSize (FontRole::Header),
+                              fingertipSize);
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)

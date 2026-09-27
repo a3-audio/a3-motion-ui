@@ -83,6 +83,21 @@ sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
   return globalSettingsOpen || skinEditorOpen;
 }
 
+/** Whether back and close stand in the top right. Only on the main menu and
+ *  what it opens -- the skin editor, the colour picker -- and only while
+ *  nothing over the sphere is in front of them. FILES, MIXER and PADS close
+ *  with a second tap on their own key, so the pair was redundant there, and
+ *  FILES puts its keys in the band it took (2026-09-27). */
+constexpr bool
+overlayKeysAreShown (bool globalSettingsOpen, bool skinEditorOpen,
+                     bool colourPickerOpen, SphereOverlay overSphere)
+{
+  if (overSphere != SphereOverlay::None)
+    return false;
+
+  return globalSettingsOpen || skinEditorOpen || colourPickerOpen;
+}
+
 /**
  * OverlaySideStrips
  *

@@ -1853,10 +1853,9 @@ A3MotionUIComponent::updateOverlayButtons ()
   if (!_overlayButtons || !_motionComponent)
     return;
 
-  auto const anyOpen = _globalSettingsOpen || _skinEditorOpen
-                       || _colourPickerOpen
-                       || _overSphere != SphereOverlay::None;
-  _overlayButtons->setVisible (anyOpen);
+  auto const keysShown = overlayKeysAreShown (
+      _globalSettingsOpen, _skinEditorOpen, _colourPickerOpen, _overSphere);
+  _overlayButtons->setVisible (keysShown);
 
   // The strips walk a list and change the highlighted row's value, so they
   // belong to the overlay in front and only while that one has a list. Asked
@@ -1885,7 +1884,7 @@ A3MotionUIComponent::updateOverlayButtons ()
         }
     }
 
-  if (!anyOpen)
+  if (!keysShown)
     return;
 
   auto const height = OverlayButtons::preferredHeight ();

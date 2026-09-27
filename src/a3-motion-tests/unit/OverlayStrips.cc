@@ -140,3 +140,20 @@ TEST (OverlayStrips, TheStripsTakeTheirStepFromThePage)
     if (auto *zone = dynamic_cast<TouchControl *> (child); zone != nullptr)
       EXPECT_EQ (zone->pixelsPerStep (), 34);
 }
+
+// Back and close stand only on the main menu and what it opens (the skin
+// editor, the colour picker). FILES, MIXER and PADS over the sphere close with
+// their own key, a second tap -- the pair was redundant there and took the
+// band FILES now puts its keys in (maintainer, 2026-09-27).
+TEST (OverlayStrips, BackAndCloseStandOnlyOnTheMenu)
+{
+  auto const none = SphereOverlay::None;
+  EXPECT_TRUE (overlayKeysAreShown (true, false, false, none));
+  EXPECT_TRUE (overlayKeysAreShown (false, true, false, none));
+  EXPECT_TRUE (overlayKeysAreShown (false, false, true, none));
+  EXPECT_FALSE (overlayKeysAreShown (false, false, false, none));
+  EXPECT_FALSE (overlayKeysAreShown (false, false, false, SphereOverlay::Files))
+      << "FILES alone";
+  EXPECT_FALSE (overlayKeysAreShown (true, false, false, SphereOverlay::Files))
+      << "FILES in front of the menu: its keys would sit on FILES' own";
+}
