@@ -1799,3 +1799,18 @@ TEST (ClipSettingsLayout, TheRecPageHasNoHeadings)
   EXPECT_TRUE (l.lengthLabel.isEmpty ());
   EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
 }
+
+// The picture in CLIP's and REC's shape field keeps off the field's edge: it
+// sat against it, and dots drawn on the edge read as cut off (2026-09-27).
+TEST (ClipSettingsLayout, TheShapePictureKeepsOffTheFieldsEdge)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const area = shapeFieldIconArea (field);
+
+  ASSERT_FALSE (area.isEmpty ());
+  EXPECT_TRUE (field.contains (area));
+  EXPECT_EQ (area.getWidth (), area.getHeight ()) << "a square";
+  EXPECT_EQ (area.getCentre (), field.getCentre ());
+  EXPECT_LE (area.getWidth (), field.getHeight () * 3 / 4)
+      << "a quarter of the shorter side left as margin";
+}

@@ -2000,13 +2000,9 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   if (!_layout.pageFields[4].isEmpty ())
     paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
 
-  // Pictogram, centred in whatever square area is left above the name.
-  auto const iconSize = static_cast<float> (
-      juce::jmin (_layout.trajectoryIcon.getWidth (),
-                  _layout.trajectoryIcon.getHeight ()));
-  auto iconArea = juce::Rectangle<float> (iconSize, iconSize)
-                      .withCentre (_layout.trajectoryIcon.toFloat ()
-                                       .getCentre ());
+  // Pictogram, in the middle of the field and off its edge -- see
+  // shapeFieldIconArea().
+  auto iconArea = shapeFieldIconArea (_layout.trajectoryIcon).toFloat ();
   // The channel's colour, selected or not: the pictogram stands for the clip
   // that channel is holding, and it is the same shape in the same colour that
   // is drawn on the sphere. Which section is selected is already said by the

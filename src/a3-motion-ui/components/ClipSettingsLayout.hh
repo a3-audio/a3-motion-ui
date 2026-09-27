@@ -640,6 +640,11 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
  */
 juce::Rectangle<int> driftMark (juce::Rectangle<int> bounds);
 
+/** Where the shape's picture is drawn in CLIP's and REC's shape field: a
+ *  square in its middle, off the edge by an eighth of the shorter side each
+ *  way. */
+juce::Rectangle<int> shapeFieldIconArea (juce::Rectangle<int> field);
+
 /** A control's box: as tall as the knob box, but the cell's full width —
  *  the knob is drawn at its own diameter inside it while caption and value
  *  get the room the grid gives them. Never taller than the cell, or a

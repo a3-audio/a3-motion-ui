@@ -281,6 +281,14 @@ driftMark (juce::Rectangle<int> bounds)
 }
 
 juce::Rectangle<int>
+shapeFieldIconArea (juce::Rectangle<int> field)
+{
+  auto const side
+      = juce::jmin (field.getWidth (), field.getHeight ()) * 3 / 4;
+  return juce::Rectangle<int> (side, side).withCentre (field.getCentre ());
+}
+
+juce::Rectangle<int>
 textCell (juce::Rectangle<int> cell, int knobDiam)
 {
   auto const boxH = juce::jmin (
