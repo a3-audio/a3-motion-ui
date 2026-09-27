@@ -372,6 +372,10 @@ public:
   /** The lane's value alone, where one is playing. */
   std::optional<float> getKnobPlayed (Knob knob) const;
   float getKnobSetting (Knob knob) const;
+  void setKnobSetting (Knob knob, float value);
+  /** A hand landing on a knob a lane is turning: the setting becomes what the
+   *  lane plays there, so the knob is picked up where it is drawn. */
+  void takeOverKnob (Knob knob);
 
   /** A hand on the knob: recorded while a take runs, and wins over the lane
    *  while it holds. */

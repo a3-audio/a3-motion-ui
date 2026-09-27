@@ -77,7 +77,7 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
               ControlMetrics metrics, juce::Colour channelColour,
               juce::String const &label, float angleFrac, bool fillFromZero,
               bool isActive, bool isSelected, float reachFrac, bool wraps,
-              bool writing, bool reachFromLane)
+              bool writing, bool laneDriven)
 {
   bool const highlight = isActive && isSelected;
   if (highlight)
@@ -158,10 +158,7 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
           = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
             * sweep;
 
-      // Red where a take's lane is moving it, as the knob was drawn while the
-      // take wrote it; blue where a sweep is.
-      g.setColour (reachFromLane ? transportColour (TransportKey::Record)
-                                 : toColour (theme ().notice));
+      g.setColour (toColour (theme ().notice));
       for (auto const &[from, to] :
            modulationArcs (angleValue, reachAngle, sweep, wraps))
         {
@@ -181,6 +178,18 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
 
   auto const dotR = r * 0.22f;
   g.fillEllipse (juce::Rectangle<float> (dotR, dotR).withCentre (centre));
+
+  // A take's lane is turning it: a small dot in the REC key's red, up and to
+  // the right of the ring, where it names the knob without covering its arc.
+  if (laneDriven)
+    {
+      auto const markR = juce::jmax (2.f, r * 0.18f);
+      auto const at = centre.getPointOnCircumference (
+          r + markR * 1.6f, juce::MathConstants<float>::pi * 0.25f);
+      g.setColour (transportColour (TransportKey::Record));
+      g.fillEllipse (
+          juce::Rectangle<float> (markR * 2.f, markR * 2.f).withCentre (at));
+    }
 
   // The shared size, not this caption's own fit. Its box is only consulted as
   // a floor: a control box too short for the shared size would otherwise have

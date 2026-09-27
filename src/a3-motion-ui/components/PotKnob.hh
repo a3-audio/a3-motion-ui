@@ -70,9 +70,9 @@ public:
   /** A take is writing this knob right now: drawn in the recording red. */
   void setWriting (bool writing);
   bool isWriting () const { return _writing; }
-  /** The arc above comes from a take's lane rather than a sweep: red. */
-  void setReachFromLane (bool fromLane);
-  bool isReachFromLane () const { return _reachFromLane; }
+  /** A take's lane is turning it: drawn with a small red dot. */
+  void setLaneDriven (bool driven);
+  bool isLaneDriven () const { return _laneDriven; }
 
   /** The channel's colour, or the skin's text colour where a control belongs
    *  to nobody in particular. */
@@ -98,7 +98,7 @@ private:
   juce::String _label;
   float _reach = -2.f;
   bool _writing = false;
-  bool _reachFromLane = false;
+  bool _laneDriven = false;
   bool _fillsFromTheMiddle = false;
   bool _wraps = false;
   /** As the mixer's knobs have always been drawn: the colour is the

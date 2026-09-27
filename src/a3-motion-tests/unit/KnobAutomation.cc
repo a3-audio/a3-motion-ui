@@ -222,3 +222,34 @@ TEST (KnobAutomation, AFinishedTakeWritesNothingAnyMore)
 
   EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
 }
+
+TEST (KnobAutomation, AHandTakesAKnobOverWhereTheLaneHadIt)
+{
+  // The knob is drawn where the lane has it. A hand landing on it takes it
+  // from there, or the value would jump to the old setting on the touch.
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+  pattern.setSpin (0);
+  auto lanes = reachAt (0.3f);
+  lanes[static_cast<std::size_t> (Knob::Spin)].write (0, 3.f);
+  pattern.setLanes (lanes);
+  pattern.playKnobs (2.0);
+
+  pattern.takeOverKnob (Knob::Reach);
+  pattern.takeOverKnob (Knob::Spin);
+
+  EXPECT_FLOAT_EQ (pattern.getReach (), 0.3f);
+  EXPECT_EQ (pattern.getSpin (), 3);
+}
+
+TEST (KnobAutomation, TakingOverAKnobNoLaneTurnsLeavesItAlone)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setReach (0.8f);
+
+  pattern.takeOverKnob (Knob::Reach);
+
+  EXPECT_FLOAT_EQ (pattern.getReach (), 0.8f);
+}

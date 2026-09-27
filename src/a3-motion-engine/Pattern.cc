@@ -1070,4 +1070,32 @@ Pattern::clearLane (Knob knob)
                                   std::memory_order_relaxed);
 }
 
+void
+Pattern::setKnobSetting (Knob knob, float value)
+{
+  auto const step = static_cast<int> (std::lround (value));
+  switch (knob)
+    {
+    case Knob::Rotate: setRotate (value); break;
+    case Knob::Spin: setSpin (step); break;
+    case Knob::Reach: setReach (value); break;
+    case Knob::Swell: setReachLfo (step); break;
+    case Knob::SqueezeX: setSqueezeX (value); break;
+    case Knob::StretchX: setSqueezeXLfo (step); break;
+    case Knob::SqueezeY: setSqueezeY (value); break;
+    case Knob::StretchY: setSqueezeYLfo (step); break;
+    case Knob::ClipBottom: setClipBottom (value); break;
+    case Knob::ClipTop: setClipTop (value); break;
+    case Knob::Sway: setElevationLfo (step); break;
+    case Knob::Elevation: setElevationBase (value); break;
+    }
+}
+
+void
+Pattern::takeOverKnob (Knob knob)
+{
+  if (auto const played = getKnobPlayed (knob))
+    setKnobSetting (knob, *played);
+}
+
 }

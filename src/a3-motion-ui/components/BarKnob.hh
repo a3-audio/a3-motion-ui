@@ -65,6 +65,6 @@ void paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                    juce::String const &label, float angleFrac,
                    bool fillFromZero, bool isActive, bool isSelected,
                    float reachFrac = -2.f, bool wraps = false,
-                   bool writing = false, bool reachFromLane = false);
+                   bool writing = false, bool laneDriven = false);
 
 }

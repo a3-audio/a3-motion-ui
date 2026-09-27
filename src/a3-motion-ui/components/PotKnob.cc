@@ -119,12 +119,12 @@ PotKnob::setWriting (bool writing)
 }
 
 void
-PotKnob::setReachFromLane (bool fromLane)
+PotKnob::setLaneDriven (bool driven)
 {
-  if (fromLane == _reachFromLane)
+  if (driven == _laneDriven)
     return;
 
-  _reachFromLane = fromLane;
+  _laneDriven = driven;
   repaint ();
 }
 

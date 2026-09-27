@@ -72,14 +72,14 @@ namespace
 /** How many pixels of a knob painted into an image are the REC key's red. */
 int
 recordRedPixels (bool writing, bool wraps, float reachFrac = -2.f,
-                  bool reachFromLane = false)
+                 bool laneDriven = false)
 {
   juce::Image image (juce::Image::ARGB, 80, 80, true);
   {
     juce::Graphics g (image);
     paintBarKnob (g, image.getBounds (), ControlMetrics{ 60, 10.f, 10.f },
                   juce::Colours::green, "reach", 0.8f, false, true, false,
-                  reachFrac, wraps, writing, reachFromLane);
+                  reachFrac, wraps, writing, laneDriven);
   }
 
   auto const red = transportColour (TransportKey::Record);
@@ -112,11 +112,17 @@ TEST (BarKnob, ARingATakeIsWritingHasARedPointer)
   EXPECT_GT (recordRedPixels (true, true), 5);
 }
 
-// What a take recorded plays back in red, the pointer standing still: blue
-// stays for what a sweep moves.
-TEST (BarKnob, ALanePlayingIsARedArc)
+// A knob a take's lane is turning moves as a whole -- pointer and value arc
+// on the played value -- and wears a small red dot, so it is clear the
+// recording is doing it. Blue stays a sweep's arc.
+TEST (BarKnob, AKnobALaneTurnsWearsARedDot)
 {
   EXPECT_EQ (recordRedPixels (false, false, -0.2f, false), 0)
       << "a sweep's arc is blue";
-  EXPECT_GT (recordRedPixels (false, false, -0.2f, true), 20);
+  EXPECT_GT (recordRedPixels (false, false, -2.f, true), 5);
+}
+
+TEST (BarKnob, ARingALaneTurnsWearsARedDotToo)
+{
+  EXPECT_GT (recordRedPixels (false, true, -2.f, true), 5);
 }

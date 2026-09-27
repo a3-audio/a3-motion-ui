@@ -830,21 +830,9 @@ ClipSettingsComponent::setShapeRotate (float rotate, float reach)
 }
 
 void
-ClipSettingsComponent::setLanesPlayed (
-    std::array<std::optional<float>, numKnobs> const &played)
+ClipSettingsComponent::setKnobsLaneDriven (
+    std::array<bool, numKnobs> const &driven)
 {
-  auto const onKnob = [this, &played] (Knob knob) {
-    auto const place = placeOf (knob);
-    putReachOnKnob (place.section, place.sub,
-                    played[static_cast<std::size_t> (knob)]);
-  };
-
-  for (auto const knob : { Knob::Spin, Knob::Swell, Knob::StretchX,
-                           Knob::StretchY, Knob::ClipBottom, Knob::ClipTop,
-                           Knob::Sway })
-    onKnob (knob);
-
-  // Every knob a lane moves draws its arc in red, whoever set the arc.
   for (int k = 0; k < numKnobs; ++k)
     {
       auto const place = placeOf (static_cast<Knob> (k));
@@ -852,8 +840,7 @@ ClipSettingsComponent::setLanesPlayed (
       auto const sub = static_cast<std::size_t> (place.sub);
       if (s < _controlKnob.size () && sub < _controlKnob[s].size ())
         if (auto &knob = _controlKnob[s][sub])
-          knob->setReachFromLane (
-              played[static_cast<std::size_t> (k)].has_value ());
+          knob->setLaneDriven (driven[static_cast<std::size_t> (k)]);
     }
 }
 

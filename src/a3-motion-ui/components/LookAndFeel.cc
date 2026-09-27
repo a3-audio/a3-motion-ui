@@ -149,7 +149,7 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
                 knob->label (), angle, knob->fillsFromTheMiddle (),
                 knob->isActive (), knob->isSelected (), knob->reach (),
                 knob->wraps (), knob->isWriting (),
-                knob->isReachFromLane ());
+                knob->isLaneDriven ());
 }
 
 juce::Slider::SliderLayout
