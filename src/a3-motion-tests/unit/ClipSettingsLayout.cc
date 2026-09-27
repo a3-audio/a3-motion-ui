@@ -1861,8 +1861,8 @@ TEST (ClipSettingsLayout, AFieldsCaptionIsATabSetIntoItsTopLeftCorner)
 }
 
 // What each field is called (2026-09-27): CLIP and REC name the clip, the
-// picture and their own two; MOTION one name per field. The lengths name
-// themselves by their value.
+// picture and their own two; MOTION one name per field. The four lengths are
+// LENGTH each since the same evening.
 TEST (ClipSettingsLayout, EveryFieldNamesWhatItHolds)
 {
   auto const name = [] (BarPage page, int field) {
@@ -1878,7 +1878,7 @@ TEST (ClipSettingsLayout, EveryFieldNamesWhatItHolds)
   EXPECT_EQ (name (BarPage::Record, 5), "GAP-CONNECTOR");
   for (auto const page : { BarPage::Clip, BarPage::Record })
     for (int field : { 2, 3, 6, 7 })
-      EXPECT_EQ (name (page, field), "") << "a length names itself";
+      EXPECT_EQ (name (page, field), "LENGTH") << "field " << field;
 
   char const *const motion[] = { "ROTATION",  "REACH",          "SQUEEZE X",
                                  "SQUEEZE Y", "ELEVATION",      "ELEVATION CLIP",

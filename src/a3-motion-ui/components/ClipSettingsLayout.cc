@@ -346,6 +346,10 @@ fieldCaptionOf (BarPage page, int field)
     case 1: return clip ? fieldCaption::direction : fieldCaption::recMode;
     case 4: return fieldCaption::svg;
     case 5: return clip ? fieldCaption::endAction : fieldCaption::gapConnector;
+    case 2:
+    case 3:
+    case 6:
+    case 7: return fieldCaption::length;
     default: return "";
     }
 }
