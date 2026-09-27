@@ -184,3 +184,36 @@ TEST (BrowserLayout, SixKeysStayWiderThanAFingertip)
                            l.saveButton, l.saveAsButton, l.deleteButton })
     EXPECT_GE (key.getWidth (), fingertipSize);
 }
+
+// Over the sphere since 2026-09-27, where back and close float in the top
+// right of whatever overlay is open. The band they stand in is kept clear, as
+// the big mixer keeps it: the folder tabs laid out under them put ACTIONS
+// under a key that closes the page.
+TEST (BrowserLayout, OverTheSphereTheOverlayKeysBandIsKeptClear)
+{
+  juce::Rectangle<int> const sphere{ 0, 0, 1024, 520 };
+  int const band = 50;
+  auto const l = layOutBrowserOverSphere (sphere, band, 34, 12.f);
+
+  auto const clear = sphere.withHeight (band);
+  for (auto const &r :
+       { l.setsTab, l.clipsTab, l.shapesTab, l.actionsTab, l.listArea,
+         l.loadButton, l.filterButton, l.renameButton, l.saveButton,
+         l.saveAsButton, l.deleteButton })
+    {
+      ASSERT_FALSE (r.isEmpty ());
+      EXPECT_FALSE (r.intersects (clear));
+      EXPECT_TRUE (sphere.contains (r));
+    }
+}
+
+// The reason it moved: the sphere is the tallest area on screen, and a list of
+// seventy names wants rows. In the bar's content area it showed a handful.
+TEST (BrowserLayout, OverTheSphereTheListShowsMoreRowsThanInTheBar)
+{
+  auto const bar = layOutBrowser ({ 0, 0, 578, 250 }, 34, 12.f);
+  auto const over
+      = layOutBrowserOverSphere ({ 0, 0, 1024, 520 }, 50, 34, 12.f);
+
+  EXPECT_GT (over.visibleRows, bar.visibleRows);
+}
