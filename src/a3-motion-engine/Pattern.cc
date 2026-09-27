@@ -1020,6 +1020,10 @@ Pattern::getKnobSetting (Knob knob) const
     case Knob::ClipTop: return getClipTop ();
     case Knob::Sway: return static_cast<float> (getElevationLfo ());
     case Knob::Elevation: return getElevationBase ();
+    case Knob::Tilt: return getTilt ();
+    case Knob::TiltSweep: return static_cast<float> (getTiltLfo ());
+    case Knob::Roll: return getRoll ();
+    case Knob::RollSweep: return static_cast<float> (getRollLfo ());
     }
   return 0.f;
 }
@@ -1160,6 +1164,10 @@ Pattern::setKnobSetting (Knob knob, float value)
     case Knob::ClipTop: setClipTop (value); break;
     case Knob::Sway: setElevationLfo (step); break;
     case Knob::Elevation: setElevationBase (value); break;
+    case Knob::Tilt: setTilt (value); break;
+    case Knob::TiltSweep: setTiltLfo (step); break;
+    case Knob::Roll: setRoll (value); break;
+    case Knob::RollSweep: setRollLfo (step); break;
     }
 }
 

@@ -1577,11 +1577,11 @@ MotionEngine::performPlayback ()
                                    playing.getKnobStep (Knob::StretchY),
                   ticksPerBar));
               playing.setTiltLfoPhase (advanceLfoPhase (
-                  playing.getTiltLfoPhase (), playing.getTiltLfo (),
-                  ticksPerBar));
+                  playing.getTiltLfoPhase (),
+                  playing.getKnobStep (Knob::TiltSweep), ticksPerBar));
               playing.setRollLfoPhase (advanceLfoPhase (
-                  playing.getRollLfoPhase (), playing.getRollLfo (),
-                  ticksPerBar));
+                  playing.getRollLfoPhase (),
+                  playing.getKnobStep (Knob::RollSweep), ticksPerBar));
 
               if (position2D.isValid ())
                 {

@@ -33,6 +33,7 @@
 
 #include <set>
 
+#include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
@@ -100,8 +101,9 @@ TEST (ClipSettingsLayout, EverySectionHasItsControls)
   // Shape: the picture, the clip field, then the direction and end action
   EXPECT_EQ (l.controls[0].size (), 4u);
   EXPECT_EQ (l.controls[1].size (), 4u); // Elevation: the clips, sway, elv
-  // Motion: rot, fade, bias, dir, end, the two squeezes, the three sweeps
-  EXPECT_EQ (l.controls[2].size (), 10u);
+  // Motion: rot, spin, reach, swell, the squeezes and stretches, fade, bias,
+  // and tilt and roll with their sweeps (2026-09-27)
+  EXPECT_EQ (l.controls[2].size (), 14u);
   EXPECT_EQ (l.controls[3].size (), 1u); // Global: the rec mode
 }
 
@@ -135,11 +137,13 @@ TEST (ClipSettingsLayout, EveryControlSitsInsideItsSectionCard)
 // card lies where Elevation and Motion stand on CLIP.
 TEST (ClipSettingsLayout, ControlsWithinASectionDoNotOverlap)
 {
-  auto const l = defaultLayout ();
-
   for (auto const page : { BarPage::Clip, BarPage::Motion, BarPage::Record })
     for (int s = 0; s < numClipSettingsSections; ++s)
       {
+        // Each page as that page lays itself out (2026-09-27).
+        auto const l = layOutClipSettings (
+            grownBar (defaultHeaderSize, defaultBodySize, defaultPotSize),
+            defaultHeaderSize, defaultBodySize, defaultPotSize, page);
         auto const &section = l.controls[static_cast<size_t> (s)];
         for (size_t a = 0; a < section.size (); ++a)
           for (size_t b = a + 1; b < section.size (); ++b)
@@ -406,7 +410,7 @@ TEST (ClipSettingsLayout, MotionsRowsShareWhateverRoomThereIs)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 10u) << "height " << height;
+      ASSERT_EQ (motion.size (), 14u) << "height " << height;
 
       // Every row is a pair, and both halves of a pair are the same height.
       for (auto const &pair : { std::pair<int, int>{ 0, 1 },
@@ -435,7 +439,7 @@ TEST (ClipSettingsLayout, MotionReadsAsPairsDownTheSection)
     {
       auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
       auto const &motion = l.controls[2];
-      ASSERT_EQ (motion.size (), 10u) << "height " << height;
+      ASSERT_EQ (motion.size (), 14u) << "height " << height;
 
       for (size_t i = 1; i < 4; ++i)
         {
@@ -887,7 +891,7 @@ TEST (ClipSettingsLayout, TheFadeIsAMotionValueNow)
 {
   auto const l = defaultLayout ();
 
-  ASSERT_EQ (l.controls[2].size (), 10u);
+  ASSERT_EQ (l.controls[2].size (), 14u);
   ASSERT_EQ (l.controls[0].size (), 4u);
 
   // Index one since the spin left -- see OnlyFewValuedControlsAdvanceOnTap.
@@ -974,14 +978,14 @@ TEST (ClipSettingsLayout, ElevationIsTheTwoClipsTheSwayAndElv)
 // fade with its bias, and the two lists.
 TEST (ClipSettingsLayout, MotionIsTheMovementAndEverythingThatMovesIt)
 {
-  EXPECT_EQ (numControlsInSection (2), 10);
+  EXPECT_EQ (numControlsInSection (2), 14);
 
   auto const l = defaultLayout ();
-  ASSERT_EQ (l.controls[2].size (), 10u);
+  ASSERT_EQ (l.controls[2].size (), 14u);
 
-  // Ten knobs and nothing that steps: the two lists went to Shape, where what
+  // Knobs and nothing that steps: the two lists went to Shape, where what
   // a pass does when it runs out belongs with the take.
-  for (int sub = 0; sub < 10; ++sub)
+  for (int sub = 0; sub < 14; ++sub)
     EXPECT_FALSE (tapAdvancesValue (2, sub)) << "knob " << sub;
 }
 
@@ -1683,8 +1687,9 @@ TEST (ClipSettingsLayout, TheMotionPageIsEightFieldsOnePerEncoder)
       // Motion: 0 rot 1 spin 2 reach 3 swell 4 sqzX 5 strX 6 sqzY 7 strY.
       // Elevation: 0 clip-bot 1 clip-top 2 sway 3 elv.
       std::vector<std::pair<juce::Rectangle<int>, juce::Rectangle<int> > > const
-          pairs{ { m[1], m[0] }, { m[3], m[2] }, { m[5], m[4] },
-                 { m[7], m[6] }, { e[2], e[3] }, { e[1], e[0] } };
+          pairs{ { m[1], m[0] },   { m[3], m[2] },   { m[5], m[4] },
+                 { m[7], m[6] },   { e[2], e[3] },   { e[1], e[0] },
+                 { m[11], m[10] }, { m[13], m[12] } }; // tswp|tilt, rswp|roll
 
       for (size_t i = 0; i < f.size (); ++i)
         {
@@ -1790,4 +1795,21 @@ TEST (ClipSettingsLayout, AFieldsCaptionStandsInItsTopLeftCorner)
   EXPECT_LE (caption.getBottom (), field.getCentreY () - 20)
       << "clear of the value in the middle";
   EXPECT_GE (caption.getHeight (), 12);
+}
+
+// tilt and roll, each with its sweep, stand on MOTION (2026-09-27): subs 10
+// tilt, 11 tswp, 12 roll, 13 rswp. fade and bias stay on REC.
+TEST (ClipSettingsLayout, TiltAndRollStandOnMotion)
+{
+  for (int sub : { 10, 11, 12, 13 })
+    {
+      EXPECT_TRUE (controlIsOnPage (2, sub, BarPage::Motion)) << sub;
+      EXPECT_FALSE (controlIsOnPage (2, sub, BarPage::Record)) << sub;
+    }
+  EXPECT_TRUE (controlIsOnPage (2, 8, BarPage::Record));
+  EXPECT_TRUE (controlIsOnPage (2, 9, BarPage::Record));
+  EXPECT_EQ (std::string (motionKnobSpec (10).label), "tilt");
+  EXPECT_EQ (std::string (motionKnobSpec (11).label), "tswp");
+  EXPECT_EQ (std::string (motionKnobSpec (12).label), "roll");
+  EXPECT_EQ (std::string (motionKnobSpec (13).label), "rswp");
 }

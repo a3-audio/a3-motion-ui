@@ -68,6 +68,7 @@
 #include <a3-motion-ui/components/RecArming.hh>
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-engine/PatternRunning.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/RecordingName.hh>
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
@@ -7129,6 +7130,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
           pattern->setBridgeBias (0);
           refreshPatternDisplay (pattern);
           break;
+        // Upright, and no sweep.
+        case 10: pattern->setTilt (0.f); break;
+        case 11: pattern->setTiltLfo (0); break;
+        case 12: pattern->setRoll (0.f); break;
+        case 13: pattern->setRollLfo (0); break;
         default: return;
         }
       break;
@@ -7186,6 +7192,10 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
       case 7: pattern->setSqueezeYLfo (step); break;
       case 8: pattern->setFadeReach (level); break;
       case 9: pattern->setBridgeBias (step); break;
+      case 10: pattern->setTilt (level); break;
+      case 11: pattern->setTiltLfo (step); break;
+      case 12: pattern->setRoll (level); break;
+      case 13: pattern->setRollLfo (step); break;
       default: return;
       }
   else
@@ -7456,11 +7466,37 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             refreshPatternDisplay (pattern);
             break;
 
-          default:
+          case 9:
             // Where a drawn-through gap leads. Whole steps: nine positions,
             // and a finger should feel each one rather than slide past them.
             pattern->setBridgeBias (pattern->getBridgeBias () + increment);
             refreshPatternDisplay (pattern);
+            break;
+
+          case 10:
+          case 12:
+            {
+              // The two leans, a tenth per step like the squeezes: bipolar,
+              // -1..1, a quarter turn at the ends.
+              auto const amount = 0.1f * static_cast<float> (increment);
+              if (sub == 10)
+                pattern->setTilt (pattern->getTilt () + amount);
+              else
+                pattern->setRoll (pattern->getRoll () + amount);
+            }
+            break;
+
+          case 11:
+            pattern->setTiltLfo (stepped (pattern->getTiltLfo ()));
+            sweepSaid ("tswp", pattern->getTiltLfo ());
+            break;
+
+          case 13:
+            pattern->setRollLfo (stepped (pattern->getRollLfo ()));
+            sweepSaid ("rswp", pattern->getRollLfo ());
+            break;
+
+          default:
             break;
           }
       }
@@ -7975,6 +8011,18 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     _clipSettings->setKnobsWriting (writing);
   }
   _clipSettings->setMotionStretch (stretchX, stretchY);
+  {
+    // The two leans, and where each one's sweep is holding it now -- the
+    // same pair the squeezes are given, drawn the same way.
+    auto const tiltSweep = stepOf (Knob::TiltSweep, ClipSettings{}.tiltLfo);
+    auto const rollSweep = stepOf (Knob::RollSweep, ClipSettings{}.rollLfo);
+    auto const turn = pattern ? spaceTurnOf (*pattern) : SpaceTurn{};
+    _clipSettings->setMotionLean (
+        knobOf (Knob::Tilt, ClipSettings{}.tilt),
+        knobOf (Knob::Roll, ClipSettings{}.roll),
+        tiltSweep != 0 ? turn.tilt : -2.f, rollSweep != 0 ? turn.roll : -2.f,
+        tiltSweep, rollSweep);
+  }
   _clipSettings->setSweeps (stepOf (Knob::Spin, ClipSettings{}.spin), swell,
                             sway);
   _clipSettings->setMotionEnvelope (

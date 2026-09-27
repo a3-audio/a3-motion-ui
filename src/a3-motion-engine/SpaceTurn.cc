@@ -76,9 +76,12 @@ spaceTurnOf (Pattern const &pattern)
 {
   // Out of where each was set and back, towards the end its sweep's sign
   // points at -- bipolar, like the squeezes.
-  return { lfoSweepBipolar (pattern.getTilt (), pattern.getTiltLfo (),
+  // Through getKnob: a take's lanes play over the settings here too.
+  return { lfoSweepBipolar (pattern.getKnob (Knob::Tilt),
+                            pattern.getKnobStep (Knob::TiltSweep),
                             pattern.getTiltLfoPhase ()),
-           lfoSweepBipolar (pattern.getRoll (), pattern.getRollLfo (),
+           lfoSweepBipolar (pattern.getKnob (Knob::Roll),
+                            pattern.getKnobStep (Knob::RollSweep),
                             pattern.getRollLfoPhase ()) };
 }
 

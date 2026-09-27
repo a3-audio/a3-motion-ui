@@ -340,10 +340,9 @@ controlIsOnPage (int section, int sub, BarPage page)
       return page == BarPage::Clip || (page == BarPage::Record && sub < 2);
     case 1: // Elevation
       return page == BarPage::Motion;
-    case 2: // Motion: the first eight on MOTION, fade and bias on REC
-      return static_cast<std::size_t> (sub) < motionSubsOnTheMotionPage
-                 ? page == BarPage::Motion
-                 : page == BarPage::Record;
+    case 2: // Motion: fade and bias on REC, every other knob on MOTION
+      return sub == 8 || sub == 9 ? page == BarPage::Record
+                                  : page == BarPage::Motion;
     case 3: // the rec mode
       return page == BarPage::Record;
     default:

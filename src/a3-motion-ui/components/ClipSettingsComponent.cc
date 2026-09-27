@@ -786,6 +786,25 @@ ClipSettingsComponent::setMotionStretch (int x, int y)
 }
 
 void
+ClipSettingsComponent::setMotionLean (float tilt, float roll, float sweptTilt,
+                                      float sweptRoll, int tiltSweep,
+                                      int rollSweep)
+{
+  putOnKnob (motionSection, 10, juce::jlimit (-1.f, 1.f, tilt));
+  putOnKnob (motionSection, 11,
+             juce::jlimit (-lfoMaxStep, lfoMaxStep, tiltSweep));
+  putOnKnob (motionSection, 12, juce::jlimit (-1.f, 1.f, roll));
+  putOnKnob (motionSection, 13,
+             juce::jlimit (-lfoMaxStep, lfoMaxStep, rollSweep));
+  putReachOnKnob (motionSection, 10,
+                  sweptTilt < -1.5f ? std::nullopt
+                                    : std::optional<float> (sweptTilt));
+  putReachOnKnob (motionSection, 12,
+                  sweptRoll < -1.5f ? std::nullopt
+                                    : std::optional<float> (sweptRoll));
+}
+
+void
 ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
 {
   auto const heldSpin = juce::jlimit (-lfoMaxStep, lfoMaxStep, spin);

@@ -91,9 +91,12 @@ TEST (EncoderMap, OnMotionTheBottomRowClicksBetweenSwayAndElv)
   EXPECT_TRUE (isControl (turn (BarPage::Motion, 0, bottom, true), 1, 3));
   EXPECT_TRUE (isControl (turn (BarPage::Motion, 1, bottom, true), 1, 0));
 
-  EXPECT_EQ (turn (BarPage::Motion, 2, bottom).kind,
-             EncoderTarget::Kind::None);
-  EXPECT_FALSE (encoderPressClicks (BarPage::Motion, 2, bottom));
+  // tswp and rswp at rest, a click: tilt and roll (2026-09-27).
+  EXPECT_TRUE (isControl (turn (BarPage::Motion, 2, bottom), 2, 11));
+  EXPECT_TRUE (isControl (turn (BarPage::Motion, 2, bottom, true), 2, 10));
+  EXPECT_TRUE (isControl (turn (BarPage::Motion, 3, bottom), 2, 13));
+  EXPECT_TRUE (isControl (turn (BarPage::Motion, 3, bottom, true), 2, 12));
+  EXPECT_TRUE (encoderPressClicks (BarPage::Motion, 2, bottom));
 }
 
 TEST (EncoderMap, OnRecTheRecModeAndFadeThenBias)
@@ -191,7 +194,8 @@ TEST (EncoderMap, OnMotionTheRowsTheEncodersTurnAreMarked)
   EncoderClicks clicked{};
   auto const before = encoderMarks (BarPage::Motion, clicked);
 
-  EXPECT_EQ (before.size (), 6u) << "four sweeps, sway and clip-top";
+  EXPECT_EQ (before.size (), 8u)
+      << "four sweeps, sway, clip-top, and the tilt and roll sweeps";
   EXPECT_TRUE (marks (before, 2, 1)) << "spin";
   EXPECT_TRUE (marks (before, 1, 2)) << "sway";
   EXPECT_FALSE (marks (before, 2, 0)) << "rot waits for a click";

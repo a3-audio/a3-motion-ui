@@ -266,6 +266,10 @@ public:
                          float sweptY = -2.f);
   /** Each squeeze's own sweep, as signed TempoLfo steps. */
   void setMotionStretch (int x, int y);
+  /** tilt and roll, where each one's sweep holds it now (-2 for no sweep),
+   *  and the two sweeps' steps (2026-09-27). */
+  void setMotionLean (float tilt, float roll, float sweptTilt, float sweptRoll,
+                      int tiltSweep, int rollSweep);
 
   /** The clip's three slow sweeps, as signed TempoLfo steps: how fast the
    *  figure turns under the blob, how fast reach opens and closes, how fast

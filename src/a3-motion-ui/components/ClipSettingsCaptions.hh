@@ -106,6 +106,12 @@ constexpr char const *squeezeY = "sqzY";
  *  which is the direction a positive one travels in. */
 constexpr char const *stretchX = "strX";
 constexpr char const *stretchY = "strY";
+/** How far the figure's plane is leant forward or back, and to the side, and
+ *  each lean's sweep (2026-09-27). */
+constexpr char const *tilt = "tilt";
+constexpr char const *tiltSweep = "tswp";
+constexpr char const *roll = "roll";
+constexpr char const *rollSweep = "rswp";
 /** What a recording pass writes where the finger is not. The one control in
  *  the bar that is not the shown clip's — it is the same for every channel. */
 constexpr char const *recMode = "recmode";
