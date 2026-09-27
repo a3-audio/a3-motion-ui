@@ -376,8 +376,9 @@ ActionComponent::paintActionFields (juce::Graphics &g)
       constexpr float buttonNameCap = 14.f;
       g.setFont (juce::Font (juce::FontOptions (
           fittedFontHeight (inner.getHeight () * 0.7f, buttonNameCap))));
-      g.drawText (named ? name : juce::String ("--"), inner,
-                  juce::Justification::centredLeft, true);
+      // Squeezed a little before it is cut: "Unwind" should read as Unwind.
+      g.drawFittedText (named ? name : juce::String ("--"), inner,
+                        juce::Justification::centredLeft, 1, 0.75f);
     }
 }
 

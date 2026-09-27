@@ -128,7 +128,9 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
 
   // Three rows of two, as the pads stand on the panel: A1 A2 / A3 A4 / A5 A6.
-  auto const fieldW = juce::jmax (fingertipSize, content.getWidth () / 5);
+  // A quarter each, so an action's name fits under its number; the list
+  // keeps what is left, which is still more than a row of names needs.
+  auto const fieldW = juce::jmax (fingertipSize, content.getWidth () / 4);
   auto fields = content.removeFromLeft (2 * fieldW + gap);
   content.removeFromLeft (gap);
   auto const fieldH = (fields.getHeight () - 2 * gap) / 3;
