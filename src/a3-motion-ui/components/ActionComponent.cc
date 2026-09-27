@@ -110,13 +110,18 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_listTouch);
 
-  // The six buttons: a tap chooses one.
+  // The six buttons are the six action pads on the screen (2026-09-28):
+  // down chooses one and fires it, up lets a Hold action go.
   for (size_t button = 0; button < _fieldTouch.size (); ++button)
     {
       auto touch = std::make_unique<TouchControl> ();
-      touch->onTap = [this, button] (int, int) {
-        if (onButtonChosen)
-          onButtonChosen (static_cast<int> (button));
+      touch->onPress = [this, button] (int, int) {
+        if (onButtonHeld)
+          onButtonHeld (static_cast<int> (button), true);
+      };
+      touch->onRelease = [this, button] (int, int) {
+        if (onButtonHeld)
+          onButtonHeld (static_cast<int> (button), false);
       };
       addAndMakeVisible (*touch);
       _fieldTouch[button] = std::move (touch);
@@ -130,21 +135,6 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_editTouch);
 
-  // Held, not tapped: it stands for the ACT pad, and that pad is held.
-  _fireTouch = std::make_unique<TouchControl> ();
-  _fireTouch->onPress = [this] (int, int) {
-    _firing = true;
-    if (onFireHeld)
-      onFireHeld (true);
-    repaint ();
-  };
-  _fireTouch->onRelease = [this] (int, int) {
-    _firing = false;
-    if (onFireHeld)
-      onFireHeld (false);
-    repaint ();
-  };
-  addAndMakeVisible (*_fireTouch);
 
 }
 
@@ -182,8 +172,6 @@ ActionComponent::resized ()
     _listTouch->setBounds (_layout.actionListArea);
   if (_editTouch)
     _editTouch->setBounds (_layout.editButton);
-  if (_fireTouch)
-    _fireTouch->setBounds (_layout.fireButton);
 }
 
 void
@@ -463,32 +451,6 @@ ActionComponent::paintActionList (juce::Graphics &g)
 }
 
 void
-ActionComponent::paintFireKey (juce::Graphics &g)
-{
-  if (_layout.fireButton.isEmpty ())
-    return;
-
-  // Filled rather than outlined: it is the one thing on this page that
-  // happens now, pressed with one hand while the other is on the crossfader.
-  auto const at = _layout.fireButton.toFloat ();
-
-  // Full opacity while firing rather than an alpha rung: firing has always
-  // meant no dimming at all, which the alpha-less colour already says. See
-  // issues/a3-motion-ui-metric-role-deviations.md (Task 16).
-  g.setColour (_firing ? _channelColour
-                       : _channelColour.withAlpha (theme ().alphaSecondary));
-  g.fillRoundedRectangle (at, theme ().radiusControl);
-  g.setColour (_channelColour);
-  g.drawRoundedRectangle (at, theme ().radiusControl, theme ().strokeThick);
-
-  // The ACT mark rather than the word (2026-09-28): the same mark the strip's
-  // key and the pads wear, so the three read as one function.
-  g.setColour (readableInk (toColour (theme ().textPrimary), _channelColour,
-                            toColour (theme ().background)));
-  drawTransportGlyph (g, transportGlyphArea (at), TransportFace::Action);
-}
-
-void
 ActionComponent::paint (juce::Graphics &g)
 {
   // Solid, because this covers the clip bar's sections rather than sitting
@@ -528,9 +490,9 @@ ActionComponent::paint (juce::Graphics &g)
                 juce::Justification::centredRight);
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
-  // two places is a knob that lies about what it can do. It stands beside the
-  // action's name because it says what a press does to all three envelopes,
-  // so it belongs to none of their rows.
+  // two places is a knob that lies about what it can do. It stands under
+  // EDIT because it says what a press does to all three envelopes, so it
+  // belongs to none of their rows.
   auto const modeBounds = _layout.actModeField;
   g.setColour (_channelColour.withAlpha (theme ().alphaFillEmphasis));
   g.fillRoundedRectangle (modeBounds.toFloat (), theme ().radiusControl);
@@ -543,19 +505,11 @@ ActionComponent::paint (juce::Graphics &g)
   // What the act-mode's own word ("1shot"/"Hold") may cost.
   constexpr float actModeCap = 20.f;
   g.setFont (juce::Font (juce::FontOptions (
-      fittedFontHeight (modeBounds.getHeight () / 3.f, actModeCap))));
+      fittedFontHeight (modeBounds.getHeight () * 0.4f, actModeCap))));
   g.drawText (value::actModeNames[juce::jlimit (0, value::numActModes - 1,
                                                 _actMode)],
               modeBounds, juce::Justification::centred);
 
-  g.setColour (toColour (theme ().textMuted, theme ().alphaSecondary));
-  // What the act-mode caption beneath it may cost.
-  constexpr float actModeCaptionCap = 12.f;
-  g.setFont (juce::Font (juce::FontOptions (
-      fittedFontHeight (modeBounds.getHeight () / 5.f, actModeCaptionCap))));
-  g.drawText (caption::actMode,
-              modeBounds.withTrimmedTop (modeBounds.getHeight () * 2 / 3),
-              juce::Justification::centred);
 
   // What the card of knobs is: the accent and the two filters, which is the
   // channel's audio. Nine unnamed knobs beside a script is a card you have to
@@ -570,8 +524,6 @@ ActionComponent::paint (juce::Graphics &g)
       g.drawText ("Audio", _layout.cardCaption,
                   juce::Justification::centred);
     }
-
-  paintFireKey (g);
 
   // Last, so it covers what it opens over.
   paintActionList (g);

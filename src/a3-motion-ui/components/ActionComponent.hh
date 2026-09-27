@@ -113,22 +113,18 @@ public:
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
-  /** A button's field was tapped: it becomes the chosen one. */
-  std::function<void (int button)> onButtonChosen;
+  /** A button's field went down (true) or came up (false). Down chooses it
+   *  and fires its action, the way its pad does; up lets a Hold action go. */
+  std::function<void (int button, bool held)> onButtonHeld;
 
   /** A name was picked out of the action list; empty means "fire nothing". */
   std::function<void (juce::String const &name)> onActionChosen;
-  /** The fat key under the knobs: fires this slot's action for as long as it
-   *  is held, the way the ACT pad does. Held rather than tapped, because that
-   *  is what the pad it stands for does. */
-  std::function<void (bool held)> onFireHeld;
   /** EDIT: open this action's script in FILES, beside the list there. */
   std::function<void ()> onEditPressed;
 
 
 private:
   void paintActionFields (juce::Graphics &g);
-  void paintFireKey (juce::Graphics &g);
   void paintActionList (juce::Graphics &g);
 
 
@@ -169,8 +165,6 @@ private:
    *  `controls`. */
   std::unique_ptr<TouchControl> _listTouch;
   std::unique_ptr<TouchControl> _editTouch;
-  std::unique_ptr<TouchControl> _fireTouch;
-  bool _firing = false;
 };
 
 }

@@ -759,10 +759,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
-  // A tap on one of the six fields chooses it: the list, the keys, the card
-  // and the screen's ACT act on it from then on.
-  _action->onButtonChosen = [this] (int button) {
+  // The six fields are the channel's action pads on the screen: down chooses
+  // the button (the list, the keys, the card and the screen's ACT act on it
+  // from then on) and fires it through the pad's own handler, so the two
+  // cannot come to mean different things.
+  _action->onButtonHeld = [this] (int button, bool held) {
+    auto const pad = padIndexForAction (button);
+    if (!held)
+      {
+        handlePadRelease (_clipSettingsChannel, pad);
+        return;
+      }
     chooseActionButton (button);
+    handlePadPress (_clipSettingsChannel, pad);
   };
 
   _action->onActionChosen = [this] (juce::String const &name) {
@@ -772,17 +781,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                        ? juce::File{}
                        : namedFileIn (actionsDir (), name, ".scd"));
     refreshBrowser ();
-  };
-
-  // The fat key under the knobs, which is the ACT pad in another place: same
-  // handler, so the two cannot come to mean different things.
-  _action->onFireHeld = [this] (bool held) {
-    auto const pad = padIndexForAction (
-        _chosenActionButton[_clipSettingsChannel]);
-    if (held)
-      handlePadPress (_clipSettingsChannel, pad);
-    else
-      handlePadRelease (_clipSettingsChannel, pad);
   };
 
   // EDIT: the shown clip's action, opened beside the list in FILES. A Save

@@ -116,19 +116,16 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
     }
 
   // Left of the card, left to right (2026-09-28): the six buttons, the list
-  // the chosen one is assigned from, and a column of keys -- the mode, EDIT,
-  // and ACT at the foot taking what the column has left. ACT is the one thing
-  // here that happens now, so it gets the room; the others are preparation.
+  // the chosen one is assigned from, and a column of keys -- EDIT, then the
+  // chosen button's mode. No ACT key: the six fields fire their own actions.
   auto const keyH = juce::jmax (fingertipSize,
                                 static_cast<int> (headerSize * 2.f));
   auto keys = content.removeFromRight (
       juce::jmax (fingertipSize * 3 / 2, content.getWidth () / 7));
   content.removeFromRight (gap);
-  out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
-  keys.removeFromTop (gap);
   out.editButton = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
   keys.removeFromTop (gap);
-  out.fireButton = keys;
+  out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
 
   // Three rows of two, as the pads stand on the panel: A1 A2 / A3 A4 / A5 A6.
   auto const fieldW = juce::jmax (fingertipSize, content.getWidth () / 5);
