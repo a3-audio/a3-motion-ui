@@ -2128,9 +2128,14 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   if (_motionComponent)
     _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
 
-  // Always create a fresh Pattern for recording (user pattern)
+  // A fresh Pattern for the take, starting from the clip the slot held: its
+  // settings now, so the bar goes on showing them, and its path and lanes at
+  // the downbeat (seedTake). TOUCH over it is an overdub -- turning pots over
+  // the old figure keeps the figure.
   pattern = std::make_shared<Pattern> ();
   pattern->setChannel (channel);
+  if (_patternBeforeRecording)
+    applyClipSettings (*pattern, clipSettingsFrom (*_patternBeforeRecording));
 
   auto recordLength = Measure{
     0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
@@ -2141,7 +2146,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   pattern->setPlaybackLength (recordLength);
 
   _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
-                         recordLength);
+                         recordLength, _patternBeforeRecording);
 
   // A take underway turns SAVE and DISCARD back into REC and ACT.
   refreshTakeState ();
@@ -5516,10 +5521,14 @@ A3MotionUIComponent::endRecording ()
   auto const channel = _recordingSlot->first;
   auto const slot = _recordingSlot->second;
 
+  // Something performed -- the finger or a knob -- and a path to play it on.
+  // The path alone cannot say the first: a take over a clip starts out
+  // holding that clip's.
   auto const written = pattern->writtenTicks ();
   auto const anyWritten
-      = std::any_of (written.begin (), written.end (),
-                     [] (bool isWritten) { return isWritten; });
+      = _engine.takeWroteSomething ()
+        && std::any_of (written.begin (), written.end (),
+                        [] (bool isWritten) { return isWritten; });
 
   // Where the write head stands is where the take stops, and that edge -- the
   // last tick of the freshest pass against the previous pass still sitting
@@ -7910,6 +7919,13 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         played[static_cast<std::size_t> (k)]
             = pattern->getKnobPlayed (static_cast<Knob> (k));
     _clipSettings->setLanesPlayed (played);
+
+    std::array<bool, numKnobs> writing{};
+    if (pattern)
+      for (int k = 0; k < numKnobs; ++k)
+        writing[static_cast<std::size_t> (k)]
+            = pattern->isKnobWriting (static_cast<Knob> (k));
+    _clipSettings->setKnobsWriting (writing);
   }
   _clipSettings->setMotionStretch (
       pattern ? pattern->getSqueezeXLfo () : ClipSettings{}.squeezeXLfo,

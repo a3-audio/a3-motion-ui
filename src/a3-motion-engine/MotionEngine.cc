@@ -20,6 +20,8 @@
 
 #include "MotionEngine.hh"
 
+#include <a3-motion-engine/TakeSeed.hh>
+
 #include <a3-motion-engine/util/Slew.hh>
 
 #include <a3-motion-engine/TempoLfo.hh>
@@ -585,11 +587,13 @@ MotionEngine::releaseRecordingPosition ()
 
 void
 MotionEngine::recordPattern (std::shared_ptr<Pattern> pattern,
-                             Measure timepoint, Measure length)
+                             Measure timepoint, Measure length,
+                             std::shared_ptr<Pattern> seed)
 {
   Message message;
   message.command = Message::Command::StartRecording;
   message.pattern = pattern;
+  message.seed = std::move (seed);
   message.timepoint = timepoint;
   message.length = length;
   submitFifoMessage (message);
@@ -1121,7 +1125,7 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::StartRecording:
           {
-            startRecording (message.pattern, message.length);
+            startRecording (message.pattern, message.length, message.seed);
 
             // one-shot recording: schedule stop right away
             if (_recordingMode == RecordingMode::OneShot)
@@ -1164,8 +1168,15 @@ MotionEngine::handleStartStopMessages ()
     }
 }
 
+bool
+MotionEngine::takeWroteSomething () const
+{
+  return _takeWrote.load (std::memory_order_relaxed);
+}
+
 void
-MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
+MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
+                              std::shared_ptr<Pattern> const &seed)
 {
   if (!pattern)
     return;
@@ -1188,6 +1199,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   // turned over.
   _knobRecorders = KnobRecorders{};
   pattern->clearLanes ();
+  _takeWrote.store (false, std::memory_order_relaxed);
 
   // Calculate adaptive sub-sampling factor based on recording length
   _recordingSubSamplingFactor = calculateSubSamplingFactor (length, _tempoClock.getBeatsPerBar ());
@@ -1203,6 +1215,10 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length)
   // Allocate with adaptive sub-sampling for smooth playback at any speed
   auto const ticksWithSubSampling = static_cast<std::size_t> (ticks) * _recordingSubSamplingFactor;
   _patternRecording->resize (ticksWithSubSampling);
+
+  // Over the clip the slot held: TOUCH then changes only what is touched.
+  if (seed)
+    seedTake (*_patternRecording, *seed);
 
   _recordingPosition = Pos::invalid;
   _recordingPosition2D = Pos::invalid;
@@ -1293,6 +1309,9 @@ MotionEngine::finishRecording ()
     for (index_t tick = 0; tick < static_cast<index_t> (lapTicks); ++tick)
       _patternRecording->setTick (tick,
                                   _recordingLastComplete[static_cast<std::size_t> (tick)]);
+
+  // Nothing writes the knobs any more; the red goes back to what plays.
+  _patternRecording->stopKnobWriting ();
 
   if (RecordingTrace::device ().isEnabled ())
     RecordingTrace::device ().finished (
@@ -1412,6 +1431,7 @@ MotionEngine::performRecording ()
           {
             auto const tick = (baseIndex + slot) % ticksPatternLength;
             _patternRecording->setTick (tick, positionToWrite);
+            _takeWrote.store (true, std::memory_order_relaxed);
 
             if (RecordingTrace::device ().isEnabled ())
               RecordingTrace::device ().wrote (
@@ -1425,9 +1445,11 @@ MotionEngine::performRecording ()
       {
         auto const mode = _recMode.load (std::memory_order_relaxed);
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
-          _patternRecording->recordKnobs (
-              _knobRecorders, mode, static_cast<long long> (baseIndex + slot),
-              static_cast<long long> (ticksPatternLength));
+          if (_patternRecording->recordKnobs (
+                  _knobRecorders, mode,
+                  static_cast<long long> (baseIndex + slot),
+                  static_cast<long long> (ticksPatternLength)))
+            _takeWrote.store (true, std::memory_order_relaxed);
         _patternRecording->playKnobs (static_cast<double> (
             baseIndex % std::max<std::size_t> (ticksPatternLength, 1)));
       }

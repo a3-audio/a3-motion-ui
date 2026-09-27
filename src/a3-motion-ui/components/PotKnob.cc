@@ -109,6 +109,16 @@ PotKnob::setReach (float reach)
 }
 
 void
+PotKnob::setWriting (bool writing)
+{
+  if (writing == _writing)
+    return;
+
+  _writing = writing;
+  repaint ();
+}
+
+void
 PotKnob::setKnobColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)

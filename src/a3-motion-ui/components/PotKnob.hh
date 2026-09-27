@@ -67,6 +67,10 @@ public:
   void setReach (float reach);
   float reach () const { return _reach; }
 
+  /** A take is writing this knob right now: drawn in the recording red. */
+  void setWriting (bool writing);
+  bool isWriting () const { return _writing; }
+
   /** The channel's colour, or the skin's text colour where a control belongs
    *  to nobody in particular. */
   void setKnobColour (juce::Colour colour);
@@ -90,6 +94,7 @@ private:
 
   juce::String _label;
   float _reach = -2.f;
+  bool _writing = false;
   bool _fillsFromTheMiddle = false;
   bool _wraps = false;
   /** As the mixer's knobs have always been drawn: the colour is the

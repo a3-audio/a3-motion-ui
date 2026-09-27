@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 
 using namespace a3;
 
@@ -64,4 +65,48 @@ TEST (BarKnob, NoMovementIsNoArc)
 {
   EXPECT_TRUE (modulationArcs (0.4f, 0.4f, scale, false).empty ());
   EXPECT_TRUE (modulationArcs (0.4f, 0.4f, ring, true).empty ());
+}
+
+namespace
+{
+/** How many pixels of a knob painted into an image are the REC key's red. */
+int
+recordRedPixels (bool writing, bool wraps)
+{
+  juce::Image image (juce::Image::ARGB, 80, 80, true);
+  {
+    juce::Graphics g (image);
+    paintBarKnob (g, image.getBounds (), ControlMetrics{ 60, 10.f, 10.f },
+                  juce::Colours::green, "reach", 0.8f, false, true, false,
+                  -2.f, wraps, writing);
+  }
+
+  auto const red = transportColour (TransportKey::Record);
+  int count = 0;
+  for (int y = 0; y < image.getHeight (); ++y)
+    for (int x = 0; x < image.getWidth (); ++x)
+      {
+        auto const pixel = image.getPixelAt (x, y);
+        if (pixel.getAlpha () > 200 && std::abs (pixel.getRed () - red.getRed ()) < 8
+            && std::abs (pixel.getGreen () - red.getGreen ()) < 8
+            && std::abs (pixel.getBlue () - red.getBlue ()) < 8)
+          ++count;
+      }
+  return count;
+}
+}
+
+// A take writing a knob shows it in the recording red, as the REC key does:
+// blue says a lane plays, red says the take is writing one.
+TEST (BarKnob, AKnobATakeIsWritingIsRed)
+{
+  EXPECT_EQ (recordRedPixels (false, false), 0);
+  EXPECT_GT (recordRedPixels (true, false), 20);
+}
+
+TEST (BarKnob, ARingATakeIsWritingHasARedPointer)
+{
+  // A ring has no value arc; its pointer says it.
+  EXPECT_EQ (recordRedPixels (false, true), 0);
+  EXPECT_GT (recordRedPixels (true, true), 5);
 }

@@ -282,6 +282,8 @@ public:
    *  the knobs no sweep draws one on. Rotate, reach, elv and the squeezes show
    *  a lane through their swept value instead. */
   void setLanesPlayed (std::array<std::optional<float>, numKnobs> const &played);
+  /** Which knobs the running take is writing -- drawn in the recording red. */
+  void setKnobsWriting (std::array<bool, numKnobs> const &writing);
 
   /** Which speed button reads as in force, as a speedLog2. */
   void setShapeSpeed (int speedLog2);
