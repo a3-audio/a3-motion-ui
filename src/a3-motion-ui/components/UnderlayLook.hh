@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/SpaceTurn.hh>
+
 namespace a3
 {
 
@@ -51,6 +53,8 @@ struct UnderlayLook
   juce::Colour colour;
   float opacity = 0.f;
   float thickness = 0.f;
+  /** The take's lean in the room -- spaceTurnOf(). */
+  SpaceTurn turn;
 
   friend bool
   operator== (UnderlayLook const &a, UnderlayLook const &b)
@@ -59,7 +63,8 @@ struct UnderlayLook
            && a.camera.pitch == b.camera.pitch && a.camera.turn == b.camera.turn
            && a.width == b.width && a.height == b.height
            && a.colour == b.colour && a.opacity == b.opacity
-           && a.thickness == b.thickness;
+           && a.thickness == b.thickness && a.turn.tilt == b.turn.tilt
+           && a.turn.roll == b.turn.roll;
   }
 
   friend bool
