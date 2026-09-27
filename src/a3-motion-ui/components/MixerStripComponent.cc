@@ -50,7 +50,7 @@ MixerStripComponent::MixerStripComponent (MixerState &state,
       if (!mixerControlIsAToggle (control))
         {
           auto knob = std::make_unique<PotKnob> ();
-          knob->setLabel (mixerControlLabel (control));
+          // Named by its field's tab, not under the pot (2026-09-27).
           knob->setFillsFromTheMiddle (fillsFromTheMiddle (control));
           if (auto const rest = mixerControlRestPosition (control))
             knob->setDoubleClickReturnValue (true, *rest);
@@ -272,6 +272,14 @@ MixerStripComponent::paint (juce::Graphics &g)
   for (auto const &field : _layout.stripFields)
     if (!field.isEmpty ())
       a3::paintBarButton (g, field, _metrics, colour, {}, {}, false, false);
+
+  // Each pot's name as an engraved tab in its field's corner, the way CLIP,
+  // MOTION and REC name theirs. The two keys carry their word on their face.
+  for (auto const control : mixerFaceOrder)
+    if (!mixerControlIsAToggle (control))
+      paintFieldCaptionTab (g, mixerStripFieldOf (_layout, control),
+                            mixerControlLabel (control),
+                            _metrics.captionSize);
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerFaceControls);
        ++i)

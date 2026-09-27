@@ -414,6 +414,30 @@ TEST (MixerLayout, TheBarsStripCarriesNoMasterAndNoFilter)
     EXPECT_TRUE (control.isEmpty ());
 }
 
+// CHMIX names its pots the way CLIP, MOTION and REC name their fields
+// (2026-09-27): an engraved tab in the field's top left corner, and the pot
+// under it rather than its name under the pot. The two keys fill their field
+// and carry their word on their face.
+TEST (MixerLayout, TheStripsPotsStandUnderTheirFieldsTab)
+{
+  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
+  ASSERT_TRUE (layout.fits);
+
+  for (int i = 0; i < numMixerFaceControls; ++i)
+    {
+      auto const index = static_cast<std::size_t> (i);
+      auto const control = layout.controls[0][index];
+      auto const field = mixerStripFieldOf (layout, mixerFaceOrder[index]);
+      EXPECT_TRUE (field.contains (control)) << "control " << i;
+
+      if (mixerControlIsAToggle (mixerFaceOrder[index]))
+        EXPECT_EQ (control, field) << "control " << i;
+      else
+        EXPECT_EQ (control, fieldBelowCaption (field, metrics.captionSize))
+            << "control " << i;
+    }
+}
+
 // Still a fingertip, at the bar's height rather than the overlay's.
 TEST (MixerLayout, TheBarsStripKeepsEveryControlAtAFingertip)
 {
