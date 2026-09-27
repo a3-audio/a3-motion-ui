@@ -66,13 +66,20 @@ grownBar (float headerSize, float bodySize, float potSize)
                + channelRowHeight (knobDiam, panelWidth) };
 }
 
-/** The header's keys in the order they stand, left to right (2026-09-26):
- *  CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS. */
+/** The header's keys in the order they stand, left to right (2026-09-27):
+ *  CLIP MOTION ACTION CHMIX REC. FILES, MAINMIX and PADS went up into the
+ *  global strip. */
 std::vector<juce::Rectangle<int> >
 headerKeys (ClipSettingsLayout const &l)
 {
-  return { l.tabClip,  l.tabMotion,  l.tabAction, l.tabBrowser,
-           l.tabMixer, l.tabMainMix, l.tabRecord, l.tabController };
+  return { l.tabClip, l.tabMotion, l.tabAction, l.tabMixer, l.tabRecord };
+}
+
+/** The global strip's keys, left to right: FILES MAINMIX PADS. */
+std::vector<juce::Rectangle<int> >
+globalKeys (ClipSettingsLayout const &l)
+{
+  return { l.tabBrowser, l.tabMainMix, l.tabController };
 }
 
 ClipSettingsLayout
@@ -299,8 +306,8 @@ TEST (ClipSettingsLayout, TheSectionFrameCostsLittleWidth)
     }
 }
 
-// The header row is CLIP MOTION ACTION FILES CHMIX MAINMIX REC PADS, in that
-// order.
+// The header row is CLIP MOTION ACTION CHMIX REC, in that order (2026-09-27;
+// FILES, MAINMIX and PADS lead the global strip since).
 // MAINMIX came down from the status bar on 2026-09-26: the big mixer is
 // opened from where the channel's own strip is. The channel
 // faces that led it went up into the global strip on 2026-09-26, where the
@@ -382,8 +389,7 @@ TEST (ClipSettingsLayout, TheClipContentStartsBelowTheHeaderRow)
   EXPECT_TRUE (l.clipBounds.contains (l.clipContent));
 
   EXPECT_GE (l.clipContent.getY (), l.tabClip.getBottom ());
-  EXPECT_GE (l.clipContent.getY (), l.tabBrowser.getBottom ());
-  EXPECT_GE (l.clipContent.getY (), l.tabController.getBottom ());
+  EXPECT_GE (l.clipContent.getY (), l.tabRecord.getBottom ());
 
   // And it is what the sections are laid out in, so the two cannot drift.
   for (int section = 0; section < numClipSettingsSections - 1; ++section)
@@ -1236,17 +1242,36 @@ TEST (ClipSettingsLayout, AProgressBarFillsFromTheLeft)
   EXPECT_EQ (progressFill (bar, 2.f), bar);
 }
 
-// PADS closes the row, after the two mixers.
-TEST (ClipSettingsLayout, PadsCloseTheRow)
+// FILES, MAINMIX and PADS lead the global strip (2026-09-27): a row of keys
+// level with the clip's own tabs and as tall, over the elevation picture.
+// They leave the clip, where the tabs are views of it.
+TEST (ClipSettingsLayout, FilesMainmixAndPadsLeadTheGlobalStrip)
 {
-  auto const l = defaultLayout ();
+  for (int width : { 768, 1024, 1280 })
+    {
+      auto const l = layOutClipSettings (
+          { 0, 0, width, 300 }, 14.f, 12.f, 1.f);
+      auto const keys = globalKeys (l);
 
-  ASSERT_FALSE (l.tabController.isEmpty ());
-  for (auto const &key : headerKeys (l))
-    EXPECT_LE (key.getX (), l.tabController.getX ());
-  EXPECT_TRUE (l.clipBounds.contains (l.tabController));
+      int previousRight = l.globalBounds.getX ();
+      for (size_t i = 0; i < keys.size (); ++i)
+        {
+          ASSERT_FALSE (keys[i].isEmpty ()) << "key " << i;
+          EXPECT_TRUE (l.globalBounds.contains (keys[i])) << "key " << i;
+          EXPECT_FALSE (l.clipBounds.intersects (keys[i])) << "key " << i;
+          EXPECT_GE (keys[i].getX (), previousRight) << "key " << i;
+          previousRight = keys[i].getRight ();
+
+          EXPECT_EQ (keys[i].getY (), l.tabClip.getY ()) << "key " << i;
+          EXPECT_EQ (keys[i].getHeight (), l.tabClip.getHeight ())
+              << "key " << i;
+          EXPECT_GE (keys[i].getWidth (), fingertipSize)
+              << "key " << i << " at width " << width;
+          EXPECT_LE (keys[i].getBottom (), l.elevationFrame.getY ())
+              << "key " << i;
+        }
+    }
 }
-
 
 // Every channel has a face of its own, on every page: the row stands on all
 // of them.
@@ -1626,6 +1651,8 @@ TEST (ClipSettingsLayout, TheElevationPictureLeadsTheGlobalStrip)
   ASSERT_FALSE (l.elevationFrame.isEmpty ());
   EXPECT_EQ (l.elevationFrame.getY (), l.globalContent.getY ());
   EXPECT_TRUE (l.globalContent.contains (l.elevationFrame));
+  EXPECT_GE (l.elevationFrame.getY (), l.tabController.getBottom ())
+      << "under FILES, MAINMIX and PADS";
   EXPECT_TRUE (l.elevationFrame.contains (l.elevationGraphic));
   EXPECT_LT (l.elevationGraphic.getWidth (), l.elevationFrame.getWidth ())
       << "the picture stands inside its frame, not on its edge";

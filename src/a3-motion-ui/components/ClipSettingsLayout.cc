@@ -21,6 +21,8 @@
 
 #include "ClipSettingsLayout.hh"
 
+#include <vector>
+
 #include <algorithm>
 
 #include <cmath>
@@ -326,6 +328,31 @@ barButtonHeight (int barHeight, int knobDiam)
                        static_cast<int> (static_cast<float> (knobDiam) * 1.35f));
 }
 
+/** `count` keys across `row`, `gap` apart, one size to the pixel the row
+ *  affords.
+ *
+ *  **Every edge is computed from the row's whole width, not stepped across
+ *  it.** Stepping meant an integer span times the count, and the remainder of
+ *  that division piled up against the right edge -- which is where the eye
+ *  reads the row as finished or not. Cumulative, the last edge lands on the
+ *  right edge by construction and the remainder is spread a pixel at a time
+ *  across the keys, where nobody can see it. Never narrower than a
+ *  fingertip. */
+std::vector<juce::Rectangle<int> >
+spreadKeys (juce::Rectangle<int> row, int count, int gap)
+{
+  auto const available = juce::jmax (count * fingertipSize,
+                                     row.getWidth () - gap * (count - 1));
+  std::vector<juce::Rectangle<int> > keys;
+  for (int k = 0; k < count; ++k)
+    {
+      auto const x0 = row.getX () + k * gap + (available * k) / count;
+      auto const x1 = row.getX () + k * gap + (available * (k + 1)) / count;
+      keys.push_back ({ x0, row.getY (), x1 - x0, row.getHeight () });
+    }
+  return keys;
+}
+
 /** The frame's inset round the faces: what it was in the global strip, a
  *  fortieth of the strip's quarter of the bar. */
 int
@@ -432,64 +459,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
 
   auto headerArea = area.removeFromTop (headerH);
 
-  // Left to right, as the maintainer set it on 2026-09-26: CLIP MOTION ACTION
-  // FILES CHMIX MAINMIX REC PADS. The channel faces that led the row stand at the top of
-  // the global strip since then -- see there.
+  // Left to right, as the maintainer set it on 2026-09-27: CLIP MOTION ACTION
+  // CHMIX REC -- the views of the clip. FILES, MAINMIX and PADS lead the
+  // global strip since; see there.
   auto const headerGap = juce::jmax (2, headerGapOfHeader.of (headerH));
-
-  constexpr int numViews = 8;
-  constexpr int numHeaderGaps = numViews - 1;
-
-  // **Every edge is computed from the row's whole width, not stepped across
-  // it.** Stepping meant an integer span times five, and the remainder of that
-  // division piled up against the right edge -- which is where the eye reads
-  // the row as finished or not. Cumulative, the last edge lands on the right
-  // edge by construction and the remainder is spread a pixel at a time across
-  // the keys, where nobody can see it. The Shape section's button grid is
-  // measured from the left for the same reason.
-  auto const minSpan = numViews * fingertipSize;
-  auto const available
-      = juce::jmax (minSpan, headerArea.getWidth () - headerGap * numHeaderGaps);
-
-  auto const rowLeft = headerArea.getX ();
-  auto const rowTop = headerArea.getY ();
-  auto const rowHeight = headerArea.getHeight ();
-
-  // The left edge of the view that begins after `units` views and `gaps`
-  // gaps. At units == numViews it is the row's right edge exactly.
-  auto const edgeAt = [rowLeft, available, headerGap] (int units, int gaps) {
-    return rowLeft + gaps * headerGap + (available * units) / numViews;
-  };
-  auto const keyFrom = [rowTop, rowHeight] (int x0, int x1) {
-    return juce::Rectangle<int>{ x0, rowTop, x1 - x0, rowHeight };
-  };
-
-  int units = 0;
-  int gaps = 0;
-
-  auto const takeView = [&units, &gaps, &edgeAt, &keyFrom] {
-    auto const x0 = edgeAt (units, gaps);
-    ++units;
-    auto const key = keyFrom (x0, edgeAt (units, gaps));
-    ++gaps;
-    return key;
-  };
-
-  // The clip's own view leads the row: it is the one the others are
-  // variations on.
-  out.tabClip = takeView ();
-  // Right of CLIP: the clip's movement, which stood beside its shape there.
-  out.tabMotion = takeView ();
-  out.tabAction = takeView ();
-  out.tabBrowser = takeView ();
-
-  // The two mixers side by side: the shown channel's strip (CHMIX), then the
-  // whole mixer over the sphere (MAINMIX), which came down from the status
-  // bar so both are opened from one place.
-  out.tabMixer = takeView ();
-  out.tabMainMix = takeView ();
-  out.tabRecord = takeView ();
-  out.tabController = takeView ();
+  {
+    auto const views = spreadKeys (headerArea, 5, headerGap);
+    out.tabClip = views[0];
+    // Right of CLIP: the clip's movement, which stood beside its shape there.
+    out.tabMotion = views[1];
+    out.tabAction = views[2];
+    // The shown channel's strip, then the take.
+    out.tabMixer = views[3];
+    out.tabRecord = views[4];
+  }
 
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     out.slotButtons[slot] = {};
@@ -564,6 +547,20 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // The whole strip, band included. The band held the transport and then the
   // readout before it; both have gone, so the card takes the height rather
   // than leaving an empty row above itself.
+  // FILES MAINMIX PADS at the head of the strip (2026-09-27), level with the
+  // clip's tabs and as tall: the ways out of the clip's own views -- the
+  // folder, the whole mixer, every pad at once -- stand over what belongs to
+  // the device rather than among the views of one clip.
+  {
+    auto const keys = spreadKeys (globalArea.removeFromTop (headerH), 3,
+                                  headerGap);
+    out.tabBrowser = keys[0];
+    out.tabMainMix = keys[1];
+    out.tabController = keys[2];
+    globalArea.removeFromTop (
+        juce::jmax (4, barHeaderGap.of (out.clipBounds.getHeight ())));
+  }
+
   auto const globalCard = globalArea;
   out.readout = {};
 
@@ -809,11 +806,12 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     // At the head of the strip, over the faces: the side view of where the
     // shown clip sits and how high it may go, in a grey field of its own like
     // the faces and the transport -- a field that is touched to select it.
-    // Never more than nine twentieths of the strip's height, so the transport
-    // keeps its room.
+    // Never more than half the strip's height, so the transport keeps its
+    // room. It was nine twentieths while the faces stood here too; FILES,
+    // MAINMIX and PADS took less than they left (2026-09-27).
     {
       auto const side = juce::jmin (content.getWidth (),
-                                    content.getHeight () * 9 / 20);
+                                    content.getHeight () / 2);
       out.elevationFrame = content.removeFromTop (side);
       out.elevationGraphic = out.elevationFrame.reduced (frameInset);
 
