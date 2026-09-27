@@ -1649,18 +1649,6 @@ TEST (ClipSettingsLayout, TheClipPageHasNoHeadings)
   EXPECT_EQ (l.sectionCards[0], l.clipContent) << "one area";
 }
 
-// The lock that keeps the shape when a clip is loaded lost its heading; it
-// stands in the shape field's corner, small, where it is still a key.
-TEST (ClipSettingsLayout, TheShapeLockStandsInTheShapeField)
-{
-  auto const l = defaultLayout ();
-  auto const &lock = l.sectionLocks[0];
-
-  ASSERT_FALSE (lock.isEmpty ());
-  EXPECT_TRUE (l.pageFields[4].contains (lock));
-  EXPECT_EQ (lock.getRight (), l.pageFields[4].getRight () - lock.getWidth () / 4);
-  EXPECT_LT (lock.getWidth (), l.pageFields[4].getWidth () / 3);
-}
 
 // ── MOTION as one area in the encoders' rows (2026-09-27) ──────────────────
 
@@ -1720,31 +1708,6 @@ TEST (ClipSettingsLayout, TheMotionPageIsOneAreaInTheEncodersRows)
     }
 }
 
-// The locks that keep Motion's and Elevation's values when a clip is loaded
-// lost their headings; each stands in the corner of its group's first row,
-// off the knob.
-TEST (ClipSettingsLayout, TheMotionLocksStandOffTheKnobs)
-{
-  auto const l = motionPage ();
-  auto const knobOf = [&l] (juce::Rectangle<int> cell) {
-    return juce::Rectangle<int> (l.metrics.knobDiam, l.metrics.knobDiam)
-        .withCentre ({ cell.getCentreX (),
-                       cell.getY () + l.metrics.knobDiam / 2 });
-  };
-
-  for (int section : { 1, 2 })
-    {
-      auto const &lock = l.sectionLocks[static_cast<size_t> (section)];
-      ASSERT_FALSE (lock.isEmpty ()) << "section " << section;
-      EXPECT_GE (lock.getWidth (), fingertipSize / 2)
-          << "still a key, section " << section;
-      EXPECT_TRUE (l.clipContent.contains (lock)) << "section " << section;
-      for (auto const &cell : l.controls[static_cast<size_t> (section)])
-        if (controlIsOnPage (section, 0, BarPage::Motion))
-          EXPECT_FALSE (lock.intersects (knobOf (cell)))
-              << "section " << section;
-    }
-}
 
 // ── REC as one area of eight fields (2026-09-27) ───────────────────────────
 

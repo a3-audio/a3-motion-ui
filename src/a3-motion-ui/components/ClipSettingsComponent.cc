@@ -130,21 +130,6 @@ ClipSettingsComponent::createTouchControls ()
       _sectionTouch[static_cast<size_t> (section)] = std::move (card);
     }
 
-  // After the cards, so a tap on the lock reaches the lock rather than the
-  // card it lies on -- JUCE hit-tests front to back and the last child added
-  // is in front.
-  for (int section = 0; section < numClipSections; ++section)
-    {
-      auto lock = std::make_unique<TouchControl> ();
-      lock->setIdentity (section);
-      lock->onTap = [this] (int tapped, int) {
-        if (onLockToggled)
-          onLockToggled (tapped);
-      };
-      addAndMakeVisible (*lock);
-      _lockTouch[static_cast<size_t> (section)] = std::move (lock);
-    }
-
   auto const makeTab = [this] (std::unique_ptr<TouchControl> &into,
                                BarPage page) {
     into = std::make_unique<TouchControl> ();
@@ -446,10 +431,6 @@ ClipSettingsComponent::resized ()
           knob->setBounds (cells[sub]);
     }
 
-  for (int section = 0; section < numClipSections; ++section)
-    _lockTouch[static_cast<size_t> (section)]->setBounds (
-        _layout.sectionLocks[static_cast<size_t> (section)]);
-
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     _slotTouch[slot]->setBounds (_layout.slotButtons[slot]);
 
@@ -496,17 +477,6 @@ void
 ClipSettingsComponent::setTrajectoryIcon (TrajectoryIconData const &icon)
 {
   _trajectoryIcon = icon;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setLocks (bool shape, bool elevation, bool motion)
-{
-  std::array<bool, numClipSections> const held{ shape, elevation, motion };
-  if (held == _locked)
-    return;
-
-  _locked = held;
   repaint ();
 }
 
@@ -1438,65 +1408,6 @@ ClipSettingsComponent::paintSectionCard (juce::Graphics &g, int sectionIndex,
   paintSectionLabel (
       g, _layout.sectionLabels[static_cast<size_t> (sectionIndex)],
       parameterNames[sectionIndex], isSelected);
-
-  paintSectionLock (g, sectionIndex);
-}
-
-void
-ClipSettingsComponent::paintSectionLock (juce::Graphics &g, int sectionIndex)
-{
-  if (sectionIndex < 0 || sectionIndex >= numClipSections)
-    return;
-
-  auto bounds = _layout.sectionLocks[static_cast<size_t> (sectionIndex)];
-  if (bounds.isEmpty ())
-    return;
-
-  auto const held = _locked[static_cast<size_t> (sectionIndex)];
-
-  // Lit in the warning colour while it is held, and that is deliberate: a
-  // held section is a section quietly refusing what you drop on it, which is
-  // exactly the kind of state you want to notice from across a booth. Quiet
-  // otherwise -- three marks that shouted at rest would be three marks you
-  // stop seeing.
-  auto const ink = held ? toColour (theme ().warning)
-                        : toColour (theme ().textPrimary,
-                                   theme ().alphaFillEmphasis);
-
-  // The hit area is twice as wide as it is tall so it can be found without
-  // aiming; the mark inside it stays a square, drawn at the right end where
-  // the eye ends up after reading the word.
-  auto const mark
-      = bounds.removeFromRight (bounds.getHeight ()).toFloat ();
-  auto const square = mark.reduced (mark.getWidth () * 0.28f);
-  auto const body = square.withTrimmedTop (square.getHeight () * 0.42f);
-  auto const thickness = juce::jmax (1.f, square.getWidth () * 0.12f);
-
-  if (held)
-    {
-      g.setColour (ink.withAlpha (theme ().alphaFillEmphasis));
-      g.fillRoundedRectangle (mark, theme ().radiusControl);
-    }
-
-  g.setColour (ink);
-  g.fillRoundedRectangle (body, thickness);
-
-  // The shackle: closed onto the body when held, and lifted off one side when
-  // it is not -- a padlock says shut or open by its shape, which survives
-  // being small and being glanced at, where a colour alone does not.
-  auto const shackleW = square.getWidth () * 0.56f;
-  auto const shackle
-      = juce::Rectangle<float> (shackleW, square.getHeight () * 0.62f)
-            .withCentre ({ square.getCentreX (),
-                           body.getY () - square.getHeight () * 0.08f
-                               + (held ? 0.f : -square.getHeight () * 0.12f) });
-
-  juce::Path arc;
-  arc.addCentredArc (shackle.getCentreX (), shackle.getBottom (),
-                     shackleW / 2.f, shackle.getHeight () / 2.f, 0.f,
-                     -juce::MathConstants<float>::halfPi,
-                     juce::MathConstants<float>::halfPi, true);
-  g.strokePath (arc, juce::PathStrokeType (thickness));
 }
 
 void
@@ -2067,11 +1978,9 @@ ClipSettingsComponent::paintElevationSection (juce::Graphics &g,
                                               bool isSelected)
 {
   // On MOTION since 2026-09-27 Elevation shares Motion's one area: a second
-  // wash over it would darken the whole page. Only its lock is its own.
+  // wash over it would darken the whole page.
   if (_layout.sectionCards[elevationIndex]
-      == _layout.sectionCards[motionIndex])
-    paintSectionLock (g, elevationIndex);
-  else
+      != _layout.sectionCards[motionIndex])
     paintSectionCard (g, elevationIndex, isSelected);
 
   auto const &metrics = _layout.metrics;

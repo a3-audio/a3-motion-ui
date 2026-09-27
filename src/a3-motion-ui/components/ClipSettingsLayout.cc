@@ -392,21 +392,6 @@ fieldGrid (juce::Rectangle<int> area, int gap)
   return fields;
 }
 
-/** The lock of a section that lost its heading: a small key in the top right
- *  corner of the field it keeps, held off the edge by a quarter of itself. */
-juce::Rectangle<int>
-lockInCorner (juce::Rectangle<int> field)
-{
-  // A quarter of the field, but at least half a fingertip -- it is still a
-  // key -- and never more than half the field's shorter side.
-  auto const shorter = juce::jmin (field.getWidth (), field.getHeight ());
-  auto const side = juce::jmin (shorter / 2,
-                                juce::jmax (fingertipSize / 2, shorter / 4));
-  return juce::Rectangle<int> (side, side)
-      .withPosition (field.getRight () - side - side / 4,
-                     field.getY () + side / 4);
-}
-
 /** What CLIP and REC share since 2026-09-27: one area of eight equal fields,
  *  no headings, with the clip, two lengths, the shape and the other two
  *  lengths in the same places. The two fields between are each page's own. */
@@ -434,7 +419,6 @@ layOutPageOfFields (ClipSettingsLayout &out)
   out.speedButtons[2] = f[6];
   out.speedButtons[3] = f[7];
 
-  out.sectionLocks[0] = lockInCorner (f[4]);
   return f;
 }
 
@@ -503,9 +487,6 @@ layOutMotionPage (ClipSettingsLayout &out)
   e[3] = cell (3, 0); // elv
   e[0] = cell (3, 1); // clip-bottom
 
-  // Each group's lock in the corner of its first row, off the knob.
-  out.sectionLocks[2] = lockInCorner (m[7]);
-  out.sectionLocks[1] = lockInCorner (e[1]);
 }
 
 /** The frame's inset round the faces: what it was in the global strip, a
@@ -730,10 +711,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[0]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[0] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[0] = title;
     }
 
@@ -806,10 +783,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[1]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[1] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[1] = title;
     }
 
@@ -848,10 +821,6 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     auto content = sectionContentBounds (out.sectionCards[2]);
     {
       auto title = content.removeFromTop (titleRowHeight (content, headerSize));
-      // The lock takes the right end of the title row. A square, so it
-      // reads as a mark rather than a word, and the row's own height, so
-      // it is as big as anything else that is pressed in a hurry.
-      out.sectionLocks[2] = title.removeFromRight (title.getHeight ());
       out.sectionLabels[2] = title;
     }
 

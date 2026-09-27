@@ -592,24 +592,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     dragSpeedKey (index, increment);
   };
 
-  _clipSettings->onLockToggled = [this] (int section) {
-    switch (section)
-      {
-      case 0: _clipLocks.shape = !_clipLocks.shape; break;
-      case 1: _clipLocks.elevation = !_clipLocks.elevation; break;
-      case 2: _clipLocks.motion = !_clipLocks.motion; break;
-      default: return;
-      }
-
-    static char const *names[] = { "SHAPE", "ELEVATION", "MOTION" };
-    auto const held = section == 0   ? _clipLocks.shape
-                      : section == 1 ? _clipLocks.elevation
-                                     : _clipLocks.motion;
-    updateControlReadout (juce::String (held ? "-- HOLD " : "-- FREE ")
-                          + names[section]);
-    updateClipSettingsDisplay ();
-  };
-
   _clipSettings->onTransportTapped = [this] (TransportKey key) {
     // Anything else touched drops an armed DISCARD, as Delete does in FILES.
     // REC goes on to toggleRecordingOnShownClip(), which saves or records.
@@ -2948,12 +2930,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // the slot with both. A clip written before that says no figure, and then
   // the slot keeps the one it has and only the values land, which is what
   // every clip used to do.
-  //
-  // Unless the shape is being held: a held section is one nothing writes
-  // over, and the figure is what Shape holds. Stepping through clips with it
-  // down keeps the movement you are in and re-dresses it, which is what the
-  // shapeless presets used to do and is now a thing decided in the moment.
-  auto const shape = clip->svg.empty () || _clipLocks.shape
+  auto const shape = clip->svg.empty ()
                          ? 0
                          : _patternLibrary->indexForName (clip->svg);
 
@@ -2984,12 +2961,9 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   if (!pattern)
     return;
 
-  // Every field of a held section comes back off the slot rather than out of
-  // the clip -- one place decides that, and a test insists every field of the
-  // bar belongs to exactly one of the three locks.
-  applyClipSettings (
-      *pattern,
-      heldOver (clipSettingsFrom (*pattern), clip->settings, _clipLocks));
+  // Every value out of the clip. Sections could be held against this until
+  // 2026-09-27; the locks are gone.
+  applyClipSettings (*pattern, clip->settings);
   applyLanes (*pattern, *clip);
 
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
@@ -7784,8 +7758,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
   // What the slot is played with, and whether it has been turned since. The
   // clip's file name rather than the shape's: they are two different things
   // and the field beside the picture is the one that changes this one.
-  _clipSettings->setLocks (_clipLocks.shape, _clipLocks.elevation,
-                           _clipLocks.motion);
   _clipSettings->setClipName (
       _slotClipFile[channel][slot].getFileNameWithoutExtension (),
       slotHasDrifted (channel, slot));
