@@ -206,7 +206,9 @@ float
 trajectoryIconRadius (juce::Rectangle<float> area,
                       juce::Rectangle<float> drawn)
 {
-  if (area.isEmpty () || drawn.isEmpty ())
+  // Not drawn.isEmpty(): a figure along one line has a box of no height and
+  // is still a figure. How far it reaches is what decides, below.
+  if (area.isEmpty ())
     return 0.f;
 
   // The room the box has, on its short side as well as its long one.
@@ -244,18 +246,25 @@ drawTrajectoryIcon (juce::Graphics &g, juce::Rectangle<float> area,
     if (!data.hasJumpDots)
       return data.path.getBoundsTransformed (spin);
 
-    juce::Rectangle<float> box;
-    bool first = true;
+    // Collected by hand. A dot is a rectangle of no size, and JUCE's
+    // getUnion() skips empty rectangles -- so the box stayed the first dot
+    // and a figure of dots alone was drawn at no size at all.
+    auto left = std::numeric_limits<float>::max ();
+    auto top = left;
+    auto right = std::numeric_limits<float>::lowest ();
+    auto bottom = right;
     for (auto const &p : data.jumpDots)
       {
         auto x = -p.second;
         auto y = -p.first;
         spin.transformPoint (x, y);
-        auto const at = juce::Rectangle<float> (x, y, 0.f, 0.f);
-        box = first ? at : box.getUnion (at);
-        first = false;
+        left = std::min (left, x);
+        right = std::max (right, x);
+        top = std::min (top, y);
+        bottom = std::max (bottom, y);
       }
-    return box;
+    return juce::Rectangle<float>::leftTopRightBottom (left, top, right,
+                                                       bottom);
   }();
 
   auto const r = trajectoryIconRadius (area, drawn);

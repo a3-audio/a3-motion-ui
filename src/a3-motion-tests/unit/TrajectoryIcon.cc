@@ -89,3 +89,42 @@ TEST (TrajectoryIcon, AnEmptyExtentAsksForNothing)
   EXPECT_EQ (trajectoryIconRadius (square, {}), 0.f);
   EXPECT_EQ (trajectoryIconRadius ({}, wholeBox), 0.f);
 }
+
+/** A figure along one line has a box of no height, and it is still a figure:
+ *  how far it reaches is what decides its room, not whether its box has an
+ *  area. */
+TEST (TrajectoryIcon, AFigureAlongALineStillGetsRoom)
+{
+  juce::Rectangle<float> const square{ 0.f, 0.f, 100.f, 100.f };
+
+  EXPECT_GT (trajectoryIconRadius (square, { -1.f, 0.f, 2.f, 0.f }), 0.f);
+}
+
+/** Cross, Corner and Bounce are dots and nothing else. Their picture was
+ *  empty: the dots' box was a union of empty rectangles, which JUCE's
+ *  getUnion() skips, so it stayed one point and asked for no room. */
+TEST (TrajectoryIcon, AFigureOfDotsAloneIsDrawn)
+{
+  auto const cross = trajectoryIconFromPath (
+      {}, { { 1.f, 0.f }, { 0.f, -1.f }, { -1.f, 0.f }, { 0.f, 1.f } });
+  ASSERT_TRUE (cross.hasIcon);
+
+  juce::Image image (juce::Image::ARGB, 100, 100, true);
+  {
+    juce::Graphics g (image);
+    drawTrajectoryIcon (g, image.getBounds ().toFloat (), cross,
+                        juce::Colours::red, 0.f);
+  }
+
+  int red = 0;
+  for (int y = 0; y < image.getHeight (); ++y)
+    for (int x = 0; x < image.getWidth (); ++x)
+      {
+        auto const pixel = image.getPixelAt (x, y);
+        if (pixel.getAlpha () > 200 && pixel.getRed () > 200
+            && pixel.getGreen () < 60)
+          ++red;
+      }
+
+  EXPECT_GT (red, 20) << "no dots were drawn";
+}
