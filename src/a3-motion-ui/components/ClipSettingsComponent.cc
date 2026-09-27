@@ -865,6 +865,20 @@ ClipSettingsComponent::setKnobsLaneDriven (
 }
 
 void
+ClipSettingsComponent::setEncoderMarks (
+    std::vector<std::pair<int, int> > const &marked)
+{
+  for (std::size_t s = 0; s < _controlKnob.size (); ++s)
+    for (std::size_t sub = 0; sub < _controlKnob[s].size (); ++sub)
+      if (auto &knob = _controlKnob[s][sub])
+        knob->setEncoderMarked (
+            std::find (marked.begin (), marked.end (),
+                       std::pair<int, int>{ static_cast<int> (s),
+                                            static_cast<int> (sub) })
+            != marked.end ());
+}
+
+void
 ClipSettingsComponent::setKnobsWriting (
     std::array<bool, numKnobs> const &writing)
 {
@@ -889,16 +903,6 @@ ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
 
   _motionAttack = attack;
   _motionDecay = decay;
-  repaint ();
-}
-
-void
-ClipSettingsComponent::setNextTakeLengthBeats (float beats)
-{
-  if (juce::approximatelyEqual (beats, _nextTakeLengthBeats))
-    return;
-
-  _nextTakeLengthBeats = beats;
   repaint ();
 }
 
@@ -1539,11 +1543,13 @@ ClipSettingsComponent::paintPlaySection (juce::Graphics &g)
   paintSectionLabel (g, _layout.playLabel, "dir / end", false);
 
   paintBarButton (g, _layout.directionButton,
-                  value::directionNames[_motionDirection], caption::direction,
+                  value::directionNames[_motionDirection], {},
                   _trajectorySubIndex == 2 && isSelected, false);
+  paintFieldCaption (g, _layout.directionButton, caption::direction);
   paintBarButton (g, _layout.endActionButton,
-                  value::endActionNames[_motionEndAction], caption::endAction,
+                  value::endActionNames[_motionEndAction], {},
                   _trajectorySubIndex == 3 && isSelected, false);
+  paintFieldCaption (g, _layout.endActionButton, caption::endAction);
 }
 
 void
@@ -1580,8 +1586,9 @@ ClipSettingsComponent::paintRecordSection (juce::Graphics &g)
   // destroy, on the same scale the rest of the device uses. It carries a
   // value and names it, so it does not light.
   auto const look = functionKeyLook ();
-  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), "recmode",
+  paintBarButton (g, _layout.recModeButton, recModeName (_recMode), {},
                   false, false, functionKeyColour (FunctionKey::RecMode, look));
+  paintFieldCaption (g, _layout.recModeButton, "recmode");
 
   // Fade and bias are knobs and draw themselves (PotKnob).
 }
@@ -1884,16 +1891,11 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
       // The caption carries the next take's length. There is no page to read
       // it off any more, and a length you only learn after recording is one
       // you learn too late.
-      auto const clipCaption
-          = _nextTakeLengthBeats > 0.f
-                ? juce::String (caption::clip) + "  "
-                      + beatsName (_nextTakeLengthBeats)
-                : juce::String (caption::clip);
-
+      // The clip's name and nothing else (2026-09-27): the caption and the
+      // next take's length it carried are gone.
       paintBarButton (g, _layout.clipField,
                       _clipName.isEmpty () ? juce::String ("--") : _clipName,
-                      clipCaption, false,
-                      isSelected && _trajectorySubIndex == 1);
+                      {}, false, isSelected && _trajectorySubIndex == 1);
 
       // Turned since it was loaded. The warning colour rather than the danger
       // one: nothing is lost yet, something is merely waiting to be written --
@@ -1909,7 +1911,10 @@ ClipSettingsComponent::paintTrajectorySection (juce::Graphics &g,
   // On a page of fields the picture has a field of its own, grounded like the
   // seven keys around it.
   if (!_layout.pageFields[4].isEmpty ())
-    paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
+    {
+      paintBarButton (g, _layout.trajectoryIcon, {}, {}, false, false);
+      paintFieldCaption (g, _layout.trajectoryIcon, "shape");
+    }
 
   // Pictogram, in the middle of the field and off its edge -- see
   // shapeFieldIconArea().
@@ -1949,6 +1954,12 @@ ClipSettingsComponent::paintMotionSection (juce::Graphics &g,
                                            bool isSelected)
 {
   paintSectionCard (g, motionIndex, isSelected);
+
+  // One field per encoder, grounded like CLIP's and REC's keys; the knobs
+  // draw themselves on top.
+  for (auto const &field : _layout.pageFields)
+    if (!field.isEmpty ())
+      paintBarButton (g, field, {}, {}, false, false);
 
   auto const &metrics = _layout.metrics;
   auto const &cells = _layout.controls[motionIndex];
@@ -2274,6 +2285,17 @@ ClipSettingsComponent::paintElevationGraphic (juce::Graphics &g,
                        : channel.colour.withMultipliedAlpha (shade (channel)));
       g.fillEllipse (at.x - ballR, at.y - ballR, ballR * 2.f, ballR * 2.f);
     }
+}
+
+void
+ClipSettingsComponent::paintFieldCaption (juce::Graphics &g,
+                                          juce::Rectangle<int> field,
+                                          juce::String const &text)
+{
+  auto const area = fieldCaptionArea (field, _layout.metrics.captionSize);
+  g.setFont (juce::Font (juce::FontOptions (_layout.metrics.captionSize)));
+  g.setColour (toColour (theme ().textMuted));
+  g.drawText (text, area, juce::Justification::topLeft, true);
 }
 
 void

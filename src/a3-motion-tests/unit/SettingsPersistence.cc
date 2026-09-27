@@ -266,6 +266,27 @@ TEST (SettingsPersistence, TheCameraSurvivesARestart)
   file.deleteFile ();
 }
 
+// Which of its two things each encoder is on, on MOTION and on REC, comes
+// back after a restart (2026-09-27): the marks are where they were left.
+TEST (SettingsPersistence, TheEncoderClicksSurviveARestart)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-clicks.json");
+  file.deleteFile ();
+
+  AppSettings original;
+  original.encoderClicksMotion = 0b10000101;
+  original.encoderClicksRecord = 0b1000;
+  saveSettings (file, original);
+
+  auto const loaded = loadSettings (file);
+  EXPECT_EQ (loaded.encoderClicksMotion, 0b10000101);
+  EXPECT_EQ (loaded.encoderClicksRecord, 0b1000);
+
+  file.deleteFile ();
+}
+
 // A file from before looks from straight above, unzoomed.
 TEST (SettingsPersistence, AFileWithoutACameraLooksFromAbove)
 {

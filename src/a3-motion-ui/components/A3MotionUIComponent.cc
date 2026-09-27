@@ -975,6 +975,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _motionComponent->onCameraChanged = [this] { persistSettings (); };
     }
 
+  // Where each encoder was left on MOTION and REC.
+  _encoderClicksMotion = encoderClicksFromMask (persisted.encoderClicksMotion);
+  _encoderClicksRecord = encoderClicksFromMask (persisted.encoderClicksRecord);
+  showEncoderMarks ();
+
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
@@ -1252,6 +1257,8 @@ A3MotionUIComponent::persistSettings () const
       settings.cameraTurn = camera.turn;
       settings.cameraZoom = _motionComponent->getCameraZoom ();
     }
+  settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
+  settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -2332,9 +2339,8 @@ A3MotionUIComponent::showBarPage (BarPage page)
   _pendingTakes.disarm ();
   refreshTakeState ();
   _barPage = page;
-  // A click belongs to the page it was made on.
-  _encoderClicked = {};
   _clipSettings->setPage (page);
+  showEncoderMarks ();
   _controller->setVisible (page == BarPage::Controller);
   if (_action)
     {
@@ -7580,12 +7586,33 @@ A3MotionUIComponent::chooseSpeedKey (int index)
   applySpeedLog2ToShownClip (_speedButtonLog2[static_cast<size_t> (index)]);
 }
 
+EncoderClicks &
+A3MotionUIComponent::encoderClicksOfPage ()
+{
+  static EncoderClicks none{};
+  none = {};
+  if (_barPage == BarPage::Motion)
+    return _encoderClicksMotion;
+  if (_barPage == BarPage::Record)
+    return _encoderClicksRecord;
+  return none;
+}
+
+void
+A3MotionUIComponent::showEncoderMarks ()
+{
+  if (_clipSettings)
+    _clipSettings->setEncoderMarks (
+        encoderMarks (_barPage, encoderClicksOfPage ()));
+}
+
 EncoderTarget
 A3MotionUIComponent::encoderTargetAt (int column, int row)
 {
   return encoderTarget (
       _barPage, column, row,
-      _encoderClicked[static_cast<size_t> (column)][static_cast<size_t> (row)],
+      encoderClicksOfPage ()[static_cast<size_t> (column)]
+                            [static_cast<size_t> (row)],
       isButtonPressed (Button::Shift));
 }
 
@@ -7635,13 +7662,13 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
         return;
       }
 
-    case EncoderTarget::Kind::ShownChannelPot:
+    case EncoderTarget::Kind::MixerKey:
+      // A key is pressed, not turned -- see handleEncoderPress().
+      return;
+
     case EncoderTarget::Kind::ColumnChannelPot:
       {
-        auto const channel
-            = target.kind == EncoderTarget::Kind::ShownChannelPot
-                  ? shown
-                  : static_cast<index_t> (column);
+        auto const channel = static_cast<index_t> (column);
         handleChannelValueChange (channel, target.pot, increment);
         updateControlReadout ("CH" + juce::String (channel + 1) + " "
                               + channelPotLabel (target.pot) + " "
@@ -7663,9 +7690,11 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   if (encoderPressClicks (_barPage, column, row)
       && !isButtonPressed (Button::Shift))
     {
-      auto &clicked = _encoderClicked[static_cast<size_t> (column)]
-                                     [static_cast<size_t> (row)];
+      auto &clicked = encoderClicksOfPage ()[static_cast<size_t> (column)]
+                                            [static_cast<size_t> (row)];
       clicked = !clicked;
+      showEncoderMarks ();
+      persistSettings ();
       auto const target = encoderTargetAt (column, row);
       auto const spec = target.section == elevationSection
                             ? elevationKnobSpec (target.sub)
@@ -7674,10 +7703,21 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
       return;
     }
 
-  // A press on a length chooses it, as a tap does.
+  // A press on a length chooses it, as a tap does; on PFL or FX it flips it.
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
+  if (target.kind == EncoderTarget::Kind::MixerKey)
+    {
+      auto const channel = static_cast<int> (_clipSettingsChannel);
+      auto const on = !_mixerState.channelToggle (channel, target.mixer);
+      _mixerState.setChannelFromTouch (channel, target.mixer, on ? 1.f : 0.f);
+      _mixer->syncControls ();
+      _mixerStrip->syncControls ();
+      updateControlReadout ("CH" + juce::String (channel + 1) + " "
+                            + mixerControlLabel (target.mixer)
+                            + (on ? " ON" : " OFF"));
+    }
 }
 
 void
@@ -7956,21 +7996,6 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
                                  pattern ? turnsOf (*pattern) : 0.f);
 
   _clipSettings->setBeatsPerBar (_engine.getBeatsPerBar ());
-
-  // How long the next take will be, worked out once and handed over: the slot
-  // has no length keys any more, so the clip field says it.
-  {
-    auto const beatsPerBar = _engine.getBeatsPerBar ();
-    auto const &shown = _patterns[channel][slot];
-    auto const clipBeats
-        = shown ? juce::roundToInt (playbackLengthBeats (
-              getPatternLengthBeats (channel, slot), shown->getSpeedLog2 ()))
-                : 0;
-
-    _clipSettings->setNextTakeLengthBeats (static_cast<float> (
-        recordingLengthBeats (clipBeats, params.recordLengthLog2,
-                              beatsPerBar)));
-  }
 
   // What the speed keys are a ratio of. Without it they cannot say how many
   // ticks they would run, because that is a property of the take, not of the

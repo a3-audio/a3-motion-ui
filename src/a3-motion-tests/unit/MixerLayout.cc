@@ -287,26 +287,44 @@ TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
       }
 }
 
-// The bar's MIX tab keeps the meter a full-height column beside the controls,
-// but at the far right of the band rather than before them -- asked for by the
-// maintainer after using the tab on the device. The overlay's strips are
-// columns and the level reads before them; the tab is one band read left to
-// right, and the level reads at the end of it.
-TEST (MixerLayout, TheBarsStripStandsItsMeterAtTheFarRight)
+// CHMIX is fields in the encoders' four by two (2026-09-27): GAIN HIGH MID
+// LOW over SEND PFL FX, and the channel's meter with its fader beside them.
+// 3D, FREQ and Q are in the channel row over the bar.
+TEST (MixerLayout, TheBarsStripIsFieldsBesideItsMeter)
 {
   auto const layout = layOutMixerStrip (aBarStrip (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto const meter = layout.channelMeter[0];
-  ASSERT_FALSE (meter.isEmpty ());
+  auto const &f = layout.stripFields;
+  auto const at = [&layout] (MixerControl control) {
+    return layout.controls[0][static_cast<std::size_t> (faceSlot (control))];
+  };
 
-  for (auto const &control : layout.controls[0])
+  std::array<juce::Rectangle<int>, 7> const expected{
+    at (MixerControl::Gain),   at (MixerControl::EqHigh),
+    at (MixerControl::EqMid),  at (MixerControl::EqLow),
+    at (MixerControl::FxSend), at (MixerControl::Pfl),
+    at (MixerControl::Fx),
+  };
+  for (std::size_t i = 0; i < expected.size (); ++i)
     {
-      EXPECT_FALSE (meter.intersects (control));
-      EXPECT_GE (meter.getX (), control.getRight ());
-      EXPECT_LE (meter.getY (), control.getY ());
-      EXPECT_GE (meter.getBottom (), control.getBottom ());
+      ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+      EXPECT_TRUE (f[i].contains (expected[i])) << "field " << i;
+      EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1);
+      EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1);
     }
+
+  for (auto const &pot : layout.channelPots[0])
+    EXPECT_TRUE (pot.isEmpty ()) << "no 3D, FREQ, Q here";
+
+  // The meter with its fader stands to the right of the fields, their whole
+  // height -- no field of its own (2026-09-27).
+  auto const &meter = layout.channelMeter[0];
+  ASSERT_FALSE (meter.isEmpty ());
+  EXPECT_TRUE (f[7].isEmpty ()) << "seven fields, the meter beside them";
+  EXPECT_GE (meter.getX (), f[3].getRight ());
+  EXPECT_LE (meter.getY (), f[0].getY ());
+  EXPECT_GE (meter.getBottom (), f[4].getBottom ());
 }
 
 // Narrow enough and the strips break into two by two rather than four thin
@@ -370,25 +388,6 @@ TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
         << mixerControlLabel (mixerFaceOrder[i]) << " is out of order";
 }
 
-// SEND stands in the row under the EQ, at its left, beside 3D FREQ Q: the
-// channel's three sends to the room and the effect, in one row (2026-09-27).
-TEST (MixerLayout, TheBarsStripsSendStandsLeftOfIts3d)
-{
-  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  auto const send = layout.controls[0][static_cast<std::size_t> (
-      faceSlot (MixerControl::FxSend))];
-  auto const gain = layout.controls[0][static_cast<std::size_t> (
-      faceSlot (MixerControl::Gain))];
-  auto const threeD = layout.channelPots[0][0];
-
-  EXPECT_EQ (send.getY (), threeD.getY ()) << "in the row under the EQ";
-  EXPECT_EQ (send.getX (), gain.getX ()) << "at its left";
-  EXPECT_LE (send.getRight (), threeD.getX ()) << "left of 3D";
-  EXPECT_EQ (send.getWidth (), threeD.getWidth ());
-  EXPECT_EQ (send.getHeight (), threeD.getHeight ());
-}
 
 // One channel, so the other three strips are empty rather than laid out
 // somewhere off screen.
@@ -520,7 +519,9 @@ TEST (MixerLayout, EveryMasterControlIsAtLeastAFingertip)
 // column under RET -- FX FREQ, FX RES, and FX MODE on the keys' line. The
 // row it took is height the strips now use.
 
-// Nine rows: the five pots, the three channel pots, the keys.
+// A row for each of the five pots and one for the keys -- and 3D, FREQ and Q
+// are not here any more (2026-09-27): they stand in the channel row over the
+// bar.
 TEST (MixerLayout, AStripHasARowForEveryPotAndOneForTheKeys)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
@@ -529,45 +530,19 @@ TEST (MixerLayout, AStripHasARowForEveryPotAndOneForTheKeys)
   std::set<int> lines;
   for (auto const &control : layout.controls[0])
     lines.insert (control.getY ());
-  for (auto const &pot : layout.channelPots[0])
-    lines.insert (pot.getY ());
 
-  EXPECT_EQ (lines.size (),
-             static_cast<std::size_t> (numMixerFaceControls - 1
-                                       + numChannelPots));
+  EXPECT_EQ (lines.size (), static_cast<std::size_t> (numMixerFaceControls - 1));
 }
 
-TEST (MixerLayout, TheChannelPotsStandUnderSendInTheirOrder)
+TEST (MixerLayout, TheMainMixCarriesNoChannelPots)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
-  ASSERT_TRUE (layout.fits);
 
-  auto const send = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
-  auto const keys = static_cast<std::size_t> (faceSlot (MixerControl::Pfl));
-
-  for (std::size_t channel = 0;
-       channel < static_cast<std::size_t> (numChannelsInitial); ++channel)
-    {
-      auto const &strip = layout.controls[channel];
-      auto const &pots = layout.channelPots[channel];
-
-      EXPECT_EQ (pots[0].getY (), strip[send].getBottom ())
-          << channelPotLabel (channelPotOrder[0]) << " is not under SEND";
-      for (std::size_t i = 1; i < pots.size (); ++i)
-        EXPECT_EQ (pots[i].getY (), pots[i - 1].getBottom ())
-            << channelPotLabel (channelPotOrder[i]) << " is out of order";
-      EXPECT_EQ (strip[keys].getY (), pots.back ().getBottom ())
-          << "the keys are not the last row";
-
-      for (auto const &pot : pots)
-        {
-          EXPECT_GE (pot.getWidth (), fingertipSize);
-          EXPECT_GE (pot.getHeight (), fingertipSize);
-          for (auto const &control : strip)
-            EXPECT_FALSE (pot.intersects (control));
-        }
-    }
+  for (auto const &strip : layout.channelPots)
+    for (auto const &pot : strip)
+      EXPECT_TRUE (pot.isEmpty ());
 }
+
 
 TEST (MixerLayout, TheFilterStandsInTheOutColumnUnderRet)
 {
@@ -613,8 +588,6 @@ TEST (MixerLayout, TheMastersPotsStandRowOnRowOnTheChannelsLines)
   std::set<int> channelLines;
   for (auto const &control : layout.controls[0])
     channelLines.insert (control.getY ());
-  for (auto const &pot : layout.channelPots[0])
-    channelLines.insert (pot.getY ());
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numMasterFaceControls); ++i)
     {
@@ -628,46 +601,6 @@ TEST (MixerLayout, TheMastersPotsStandRowOnRowOnTheChannelsLines)
     }
 }
 
-// The bar's tab: the channel pots in a second row, after SEND, each under
-// the pot one column on, and the keys under them -- a third of the height rather than
-// half, which is the room the second row takes.
-TEST (MixerLayout, TheBarsStripHasTheChannelPotsInASecondRow)
-{
-  auto const layout = layOutMixerStrip (aBarStrip (), metrics);
-  ASSERT_TRUE (layout.fits);
-
-  auto const &pots = layout.controls[0];
-  auto const &channelPots = layout.channelPots[0];
-  auto const keys = static_cast<std::size_t> (faceSlot (MixerControl::Pfl));
-
-  // The bar strip insets every cell by a gap, so the rows never touch: the
-  // second row is told by standing between the pots and the keys, one row
-  // pitch below the first, and the keys one more below it.
-  auto const pitch = channelPots[0].getCentreY () - pots[0].getCentreY ();
-  EXPECT_GE (pitch, fingertipSize);
-  EXPECT_NEAR (pots[keys].getCentreY () - channelPots[0].getCentreY (), pitch,
-               1)
-      << "the three rows are not evenly pitched";
-
-  for (std::size_t i = 0; i < channelPots.size (); ++i)
-    {
-      EXPECT_GE (channelPots[i].getY (), pots[0].getBottom ())
-          << channelPotLabel (channelPotOrder[i]) << " is not in the second row";
-      EXPECT_EQ (channelPots[i].getCentreY (), channelPots[0].getCentreY ())
-          << channelPotLabel (channelPotOrder[i]) << " is off the row";
-      // One column in: SEND stands first in this row since 2026-09-27.
-      EXPECT_EQ (channelPots[i].getX (), pots[i + 1].getX ())
-          << channelPotLabel (channelPotOrder[i]) << " is not under "
-          << mixerControlLabel (mixerFaceOrder[i + 1]);
-      EXPECT_GE (channelPots[i].getWidth (), fingertipSize);
-      EXPECT_GE (channelPots[i].getHeight (), fingertipSize);
-    }
-
-  EXPECT_GE (pots[keys].getY (), channelPots[0].getBottom ())
-      << "the keys are not under the channel pots";
-  EXPECT_LE (pots[keys].getHeight (), pots[0].getHeight () + 1)
-      << "the keys are no bigger than a row of pots";
-}
 
 TEST (MixerLayout, TheChannelPotsHaveTheirOwnNames)
 {

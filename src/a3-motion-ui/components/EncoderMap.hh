@@ -23,6 +23,10 @@
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/components/MixerControls.hh>
 
+#include <array>
+#include <utility>
+#include <vector>
+
 namespace a3
 {
 
@@ -43,8 +47,9 @@ struct EncoderTarget
     Speed,
     /** One of the shown channel's mixer pots (CHMIX). */
     Mixer,
-    /** The shown channel's 3D, FREQ or Q (CHMIX). */
-    ShownChannelPot,
+    /** One of the shown channel's two keys, PFL or FX (CHMIX): a press
+     *  flips it, a turn does nothing. */
+    MixerKey,
     /** FREQ or Q of the encoder's own column's channel. */
     ColumnChannelPot,
   };
@@ -65,5 +70,18 @@ EncoderTarget encoderTarget (BarPage page, int column, int row, bool clicked,
 /** Whether a press on this encoder switches what it turns: MOTION's rows and
  *  REC's fade|bias. */
 bool encoderPressClicks (BarPage page, int column, int row);
+
+/** Each encoder's click, [column][row]. */
+using EncoderClicks = std::array<std::array<bool, 2>, 4>;
+
+/** The controls (section, sub) the encoders turn now where a press switches
+ *  between two -- the ones the bar marks, so it is clear which of the pair an
+ *  encoder is on. */
+std::vector<std::pair<int, int> > encoderMarks (BarPage page,
+                                                EncoderClicks const &clicked);
+
+/** One number for a page's clicks, for the settings file: bit column*2+row. */
+int encoderClicksMask (EncoderClicks const &clicked);
+EncoderClicks encoderClicksFromMask (int mask);
 
 }

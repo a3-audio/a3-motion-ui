@@ -1664,47 +1664,45 @@ motionPage (int width = panelWidth)
 }
 }
 
-// One area, no headings. Left to right, row by row, as the maintainer set it:
-// spin swell strX strY / rot reach sqzX sqzY / sway clip-top / elv clip-bottom.
-// The top encoder row turns row one or -- a click -- row two; the bottom one
-// row three or row four.
-TEST (ClipSettingsLayout, TheMotionPageIsOneAreaInTheEncodersRows)
+// Eight fields, one per encoder, as CLIP and REC have (2026-09-27). Each
+// holds what its encoder turns, the one it turns at rest on the left and the
+// one a click gives on the right: spin|rot, swell|reach, strX|sqzX, strY|sqzY
+// over sway|elv, clip-top|clip-bot, and two fields with nothing in them.
+TEST (ClipSettingsLayout, TheMotionPageIsEightFieldsOnePerEncoder)
 {
   for (int width : { 768, 1024, 1280 })
     {
       auto const l = motionPage (width);
+      auto const &f = l.pageFields;
       auto const &m = l.controls[2];
       auto const &e = l.controls[1];
 
       EXPECT_TRUE (l.sectionLabels[1].isEmpty ());
       EXPECT_TRUE (l.sectionLabels[2].isEmpty ());
-      EXPECT_EQ (l.sectionCards[2], l.clipContent) << "one area";
-      EXPECT_EQ (l.sectionCards[1], l.clipContent) << "one area";
 
       // Motion: 0 rot 1 spin 2 reach 3 swell 4 sqzX 5 strX 6 sqzY 7 strY.
       // Elevation: 0 clip-bot 1 clip-top 2 sway 3 elv.
-      std::vector<std::vector<juce::Rectangle<int> > > const rows{
-        { m[1], m[3], m[5], m[7] },
-        { m[0], m[2], m[4], m[6] },
-        { e[2], e[1] },
-        { e[3], e[0] },
-      };
+      std::vector<std::pair<juce::Rectangle<int>, juce::Rectangle<int> > > const
+          pairs{ { m[1], m[0] }, { m[3], m[2] }, { m[5], m[4] },
+                 { m[7], m[6] }, { e[2], e[3] }, { e[1], e[0] } };
 
-      for (size_t r = 0; r < rows.size (); ++r)
-        for (size_t c = 0; c < rows[r].size (); ++c)
-          {
-            auto const &cell = rows[r][c];
-            ASSERT_FALSE (cell.isEmpty ()) << "row " << r << " col " << c;
-            EXPECT_TRUE (l.clipContent.contains (cell))
-                << "row " << r << " col " << c;
-            EXPECT_EQ (cell.getY (), rows[r][0].getY ())
-                << "row " << r << " col " << c;
-            EXPECT_EQ (cell.getX (), rows[0][c].getX ())
-                << "row " << r << " col " << c << " at width " << width;
-            if (r > 0)
-              EXPECT_GE (cell.getY (), rows[r - 1][0].getBottom ())
-                  << "row " << r;
-          }
+      for (size_t i = 0; i < f.size (); ++i)
+        {
+          ASSERT_FALSE (f[i].isEmpty ()) << "field " << i;
+          EXPECT_LE (std::abs (f[i].getWidth () - f[0].getWidth ()), 1);
+          EXPECT_LE (std::abs (f[i].getHeight () - f[0].getHeight ()), 1);
+        }
+
+      for (size_t i = 0; i < pairs.size (); ++i)
+        {
+          auto const &[atRest, clicked] = pairs[i];
+          EXPECT_TRUE (f[i].contains (atRest))
+              << "field " << i << " at width " << width;
+          EXPECT_TRUE (f[i].contains (clicked))
+              << "field " << i << " at width " << width;
+          EXPECT_LE (atRest.getRight (), clicked.getX ())
+              << "at rest on the left, field " << i;
+        }
     }
 }
 
@@ -1776,4 +1774,20 @@ TEST (ClipSettingsLayout, TheShapePictureKeepsOffTheFieldsEdge)
   EXPECT_EQ (area.getCentre (), field.getCentre ());
   EXPECT_LE (area.getWidth (), field.getHeight () * 3 / 4)
       << "a quarter of the shorter side left as margin";
+}
+
+// A field's caption -- dir, end, recmode, shape -- stands small in its top
+// left corner, out of the way of the value in the middle (2026-09-27).
+TEST (ClipSettingsLayout, AFieldsCaptionStandsInItsTopLeftCorner)
+{
+  juce::Rectangle<int> const field{ 10, 20, 130, 120 };
+  auto const caption = fieldCaptionArea (field, 12.f);
+
+  ASSERT_FALSE (caption.isEmpty ());
+  EXPECT_TRUE (field.contains (caption));
+  EXPECT_LT (caption.getX () - field.getX (), 10);
+  EXPECT_LT (caption.getY () - field.getY (), 10);
+  EXPECT_LE (caption.getBottom (), field.getCentreY () - 20)
+      << "clear of the value in the middle";
+  EXPECT_GE (caption.getHeight (), 12);
 }

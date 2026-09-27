@@ -289,6 +289,16 @@ shapeFieldIconArea (juce::Rectangle<int> field)
 }
 
 juce::Rectangle<int>
+fieldCaptionArea (juce::Rectangle<int> field, float captionSize)
+{
+  auto const inset = juce::roundToInt (theme ().paddingSmall);
+  auto const height = static_cast<int> (std::ceil (captionSize * rowHeightFactor));
+  return field.reduced (inset)
+      .withHeight (std::min (height, field.getHeight () / 4))
+      .withWidth (field.getWidth () / 2);
+}
+
+juce::Rectangle<int>
 textCell (juce::Rectangle<int> cell, int knobDiam)
 {
   auto const boxH = juce::jmin (
@@ -443,50 +453,44 @@ layOutRecordPage (ClipSettingsLayout &out)
 
   auto both = f[5];
   auto const fade = both.removeFromLeft (both.getWidth () / 2);
-  out.controls[2][8] = textCell (fade, out.metrics.knobDiam);
-  out.controls[2][9] = textCell (both, out.metrics.knobDiam);
+  out.controls[2][8] = fade;
+  out.controls[2][9] = both;
 }
 
-/** MOTION as one area, no headings (2026-09-27), in the rows the encoders
- *  turn: spin swell strX strY / rot reach sqzX sqzY / sway clip-top /
- *  elv clip-bottom. The top encoder row turns row one, or row two after a
- *  click; the bottom one row three or row four. Four columns throughout, so
- *  a knob stands under the one its encoder turned a click before. */
+/** MOTION as eight fields, one per encoder (2026-09-27), as CLIP and REC:
+ *  each holds what its encoder turns, the knob it turns at rest on the left
+ *  and the one a click gives on the right -- spin|rot, swell|reach, strX|sqzX,
+ *  strY|sqzY over sway|elv, clip-top|clip-bot, and two empty fields. */
 void
 layOutMotionPage (ClipSettingsLayout &out)
 {
   auto const gap = juce::jmax (2, out.buttonHeight / 8);
-  auto const content = sectionContentBounds (out.clipContent);
-
-  auto const rowH = juce::jmax (0, (content.getHeight () - 3 * gap) / 4);
-  auto const columns = spreadKeys (content.withHeight (rowH), 4, gap, 0);
-  auto const cell = [&] (int row, int column) {
-    return textCell (columns[static_cast<size_t> (column)].withY (
-                         content.getY () + row * (rowH + gap)),
-                     out.metrics.knobDiam);
-  };
+  auto const &f = out.pageFields
+      = fieldGrid (sectionContentBounds (out.clipContent), gap);
 
   out.sectionCards[2] = out.clipContent;
   out.sectionCards[1] = out.clipContent;
   out.sectionLabels[2] = {};
   out.sectionLabels[1] = {};
 
+  // The field's two halves, each a knob's whole cell: the knob keeps itself
+  // and its caption together in the middle, and the encoder's frame gets the
+  // air round them.
+  auto const halves = [] (juce::Rectangle<int> field) {
+    auto right = field;
+    auto const left = right.removeFromLeft (field.getWidth () / 2);
+    return std::pair{ left, right };
+  };
+
   auto &m = out.controls[2];
-  m[1] = cell (0, 0); // spin
-  m[3] = cell (0, 1); // swell
-  m[5] = cell (0, 2); // strX
-  m[7] = cell (0, 3); // strY
-  m[0] = cell (1, 0); // rot
-  m[2] = cell (1, 1); // reach
-  m[4] = cell (1, 2); // sqzX
-  m[6] = cell (1, 3); // sqzY
+  std::tie (m[1], m[0]) = halves (f[0]); // spin | rot
+  std::tie (m[3], m[2]) = halves (f[1]); // swell | reach
+  std::tie (m[5], m[4]) = halves (f[2]); // strX | sqzX
+  std::tie (m[7], m[6]) = halves (f[3]); // strY | sqzY
 
   auto &e = out.controls[1];
-  e[2] = cell (2, 0); // sway
-  e[1] = cell (2, 1); // clip-top
-  e[3] = cell (3, 0); // elv
-  e[0] = cell (3, 1); // clip-bottom
-
+  std::tie (e[2], e[3]) = halves (f[4]); // sway | elv
+  std::tie (e[1], e[0]) = halves (f[5]); // clip-top | clip-bot
 }
 
 /** The frame's inset round the faces: what it was in the global strip, a

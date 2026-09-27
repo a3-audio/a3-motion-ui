@@ -63,6 +63,13 @@ loadSettings (juce::File const &file)
     settings.cameraZoom
         = std::clamp (static_cast<float> (parsed["cameraZoom"]), minCameraZoom,
                       maxCameraZoom);
+  // Eight encoders, a bit each: anything past them is not a click.
+  if (parsed.hasProperty ("encoderClicksMotion"))
+    settings.encoderClicksMotion
+        = static_cast<int> (parsed["encoderClicksMotion"]) & 0xff;
+  if (parsed.hasProperty ("encoderClicksRecord"))
+    settings.encoderClicksRecord
+        = static_cast<int> (parsed["encoderClicksRecord"]) & 0xff;
 
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
@@ -93,6 +100,8 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   obj->setProperty ("cameraPitch", settings.cameraPitch);
   obj->setProperty ("cameraTurn", settings.cameraTurn);
   obj->setProperty ("cameraZoom", settings.cameraZoom);
+  obj->setProperty ("encoderClicksMotion", settings.encoderClicksMotion);
+  obj->setProperty ("encoderClicksRecord", settings.encoderClicksRecord);
 
   juce::var const state (obj);
 

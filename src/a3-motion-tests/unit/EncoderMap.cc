@@ -113,7 +113,7 @@ TEST (EncoderMap, OnRecTheRecModeAndFadeThenBias)
   EXPECT_EQ (turn (BarPage::Record, 3, bottom).speed, 3);
 }
 
-TEST (EncoderMap, OnChmixTheShownChannelsEightPots)
+TEST (EncoderMap, OnChmixTheShownChannelsEightFields)
 {
   MixerControl const eq[] = { MixerControl::Gain, MixerControl::EqHigh,
                               MixerControl::EqMid, MixerControl::EqLow };
@@ -124,18 +124,18 @@ TEST (EncoderMap, OnChmixTheShownChannelsEightPots)
       EXPECT_EQ (t.mixer, eq[column]);
     }
 
-  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).kind,
-             EncoderTarget::Kind::Mixer);
+  // SEND PFL FX VOL since 2026-09-27: 3D, FREQ and Q left CHMIX for the
+  // channel row. PFL and FX are keys, a press flips them.
+  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).kind, EncoderTarget::Kind::Mixer);
   EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).mixer, MixerControl::FxSend);
-
-  ChannelPot const pots[] = { ChannelPot::ThreeD, ChannelPot::Freq,
-                              ChannelPot::Q };
-  for (int column = 1; column < 4; ++column)
-    {
-      auto const t = turn (BarPage::Mixer, column, bottom);
-      EXPECT_EQ (t.kind, EncoderTarget::Kind::ShownChannelPot);
-      EXPECT_EQ (t.pot, pots[column - 1]);
-    }
+  EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).kind,
+             EncoderTarget::Kind::MixerKey);
+  EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).mixer, MixerControl::Pfl);
+  EXPECT_EQ (turn (BarPage::Mixer, 2, bottom).kind,
+             EncoderTarget::Kind::MixerKey);
+  EXPECT_EQ (turn (BarPage::Mixer, 2, bottom).mixer, MixerControl::Fx);
+  EXPECT_EQ (turn (BarPage::Mixer, 3, bottom).kind, EncoderTarget::Kind::Mixer);
+  EXPECT_EQ (turn (BarPage::Mixer, 3, bottom).mixer, MixerControl::Volume);
 }
 
 // FREQ and Q of the column's channel, as before the fields: with Shift held
@@ -168,4 +168,66 @@ TEST (EncoderMap, APressOnALengthChoosesIt)
 {
   EXPECT_FALSE (encoderPressClicks (BarPage::Clip, 2, top));
   EXPECT_EQ (turn (BarPage::Clip, 2, top).kind, EncoderTarget::Kind::Speed);
+}
+
+// ── Which knobs the encoders are on, marked (2026-09-27) ───────────────────
+
+namespace
+{
+bool
+marks (std::vector<std::pair<int, int> > const &marked, int section, int sub)
+{
+  for (auto const &[s, u] : marked)
+    if (s == section && u == sub)
+      return true;
+  return false;
+}
+}
+
+// Where an encoder has two things under it, the one it turns now is marked:
+// a press moves the mark.
+TEST (EncoderMap, OnMotionTheRowsTheEncodersTurnAreMarked)
+{
+  EncoderClicks clicked{};
+  auto const before = encoderMarks (BarPage::Motion, clicked);
+
+  EXPECT_EQ (before.size (), 6u) << "four sweeps, sway and clip-top";
+  EXPECT_TRUE (marks (before, 2, 1)) << "spin";
+  EXPECT_TRUE (marks (before, 1, 2)) << "sway";
+  EXPECT_FALSE (marks (before, 2, 0)) << "rot waits for a click";
+
+  clicked[0][0] = true;
+  auto const after = encoderMarks (BarPage::Motion, clicked);
+  EXPECT_TRUE (marks (after, 2, 0)) << "rot, after the click";
+  EXPECT_FALSE (marks (after, 2, 1)) << "spin let go";
+}
+
+TEST (EncoderMap, OnRecFadeOrBiasIsMarked)
+{
+  EncoderClicks clicked{};
+  auto const fade = encoderMarks (BarPage::Record, clicked);
+  ASSERT_EQ (fade.size (), 1u);
+  EXPECT_TRUE (marks (fade, 2, 8));
+
+  clicked[1][1] = true;
+  auto const bias = encoderMarks (BarPage::Record, clicked);
+  ASSERT_EQ (bias.size (), 1u);
+  EXPECT_TRUE (marks (bias, 2, 9));
+}
+
+TEST (EncoderMap, APageWithoutClicksMarksNothing)
+{
+  EXPECT_TRUE (encoderMarks (BarPage::Clip, {}).empty ());
+  EXPECT_TRUE (encoderMarks (BarPage::Mixer, {}).empty ());
+}
+
+// Kept in the settings file as one number per page, so they come back after a
+// restart.
+TEST (EncoderMap, ClicksSurviveAsANumber)
+{
+  EncoderClicks clicked{};
+  clicked[0][0] = clicked[3][1] = clicked[1][1] = true;
+
+  EXPECT_EQ (encoderClicksFromMask (encoderClicksMask (clicked)), clicked);
+  EXPECT_EQ (encoderClicksMask ({}), 0);
 }

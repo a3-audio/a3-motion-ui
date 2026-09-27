@@ -129,6 +129,16 @@ PotKnob::setLaneDriven (bool driven)
 }
 
 void
+PotKnob::setEncoderMarked (bool marked)
+{
+  if (marked == _encoderMarked)
+    return;
+
+  _encoderMarked = marked;
+  repaint ();
+}
+
+void
 PotKnob::setKnobColour (juce::Colour colour)
 {
   if (findColour (juce::Slider::thumbColourId) == colour)

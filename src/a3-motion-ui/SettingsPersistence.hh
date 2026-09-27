@@ -76,6 +76,12 @@ struct AppSettings
   float cameraPitch = 0.f;
   float cameraTurn = 0.f;
   float cameraZoom = 1.f;
+
+  /** Which of its two things each encoder is on, on MOTION and on REC
+   *  (2026-09-27), as encoderClicksMask() writes it. None clicked in a file
+   *  from before. */
+  int encoderClicksMotion = 0;
+  int encoderClicksRecord = 0;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

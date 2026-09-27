@@ -73,6 +73,10 @@ public:
   /** A take's lane is turning it: drawn with a small red dot. */
   void setLaneDriven (bool driven);
   bool isLaneDriven () const { return _laneDriven; }
+  /** An encoder is on this knob, where a press switches between two: drawn
+   *  with a frame in the accent. */
+  void setEncoderMarked (bool marked);
+  bool isEncoderMarked () const { return _encoderMarked; }
 
   /** The channel's colour, or the skin's text colour where a control belongs
    *  to nobody in particular. */
@@ -99,6 +103,7 @@ private:
   float _reach = -2.f;
   bool _writing = false;
   bool _laneDriven = false;
+  bool _encoderMarked = false;
   bool _fillsFromTheMiddle = false;
   bool _wraps = false;
   /** As the mixer's knobs have always been drawn: the colour is the
