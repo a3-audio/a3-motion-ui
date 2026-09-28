@@ -7,10 +7,16 @@
 // script too: every line of it is a comment, so firing it changes nothing.
 // It is here to be read in the editor in FILES > ACTIONS.
 //
-// Every shipped script carries a "Mood:" line under its title: "more" moves
-// the clip towards energy and openness, "less" towards calm and weight. The
-// shipped sets put "more" in the left column (A1 A3 A5) and "less" in the
-// right (A2 A4 A6), gentle at the top and extreme at the bottom.
+// The shipped actions are named by what they do:
+//   Move  Lift  Width  Speed  Dub  -- movement only; all three ceilings at 0,
+//                                      so they never touch 3d, freq or Q
+//   FX                             -- the only ones that change the sound
+//   Cue                            -- ~clip = "Name"; puts that clip on the
+//                                      channel and starts it on the downbeat
+// Every script carries a "Mood:" line: "more" moves the room towards energy
+// and openness, "less" towards calm and weight. The shipped sets put a gentle
+// more/less pair on A1/A2, a strong one on A3/A4, FX on A5 and the Cue into
+// the next phase of the night on A6.
 //
 //
 // ---- The shape of it ------------------------------------------------------

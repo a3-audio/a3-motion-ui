@@ -22,7 +22,9 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/SessionFile.hh>
 
 using namespace a3;
@@ -236,4 +238,77 @@ TEST (ShippedLibrary, EveryPhaseHasFiveClips)
         n += f.getFileNameWithoutExtension ().startsWith (phase + " ") ? 1 : 0;
       EXPECT_EQ (n, 5) << phase;
     }
+}
+
+namespace
+{
+juce::StringArray const kinds{ "Move", "Lift", "Width", "Speed", "Dub", "FX", "Cue" };
+
+juce::Array<juce::File>
+shippedActionFiles ()
+{
+  auto files = juce::File (A3_PATTERN_ACTIONS_DIR)
+                   .findChildFiles (juce::File::findFiles, false, "*.scd");
+  files.removeIf ([] (juce::File const &f) {
+    return f.getFileNameWithoutExtension () == "README";
+  });
+  return files;
+}
+}
+
+// Fifty actions, each named by what it does.
+TEST (ShippedLibrary, FiftyActionsNamedByWhatTheyDo)
+{
+  auto const files = shippedActionFiles ();
+  EXPECT_EQ (files.size (), 50);
+  for (auto const &f : files)
+    EXPECT_TRUE (startsWithOneOf (f.getFileNameWithoutExtension (), kinds))
+        << f.getFileName ();
+}
+
+// Only FX touches the sound. Resolved against a clip whose ceilings are all
+// up, so a ceiling left commented out would show.
+TEST (ShippedLibrary, OnlyFXChangesTheSound)
+{
+  ClipSettings loud;
+  loud.envelopeMax = 1.f;
+  loud.freqMax = 1.f;
+  loud.qMax = 1.f;
+
+  for (auto const &f : shippedActionFiles ())
+    {
+      auto const name = f.getFileNameWithoutExtension ();
+      auto const r = runActionScript (f.loadFileAsString (), loud, 1);
+      EXPECT_TRUE (r.errors.isEmpty ())
+          << name << ": " << r.errors.joinIntoString (" | ");
+      auto const silent = r.settings.envelopeMax == 0.f
+                          && r.settings.freqMax == 0.f
+                          && r.settings.qMax == 0.f;
+      if (name.startsWith ("FX "))
+        EXPECT_FALSE (silent) << name << " is FX but leaves the sound alone";
+      else if (!name.startsWith ("Cue "))
+        EXPECT_TRUE (silent) << name << " changes the sound but is not FX";
+    }
+}
+
+// A Cue is named after the clip it puts on the channel, and that clip ships.
+TEST (ShippedLibrary, EveryCueNamesAClipThatShipsAndNothingElse)
+{
+  auto const clips = juce::File (A3_PATTERN_CLIPS_DIR).getParentDirectory ();
+  int cues = 0;
+  for (auto const &f : shippedActionFiles ())
+    {
+      auto const name = f.getFileNameWithoutExtension ();
+      auto const r = runActionScript (f.loadFileAsString (), ClipSettings{}, 1);
+      if (!name.startsWith ("Cue "))
+        {
+          EXPECT_FALSE (r.clip.has_value ()) << name;
+          continue;
+        }
+      ++cues;
+      ASSERT_TRUE (r.clip.has_value ()) << name;
+      EXPECT_EQ ("Cue " + *r.clip, name) << "a Cue is named after its clip";
+      EXPECT_TRUE (cueClipFor (r.clip, clips).error.isEmpty ()) << name;
+    }
+  EXPECT_EQ (cues, 12);
 }
