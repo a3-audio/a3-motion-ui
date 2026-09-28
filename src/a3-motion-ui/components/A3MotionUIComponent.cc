@@ -5445,20 +5445,16 @@ A3MotionUIComponent::applySet (juce::File const &file)
       auto const &channel = set.channels[static_cast<size_t> (ch)];
 
       // The six buttons first, as the slots' actions were: a button the set
-      // names gets it, one it leaves empty keeps what it had. The feel only
-      // where the set says it was turned.
+      // names gets it, one it leaves empty keeps what it had. What a button
+      // does is in its script (2026-09-29); the set only names it.
       for (int b = 0; b < numActionButtons; ++b)
         {
           auto const &entry = channel.actions[static_cast<size_t> (b)];
           if (entry.script.empty ())
             continue;
-          _channelActions[index][static_cast<size_t> (b)].after = entry.after;
           setButtonAction (index, b,
                            namedFileIn (actionsDir (),
                                         juce::String (entry.script), ".scd"));
-          if (entry.feel)
-            _channelActions[index][static_cast<size_t> (b)].feel = *entry.feel;
-          _channelActions[index][static_cast<size_t> (b)].motion = entry.motion;
         }
 
       // Where the channel was parked. Empty on a first run, which is zero,
@@ -5604,19 +5600,12 @@ A3MotionUIComponent::buildSession ()
       // that saved mid-accent would come back with the accent baked in.
       channel.threeD = _engine.getChannelPot3 (index);
 
-      // The six buttons, by script name, with their feel only where it was
-      // turned from the script's own -- a set keeps what somebody chose.
+      // The six buttons, by script name: what each does is in its script.
       for (int b = 0; b < numActionButtons; ++b)
         {
           auto const &button = _channelActions[index][static_cast<size_t> (b)];
-          auto &entry = channel.actions[static_cast<size_t> (b)];
-          entry.script
+          channel.actions[static_cast<size_t> (b)].script
               = button.file.getFileNameWithoutExtension ().toStdString ();
-          if (button.file.existsAsFile () && button.feel != button.scriptFeel)
-            entry.feel = button.feel;
-          if (button.file.existsAsFile ())
-            entry.motion = button.motion;
-          entry.after = button.after;
         }
 
       channel.slots.resize (numClipSlots);

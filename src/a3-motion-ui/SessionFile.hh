@@ -120,17 +120,12 @@ struct Session
   /** One of a channel's six action buttons (2026-09-27): the script by name,
    *  as a clip is named, and how it is played where that was turned from the
    *  script's own -- empty means "as the script says". */
+  /** One of a channel's six buttons: the script it fires, by name. What the
+   *  script does is in the script -- ACTION writes there since 2026-09-29 --
+   *  so the set keeps nothing else per button. */
   struct ActionEntry
   {
     std::string script;
-    std::optional<ActionFeel> feel;
-    /** What the button puts on the clip where it was turned on the ACTION
-     *  page's MOTION tile (2026-09-28), written as `"motion"` only when
-     *  something was. Empty: every value as the script says. */
-    MotionOverrides motion;
-    /** The button of the same channel that fires when this one's accent is
-     *  over (2026-09-28), written as `"after": "A3"` only when there is one. */
-    std::optional<int> after;
   };
 
   struct Channel
