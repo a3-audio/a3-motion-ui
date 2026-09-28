@@ -45,6 +45,8 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-engine/ScriptLine.hh>
+#include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/OscEndpoints.hh>
@@ -1169,6 +1171,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  flushScriptWrites ();
   juce::Desktop::getInstance ().removeGlobalMouseListener (this);
   stopTimer ();
   _oscReceiverEnergy.removeListener (this);
@@ -3213,10 +3216,9 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.source = {};
   action.errors = {};
   action.feel = ActionFeel{};
-  action.scriptFeel = ActionFeel{};
+  action.after.reset ();
   action.cueClip = juce::File{};
   action.isCue = false;
-  action.motion = {};
 
   if (!file.existsAsFile ())
     {
@@ -3226,40 +3228,40 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
 
   action.source = file.loadFileAsString ();
 
-  // Seeded with the shown clip's settings, so a line the script leaves
-  // commented out means "as the clip is" -- for the feel too. The clip is
-  // slot 0's until the panel's switch collapses the slots.
-  auto const &pattern = _patterns[channel][0];
-  auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
-
   // A seed that is new every time a script is chosen, so a script with dice
   // in it throws them again on being picked -- picking it is the gesture that
   // says "give me another one of these".
   action.seed = juce::Time::getHighResolutionTicks ();
-  auto const result = runActionScript (action.source, current, action.seed);
-
-  action.settings = result.settings;
-  action.errors = result.errors;
-  // How it is played is the button's since 2026-09-27: taken from the
-  // script, and no longer written onto the clip -- with six buttons the last
-  // one assigned would otherwise decide how all six feel.
-  action.scriptFeel = actionFeelFrom (result.settings);
-  action.feel = action.scriptFeel;
-
-  // A Cue (library v2): the clip its ~clip names, found now rather than on
-  // the press. A name that no longer ships is an error on the strip and the
-  // button does nothing, the same rule as an empty button.
-  auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
-  action.cueClip = cue.file;
-  action.isCue = result.clip.has_value ();
-  if (cue.error.isNotEmpty ())
-    action.errors.add (cue.error);
+  runButtonScript (channel, action);
 
   if (!action.errors.isEmpty ())
     updateControlReadout (action.errors[0]);
 
   updateActionPage ();
   updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)
+{
+  // Against the shown clip, so a line the script leaves commented out means
+  // "as the clip is" -- for the feel too.
+  auto const &pattern = _patterns[channel][0];
+  auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+  auto const result = runActionScript (action.source, current, action.seed);
+
+  action.settings = result.settings;
+  action.errors = result.errors;
+  // How it is played, and what follows it, are the script's (2026-09-29):
+  // ACTION writes both there, so the button keeps no values of its own.
+  action.feel = actionFeelFrom (result.settings);
+  action.after = result.then;
+
+  auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
+  action.cueClip = cue.file;
+  action.isCue = result.clip.has_value ();
+  if (cue.error.isNotEmpty ())
+    action.errors.add (cue.error);
 }
 
 A3MotionUIComponent::ActionButton *
@@ -3288,8 +3290,7 @@ A3MotionUIComponent::firedActionOf (index_t channel, int button)
       auto const &pattern = _patterns[channel][0];
       base = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
     }
-  return resolveActionAt (action.source, *base, action.seed, action.motion,
-                          action.feel);
+  return resolveActionAt (action.source, *base, action.seed, action.feel);
 }
 
 juce::File
@@ -3309,6 +3310,7 @@ A3MotionUIComponent::showChosenFileText ()
 void
 A3MotionUIComponent::showFileText (juce::File const &file)
 {
+  flushScriptWrites ();
   auto &panel = _browser->scriptPanel ();
   _panelFile = file;
   panel.setLanguage (languageFor (file));
@@ -4832,7 +4834,7 @@ A3MotionUIComponent::updateActionPage ()
                                : ClipSettings{};
   auto const playable = shown != nullptr && shown->settings.has_value ();
   _action->setMotionTile (
-      playable ? motionShownFor (shown->source, base, shown->seed, shown->motion)
+      playable ? motionShownFor (shown->source, base, shown->seed, MotionOverrides{})
                : std::array<MotionShown, numMotionParams>{},
       playable, getPatternLengthBeats (channel, 0));
 }
@@ -4844,32 +4846,113 @@ A3MotionUIComponent::setShownButtonMotion (MotionParam param,
   auto *button = shownActionButton ();
   if (button == nullptr || !button->settings)
     return;
-
+  juce::String const name = motionParamScriptName (param);
   if (value)
-    button->motion.set (param, *value);
+    {
+      MotionOverrides one;
+      one.set (param, *value);
+      writeShownScriptSetting (name, withMotion (*button->settings, one));
+    }
   else
-    button->motion.unset (param);
-
-  scheduleSetSave ();
-  updateActionPage ();
+    {
+      editShownScript ([&name] (juce::String const &source) {
+        return unsetScriptLine (source, name);
+      });
+    }
   updateControlReadout (juce::String (motionParamCaption (param))
                         + (value ? " " + juce::String (*value, 2)
-                                 : juce::String (" from script")));
+                                 : juce::String (" from the clip")));
 }
 
 void
 A3MotionUIComponent::setShownButtonAfter (std::optional<int> after)
 {
-  auto *button = shownActionButton ();
-  if (button == nullptr)
-    return;
-
-  button->after = after;
-  scheduleSetSave ();
-  updateActionPage ();
+  editShownScript ([&after] (juce::String const &source) {
+    return after ? setScriptLine (source, "then", juce::String (*after + 1))
+                 : unsetScriptLine (source, "then");
+  });
   updateControlReadout (
       "A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
       + " then " + afterName (after));
+}
+
+void
+A3MotionUIComponent::editShownScript (
+    std::function<juce::String (juce::String const &)> const &edit)
+{
+  // ACTION writes into the script (2026-09-29), in place: every button on
+  // every channel holding this file takes the new text, the editor in FILES
+  // shows it, and the file is written once the hand stops.
+  auto *shown = shownActionButton ();
+  if (shown == nullptr || !shown->file.existsAsFile ())
+    return;
+
+  auto const file = shown->file;
+  auto const text = edit (shown->source);
+  if (text == shown->source)
+    return;
+
+  std::vector<std::array<juce::File, numActionButtons> > files;
+  for (auto const &channel : _channelActions)
+    {
+      files.emplace_back ();
+      for (size_t b = 0; b < channel.size (); ++b)
+        files.back ()[b] = channel[b].file;
+    }
+  for (auto const &[channel, button] : buttonsHoldingFile (files, file))
+    {
+      auto &action = _channelActions[static_cast<size_t> (channel)]
+                                    [static_cast<size_t> (button)];
+      action.source = text;
+      runButtonScript (static_cast<index_t> (channel), action);
+    }
+
+  if (_browser != nullptr && _panelFile == file)
+    {
+      auto &panel = _browser->scriptPanel ();
+      panel.applyEdit (panel.hasUnsavedChanges () ? edit (panel.script ())
+                                                  : text);
+      panel.setErrors (shown->errors);
+    }
+
+  _scriptWrites.put (file, text);
+  scheduleScriptWrite ();
+  updateActionPage ();
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::writeShownScriptSetting (juce::String const &name,
+                                              ClipSettings const &settings)
+{
+  auto const written = writtenSettingFor (settings, name);
+  editShownScript ([&name, &written] (juce::String const &source) {
+    return setScriptLine (source, name, written);
+  });
+}
+
+void
+A3MotionUIComponent::scheduleScriptWrite ()
+{
+  // The same debounce as the set's, shorter: a script is one file and the
+  // editor beside it should not lag the knob by more than a breath.
+  auto const generation = ++_scriptWriteGeneration;
+  juce::Timer::callAfterDelay (
+      300, [safeThis = juce::Component::SafePointer<A3MotionUIComponent> (this),
+            generation] {
+        if (safeThis == nullptr
+            || safeThis->_scriptWriteGeneration != generation)
+          return;
+        safeThis->flushScriptWrites ();
+      });
+}
+
+void
+A3MotionUIComponent::flushScriptWrites ()
+{
+  auto const failed = writeAll (_scriptWrites.take ());
+  if (!failed.isEmpty ())
+    updateControlReadout ("-- CANNOT WRITE " + failed[0].toUpperCase ());
 }
 
 void
@@ -5009,9 +5092,8 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
+  writeShownScriptSetting (actionControlScriptName (control),
+                           clipSettingsFrom (*pattern));
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
@@ -5043,9 +5125,8 @@ A3MotionUIComponent::setActionControl (int control, double value)
     default:                           return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
+  writeShownScriptSetting (actionControlScriptName (control),
+                           clipSettingsFrom (*pattern));
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
@@ -5096,9 +5177,8 @@ A3MotionUIComponent::resetActionControl (int control)
       return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
+  writeShownScriptSetting (actionControlScriptName (control),
+                           clipSettingsFrom (*pattern));
   updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
@@ -5426,6 +5506,7 @@ A3MotionUIComponent::applySet ()
 void
 A3MotionUIComponent::applySet (juce::File const &file)
 {
+  flushScriptWrites ();
   auto const numChannels = static_cast<int> (_patterns.size ());
   auto const set = loadSession (file, numChannels,
                             static_cast<int> (numClipSlots));
