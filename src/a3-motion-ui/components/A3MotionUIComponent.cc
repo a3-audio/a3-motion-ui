@@ -8326,6 +8326,26 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
       // A key is pressed, not turned -- see handleEncoderPress().
       return;
 
+    case EncoderTarget::Kind::ActionList:
+      {
+        // A highlight, not an assignment: the press puts it on the button.
+        auto const name = _action->moveListCursor (increment);
+        updateControlReadout ("-- "
+                              + (name.isEmpty () ? juce::String ("NO ACTION")
+                                                 : name.toUpperCase ()));
+        return;
+      }
+
+    case EncoderTarget::Kind::ActionMode:
+      applyActionControl (ActionComponent::ActMode, increment);
+      return;
+
+    case EncoderTarget::Kind::ActionAfter:
+      // The same step the key's tap takes, both ways.
+      if (_action->onAfterStepped)
+        _action->onAfterStepped (increment);
+      return;
+
     case EncoderTarget::Kind::ActionButton:
       chooseActionButton (_chosenActionButton[shown] + increment);
       updateControlReadout (
@@ -8373,6 +8393,16 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
+  // ACTION (2026-09-28): enc 1 assigns what it walked to, enc 3 is EDIT,
+  // enc 4 switches the card -- each the key it stands beside.
+  if (target.kind == EncoderTarget::Kind::ActionList)
+    _action->chooseListCursor ();
+  if (target.kind == EncoderTarget::Kind::ActionMode && _action->onEditPressed)
+    _action->onEditPressed ();
+  if (target.kind == EncoderTarget::Kind::ActionAfter)
+    _action->setTile (_action->tile () == ActionTile::Audio
+                          ? ActionTile::Motion
+                          : ActionTile::Audio);
   if (target.kind == EncoderTarget::Kind::MixerKey)
     {
       auto const channel = static_cast<int> (_clipSettingsChannel);

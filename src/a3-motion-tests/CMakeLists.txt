@@ -135,6 +135,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionScript.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionMotion.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionMotionTile.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionEncoders.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionChain.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SerialReconnect.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternSpeedAndFade.cc"

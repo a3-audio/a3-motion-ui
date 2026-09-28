@@ -380,6 +380,10 @@ ActionComponent::setActionName (juce::String const &name)
   if (name == _actionName)
     return;
 
+  // The highlight just assigned, or another button's script: the walk starts
+  // again from what the button holds. Not on every call -- the page is told
+  // the name on every update, and the walk would never get past one row.
+  _listCursor = -1;
   _actionName = name;
   // The chosen one in view, moved as little as possible: a list that jumps
   // to the top on every change makes you scroll back to where you were.
@@ -387,6 +391,32 @@ ActionComponent::setActionName (juce::String const &name)
                                actionListVisibleRows (_layout),
                                _choices.size ());
   repaint ();
+}
+
+juce::String
+ActionComponent::moveListCursor (int increment)
+{
+  if (_choices.isEmpty ())
+    return {};
+
+  auto const from = _listCursor >= 0
+                        ? _listCursor
+                        : juce::jmax (0, _choices.indexOf (_actionName));
+  _listCursor = juce::jlimit (0, _choices.size () - 1, from + increment);
+  _listTop = a3::scrollToShow (_listTop, _listCursor,
+                               actionListVisibleRows (_layout),
+                               _choices.size ());
+  repaint ();
+  return _choices[_listCursor];
+}
+
+void
+ActionComponent::chooseListCursor ()
+{
+  if (!juce::isPositiveAndBelow (_listCursor, _choices.size ())
+      || !onActionChosen)
+    return;
+  onActionChosen (_choices[_listCursor]);
 }
 
 void
@@ -406,6 +436,8 @@ ActionComponent::setActionButtons (std::array<juce::String, 6> const &names,
   if (names == _buttonNames && chosen == _chosenButton)
     return;
 
+  if (chosen != _chosenButton)
+    _listCursor = -1;
   _buttonNames = names;
   _chosenButton = chosen;
   repaint ();
@@ -814,12 +846,23 @@ ActionComponent::paintActionList (juce::Graphics &g)
       auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
       auto const name = _choices[index];
       auto const chosen = name == _actionName;
+      auto const highlighted = index == _listCursor && !chosen;
 
       if (chosen)
         {
           g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
           g.fillRect (at.reduced (juce::roundToInt (theme ().paddingTight),
                                   juce::roundToInt (theme ().paddingHair)));
+        }
+
+      // Where the encoder stands: outlined, not filled -- filled is what the
+      // button holds, and the two must not be mistaken mid-set.
+      if (highlighted)
+        {
+          g.setColour (_channelColour);
+          g.drawRect (at.reduced (juce::roundToInt (theme ().paddingTight),
+                                  juce::roundToInt (theme ().paddingHair)),
+                      juce::roundToInt (theme ().strokeThin));
         }
 
       g.setColour (chosen ? _channelColour
