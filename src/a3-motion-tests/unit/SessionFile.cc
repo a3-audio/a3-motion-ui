@@ -615,3 +615,19 @@ TEST (SessionFile, NoActionsWrittenLeavesTheSlotsActionsToBeRead)
   file.deleteFile ();
 }
 
+
+// Library v2 (2026-09-28) deletes every old name. A set written before it must
+// still load: names that no longer ship are simply kept as written (they
+// resolve to nothing when applied), and nothing throws.
+TEST (SessionFile, ASetNamingThingsThatNoLongerShipStillLoads)
+{
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-old-names.json");
+  file.replaceWithText (R"({ "name": "Old", "channels": [
+    { "slots": [ { "pattern": "Corner", "clip": "Flutter" } ],
+      "actions": [ { "script": "Bloom" }, {}, {}, {}, {}, {} ] } ] })");
+  auto const set = loadSession (file, 4, 1);
+  ASSERT_EQ (set.channels.size (), 4u);
+  EXPECT_EQ (set.channels[0].slots[0].patternName, "Corner");
+  EXPECT_EQ (set.channels[0].actions[0].script, "Bloom");
+}

@@ -1,4 +1,5 @@
 {
+  "name": "Break",
   "channels": [
     {
       "threeD": 0.26,
@@ -6,29 +7,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Rose 7-Petal",
-          "clip": "Sunrise",
+          "pattern": "Orbit Arc",
+          "clip": "Break Standstill",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Lift"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Breathe"
+          "script": "Move Freeze"
         },
         {
-          "script": "Widen"
+          "script": "Width Breathe"
         },
         {
-          "script": "Narrow"
+          "script": "Width Point"
         },
         {
-          "script": "Bloom"
+          "script": "FX Sweep"
         },
         {
-          "script": "Freeze"
+          "script": "Cue Build Pulse"
         }
       ]
     },
@@ -38,29 +39,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Lissajous 1-2",
-          "clip": "Aurora",
+          "pattern": "Spiral Collapse",
+          "clip": "Break Collapse",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Lift"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Breathe"
+          "script": "Move Freeze"
         },
         {
-          "script": "Widen"
+          "script": "Width Breathe"
         },
         {
-          "script": "Narrow"
+          "script": "Width Point"
         },
         {
-          "script": "Bloom"
+          "script": "FX Sweep"
         },
         {
-          "script": "Freeze"
+          "script": "Cue Build Pulse"
         }
       ]
     },
@@ -70,29 +71,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Pulse",
-          "clip": "Float",
+          "pattern": "Edge Diamond",
+          "clip": "Break Monolith",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Lift"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Breathe"
+          "script": "Move Freeze"
         },
         {
-          "script": "Widen"
+          "script": "Width Breathe"
         },
         {
-          "script": "Narrow"
+          "script": "Width Point"
         },
         {
-          "script": "Bloom"
+          "script": "FX Sweep"
         },
         {
-          "script": "Freeze"
+          "script": "Cue Build Pulse"
         }
       ]
     },
@@ -102,32 +103,31 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Infinity",
-          "clip": "Horizon",
+          "pattern": "Loop Figure 8",
+          "clip": "Break Suspend",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Lift"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Breathe"
+          "script": "Move Freeze"
         },
         {
-          "script": "Widen"
+          "script": "Width Breathe"
         },
         {
-          "script": "Narrow"
+          "script": "Width Point"
         },
         {
-          "script": "Bloom"
+          "script": "FX Sweep"
         },
         {
-          "script": "Freeze"
+          "script": "Cue Build Pulse"
         }
       ]
     }
-  ],
-  "name": "Opening"
+  ]
 }

@@ -65,9 +65,7 @@ TEST (ShippedLibrary, EveryShapeIsNamedByItsFamily)
  *  loads as an empty slot, silently, because a missing name is not an error
  *  here -- it is a slot nobody has filled. This is the one place that would
  *  notice. */
-// Re-enabled in Task 8 of library v2: the sets and clips still name the
-// shapes from before the rename until Tasks 6 and 8 rebuild them.
-TEST (ShippedLibrary, DISABLED_EveryShippedSetNamesShapesThatExist)
+TEST (ShippedLibrary, EveryShippedSetNamesShapesThatExist)
 {
   juce::File const dir (A3_PATTERN_SESSIONS_DIR);
   ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
@@ -107,9 +105,7 @@ TEST (ShippedLibrary, DISABLED_EveryShippedSetNamesShapesThatExist)
  *  never leaves the previous set's actions under the fingers. And one slot
  *  in the file, so an older build reading it does not find a second clip the
  *  device would quietly drop. */
-// Re-enabled in Task 8 of library v2: the sets still name the clips from
-// before the rebuild until Task 8 rebuilds them.
-TEST (ShippedLibrary, DISABLED_EveryShippedSetIsOneClipAndSixActionsPerChannel)
+TEST (ShippedLibrary, EveryShippedSetIsOneClipAndSixActionsPerChannel)
 {
   juce::File const dir (A3_PATTERN_SESSIONS_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -153,9 +149,7 @@ TEST (ShippedLibrary, DISABLED_EveryShippedSetIsOneClipAndSixActionsPerChannel)
  *  sets built from them (maintainer, 2026-09-28): enough to cover the mood
  *  meter's four corners several ways, few enough to learn. Each clip draws a
  *  shape that ships -- a clip naming a missing one loads as nothing. */
-// Re-enabled in Task 8 of library v2: the sets and clips still name the
-// shapes from before the rename until Tasks 6 and 8 rebuild them.
-TEST (ShippedLibrary, DISABLED_TheLibraryShipsFiftyOfEachAndTenSets)
+TEST (ShippedLibrary, TheLibraryShipsFiftyOfEachAndTenSets)
 {
   juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -164,8 +158,13 @@ TEST (ShippedLibrary, DISABLED_TheLibraryShipsFiftyOfEachAndTenSets)
 
   auto const shapeFiles
       = shapes.findChildFiles (juce::File::findFiles, false, "*.svg");
-  auto const clipFiles
+  // Default stays beside the fifty: the shapeless fallback (ruling 1 of the
+  // library v2 plan).
+  auto clipFiles
       = clips.findChildFiles (juce::File::findFiles, false, "*.json");
+  clipFiles.removeIf ([] (juce::File const &f) {
+    return f.getFileNameWithoutExtension () == "Default";
+  });
   auto actionFiles
       = actions.findChildFiles (juce::File::findFiles, false, "*.scd");
   actionFiles.removeIf ([] (juce::File const &f) {
@@ -311,4 +310,35 @@ TEST (ShippedLibrary, EveryCueNamesAClipThatShipsAndNothingElse)
       EXPECT_TRUE (cueClipFor (r.clip, clips).error.isEmpty ()) << name;
     }
   EXPECT_EQ (cues, 12);
+}
+
+// Ten sets, one for each phase of the night, laid out the same way: the four
+// clips carry the set's own phase, A5 is the FX, A6 the Cue into what comes
+// next, and A1..A4 only move.
+TEST (ShippedLibrary, TenSetsOnePerPhaseLaidOutTheSameWay)
+{
+  auto const files = juce::File (A3_PATTERN_SESSIONS_DIR)
+                         .findChildFiles (juce::File::findFiles, false, "*.json");
+  EXPECT_EQ (files.size (), 10);
+  for (auto const &f : files)
+    {
+      auto const set = loadSession (f, 4, 1);
+      auto const name = juce::String (set.name);
+      EXPECT_TRUE (phases.contains (name)) << name;
+      for (auto const &channel : set.channels)
+        {
+          EXPECT_TRUE (juce::String (channel.slots[0].clipFile)
+                           .startsWith (name + " "))
+              << name << " holds " << channel.slots[0].clipFile;
+          auto const script = [&] (int b) {
+            return juce::String (channel.actions[static_cast<size_t> (b)].script);
+          };
+          EXPECT_TRUE (script (4).startsWith ("FX ")) << name << " A5 " << script (4);
+          EXPECT_TRUE (script (5).startsWith ("Cue ")) << name << " A6 " << script (5);
+          for (int b = 0; b < 4; ++b)
+            EXPECT_FALSE (script (b).startsWith ("FX ")
+                          || script (b).startsWith ("Cue "))
+                << name << " A" << (b + 1) << " " << script (b);
+        }
+    }
 }

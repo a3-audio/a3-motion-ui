@@ -1,0 +1,133 @@
+{
+  "name": "Deep",
+  "channels": [
+    {
+      "threeD": 0.31,
+      "freq": 0.45,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Spiral Collapse",
+          "clip": "Deep Undertow",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Sway"
+        },
+        {
+          "script": "Lift Floor"
+        },
+        {
+          "script": "Move Rock"
+        },
+        {
+          "script": "Lift Down"
+        },
+        {
+          "script": "FX Resonate"
+        },
+        {
+          "script": "Cue Float Aurora"
+        }
+      ]
+    },
+    {
+      "threeD": 0.35,
+      "freq": 0.45,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Orbit Circle",
+          "clip": "Deep Sub",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Sway"
+        },
+        {
+          "script": "Lift Floor"
+        },
+        {
+          "script": "Move Rock"
+        },
+        {
+          "script": "Lift Down"
+        },
+        {
+          "script": "FX Resonate"
+        },
+        {
+          "script": "Cue Float Aurora"
+        }
+      ]
+    },
+    {
+      "threeD": 0.37,
+      "freq": 0.45,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Wander Drift",
+          "clip": "Deep Fog",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Sway"
+        },
+        {
+          "script": "Lift Floor"
+        },
+        {
+          "script": "Move Rock"
+        },
+        {
+          "script": "Lift Down"
+        },
+        {
+          "script": "FX Resonate"
+        },
+        {
+          "script": "Cue Float Aurora"
+        }
+      ]
+    },
+    {
+      "threeD": 0.39,
+      "freq": 0.45,
+      "q": 0.25,
+      "slots": [
+        {
+          "pattern": "Wander Wave",
+          "clip": "Deep Lurk",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Sway"
+        },
+        {
+          "script": "Lift Floor"
+        },
+        {
+          "script": "Move Rock"
+        },
+        {
+          "script": "Lift Down"
+        },
+        {
+          "script": "FX Resonate"
+        },
+        {
+          "script": "Cue Float Aurora"
+        }
+      ]
+    }
+  ]
+}

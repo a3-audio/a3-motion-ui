@@ -1,131 +1,131 @@
 {
-  "name": "Peak",
+  "name": "Float",
   "channels": [
     {
-      "threeD": 0.51,
+      "threeD": 0.26,
       "freq": 0.45,
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Flower Rose 5",
-          "clip": "Peak Anthem",
+          "pattern": "Loop 1-2",
+          "clip": "Float Aurora",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Width Full"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Lift Ear Level"
+          "script": "Width Close"
         },
         {
-          "script": "Move Spin Fast"
+          "script": "Width Breathe"
         },
         {
           "script": "Move Unwind"
         },
         {
-          "script": "FX Impact"
+          "script": "FX Swell"
         },
         {
-          "script": "Cue Drop Impact"
+          "script": "Cue Closing Sunset"
         }
       ]
     },
     {
-      "threeD": 0.55,
+      "threeD": 0.3,
       "freq": 0.45,
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Loop 2-3",
-          "clip": "Peak Festival",
+          "pattern": "Cycle Hypo 7-2",
+          "clip": "Float Canopy",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Width Full"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Lift Ear Level"
+          "script": "Width Close"
         },
         {
-          "script": "Move Spin Fast"
+          "script": "Width Breathe"
         },
         {
           "script": "Move Unwind"
         },
         {
-          "script": "FX Impact"
+          "script": "FX Swell"
         },
         {
-          "script": "Cue Drop Impact"
+          "script": "Cue Closing Sunset"
         }
       ]
     },
     {
-      "threeD": 0.57,
+      "threeD": 0.32,
       "freq": 0.45,
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Cycle Epi 7-3",
-          "clip": "Peak Carousel",
+          "pattern": "Flower Petal",
+          "clip": "Float Blossom",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Width Full"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Lift Ear Level"
+          "script": "Width Close"
         },
         {
-          "script": "Move Spin Fast"
+          "script": "Width Breathe"
         },
         {
           "script": "Move Unwind"
         },
         {
-          "script": "FX Impact"
+          "script": "FX Swell"
         },
         {
-          "script": "Cue Drop Impact"
+          "script": "Cue Closing Sunset"
         }
       ]
     },
     {
-      "threeD": 0.59,
+      "threeD": 0.34,
       "freq": 0.45,
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Edge Star",
-          "clip": "Peak Star",
+          "pattern": "Loop Figure 8",
+          "clip": "Float Lullaby",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Width Full"
+          "script": "Lift Overhead"
         },
         {
-          "script": "Lift Ear Level"
+          "script": "Width Close"
         },
         {
-          "script": "Move Spin Fast"
+          "script": "Width Breathe"
         },
         {
           "script": "Move Unwind"
         },
         {
-          "script": "FX Impact"
+          "script": "FX Swell"
         },
         {
-          "script": "Cue Drop Impact"
+          "script": "Cue Closing Sunset"
         }
       ]
     }

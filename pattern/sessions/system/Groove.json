@@ -1,131 +1,131 @@
 {
-  "name": "Drop",
+  "name": "Groove",
   "channels": [
     {
-      "threeD": 0.51,
+      "threeD": 0.36,
       "freq": 0.45,
-      "q": 0.3,
+      "q": 0.1,
       "slots": [
         {
-          "pattern": "Edge Astroid",
-          "clip": "Drop Impact",
+          "pattern": "Rhythm Four Floor",
+          "clip": "Groove Four Floor",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Speed Stutter"
+          "script": "Move Spin"
         },
         {
-          "script": "Speed Halt"
+          "script": "Speed Half"
         },
         {
-          "script": "Width Full"
+          "script": "Speed Double"
         },
         {
-          "script": "Width Point"
+          "script": "Move Freeze"
         },
         {
           "script": "FX Punch"
         },
         {
-          "script": "Cue Break Standstill"
+          "script": "Cue Build Riser"
         }
       ]
     },
     {
-      "threeD": 0.55,
+      "threeD": 0.4,
       "freq": 0.45,
-      "q": 0.3,
+      "q": 0.1,
       "slots": [
         {
-          "pattern": "Edge Square",
-          "clip": "Drop Warehouse",
+          "pattern": "Rhythm Tresillo",
+          "clip": "Groove Tresillo",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Speed Stutter"
+          "script": "Move Spin"
         },
         {
-          "script": "Speed Halt"
+          "script": "Speed Half"
         },
         {
-          "script": "Width Full"
+          "script": "Speed Double"
         },
         {
-          "script": "Width Point"
+          "script": "Move Freeze"
         },
         {
           "script": "FX Punch"
         },
         {
-          "script": "Cue Break Standstill"
+          "script": "Cue Build Riser"
         }
       ]
     },
     {
-      "threeD": 0.57,
+      "threeD": 0.42,
       "freq": 0.45,
-      "q": 0.3,
+      "q": 0.1,
       "slots": [
         {
-          "pattern": "Edge Corner",
-          "clip": "Drop Strobe",
+          "pattern": "Rhythm Clave 3-2",
+          "clip": "Groove Clave",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Speed Stutter"
+          "script": "Move Spin"
         },
         {
-          "script": "Speed Halt"
+          "script": "Speed Half"
         },
         {
-          "script": "Width Full"
+          "script": "Speed Double"
         },
         {
-          "script": "Width Point"
+          "script": "Move Freeze"
         },
         {
           "script": "FX Punch"
         },
         {
-          "script": "Cue Break Standstill"
+          "script": "Cue Build Riser"
         }
       ]
     },
     {
-      "threeD": 0.59,
+      "threeD": 0.44,
       "freq": 0.45,
-      "q": 0.3,
+      "q": 0.1,
       "slots": [
         {
-          "pattern": "Cycle Epi 3-1",
-          "clip": "Drop Whirlwind",
+          "pattern": "Rhythm Offbeat",
+          "clip": "Groove Offbeat",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Speed Stutter"
+          "script": "Move Spin"
         },
         {
-          "script": "Speed Halt"
+          "script": "Speed Half"
         },
         {
-          "script": "Width Full"
+          "script": "Speed Double"
         },
         {
-          "script": "Width Point"
+          "script": "Move Freeze"
         },
         {
           "script": "FX Punch"
         },
         {
-          "script": "Cue Break Standstill"
+          "script": "Cue Build Riser"
         }
       ]
     }
