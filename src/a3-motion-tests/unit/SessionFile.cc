@@ -819,3 +819,37 @@ TEST (SessionFile, MotionIsWrittenInTheSetsOwnWords)
   EXPECT_TRUE (text.contains ("\"swell\": 3")) << text;
   file.deleteFile ();
 }
+
+// What a button fires when its accent is over -- "then A3" -- per action
+// entry, written only when set.
+TEST (SessionFile, AnActionCarriesWhatComesAfterIt)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].actions[0].script = "Bloom";
+  set.channels[0].actions[0].after = 2;
+  set.channels[0].actions[1].script = "Slam";
+
+  auto const file = tempSet ("a3-session-after.json");
+  ASSERT_TRUE (saveSession (file, set));
+  auto const text = file.loadFileAsString ();
+  EXPECT_TRUE (text.contains ("\"after\": \"A3\"")) << text;
+  EXPECT_EQ (text.indexOf ("\"after\""), text.lastIndexOf ("\"after\""))
+      << "written for the one button that has it";
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].actions[0].after, std::optional<int> (2));
+  EXPECT_FALSE (read.channels[0].actions[1].after.has_value ());
+  file.deleteFile ();
+}
+
+TEST (SessionFile, AnOlderActionEntryHasNothingAfterIt)
+{
+  auto const file = tempSet ("a3-session-before-after.json");
+  ASSERT_TRUE (file.replaceWithText (R"({ "channels": [ { "slots": [ {} ],
+      "actions": [ { "script": "Slam" } ] } ] })"));
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_FALSE (read.channels[0].actions[0].after.has_value ());
+  file.deleteFile ();
+}

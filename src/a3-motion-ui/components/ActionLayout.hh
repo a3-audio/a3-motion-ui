@@ -54,6 +54,10 @@ struct ActionLayout
    *  editor that stood on this page moved on 2026-09-27. */
   juce::Rectangle<int> editButton;
 
+  /** What fires when this button's accent is over: "then A3", or nothing.
+   *  Under the mode (2026-09-28). */
+  juce::Rectangle<int> afterKey;
+
   /** Which tile stands in the card (2026-09-28): the button's feel, or what
    *  it puts on the clip. Under the mode, AUDIO over MOTION. */
   juce::Rectangle<int> audioKey;

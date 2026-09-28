@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <array>
+
 #include <a3-motion-ui/components/ActionLayout.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
@@ -405,12 +407,17 @@ TEST (ActionLayout, EveryKeyFitsOnThePage)
       {
         juce::Rectangle<int> const page{ 0, 0, width, height };
         auto const l = layOutActionPage (page, headerSize, 14.f, 1.f, {});
-        for (auto const key :
-             { l.editButton, l.actModeField, l.audioKey, l.motionKey })
+        std::array<juce::Rectangle<int>, 5> const keys{
+          l.editButton, l.actModeField, l.afterKey, l.audioKey, l.motionKey
+        };
+        for (size_t i = 0; i < keys.size (); ++i)
           {
-            EXPECT_TRUE (page.contains (key)) << width << "x" << height;
-            EXPECT_GE (key.getHeight (), fingertipSize)
+            EXPECT_TRUE (page.contains (keys[i])) << width << "x" << height;
+            EXPECT_GE (keys[i].getHeight (), fingertipSize)
                 << width << "x" << height;
+            if (i > 0)
+              EXPECT_LE (keys[i - 1].getBottom (), keys[i].getY ())
+                  << "key " << i << " at " << width << "x" << height;
           }
       }
 }
@@ -542,5 +549,20 @@ TEST (ActionLayout, TheBadgeIsReadable)
           EXPECT_GE (badge.getHeight (), fingertipSize / 3) << height;
           EXPECT_GE (badge.getWidth (), badge.getHeight ()) << height;
         }
+    }
+}
+
+// What comes after the button's accent -- "then A3" -- stands under the
+// mode: both say what a press of this button does over time.
+TEST (ActionLayout, TheAfterKeyStandsUnderTheMode)
+{
+  for (auto const &l : { rigLayout (), pageLayout () })
+    {
+      ASSERT_FALSE (l.afterKey.isEmpty ());
+      EXPECT_EQ (l.afterKey.getX (), l.actModeField.getX ());
+      EXPECT_EQ (l.afterKey.getWidth (), l.actModeField.getWidth ());
+      EXPECT_GE (l.afterKey.getHeight (), fingertipSize);
+      EXPECT_GE (l.afterKey.getY (), l.actModeField.getBottom ());
+      EXPECT_LE (l.afterKey.getBottom (), l.audioKey.getY ());
     }
 }

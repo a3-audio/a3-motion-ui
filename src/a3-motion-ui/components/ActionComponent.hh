@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <optional>
+
 #include <a3-motion-ui/components/ActionLayout.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
@@ -103,7 +105,8 @@ public:
   void setActionButtons (std::array<juce::String, 6> const &names,
                          int chosen);
   /** The button whose action runs now, -1 for none: that field goes white,
-   *  as its pad does. */
+   *  as its pad does, and while it is the chosen one the card is outlined in
+   *  the same white -- what the page shows is running. */
   void setRunningButton (int button);
 
 
@@ -147,9 +150,19 @@ public:
   std::function<void (int control)> onControlDoubleTapped;
   std::function<void (int control)> onControlTapped;
 
-  /** A button's field went down (true) or came up (false). Down chooses it
-   *  and fires its action, the way its pad does; up lets a Hold action go. */
-  std::function<void (int button, bool held)> onButtonHeld;
+  /** A button's field went down: it is chosen, and everything else on the
+   *  page shows it. Nothing is fired -- since 2026-09-28 the fields only
+   *  choose; the pads, on the panel and the PADS page, fire. */
+  std::function<void (int button)> onButtonChosen;
+
+  /** The after key: tapped on (+1), or two taps -- back to nothing. */
+  std::function<void (int increment)> onAfterStepped;
+  std::function<void ()> onAfterCleared;
+
+  /** What the chosen button fires when its accent is over. */
+  void setAfter (std::optional<int> after);
+
+  ActionLayout const &layout () const { return _layout; }
 
   /** A name was picked out of the action list; empty means "fire nothing". */
   std::function<void (juce::String const &name)> onActionChosen;
@@ -164,6 +177,7 @@ private:
 
   void paintEditKey (juce::Graphics &g);
   void paintTileKeys (juce::Graphics &g);
+  void paintAfterKey (juce::Graphics &g);
   void paintAudioRowNames (juce::Graphics &g);
   void paintMotionTile (juce::Graphics &g);
   void paintMotionField (juce::Graphics &g, MotionParam param);
@@ -185,6 +199,8 @@ private:
    *  for a knob), indexed by MotionParam. */
   std::array<std::unique_ptr<PotKnob>, numMotionParams> _motionKnob;
   std::array<std::unique_ptr<TouchControl>, numMotionParams> _motionField;
+  std::optional<int> _after;
+  std::unique_ptr<TouchControl> _afterTouch;
   std::unique_ptr<TouchControl> _audioKeyTouch;
   std::unique_ptr<TouchControl> _motionKeyTouch;
 

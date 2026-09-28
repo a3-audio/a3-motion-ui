@@ -726,6 +726,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _controller = std::make_unique<ControllerComponent> ();
   _controller->onPadPressed = [this] (index_t channel, index_t pad) {
     handlePadPress (channel, pad);
+    showPushedAction (channel, pad, PadSource::PadsPage);
   };
   _controller->onPadReleased = [this] (index_t channel, index_t pad) {
     handlePadRelease (channel, pad);
@@ -766,20 +767,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
-  // The six fields are the channel's action pads on the screen: down chooses
-  // the button (the list, the keys, the card and the screen's ACT act on it
-  // from then on) and fires it through the pad's own handler, so the two
-  // cannot come to mean different things.
-  _action->onButtonHeld = [this] (int button, bool held) {
-    auto const pad = padIndexForAction (button);
-    if (!held)
-      {
-        handlePadRelease (_clipSettingsChannel, pad);
-        return;
-      }
-    chooseActionButton (button);
-    handlePadPress (_clipSettingsChannel, pad);
+  // The six fields choose (2026-09-28): the list, the keys, the card and
+  // the screen's ACT act on the chosen button. Firing is the pads' job.
+  _action->onButtonChosen = [this] (int button) { chooseActionButton (button); };
+  _action->onAfterStepped = [this] (int increment) {
+    if (auto const *shown = shownActionButton ())
+      setShownButtonAfter (stepAfter (shown->after, increment));
   };
+  _action->onAfterCleared = [this] { setShownButtonAfter (std::nullopt); };
 
   _action->onActionChosen = [this] (juce::String const &name) {
     setButtonAction (_clipSettingsChannel,
@@ -1790,7 +1785,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                       _ioAdapter->getPad (channel, pad)))
                 {
                   if (value.getValue ())
-                    handlePadPress (channel, pad);
+                    {
+                      handlePadPress (channel, pad);
+                      showPushedAction (channel, pad, PadSource::Panel);
+                    }
                   else
                     handlePadRelease (channel, pad);
                   return;
@@ -2247,6 +2245,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
     {
     case PadFunction::PlayPause:
       {
+        // Play|Pause is a hand taking the channel back: a chain ends here.
+        if (channel < _actionChains.size ())
+          _actionChains[channel].broken ();
         if (!pattern)
           break;
 
@@ -2312,6 +2313,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
         if (channel < _actionSlot.size ())
           _actionSlot[channel] = button;
+        if (channel < _actionChains.size ())
+          _actionChains[channel].pressed (button,
+                                          _engine.accentEndCount (channel));
 
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
@@ -2365,6 +2369,10 @@ void
 A3MotionUIComponent::stopChannel (index_t channel)
 {
   index_t const slot = 0;
+
+  // Stop is a way out, of a chain of actions too.
+  if (channel < _actionChains.size ())
+    _actionChains[channel].broken ();
 
   // Stop on the channel a take is going into ends the take, the same way REC
   // does. Stopped alone, the engine finished it with nobody to mark it
@@ -4734,6 +4742,7 @@ A3MotionUIComponent::updateActionPage ()
   for (size_t button = 0; button < holds.size (); ++button)
     holds[button] = _channelActions[channel][button].feel.actMode == ActMode::Hold;
   _action->setActionButtonModes (holds);
+  _action->setAfter (shown ? shown->after : std::nullopt);
 
   // What the shown button puts on the clip, against the clip as it stands
   // before any accent -- the base a press is worked out against.
@@ -4768,6 +4777,90 @@ A3MotionUIComponent::setShownButtonMotion (MotionParam param,
   updateControlReadout (juce::String (motionParamCaption (param))
                         + (value ? " " + juce::String (*value, 2)
                                  : juce::String (" from script")));
+}
+
+void
+A3MotionUIComponent::setShownButtonAfter (std::optional<int> after)
+{
+  auto *button = shownActionButton ();
+  if (button == nullptr)
+    return;
+
+  button->after = after;
+  scheduleSetSave ();
+  updateActionPage ();
+  updateControlReadout (
+      "A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
+      + " then " + afterName (after));
+}
+
+void
+A3MotionUIComponent::followActionChains ()
+{
+  for (index_t channel = 0;
+       channel < _channelActions.size () && channel < _actionChains.size ();
+       ++channel)
+    {
+      AfterTable after;
+      for (size_t b = 0; b < after.size (); ++b)
+        after[b] = _channelActions[channel][b].after;
+
+      if (auto const next = _actionChains[channel].accentEnded (
+              _engine.accentEndCount (channel), after))
+        fireChainedAction (channel, *next);
+    }
+}
+
+void
+A3MotionUIComponent::fireChainedAction (index_t channel, int button)
+{
+  auto fired = firedActionOf (channel, button);
+  if (!fired)
+    return;
+
+  // Nobody holds a chained action, so a Hold button plays as a one-shot:
+  // held by no finger, it would fall the instant it rose.
+  fired->actMode = ActMode::OneShot;
+
+  _actionChains[channel].pressed (button, _engine.accentEndCount (channel));
+  if (channel < _actionSlot.size ())
+    _actionSlot[channel] = button;
+
+  // As if pressed and let go: the accent and what it throws the clip to,
+  // and a clip the last action stopped starts again, as a press starts it.
+  auto const &pattern = _patterns[channel][0];
+  _engine.setChannelAction (channel, fired);
+  _engine.setChannelAccentHeld (channel, true, pattern);
+  _engine.setChannelAccentHeld (channel, false, nullptr);
+  if (pattern && pattern->getStatus () == Pattern::Status::Idle)
+    {
+      pattern->setPlaybackLength (getPlaybackLength (channel, 0));
+      _engine.playPattern (pattern, _now);
+    }
+}
+
+void
+A3MotionUIComponent::showPushedAction (index_t channel, index_t pad,
+                                       PadSource source)
+{
+  if (padFunctionByPadIndex[pad] != PadFunction::Action)
+    return;
+  if (!actionPressShowsItsPage (source, isButtonPressed (Button::Shift)))
+    return;
+
+  // handlePadPress has already brought the channel up. A take being set up
+  // or running keeps its REC page: the page follows the hand, but not away
+  // from a recording.
+  if (channel != _clipSettingsChannel)
+    selectClip (channel, 0);
+  if (!_recArmedSlot && !takeIsUnderway ())
+    {
+      if (_overSphere != SphereOverlay::None)
+        showOverSphere (SphereOverlay::None);
+      if (_barPage != BarPage::Action)
+        showBarPage (BarPage::Action);
+    }
+  chooseActionButton (actionButtonForPad[pad]);
 }
 
 void
@@ -5119,6 +5212,10 @@ A3MotionUIComponent::tickCallback (Measure measure)
   // nowhere else.
   applyPendingBeatAddress ();
 
+  // A button's "then": decided here, on the message thread, from the
+  // engine's count of accents that have ended.
+  followActionChains ();
+
   // Send beat via OSC on every beat (only in INT mode to avoid feedback with external clock)
   // AsyncOSCSender enqueues to lock-free FIFO, safe to call from any thread
   if (_clockMode == 0 && measure.tick () == 0)
@@ -5277,6 +5374,7 @@ A3MotionUIComponent::applySet (juce::File const &file)
           auto const &entry = channel.actions[static_cast<size_t> (b)];
           if (entry.script.empty ())
             continue;
+          _channelActions[index][static_cast<size_t> (b)].after = entry.after;
           setButtonAction (index, b,
                            namedFileIn (actionsDir (),
                                         juce::String (entry.script), ".scd"));
@@ -5440,6 +5538,7 @@ A3MotionUIComponent::buildSession ()
             entry.feel = button.feel;
           if (button.file.existsAsFile ())
             entry.motion = button.motion;
+          entry.after = button.after;
         }
 
       channel.slots.resize (numClipSlots);

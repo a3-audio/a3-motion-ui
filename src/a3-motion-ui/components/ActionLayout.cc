@@ -161,6 +161,10 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   keys.removeFromTop (gap);
   out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
   keys.removeFromTop (gap);
+  // What comes after the accent, under the mode: both say what a press of
+  // this button does over time.
+  out.afterKey = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromTop (gap);
 
   // Which tile the card shows, at the foot of the column: AUDIO over
   // MOTION, apart from the two keys that say what the button is.

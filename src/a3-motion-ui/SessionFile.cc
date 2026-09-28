@@ -25,6 +25,8 @@
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/TextFile.hh>
 
+#include <a3-motion-ui/components/ActionChain.hh>
+
 #include <iostream>
 
 namespace a3
@@ -361,6 +363,7 @@ readActions (Session::Channel &channel, juce::var const &value)
           if (auto const feel = readOverrides (entry["feel"]))
             action.feel = actionFeelFrom (*feel);
           action.motion = readMotion (entry["motion"]);
+          action.after = afterFromName (entry["after"].toString ());
         }
       return;
     }
@@ -394,6 +397,8 @@ writeActions (std::array<Session::ActionEntry, numActionButtons> const &actions)
                             writeOverrides (withFeel (ClipSettings{}, *action.feel)));
       if (!action.motion.empty ())
         entry->setProperty ("motion", writeMotion (action.motion));
+      if (action.after)
+        entry->setProperty ("after", afterName (action.after));
       entries.add (juce::var (entry));
     }
   return entries;
@@ -496,7 +501,7 @@ saveSession (juce::File const &file, Session const &set)
           channel.actions.begin (), channel.actions.end (),
           [] (Session::ActionEntry const &a) {
             return !a.script.empty () || a.feel.has_value ()
-                   || !a.motion.empty ();
+                   || !a.motion.empty () || a.after.has_value ();
           });
       if (anyAction)
         entry->setProperty ("actions", writeActions (channel.actions));

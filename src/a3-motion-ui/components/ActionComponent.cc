@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
+#include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -113,18 +114,15 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_listTouch);
 
-  // The six buttons are the six action pads on the screen (2026-09-28):
-  // down chooses one and fires it, up lets a Hold action go.
+  // The six buttons choose (2026-09-28): what the rest of the page shows
+  // is the chosen one's. They fire nothing -- the pads do that, on the
+  // panel and the PADS page, and a push there brings this page up.
   for (size_t button = 0; button < _fieldTouch.size (); ++button)
     {
       auto touch = std::make_unique<TouchControl> ();
       touch->onPress = [this, button] (int, int) {
-        if (onButtonHeld)
-          onButtonHeld (static_cast<int> (button), true);
-      };
-      touch->onRelease = [this, button] (int, int) {
-        if (onButtonHeld)
-          onButtonHeld (static_cast<int> (button), false);
+        if (onButtonChosen)
+          onButtonChosen (static_cast<int> (button));
       };
       addAndMakeVisible (*touch);
       _fieldTouch[button] = std::move (touch);
@@ -137,6 +135,20 @@ ActionComponent::ActionComponent ()
       onEditPressed ();
   };
   addAndMakeVisible (*_editTouch);
+
+  // What comes after the accent: a tap steps --, A1 .. A6 and round, two
+  // taps put it back to nothing. Seven places are few enough to tap
+  // through, and a list over the page would cover what it is chosen for.
+  _afterTouch = std::make_unique<TouchControl> ();
+  _afterTouch->onTap = [this] (int, int) {
+    if (onAfterStepped)
+      onAfterStepped (1);
+  };
+  _afterTouch->onDoubleTap = [this] (int, int) {
+    if (onAfterCleared)
+      onAfterCleared ();
+  };
+  addAndMakeVisible (*_afterTouch);
 
   // Which tile the card shows. A tap, not a toggle: each key names its tile.
   _audioKeyTouch = std::make_unique<TouchControl> ();
@@ -245,6 +257,8 @@ ActionComponent::resized ()
     _listTouch->setBounds (_layout.actionListArea);
   if (_editTouch)
     _editTouch->setBounds (_layout.editButton);
+  if (_afterTouch)
+    _afterTouch->setBounds (_layout.afterKey);
   if (_audioKeyTouch)
     _audioKeyTouch->setBounds (_layout.audioKey);
   if (_motionKeyTouch)
@@ -466,6 +480,16 @@ ActionComponent::setMotionTile (
 }
 
 void
+ActionComponent::setAfter (std::optional<int> after)
+{
+  if (after == _after)
+    return;
+
+  _after = after;
+  repaint ();
+}
+
+void
 ActionComponent::setActionButtonModes (std::array<bool, 6> const &holds)
 {
   if (holds == _buttonHolds)
@@ -632,6 +656,37 @@ ActionComponent::paintTileKeys (juce::Graphics &g)
 }
 
 void
+ActionComponent::paintAfterKey (juce::Graphics &g)
+{
+  auto const at = _layout.afterKey;
+  if (at.isEmpty ())
+    return;
+
+  // Lit like the mode beside it when something follows, resting like EDIT
+  // when nothing does -- a chain is worth seeing at a glance.
+  auto const set = _after.has_value ();
+  g.setColour (set ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
+                   : toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+  g.setColour (set ? _channelColour.withAlpha (theme ().alphaInactive)
+                   : toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
+
+  g.setColour (set ? readableInk (_channelColour,
+                                  toColour (theme ().background),
+                                  toColour (theme ().textPrimary))
+                   : toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What the after key's words ("then A3") may cost.
+  constexpr float afterKeyCap = 18.f;
+  g.setFont (juce::Font (juce::FontOptions (
+      fittedFontHeight (at.getHeight () * 0.4f, afterKeyCap))));
+  g.drawFittedText ("then " + afterName (_after),
+                    at.reduced (at.getHeight () / 8, 0),
+                    juce::Justification::centred, 1, 0.7f);
+}
+
+void
 ActionComponent::paintAudioRowNames (juce::Graphics &g)
 {
   switch (_tile)
@@ -640,6 +695,16 @@ ActionComponent::paintAudioRowNames (juce::Graphics &g)
     case ActionTile::Motion: paintMotionTile (g); break;
     }
   paintTileKeys (g);
+  paintAfterKey (g);
+
+  // The chosen button's action is running: the card says so in the white
+  // its field and its pad wear, so what the page shows reads as live.
+  if (_runningButton >= 0 && _runningButton == _chosenButton)
+    {
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
+                              theme ().strokeThick);
+    }
 }
 
 void

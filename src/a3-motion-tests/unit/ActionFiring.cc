@@ -466,3 +466,30 @@ TEST (ActionFiring, TheButtonsFeelIsOnTheResolvedAction)
   EXPECT_EQ (fired.envelopeAttack, 5);
   EXPECT_EQ (fired.actMode, ActMode::Hold);
 }
+
+// The engine counts accents that have ended -- on the edge where the clip is
+// given back -- so the message thread can decide what a button's "then"
+// fires without any script being worked out on the clock's thread.
+TEST (ActionFiring, TheEngineCountsEachAccentThatEnds)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true); // nothing leaves the machine from a test
+  engine.setTempoBPM (240.f);
+
+  auto pattern = clipWithAShortAccent (ActMode::OneShot);
+  ClipSettings action = clipSettingsFrom (*pattern);
+  action.spin = 5;
+
+  EXPECT_EQ (engine.accentEndCount (0), 0u);
+
+  engine.setChannelAction (0, action);
+  engine.setChannelAccentHeld (0, true, pattern);
+  engine.setChannelAccentHeld (0, false, nullptr);
+
+  EXPECT_TRUE (waitUntil ([&] { return engine.accentEndCount (0) == 1u; }))
+      << "the end of the accent was never counted";
+  EXPECT_TRUE (waitUntil ([&] { return !engine.isChannelAccentActive (0); }));
+  EXPECT_EQ (engine.accentEndCount (0), 1u) << "counted more than once";
+  EXPECT_EQ (engine.accentEndCount (1), 0u) << "another channel's count moved";
+}

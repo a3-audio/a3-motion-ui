@@ -128,6 +128,9 @@ struct Session
      *  page's MOTION tile (2026-09-28), written as `"motion"` only when
      *  something was. Empty: every value as the script says. */
     MotionOverrides motion;
+    /** The button of the same channel that fires when this one's accent is
+     *  over (2026-09-28), written as `"after": "A3"` only when there is one. */
+    std::optional<int> after;
   };
 
   struct Channel

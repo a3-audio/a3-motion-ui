@@ -136,6 +136,11 @@ public:
    *  nothing was left running to notice. */
   bool isChannelAccentActive (index_t channel) const;
 
+  /** How many of this channel's accents have ended -- counted on the edge
+   *  where the decay runs out and the clip is given back. What a button's
+   *  "then" is decided from, on the message thread (2026-09-28). */
+  unsigned accentEndCount (index_t channel) const;
+
 private:
   /** One tick of every channel's accent. Runs on the tempo-clock thread with
    *  the rest of playback, so the envelope and the trajectory move together.
@@ -508,6 +513,8 @@ private:
      *  waiting to hand the clip its own values back. Only meaningful in
      *  `_accentView`; the pads page and the bar's ACT key both light on it. */
     std::atomic<bool> active{ false };
+    /** How many accents have ended -- see accentEndCount(). */
+    std::atomic<unsigned> ends{ 0 };
   };
 
   std::vector<AccentView> _accentView;

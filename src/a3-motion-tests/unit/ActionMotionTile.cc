@@ -26,6 +26,7 @@
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
 
 #include <optional>
 
@@ -109,7 +110,13 @@ shownWith (MotionParam param, MotionSource source, float value)
 struct Page
 {
   ActionComponent page;
-  Page () { page.setBounds (0, 0, 560, 268); }
+  Page ()
+  {
+    // Visible, as it is on its page: a hidden component answers no
+    // getComponentAt(), which is how the tests find what is under a finger.
+    page.setVisible (true);
+    page.setBounds (0, 0, 560, 268);
+  }
 };
 }
 
@@ -211,4 +218,51 @@ TEST (ActionMotionTile, ADoubleTapHandsTheValueBackToTheScript)
 
   ASSERT_TRUE (unset.has_value ());
   EXPECT_EQ (*unset, MotionParam::Tilt);
+}
+
+// ── The six fields choose; the panel fires (2026-09-28) ─────────────────
+
+namespace
+{
+TouchControl *
+touchAt (ActionComponent &page, juce::Rectangle<int> area)
+{
+  return dynamic_cast<TouchControl *> (page.getComponentAt (area.getCentre ()));
+}
+}
+
+// A field only chooses its button -- what the rest of the page shows. It
+// fires nothing: that is the pads' job, on the panel and the PADS page.
+TEST (ActionMotionTile, AFieldOnlyChoosesItsButton)
+{
+  Page p;
+  std::optional<int> chosen;
+  p.page.onButtonChosen = [&chosen] (int button) { chosen = button; };
+
+  auto *field = touchAt (p.page, p.page.layout ().actionFields[2]);
+  ASSERT_NE (field, nullptr);
+  ASSERT_TRUE (field->onPress);
+  field->onPress (0, 0);
+  ASSERT_TRUE (chosen.has_value ());
+  EXPECT_EQ (*chosen, 2);
+  EXPECT_FALSE (field->onRelease) << "nothing to let go of: nothing fired";
+}
+
+// The after key: a tap steps it on, two taps put it back to nothing.
+TEST (ActionMotionTile, TheAfterKeyStepsAndClears)
+{
+  Page p;
+  int stepped = 0;
+  bool cleared = false;
+  p.page.onAfterStepped = [&stepped] (int increment) { stepped += increment; };
+  p.page.onAfterCleared = [&cleared] { cleared = true; };
+
+  auto *key = touchAt (p.page, p.page.layout ().afterKey);
+  ASSERT_NE (key, nullptr);
+  ASSERT_TRUE (key->onTap);
+  key->onTap (0, 0);
+  EXPECT_EQ (stepped, 1);
+  ASSERT_TRUE (key->onDoubleTap);
+  key->onDoubleTap (0, 0);
+  EXPECT_TRUE (cleared);
 }
