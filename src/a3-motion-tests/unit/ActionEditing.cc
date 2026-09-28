@@ -124,3 +124,46 @@ TEST (ActionEditing, ABrokenSetOrSvgIsNotWritten)
   EXPECT_FALSE (errorsBlockSaving (wrong, bloom));
   EXPECT_FALSE (errorsBlockSaving ({}, juce::File ("/p/sessions/user/S.json")));
 }
+
+// -- Cue (library v2, 2026-09-28) ----------------------------------------------
+// A Cue button carries the clip its script names, resolved when the script is
+// put on the button -- never on the press.
+
+namespace
+{
+juce::File
+aClipsDirHolding (juce::StringArray const &names)
+{
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-cue-clips");
+  dir.deleteRecursively ();
+  dir.getChildFile ("system").createDirectory ();
+  for (auto const &n : names)
+    dir.getChildFile ("system").getChildFile (n + ".json").replaceWithText ("{}");
+  return dir;
+}
+}
+
+TEST (CueClip, NoClipLineIsNoCue)
+{
+  auto const t = cueClipFor (std::nullopt, aClipsDirHolding ({}));
+  EXPECT_FALSE (t.file.exists ());
+  EXPECT_TRUE (t.error.isEmpty ());
+}
+
+TEST (CueClip, AShippedClipIsFoundByName)
+{
+  auto const dir = aClipsDirHolding ({ "Peak Anthem" });
+  auto const t = cueClipFor (juce::String ("Peak Anthem"), dir);
+  EXPECT_EQ (t.file, dir.getChildFile ("system/Peak Anthem.json"));
+  EXPECT_TRUE (t.error.isEmpty ());
+}
+
+// Review focus 2: a clip renamed or deleted later leaves the button saying so
+// and doing nothing -- never a silent Default.
+TEST (CueClip, AMissingClipIsAnErrorAndNoCue)
+{
+  auto const t = cueClipFor (juce::String ("Peak Gone"), aClipsDirHolding ({}));
+  EXPECT_FALSE (t.file.exists ());
+  EXPECT_TRUE (t.error.contains ("Peak Gone")) << t.error;
+}

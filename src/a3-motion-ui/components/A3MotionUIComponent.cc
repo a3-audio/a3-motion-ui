@@ -2299,6 +2299,37 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       {
         // A button with nothing assigned does nothing (2026-09-27): six
         // plain accents that look assigned would be six ways to be misled.
+        // A Cue (library v2): the button's clip goes onto the channel and
+        // starts on the next downbeat -- Shift at once -- and stays there.
+        // No accent: a Cue changes what plays, not how it plays.
+        if (auto const &cue
+            = _channelActions[channel][static_cast<size_t> (button)].cueClip;
+            cue.existsAsFile ())
+          {
+            // Never over a take that is going in on this channel.
+            if (_recordingSlot.has_value () && _recordingSlot->first == channel)
+              break;
+            if (!loadClipIntoChannel (channel, cue))
+              break;
+            if (auto const &loaded = _patterns[channel][slot])
+              {
+                auto const status = loaded->getStatus ();
+                if (status != Pattern::Status::Playing
+                    && status != Pattern::Status::ScheduledForPlaying)
+                  {
+                    loaded->setPlaybackLength (getPlaybackLength (channel, slot));
+                    _engine.playPattern (loaded,
+                                         isButtonPressed (Button::Shift)
+                                             ? _now
+                                             : TempoClock::nextDownBeat (_now));
+                  }
+              }
+            refreshBrowser ();
+            updateClipSettingsDisplay ();
+            scheduleSetSave ();
+            break;
+          }
+
         auto const fired = firedActionOf (channel, button);
         if (!fired)
           break;
@@ -3020,14 +3051,16 @@ A3MotionUIComponent::putFigureInSlot (index_t channel, index_t slot, int index,
   scheduleSetSave ();
 }
 
-void
-A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+bool
+A3MotionUIComponent::loadClipIntoChannel (index_t channel,
+                                          juce::File const &clipFile)
 {
-  auto const entry = _patternLibrary->getEntry (index);
+  // One clip per channel: the slot is always the first.
+  index_t const slot = 0;
 
-  auto const clip = ClipFile::load (entry.clipFile);
+  auto const clip = ClipFile::load (clipFile);
   if (!clip.has_value ())
-    return;
+    return false;
 
   // The figure it names, if it names one. A clip is the whole playable thing
   // -- a figure and every value it is played with -- so choosing one fills
@@ -3063,7 +3096,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // no figure dropped on an empty slot leaves it plainly empty rather than
   // holding settings nothing can play.
   if (!pattern)
-    return;
+    return false;
 
   // Every value out of the clip. Sections could be held against this until
   // 2026-09-27; the locks are gone.
@@ -3073,7 +3106,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
   // the other way round.
-  setSlotClipFile (channel, slot, entry.clipFile);
+  setSlotClipFile (channel, slot, clipFile);
 
   // The bar follows what was just changed, the same as choosing a shape does.
   selectClip (channel, slot);
@@ -3082,6 +3115,17 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // write the strip's own direction and end action over the ones the preset
   // just brought.
   syncClipUIParamsFromPattern (channel, slot);
+  return true;
+}
+
+void
+A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+{
+  if (!loadClipIntoChannel (channel,
+                            _patternLibrary->getEntry (index).clipFile))
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
 
   // It keeps running if it was running. You tap a preset to hear it on the
   // clip that is playing; restarting would drop you back at the top of a
@@ -3132,6 +3176,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.errors = {};
   action.feel = ActionFeel{};
   action.scriptFeel = ActionFeel{};
+  action.cueClip = juce::File{};
 
   if (!file.existsAsFile ())
     {
@@ -3161,8 +3206,16 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.scriptFeel = actionFeelFrom (result.settings);
   action.feel = action.scriptFeel;
 
-  if (!result.errors.isEmpty ())
-    updateControlReadout (result.errors[0]);
+  // A Cue (library v2): the clip its ~clip names, found now rather than on
+  // the press. A name that no longer ships is an error on the strip and the
+  // button does nothing, the same rule as an empty button.
+  auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
+  action.cueClip = cue.file;
+  if (cue.error.isNotEmpty ())
+    action.errors.add (cue.error);
+
+  if (!action.errors.isEmpty ())
+    updateControlReadout (action.errors[0]);
 
   updateActionPage ();
   updateClipSettingsDisplay ();

@@ -370,6 +370,12 @@ private:
    *  carries. A clip written before a clip had to name a figure leaves the
    *  slot's own alone and lands only its values. */
   void applyClip (index_t channel, index_t slot, int index);
+  /** Puts a clip file on a channel -- its shape, settings, lanes and the
+   *  file it came from -- without starting it. The one route a clip takes
+   *  onto a channel: FILES Load (through applyClip) and a Cue press. False
+   *  when nothing landed: no such clip, or a clip without a figure on an
+   *  empty channel. */
+  bool loadClipIntoChannel (index_t channel, juce::File const &clipFile);
   /** Read direction and end action back out of the pattern into the strip.
    *  Both live in two places, and the pattern is the one a clip writes. */
   void syncClipUIParamsFromPattern (index_t channel, index_t slot);
@@ -824,6 +830,9 @@ private:
      *  again at every press, against the clip as it stands then, and this
      *  keeps a random action landing where it landed. */
     juce::int64 seed = 0;
+    /** The clip a Cue puts on the channel (library v2); empty for every
+     *  other action. Resolved when the script is put on the button. */
+    juce::File cueClip;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Which of a channel's six buttons the ACTION page shows and edits, and

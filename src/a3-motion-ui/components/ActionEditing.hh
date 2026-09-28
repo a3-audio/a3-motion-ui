@@ -94,4 +94,18 @@ bool errorsBlockSaving (juce::StringArray const &errors,
  *  "Bloom 2" through freeFileIn), or "Action" for one with no origin. */
 juce::String copyBaseFor (juce::File const &from);
 
+/** Where a Cue button's clip lives. `file` is empty for a script without a
+ *  `~clip` line, and for one naming a clip that does not exist -- then `error`
+ *  says which, for the editor's strip, and the button does nothing. */
+struct CueTarget
+{
+  juce::File file;
+  juce::String error;
+};
+
+/** The clip a script's `~clip` names, looked up in the clips folder the way
+ *  FILES looks it up (shipped half, then the user's). */
+CueTarget cueClipFor (std::optional<juce::String> const &clip,
+                      juce::File const &clipsDir);
+
 }
