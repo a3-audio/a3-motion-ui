@@ -1090,15 +1090,32 @@ reaches, and a pad's colour comes in already worked out by `padLEDCallback()`, t
 also writes the panel's LEDs. Empty, idle, armed and running therefore look on screen exactly as
 they look on the hardware, because one place decides what they mean.
 
-Its geometry is `ControllerLayout` — a box per channel, each holding the channel's **eight pads
-in the panel's own arrangement: two columns of four, Play|Pause top left, PAGE top right, A1–A6
-below** (A1 A2 / A3 A4 / A5 A6). A pad's identity comes from `padFunctionByPadIndex` /
+Its geometry is `ControllerLayout` — **the panel on screen, in its own proportions** (2026-09-28):
+a grid of square cells, six rows as the panel has (`InputOutputAdapterV3.hh`: the function keys in
+col0/col9 rows 0–5, the pads in rows 2–5), sized by whichever direction runs out first and centred
+in the rest. Filling both directions is what had stretched the pads tall. Each channel's **eight
+pads stand in the panel's own arrangement: two columns of four, Play|Pause top left, PAGE top
+right, A1–A6 below** (A1 A2 / A3 A4 / A5 A6). A pad's identity comes from `padFunctionByPadIndex` /
 `actionButtonForPad` in `io/PadFunctions.hh`, the same tables the panel is read with — those say
 which pad is which function; the arrangement on screen was read off the device, because only the
 hardware says where a function sits under a hand (taken from the pad-index order once, it had
-action and stop swapped). `fingertipSize` is the floor for anything hit in a hurry, and
-`controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
-for: both pages share one area, so it has to satisfy the hungrier of them.
+action and stop swapped). `fingertipSize` is the floor for anything hit in a hurry; over the
+sphere on the device a cell comes out at about 65 px. Rows 0–1 over the pads stay empty: on the
+panel the pots stand there.
+
+**The panel's function keys stand on the page too** (2026-09-28): the right-hand column (col9)
+with all six, and over the scene block, at the outer edge, the top two rows of the left column
+(col0) — TAP and clock. The scene block is the screen's own and stands where col0's rows 2–5 would
+be. Where each key stands is one table, `panelKeyPlaces` (side and panel row); what it does comes
+from its row through `functionKeyOrder`, as on the panel. A key goes down on touch and up on
+release, and lands in `setFunctionKey (key, KeySource::Screen, …)` — the same route the panel's
+Values take (`KeySource::Panel`) into `functionKeyChanged()`, the one place that says what a key
+does. `FunctionKeyHold` keeps both sources: a key is down while either holds it, and it means
+something only when that combined state changes, so SHIFT and REC held on the screen modify a pad
+exactly as held on the panel, and `isButtonPressed()` reads the same state (also in a build with no
+adapter). The keys are painted from the look the LEDs are written from (`setFunctionKeyLook()` in
+`updateFunctionKeyLEDs()`): the word in `functionKeyColour()`, the ground washed while
+`functionKeyLit()`.
 
 **A scene block stands left of the channels**, shaped like a channel: `scenes[0][pad]` fires that pad
 on every channel — Play all, each action on every channel that has it — and in PAGE's place
@@ -1303,13 +1320,9 @@ Two things this cost, both worth knowing before touching it:
   that never moved was never released, and the channel previewed forever.
 
 `SHIFT` is **held, not latched** — Shift+Action previews for as long as it is down, so a latch would
-have nothing to release — and it sits in the **global strip beside TAP**, not on the pads page: a
-modifier you have to change pages to reach is one you cannot hold while pressing what it modifies.
-`isButtonPressed()` ors the screen's state with the panel's, so nothing downstream knows or cares
-which one a hand is on. TAP keeps two thirds of that row against SHIFT's one, because it is the
-control here that has to be hit *in time* and a tempo tap that misses is worse than a modifier that
-takes a second go. Record needs no screen twin: the strip's REC button already records into the
-shown clip.
+have nothing to release. On screen it stands on the PADS page with the other five keys (see above),
+beside the pads it modifies: a modifier you have to change pages to reach is one you cannot hold
+while pressing what it modifies.
 
 #### One clip per channel, six action buttons
 

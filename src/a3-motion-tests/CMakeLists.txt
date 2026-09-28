@@ -94,6 +94,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MenuEditsInAMask.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FingerLatch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeys.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FunctionKeyHold.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerControls.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerState.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerLayout.cc"

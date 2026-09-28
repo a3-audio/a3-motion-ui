@@ -1766,8 +1766,7 @@ ClipSettingsComponent::setShiftHeld (bool held)
   if (_shiftHeld == held)
     return;
 
-  // The panel's SHIFT LED reads this; the screen has no SHIFT key since
-  // 2026-09-26.
+  // The panel's SHIFT LED and the PADS page's SHIFT key read this.
   _shiftHeld = held;
 }
 
@@ -1906,12 +1905,9 @@ ClipSettingsComponent::preferredHeight (int width) const
                                      theme ().fontSize (FontRole::Body),
                                      knobDiam);
 
-  // Both pages share this one area, so it has to satisfy the hungrier of
-  // them: on the controller page a pad that is under a fingertip is a fault,
-  // and it cannot be fixed by switching tabs.
-  auto const needed = juce::jmax (
-      wanted, controllerPreferredHeight (theme ().fontSize (FontRole::Header),
-                                         fingertipSize));
+  // The PADS page asked for room here while it lived in the bar; it stands
+  // over the sphere since 2026-09-27 and lays itself out there.
+  auto const needed = wanted;
 
   // The row of channel faces on top, unscaled: it is a row of keys, sized
   // like the bar's buttons, not a share of the bar.

@@ -276,3 +276,34 @@ TEST (FunctionKeyColours, TheFallbackIsWhateverTheCallerChose)
 
   EXPECT_EQ (readableInk (unreadable, ground, chosen), chosen);
 }
+
+// Whether a key's face is washed in its colour on the screen: while something
+// is happening -- a take running, SHIFT held, TAP pressed or on the beat, the
+// menu open. Clock and rec mode carry a value rather than a state, so their
+// word is coloured and their face never lights (2026-09-28, the PADS page's
+// keys).
+TEST (FunctionKeyColours, AKeyLightsWhileSomethingIsHappening)
+{
+  FunctionKeyLook const resting;
+  for (auto const key : functionKeyOrder)
+    EXPECT_FALSE (functionKeyLit (key, resting)) << functionKeyPosition (key);
+
+  FunctionKeyLook busy;
+  busy.recording = true;
+  busy.shiftHeld = true;
+  busy.tapPressed = true;
+  busy.menuOpen = true;
+  busy.clockMode = 2;
+  busy.recMode = 2;
+
+  EXPECT_TRUE (functionKeyLit (FunctionKey::Record, busy));
+  EXPECT_TRUE (functionKeyLit (FunctionKey::Shift, busy));
+  EXPECT_TRUE (functionKeyLit (FunctionKey::Tap, busy));
+  EXPECT_TRUE (functionKeyLit (FunctionKey::Menu, busy));
+  EXPECT_FALSE (functionKeyLit (FunctionKey::ClockMode, busy));
+  EXPECT_FALSE (functionKeyLit (FunctionKey::RecMode, busy));
+
+  FunctionKeyLook beat;
+  beat.tapBeat = true;
+  EXPECT_TRUE (functionKeyLit (FunctionKey::Tap, beat));
+}

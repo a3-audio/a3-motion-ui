@@ -21,6 +21,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdlib>
 #include <set>
 #include <vector>
 
@@ -41,6 +43,40 @@ constexpr float headerSize = 18.f;
 constexpr int buttonHeight = 34;
 
 juce::Rectangle<int> const area{ 0, 0, barWidth, barHeight };
+
+// What the page is given on the device: the area over the sphere, the whole
+// width of the 768 x 1024 screen between the status bar and the channel row.
+juce::Rectangle<int> const sphereArea{ 0, 0, 768, 586 };
+
+// A window taller than it is wide, and one far wider than tall: the page has
+// to keep the panel's proportions in both rather than stretch to fill them.
+juce::Rectangle<int> const tallArea{ 0, 0, 768, 1400 };
+juce::Rectangle<int> const wideArea{ 0, 0, 1800, 400 };
+
+std::vector<juce::Rectangle<int> >
+everyTarget (ControllerLayout const &l)
+{
+  std::vector<juce::Rectangle<int> > all;
+  for (auto const &channel : l.pads)
+    for (auto const &pad : channel)
+      all.push_back (pad);
+  for (auto const &scene : l.scenes[0])
+    all.push_back (scene);
+  for (auto const &key : l.keys)
+    all.push_back (key);
+  return all;
+}
+
+/** The keys that stand at one end of the page, by the panel row they are. */
+std::vector<std::pair<int, juce::Rectangle<int> > >
+keysAt (ControllerLayout const &l, PanelSide side)
+{
+  std::vector<std::pair<int, juce::Rectangle<int> > > out;
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    if (panelKeyPlaces[i].side == side)
+      out.emplace_back (panelKeyPlaces[i].row, l.keys[i]);
+  return out;
+}
 
 ControllerLayout
 defaultLayout ()
@@ -77,24 +113,18 @@ TEST (ControllerLayout, EveryPadSitsInTheBoxOfTheClipItFires)
 }
 
 
-// The bar is one area and both pages share it, so the page that needs more
-// room has to be able to say so. At the height it asks for, every pad is a
-// target a hand can find without looking.
-TEST (ControllerLayout, AtItsOwnHeightEveryPadIsAFingertipAcross)
+// The page stands over the sphere (2026-09-27). At the size that area has on
+// the device, every pad and every key is a target a hand can find without
+// looking.
+TEST (ControllerLayout, OverTheSphereEveryTargetIsAFingertipAcross)
 {
-  auto const height = controllerPreferredHeight (headerSize, buttonHeight);
-  auto const l
-      = layOutController ({ 0, 0, barWidth, height }, headerSize, buttonHeight);
+  auto const l = layOutController (sphereArea, headerSize, buttonHeight);
 
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-      {
-        auto const p = l.pads[channel][pad];
-        EXPECT_GE (p.getWidth (), fingertipSize)
-            << "channel " << channel << ", pad " << pad;
-        EXPECT_GE (p.getHeight (), fingertipSize)
-            << "channel " << channel << ", pad " << pad;
-      }
+  for (auto const &r : everyTarget (l))
+    {
+      EXPECT_GE (r.getWidth (), fingertipSize) << r.toString ();
+      EXPECT_GE (r.getHeight (), fingertipSize) << r.toString ();
+    }
 }
 
 
@@ -285,4 +315,141 @@ TEST (ControllerLayout, TheScenePadsStayInsideTheBarAndOffThePads)
           for (auto const &pad : layout.pads[channel])
             EXPECT_FALSE (scene.intersects (pad));
       }
+}
+
+
+// -- The panel, not a grid stretched to fill ---------------------------------
+//
+// Asked for on 2026-09-28: "die PADS sind gestretcht". A pad is square on the
+// panel, so it is square here, and the page keeps the panel's proportions in
+// whatever area it is given instead of pulling the pads tall.
+
+TEST (ControllerLayout, EveryPadSceneAndKeyIsSquare)
+{
+  for (auto const &given : { area, sphereArea, tallArea, wideArea })
+    for (auto const &r : everyTarget (layOutController (given, headerSize,
+                                                        buttonHeight)))
+      {
+        ASSERT_FALSE (r.isEmpty ()) << given.toString ();
+        EXPECT_EQ (r.getWidth (), r.getHeight ())
+            << r.toString () << " in " << given.toString ();
+      }
+}
+
+// Not stretched, and not shrunk into a corner either: the panel stands in the
+// middle of its area and fills it in the direction that runs out first --
+// what is left over there is less than half a pad.
+TEST (ControllerLayout, ThePanelStandsCentredAndFillsOneWay)
+{
+  for (auto const &given : { area, sphereArea, tallArea, wideArea })
+    {
+      auto const l = layOutController (given, headerSize, buttonHeight);
+      auto const targets = everyTarget (l);
+      auto whole = targets.front ();
+      for (auto const &r : targets)
+        whole = whole.getUnion (r);
+
+      auto const left = whole.getX () - given.getX ();
+      auto const right = given.getRight () - whole.getRight ();
+      auto const top = whole.getY () - given.getY ();
+      auto const bottom = given.getBottom () - whole.getBottom ();
+      EXPECT_LE (std::abs (left - right), 1) << given.toString ();
+      EXPECT_LE (std::abs (top - bottom), 1) << given.toString ();
+
+      auto const pad = l.pads[0][0].getWidth ();
+      EXPECT_LT (std::min (left + right, top + bottom), pad / 2)
+          << given.toString ();
+    }
+}
+
+// -- The panel's function keys -----------------------------------------------
+//
+// Asked for on 2026-09-28: "rechts fehlt noch eine reihe mit 6 vertikalen und
+// links über den grauen fehlen noch 2 buttons". On the panel the six keys are
+// a column at each end, rows 0-5, and the pads stand in rows 2-5 between them
+// (InputOutputAdapterV3.hh). A key does what its row does on the panel --
+// functionKeyOrder -- wherever it stands.
+
+TEST (ControllerLayout, TheRightHandColumnIsAllSixKeysTopToBottom)
+{
+  auto const l = defaultLayout ();
+  auto const right = keysAt (l, PanelSide::Right);
+
+  ASSERT_EQ (right.size (), static_cast<std::size_t> (numFunctionKeys));
+  for (std::size_t i = 0; i < right.size (); ++i)
+    {
+      EXPECT_EQ (right[i].first, static_cast<int> (i));
+      EXPECT_EQ (right[i].second.getX (), right[0].second.getX ());
+      EXPECT_EQ (right[i].second.getWidth (), l.pads[0][0].getWidth ());
+      if (i > 0)
+        {
+          EXPECT_GE (right[i].second.getY (),
+                     right[i - 1].second.getBottom ());
+        }
+    }
+
+  EXPECT_GE (right[0].second.getX (),
+             l.clipBoxes[numChannelColumns - 1][0].getRight ());
+}
+
+TEST (ControllerLayout, TheKeysStandInThePanelsRows)
+{
+  auto const l = defaultLayout ();
+
+  // Rows 2-5 beside the pads, level with them; rows 0 and 1 above them.
+  for (auto const &[row, key] : keysAt (l, PanelSide::Right))
+    {
+      if (row < 2)
+        {
+          EXPECT_LE (key.getBottom (), l.pads[0][0].getY ()) << row;
+          continue;
+        }
+      EXPECT_EQ (key.getY (),
+                 l.pads[0][static_cast<index_t> (row - 2)].getY ())
+          << row;
+    }
+}
+
+TEST (ControllerLayout, TwoKeysStandOverTheSceneBlockAtTheOuterEdge)
+{
+  auto const l = defaultLayout ();
+  auto const left = keysAt (l, PanelSide::Left);
+  auto const right = keysAt (l, PanelSide::Right);
+
+  ASSERT_EQ (left.size (), 2u);
+  for (auto const &[row, key] : left)
+    {
+      EXPECT_EQ (key.getX (), l.scenes[0][0].getX ()) << row;
+      EXPECT_LE (key.getBottom (), l.scenes[0][0].getY ()) << row;
+      EXPECT_EQ (key.getY (), right[static_cast<std::size_t> (row)].second.getY ())
+          << row;
+    }
+}
+
+// The top two rows of the panel's left column: TAP and clock.
+TEST (ControllerLayout, TheLeftKeysAreTapAndClock)
+{
+  std::vector<FunctionKey> left;
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    if (panelKeyPlaces[i].side == PanelSide::Left)
+      left.push_back (panelKeyFunction (i));
+
+  EXPECT_EQ (left, (std::vector<FunctionKey>{ FunctionKey::Tap,
+                                              FunctionKey::ClockMode }));
+}
+
+TEST (ControllerLayout, NoTargetOverlapsAnotherOrLeavesTheArea)
+{
+  for (auto const &given : { area, sphereArea, tallArea, wideArea })
+    {
+      auto const all
+          = everyTarget (layOutController (given, headerSize, buttonHeight));
+      for (std::size_t i = 0; i < all.size (); ++i)
+        {
+          EXPECT_TRUE (given.contains (all[i])) << all[i].toString ();
+          for (std::size_t j = i + 1; j < all.size (); ++j)
+            EXPECT_FALSE (all[i].intersects (all[j]))
+                << all[i].toString () << " overlaps " << all[j].toString ();
+        }
+    }
 }

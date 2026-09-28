@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/theme/FunctionKeyColours.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
 namespace a3
@@ -75,7 +76,19 @@ public:
   std::function<void (index_t slot, std::size_t row)> onScenePressed;
   std::function<void (index_t slot, std::size_t row)> onSceneReleased;
 
+  /** A function key on the page went down or came up (2026-09-28). Both
+   *  matter: SHIFT and REC are held as modifiers, on the screen as on the
+   *  panel. What a key does is not decided here -- it goes into the same
+   *  handling the panel's keys reach. */
+  std::function<void (FunctionKey key)> onKeyPressed;
+  std::function<void (FunctionKey key)> onKeyReleased;
+
+  /** What the function keys look like right now, from the same look the
+   *  panel's LEDs are written from. */
+  void setFunctionKeyLook (FunctionKeyLook const &look);
+
 private:
+  void paintKey (juce::Graphics &g, std::size_t index);
   void paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
                  index_t channel, index_t pad);
   void paintScene (juce::Graphics &g, index_t slot, std::size_t row);
@@ -100,6 +113,10 @@ private:
   std::array<std::array<std::unique_ptr<TouchControl>, numSceneRows>,
              numPadSlots>
       _sceneTouch;
+
+  FunctionKeyLook _keyLook;
+  std::array<bool, numPanelKeys> _keyPressed{};
+  std::array<std::unique_ptr<TouchControl>, numPanelKeys> _keyTouch;
 };
 
 }

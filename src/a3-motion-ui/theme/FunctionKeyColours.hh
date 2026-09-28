@@ -60,6 +60,12 @@ struct FunctionKeyLook
  */
 juce::Colour functionKeyColour (FunctionKey key, FunctionKeyLook const &look);
 
+/** Whether a key is in a state rather than at rest: a take running, SHIFT
+ *  held, TAP pressed or on the beat, the menu open. Clock and rec mode carry a
+ *  value, not a state, and never light. Read by the screen's function keys,
+ *  which wash their face while it holds. */
+bool functionKeyLit (FunctionKey key, FunctionKeyLook const &look);
+
 /** What a rec mode looks like. How much of an old take a pass will destroy,
  *  said as a colour: Touch mends, Latch holds, Write clears. Its own function
  *  because the mode is shown on a key *and* as a value, and a mode meaning one
