@@ -5,6 +5,9 @@
 // step there is, so the whole shape goes round underneath the blob. Bounce
 // at the end, because a whirl that stops dead reads as a fault.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

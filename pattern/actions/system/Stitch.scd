@@ -9,6 +9,9 @@
 // Only a take with holes in it hears this at all -- a figure has none -- which
 // is what makes it the one to reach for over a recording.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

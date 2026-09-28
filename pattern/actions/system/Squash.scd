@@ -9,6 +9,9 @@
 // The sweeps go with them. A squeeze that only stood still would be a
 // different figure; one that breathes is the same figure being leant on.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

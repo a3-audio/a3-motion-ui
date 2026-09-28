@@ -171,6 +171,21 @@ public:
                         !sawPoint);
   }
 
+  /** Text between double quotes -- a clip's name, the only text there is. */
+  juce::String
+  takeString ()
+  {
+    expect ('"');
+    auto const from = _at;
+    while (_at < _text.length () && _text[_at] != '"')
+      ++_at;
+    if (_at >= _text.length ())
+      fail ("the text has no closing \"");
+    auto const text = _text.substring (from, _at);
+    ++_at;
+    return text;
+  }
+
 private:
   juce::String _text;
   int _at = 0;
@@ -588,6 +603,10 @@ private:
     if (juce::CharacterFunctions::isLetter (c))
       return word ();
 
+    if (c == '"')
+      fail ("text goes on ~clip only; everything else is a number or a "
+            "\\word");
+
     fail ("expected a value");
   }
 
@@ -706,6 +725,22 @@ runActionScript (juce::String const &source, ClipSettings const &current,
             fail ("a line sets a name, so it starts with ~");
 
           auto const name = reader.takeWord ();
+
+          // A Cue (library v2): the clip it puts on the channel, by name.
+          // Not a ClipSettings field -- it says which clip, not how one plays.
+          if (name == "clip")
+            {
+              reader.expect ('=');
+              if (reader.peek () != '"')
+                fail ("~clip takes a clip's name in quotes");
+              auto const clip = reader.takeString ();
+              reader.takeIf (';');
+              if (!reader.atEnd ())
+                fail ("more on the line than one assignment");
+              out.clip = clip;
+              continue;
+            }
+
           auto const *field = findField (name);
           if (field == nullptr)
             fail ("no such name: ~" + name);
@@ -756,6 +791,8 @@ actionScriptNotes ()
   // then what ACT does to it. A performer learns the page and finds the same
   // order in the file.
   static std::vector<ActionScriptNote> const list{
+    { "clip", "Cue", "\"name\"",
+      "puts that clip on the channel, from the next downbeat" },
     { "speedLog2", "Shape", speedRange.c_str (),
       "how fast, as a power of two; -3 is the 1/8" },
 
@@ -864,7 +901,8 @@ renderScript (ClipSettings const &settings, bool commented)
   for (auto const &note : actionScriptNotes ())
     {
       auto const *field = fieldNamed (note.name);
-      if (field == nullptr)
+      auto const isClip = juce::String (note.name) == "clip";
+      if (field == nullptr && !isClip)
         continue;
 
       if (heading != note.heading)
@@ -877,9 +915,12 @@ renderScript (ClipSettings const &settings, bool commented)
                          "-", juce::jmax (1, 64 - heading.length ())));
         }
 
-      auto assignment = juce::String (commented ? "//~" : "~")
-                        + note.name + " = "
-                        + writtenValue (field->get (settings)) + ";";
+      // A clip line has no value in a ClipSettings to write: it is offered,
+      // commented out, as the line a Cue uncomments.
+      auto assignment
+          = isClip ? juce::String ("//~clip = \"\";")
+                   : juce::String (commented ? "//~" : "~") + note.name
+                         + " = " + writtenValue (field->get (settings)) + ";";
 
       while (assignment.length () < annotationColumn)
         assignment += " ";

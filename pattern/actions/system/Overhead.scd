@@ -4,6 +4,9 @@
 // Base at the north pole with a short reach keeps the whole trajectory in
 // the top of the sphere, and the turn keeps it from sitting still up there.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

@@ -5,6 +5,9 @@
 // weight rather than height -- useful under a breakdown that has to feel
 // like it is below you.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

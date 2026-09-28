@@ -6,6 +6,9 @@
 // only the 3d swells underneath it. The action to reach for when the
 // movement is already right and the moment only needs weight.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

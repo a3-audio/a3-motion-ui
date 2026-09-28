@@ -5,6 +5,9 @@
 // zero lifts the whole clip over the listener rather than moving it through
 // them. Slow attack, because a rise you can hear arriving is the point.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

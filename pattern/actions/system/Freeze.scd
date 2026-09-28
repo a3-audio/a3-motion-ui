@@ -4,6 +4,9 @@
 // No spin, no swell, no sway, and the height pinned: only the recorded
 // figure itself still moves.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

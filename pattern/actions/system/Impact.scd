@@ -4,6 +4,9 @@
 // No attack at all and the longest decay: the room opens in the instant the
 // drop lands and takes four bars to settle. The partner of Riser.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

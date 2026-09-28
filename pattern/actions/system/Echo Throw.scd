@@ -5,6 +5,9 @@
 // away. Here the figure turns round, bounces at its ends, glides through its
 // gaps, and the filter decays with it over four bars.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

@@ -7,6 +7,9 @@
 // The pace as well as the movement -- it is called Twice. One power of two
 // down is half the bars per cycle, which is twice as fast.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 ~speedLog2 = ~speedLog2 - 1;// -7..4   how fast, as a power of two; -3 is the 1/8
 

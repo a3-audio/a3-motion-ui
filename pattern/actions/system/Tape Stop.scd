@@ -4,6 +4,9 @@
 // The slowest speed, no spin, and a pause at the end of the pass: the figure
 // slows to a halt the way a tape does when the motor stops.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 ~speedLog2 = 4;          // -7..4   how fast, as a power of two; -3 is the 1/8
 

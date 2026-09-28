@@ -24,6 +24,7 @@
 
 #include <JuceHeader.h>
 
+#include <optional>
 #include <vector>
 
 namespace a3
@@ -69,6 +70,9 @@ struct ActionScriptResult
   ClipSettings settings;
   /** One line each, naming the line number and what was wrong with it. */
   juce::StringArray errors;
+  /** The clip a Cue action puts on the channel (`~clip = "Name";`), by name,
+   *  the way a set names its clips. Empty for every other action. */
+  std::optional<juce::String> clip;
 };
 
 /** Read a script and work out what it makes of the settings it is given.

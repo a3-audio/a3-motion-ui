@@ -5,6 +5,9 @@
 // putting it at one and taking the attack up to two bars is a room that
 // widens for as long as you keep the pad down.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

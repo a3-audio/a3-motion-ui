@@ -3,6 +3,9 @@
 //
 // Accelerate read the other way: one step slower on the power-of-two table.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 ~speedLog2 = ~speedLog2 + 1;// -7..4   how fast, as a power of two; -3 is the 1/8
 

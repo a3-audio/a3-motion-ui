@@ -4,6 +4,9 @@
 // The opposite of Slam: the sound collapses to a spot instead of filling the
 // room, and the resonance carries what little length there is.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

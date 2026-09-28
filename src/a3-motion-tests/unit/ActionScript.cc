@@ -604,3 +604,48 @@ TEST (ActionScript, TheTemplateNamesEverythingAndChangesNothing)
   EXPECT_EQ (result.settings.spin, 5);
   EXPECT_FLOAT_EQ (result.settings.reach, 0.25f);
 }
+
+// -- ~clip (library v2, 2026-09-28) --------------------------------------------
+// A Cue action names the clip it puts on the channel. It is the only place the
+// language takes text.
+
+TEST (ActionScript, AClipLineNamesAClip)
+{
+  auto const r = runActionScript ("~clip = \"Peak Anthem\";", ClipSettings{}, 1);
+  EXPECT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("\n");
+  ASSERT_TRUE (r.clip.has_value ());
+  EXPECT_EQ (*r.clip, "Peak Anthem");
+}
+
+TEST (ActionScript, AScriptWithoutAClipLineNamesNone)
+{
+  EXPECT_FALSE (runActionScript ("~spin = 3;", ClipSettings{}, 1).clip.has_value ());
+}
+
+TEST (ActionScript, TextGoesOnlyOnTheClipLine)
+{
+  auto const r = runActionScript ("~reach = \"far\";", ClipSettings{}, 1);
+  ASSERT_EQ (r.errors.size (), 1);
+  EXPECT_TRUE (r.errors[0].contains ("text")) << r.errors[0];
+}
+
+TEST (ActionScript, TheClipLineTakesTextOnly)
+{
+  auto const r = runActionScript ("~clip = 3;", ClipSettings{}, 1);
+  ASSERT_EQ (r.errors.size (), 1);
+  EXPECT_FALSE (r.clip.has_value ());
+}
+
+// Review focus 5: the comment cut comes first, so text can't carry "//"; an
+// unclosed quote is reported rather than read to the end of the line.
+TEST (ActionScript, AnUnclosedTextIsReported)
+{
+  auto const r = runActionScript ("~clip = \"Peak Anthem;", ClipSettings{}, 1);
+  ASSERT_EQ (r.errors.size (), 1);
+  EXPECT_TRUE (r.errors[0].contains ("closing")) << r.errors[0];
+}
+
+TEST (ActionScript, TheTemplateOffersTheClipLineCommentedOut)
+{
+  EXPECT_TRUE (actionScriptFor (ClipSettings{}).contains ("//~clip = \"\";"));
+}

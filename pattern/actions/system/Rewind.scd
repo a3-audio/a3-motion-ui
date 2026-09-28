@@ -4,6 +4,9 @@
 // Reversing a movement is the cheapest way to make a familiar clip
 // unfamiliar, and at double speed it lands back where it started.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 ~speedLog2 = ~speedLog2 + 1;// -7..4   how fast, as a power of two; -3 is the 1/8
 

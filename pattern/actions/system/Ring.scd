@@ -5,6 +5,9 @@
 // towards it, which leaves a horizontal ring however tall the recorded
 // movement was. The one action that makes any clip sound like the same clip.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 

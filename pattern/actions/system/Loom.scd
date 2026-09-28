@@ -5,6 +5,9 @@
 // all when it is already dark. The figure pulls in to a point while the 3d
 // rises slowly underneath -- the slow attack is the approach.
 
+// ---- Cue -------------------------------------------------------------
+//~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
+
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
 
