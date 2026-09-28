@@ -34,6 +34,22 @@ TEST (OverlayStrips, TheMenuAndTheSkinEditorGetTheStrips)
   EXPECT_TRUE (sideStripsHaveAList (false, true, false, SphereOverlay::None));
 }
 
+// The skin panel stands in front of the menu without being a list: its bars
+// are dragged sideways, and a strip beside it would be a fifth of the window
+// taking drags for a menu nobody can see. The full list, opened from the
+// panel, is a list again.
+TEST (OverlayStrips, TheSkinPanelIsNotAList)
+{
+  EXPECT_TRUE (menuListIsInFront (true, false));
+  EXPECT_FALSE (menuListIsInFront (true, true));
+  EXPECT_FALSE (menuListIsInFront (false, false));
+
+  EXPECT_FALSE (sideStripsHaveAList (menuListIsInFront (true, true), false,
+                                     false, SphereOverlay::None));
+  EXPECT_TRUE (sideStripsHaveAList (menuListIsInFront (true, true), true,
+                                    false, SphereOverlay::None));
+}
+
 // Nothing open, nothing to walk.
 TEST (OverlayStrips, WithNoListOpenThereAreNoStrips)
 {

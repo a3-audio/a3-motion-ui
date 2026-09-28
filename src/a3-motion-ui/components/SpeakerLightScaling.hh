@@ -169,6 +169,11 @@ float beamAngleAtLevel (float level, float quietAngleDegrees,
  *  clipped. */
 bool speakerIconsFitOnScreen (float sphereScale, float speakerRadius);
 
+/** How far the picture reaches either side of the sphere's centre, in sphere
+ *  radii: the ball itself, or the towers beside it where they stand further
+ *  out. The same reach speakerIconsFitOnScreen() tests against. */
+float speakerSceneReach (float speakerRadius);
+
 /** Spread of a beam per unit of travel, for a given cone width. */
 float beamSpreadTangent (float width);
 

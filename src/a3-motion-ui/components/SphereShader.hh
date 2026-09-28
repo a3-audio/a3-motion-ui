@@ -351,6 +351,7 @@ private:
   GLint _uBlobTrailD[kMaxBlobs] = {};   // vec4: t6.xy, t7.xy
   GLint _uActionColour = -1;
   GLint _uBlobEffects = -1;
+  GLint _uSphereGrid = -1;
 
   GLint _uLineMap[kMaxBlobs] = {};
   GLint _uStrandMap[kMaxBlobs] = {};

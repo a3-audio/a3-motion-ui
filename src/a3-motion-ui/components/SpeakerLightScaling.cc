@@ -59,22 +59,36 @@ constexpr float maxBeamAngleDegrees = 85.f;
 constexpr float degToRad = 3.14159265358979323846f / 180.f;
 }
 
+namespace
+{
+/** How far the towers reach from the centre along a screen axis.
+ *
+ *  The speakers sit on the diagonals, so what a vertical screen edge sees of
+ *  a speaker at `speakerRadius` is only cos(45) of it — and the icon, a
+ *  square rotated to face the centre, reaches cos(45) of its own side beyond
+ *  its centre along that same axis. Adding the radius whole, as if the
+ *  speaker sat on the axis, put the limit at 0.625 and refused scales that
+ *  leave 50 px of clear background on either side. */
+float
+towerReach (float speakerRadius)
+{
+  auto constexpr cos45 = 0.7071068f;
+  return cos45 * (speakerRadius + speakerIconSize);
+}
+}
+
+float
+speakerSceneReach (float speakerRadius)
+{
+  return std::max (1.f, towerReach (speakerRadius));
+}
+
 bool
 speakerIconsFitOnScreen (float sphereScale, float speakerRadius)
 {
-  auto constexpr cos45 = 0.7071068f;
-
-  // The speakers sit on the diagonals, so what a vertical screen edge sees of
-  // a speaker at `speakerRadius` is only cos(45) of it — and the icon, a
-  // square rotated to face the centre, reaches cos(45) of its own side beyond
-  // its centre along that same axis. Adding the radius whole, as if the
-  // speaker sat on the axis, put the limit at 0.625 and refused scales that
-  // leave 50 px of clear background on either side.
-  auto const reach = cos45 * (speakerRadius + speakerIconSize);
-
   // Normalised 1.0 is half the shorter side times sphereScale (see
   // MotionComponent::updateBoundsAndTransform), so this is the whole test.
-  return sphereScale * reach < 1.f;
+  return sphereScale * towerReach (speakerRadius) < 1.f;
 }
 
 float

@@ -202,6 +202,7 @@ uniform vec4  uBlobTrailD3;
 uniform vec3  uActionColour;
 // How much of each of the blob's three effects there is: sparkle, bolt, wake.
 uniform vec3  uBlobEffects;
+uniform float uSphereGrid;    // how bright the graticule is, 0 for none
 
 // Where each channel's trajectory is. See SphereShader::setLineTexture.
 uniform sampler2D uLineMap0;
@@ -2122,7 +2123,7 @@ void main ()
                    * max (cos (lat), 0.02);
 
         float wf = 1.0 - smoothstep (0.004, 0.014, min (latD, lonD));
-        colSurf += vec3 (wf * 0.08 * (1.0 - fresnel * 0.8));
+        colSurf += vec3 (wf * 0.08 * uSphereGrid * (1.0 - fresnel * 0.8));
 
         // Energy arriving from the direction this pixel stands for. This is
         // the whole field, not four loudspeakers, so it carries height as well.
@@ -2434,6 +2435,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobTrailD[3] = glGetUniformLocation (pid, "uBlobTrailD3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
   _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
+  _uSphereGrid    = glGetUniformLocation (pid, "uSphereGrid");
   _uLineMap[0]    = glGetUniformLocation (pid, "uLineMap0");
   _uLineMap[1]    = glGetUniformLocation (pid, "uLineMap1");
   _uLineMap[2]    = glGetUniformLocation (pid, "uLineMap2");
@@ -2758,6 +2760,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   }
 
   setThemeUniform (_uActionColour, theme ().blobAction);
+  if (_uSphereGrid >= 0)
+    glUniform1f (_uSphereGrid, theme ().sphereGrid);
   if (_uBlobEffects >= 0)
     glUniform3f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
                  theme ().blobTrail);

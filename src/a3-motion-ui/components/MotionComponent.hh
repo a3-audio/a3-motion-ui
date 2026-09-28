@@ -126,6 +126,11 @@ public:
    *  while the encoder turns; only the press makes it the skin's. */
   void setSphereScalePreview (float scale);
 
+  /** Keep the leftmost `pixels` of the component free: the sphere moves over
+   *  into what is left (sphereRegion). The skin panel stands there while
+   *  it is open, so what is being tuned stays in view. Zero is the middle. */
+  void setSphereLeftInset (int pixels);
+
   void setRenderingPaused (bool paused);
 
   // VU-driven lighting: sphere glow and speaker spotlights
@@ -315,6 +320,10 @@ private:
   // Read every frame on the GL thread; the menu previews into it from the
   // message thread while the encoder turns.
   std::atomic<float> _sphereScale{ 0.62f };
+  /** Read on the GL thread, set from the message thread. */
+  std::atomic<int> _sphereLeftInset{ 0 };
+  /** Where the towers stand, for how wide the picture is beside the panel. */
+  std::atomic<float> _speakerRadius{ 1.55f };
   float _blobScale = 0.05f;
 
   /** How the take's underlay is drawn: how far it fades back behind the trail

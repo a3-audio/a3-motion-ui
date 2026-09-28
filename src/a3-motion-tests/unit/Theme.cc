@@ -152,6 +152,21 @@ TEST (Theme, WhatTheLineBurnsWithIsOfferedToTheSkinEditor)
     EXPECT_TRUE (defaults.hasProperty (name)) << name;
 }
 
+// The graticule was compiled in at 0.08 -- the one thing on the ball the skin
+// could not turn down, and so the one a switch could not reach. One is what
+// it always drew, and a skin that does not say keeps drawing it.
+TEST (Theme, TheSpheresGridIsASkinValue)
+{
+  EXPECT_FLOAT_EQ (loadTheme (juce::var ()).sphereGrid, 1.f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::JSON::parse (R"({"sphereGrid": 0.0})"))
+                       .sphereGrid,
+                   0.f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::JSON::parse (R"({"sphereGrid": 1.6})"))
+                       .sphereGrid,
+                   1.6f);
+  EXPECT_TRUE (themeDefaultsVar ().hasProperty ("sphereGrid"));
+}
+
 TEST (Theme, SizesAndAlphasComeFromTheSkinToo)
 {
   auto const parsed = juce::JSON::parse (
