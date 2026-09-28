@@ -61,4 +61,16 @@ actionKnobSpec (int control)
   return { 1.0, 0.0, control == 2 ? 0.5 : 0.0 };
 }
 
+/** The script line an ACTION control writes (2026-09-29), by the page's
+ *  control order: attack, decay, ceiling for 3d, freq and q, then the mode. */
+constexpr char const *
+actionControlScriptName (int control)
+{
+  constexpr char const *names[] = { "attack",     "decay",     "envelopeMax",
+                                    "freqAttack", "freqDecay", "freqMax",
+                                    "qAttack",    "qDecay",    "qMax",
+                                    "act" };
+  return control >= 0 && control < 10 ? names[control] : "";
+}
+
 }

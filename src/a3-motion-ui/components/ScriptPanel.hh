@@ -61,6 +61,10 @@ public:
   void setScript (juce::String const &script);
   /** Text that is on no disk yet (FROM CLIP): in, and marked unsaved. */
   void offerScript (juce::String const &script);
+  /** ACTION wrote into the script this shows (2026-09-29): in even while it
+   *  is being typed into, the caret kept on its line, the unsaved mark left
+   *  as it was. */
+  void applyEdit (juce::String const &text);
   juce::String script () const { return _document.getAllContent (); }
   bool hasUnsavedChanges () const;
   /** What is shown is on disk now. Called by the host once the file is

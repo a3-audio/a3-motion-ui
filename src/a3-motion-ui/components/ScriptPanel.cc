@@ -263,6 +263,27 @@ ScriptPanel::offerScript (juce::String const &script)
   repaint ();
 }
 
+void
+ScriptPanel::applyEdit (juce::String const &text)
+{
+  // ACTION wrote into the script this shows (2026-09-29). In even while it
+  // is being typed into -- the edit is to one line, and what was typed stays
+  // because the host applied the same line change to this very text.
+  if (text == _document.getAllContent ())
+    return;
+  auto const wasSaved = !hasUnsavedChanges ();
+  auto const caret = _editor != nullptr
+                         ? _editor->getCaretPos ().getLineNumber ()
+                         : 0;
+  _document.replaceAllContent (text);
+  if (_editor != nullptr)
+    _editor->moveCaretTo (juce::CodeDocument::Position (_document, caret, 0), false);
+  if (wasSaved)
+    _document.setSavePoint ();
+  repaint ();
+  notifyKeys ();
+}
+
 bool
 ScriptPanel::hasUnsavedChanges () const
 {
