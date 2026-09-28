@@ -1354,6 +1354,30 @@ actions to A1/A2. On the first start of the new build `migrateTwoSlotSets()` cop
 set to `pattern/backup-two-slots/` once — the debounced save and `renameInSets()` would otherwise
 truncate them all within a minute.
 
+**A Cue loads a clip** (library v2, 2026-09-28):
+- **Script:** a line `~clip = "Name";` makes the button a Cue. It is the only place the language
+  takes text.
+- **Assignment:** `cueClipFor()` resolves the name when the script is put on the button. An
+  unknown name is an error in the strip, and the button does nothing.
+- **Press:** the clip goes onto the channel through `loadClipIntoChannel()`, the one route FILES
+  Load takes too (`applyClip` calls it and then starts what stopped). It starts on the next
+  downbeat, or at once with Shift.
+- **No accent:** a Cue changes what plays, not how it plays. It does nothing while a take is going
+  in on that channel.
+
+**The shipped library** is 50 shapes, 50 clips (plus the shapeless `Default` fallback), 50 actions
+and 10 sets:
+- **Names:**
+  - shapes are `<Family> <Name>`: Rhythm, Orbit, Loop, Spiral, Flower, Cycle, Edge, Wander;
+  - clips are `<Phase> <Name>` and sets are the phases of a night: Warmup, Groove, Build, Peak,
+    Drop, Break, Dub, Deep, Float, Closing;
+  - actions are `<Kind> <Name>`: Move, Lift, Width, Speed, Dub, FX, Cue.
+- **Only FX changes the sound:** every other action writes all three ceilings as 0, and
+  `ShippedLibrary.OnlyFXChangesTheSound` holds it.
+- **Every set's buttons stand the same way:** A5 is the FX and A6 the Cue into the next phase.
+- **The content is generated:** by `tools/library-v2/{clips,actions,sets}.py` from the tables in
+  the spec, and the shapes by `a3-pattern-gen`, whose table is the source of their names.
+
 **The build fails on a forgotten enum case** (`-Werror=switch` on the UI target). The rewrite of
 `handlePadPress()` dropped the whole Play|Pause case; gcc said so with `-Wswitch`, and the line
 drowned in the float-equal warnings. Do not silence it with a `default:`.
