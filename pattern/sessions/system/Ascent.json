@@ -7,26 +7,26 @@
       "q": 0.15,
       "slots": [
         {
-          "pattern": "Triangle",
-          "clip": "Tide",
+          "pattern": "Riser",
+          "clip": "Hands Up",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Twice"
+          "script": "Riser"
         },
         {
-          "script": "Half"
+          "script": "Narrow"
         },
         {
-          "script": "Bloom"
+          "script": "Impact"
         },
         {
           "script": "Halt"
@@ -39,26 +39,26 @@
       "q": 0.15,
       "slots": [
         {
-          "pattern": "Epicycloid 7-3",
-          "clip": "Carousel",
+          "pattern": "Trefoil",
+          "clip": "Euphoria",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Twice"
+          "script": "Riser"
         },
         {
-          "script": "Half"
+          "script": "Narrow"
         },
         {
-          "script": "Bloom"
+          "script": "Impact"
         },
         {
           "script": "Halt"
@@ -71,26 +71,26 @@
       "q": 0.15,
       "slots": [
         {
-          "pattern": "Circle",
-          "clip": "Halo",
+          "pattern": "Clover",
+          "clip": "Groove Wheel",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Twice"
+          "script": "Riser"
         },
         {
-          "script": "Half"
+          "script": "Narrow"
         },
         {
-          "script": "Bloom"
+          "script": "Impact"
         },
         {
           "script": "Halt"
@@ -110,19 +110,19 @@
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Twice"
+          "script": "Riser"
         },
         {
-          "script": "Half"
+          "script": "Narrow"
         },
         {
-          "script": "Bloom"
+          "script": "Impact"
         },
         {
           "script": "Halt"

@@ -6,29 +6,29 @@
       "q": 0.3,
       "slots": [
         {
-          "pattern": "Arc",
-          "clip": "Standstill",
+          "pattern": "Diamond",
+          "clip": "Monolith",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Loom"
         },
         {
-          "script": "Shrink"
+          "script": "Freeze"
         },
         {
           "script": "Sweep"
         },
         {
-          "script": "Flatten"
+          "script": "Recede"
         },
         {
-          "script": "Quarter"
+          "script": "Riser"
         },
         {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     },
@@ -38,29 +38,29 @@
       "q": 0.3,
       "slots": [
         {
-          "pattern": "Epicycloid 7-3",
-          "clip": "Dome",
+          "pattern": "Collapse",
+          "clip": "Undertow",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Loom"
         },
         {
-          "script": "Shrink"
+          "script": "Freeze"
         },
         {
           "script": "Sweep"
         },
         {
-          "script": "Flatten"
+          "script": "Recede"
         },
         {
-          "script": "Quarter"
+          "script": "Riser"
         },
         {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     },
@@ -71,28 +71,28 @@
       "slots": [
         {
           "pattern": "Wave",
-          "clip": "Ebb",
+          "clip": "Lurk",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Loom"
         },
         {
-          "script": "Shrink"
+          "script": "Freeze"
         },
         {
           "script": "Sweep"
         },
         {
-          "script": "Flatten"
+          "script": "Recede"
         },
         {
-          "script": "Quarter"
+          "script": "Riser"
         },
         {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     },
@@ -102,29 +102,29 @@
       "q": 0.3,
       "slots": [
         {
-          "pattern": "Orbit",
-          "clip": "Equator",
+          "pattern": "Arc",
+          "clip": "Standstill",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Loom"
         },
         {
-          "script": "Shrink"
+          "script": "Freeze"
         },
         {
           "script": "Sweep"
         },
         {
-          "script": "Flatten"
+          "script": "Recede"
         },
         {
-          "script": "Quarter"
+          "script": "Riser"
         },
         {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     }

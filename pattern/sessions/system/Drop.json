@@ -7,14 +7,14 @@
       "q": 0.35,
       "slots": [
         {
-          "pattern": "Epicycloid 3-1",
-          "clip": "Whirlwind",
+          "pattern": "Vortex",
+          "clip": "Maelstrom",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Slam"
+          "script": "Impact"
         },
         {
           "script": "Sink"
@@ -29,7 +29,7 @@
           "script": "Whirl"
         },
         {
-          "script": "Halt"
+          "script": "Tape Stop"
         }
       ]
     },
@@ -39,14 +39,14 @@
       "q": 0.35,
       "slots": [
         {
-          "pattern": "Corner",
-          "clip": "Flutter",
+          "pattern": "Pendulum",
+          "clip": "Siren",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Slam"
+          "script": "Impact"
         },
         {
           "script": "Sink"
@@ -61,12 +61,44 @@
           "script": "Whirl"
         },
         {
-          "script": "Halt"
+          "script": "Tape Stop"
         }
       ]
     },
     {
       "threeD": 0.57,
+      "freq": 0.45,
+      "q": 0.35,
+      "slots": [
+        {
+          "pattern": "Square",
+          "clip": "Warehouse",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Impact"
+        },
+        {
+          "script": "Sink"
+        },
+        {
+          "script": "Stab"
+        },
+        {
+          "script": "Squash"
+        },
+        {
+          "script": "Whirl"
+        },
+        {
+          "script": "Tape Stop"
+        }
+      ]
+    },
+    {
+      "threeD": 0.59,
       "freq": 0.45,
       "q": 0.35,
       "slots": [
@@ -78,7 +110,7 @@
       ],
       "actions": [
         {
-          "script": "Slam"
+          "script": "Impact"
         },
         {
           "script": "Sink"
@@ -93,39 +125,7 @@
           "script": "Whirl"
         },
         {
-          "script": "Halt"
-        }
-      ]
-    },
-    {
-      "threeD": 0.59,
-      "freq": 0.45,
-      "q": 0.35,
-      "slots": [
-        {
-          "pattern": "Zigzag",
-          "clip": "Seesaw",
-          "recordLengthLog2": 3
-        }
-      ],
-      "actions": [
-        {
-          "script": "Slam"
-        },
-        {
-          "script": "Sink"
-        },
-        {
-          "script": "Stab"
-        },
-        {
-          "script": "Squash"
-        },
-        {
-          "script": "Whirl"
-        },
-        {
-          "script": "Halt"
+          "script": "Tape Stop"
         }
       ]
     }
