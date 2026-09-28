@@ -721,22 +721,21 @@ ActionComponent::paintAfterKey (juce::Graphics &g)
 void
 ActionComponent::paintAudioRowNames (juce::Graphics &g)
 {
-  switch (_tile)
-    {
-    case ActionTile::Audio: paintAudioRowNames (g); break;
-    case ActionTile::Motion: paintMotionTile (g); break;
-    }
-  paintTileKeys (g);
-  paintAfterKey (g);
-
-  // The chosen button's action is running: the card says so in the white
-  // its field and its pad wear, so what the page shows reads as live.
-  if (_runningButton >= 0 && _runningButton == _chosenButton)
-    {
-      g.setColour (toColour (theme ().textPrimary));
-      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
-                              theme ().strokeThick);
-    }
+  // Which row is which, said once each rather than on every knob.
+  // "3d", not "accent": what the row drives is the channel's 3d, and naming
+  // it after the thing it moves puts it in the same words as the global
+  // strip's rows -- which is where the eye has already learned them.
+  char const *const rowNames[] = { "3d", caption::frequency, "q" };
+  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What a row's name ("3d", "freq", "q") may cost.
+  constexpr float rowNameCap = 14.f;
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    g.drawText (rowNames[row],
+                _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
+                    juce::roundToInt (theme ().paddingSmall)),
+                juce::Justification::centredRight);
 }
 
 void
@@ -902,6 +901,16 @@ ActionComponent::paint (juce::Graphics &g)
     case ActionTile::Motion: paintMotionTile (g); break;
     }
   paintTileKeys (g);
+  paintAfterKey (g);
+
+  // The chosen button's action is running: the card says so in the white
+  // its field and its pad wear, so what the page shows reads as live.
+  if (_runningButton >= 0 && _runningButton == _chosenButton)
+    {
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
+                              theme ().strokeThick);
+    }
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
   // two places is a knob that lies about what it can do. It stands under
