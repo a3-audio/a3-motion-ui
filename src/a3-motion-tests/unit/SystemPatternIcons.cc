@@ -274,10 +274,17 @@ isDeliberatelyOffCentre (juce::String const &name)
   // into it, one way, and a spin turns them about that anchor, which is the
   // point. Their outer turns carry more path than the inner ones, so the
   // centre of their path always lies off to one side.
-  return name.contains ("Arc") || name.contains ("Petal")
-         || name.contains ("Orbit") || name.contains ("Random")
-         || name.contains ("Riser") || name.contains ("Collapse")
-         || name.contains ("Vortex");
+  //
+  // Library v2 (2026-09-28): exact names, because a family word would excuse
+  // a whole family ("Orbit" now names six shapes). Random left the library.
+  static juce::StringArray const anchored{
+    "Orbit Arc",    "Flower Petal",    "Orbit Kepler",
+    "Spiral Riser", "Spiral Collapse", "Spiral Vortex",
+  };
+  for (auto const &shape : anchored)
+    if (name.contains (shape.replaceCharacter (' ', '_')))
+      return true;
+  return false;
 }
 }
 
