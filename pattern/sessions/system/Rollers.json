@@ -7,29 +7,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Epicycloid 7-3",
-          "clip": "Carousel",
+          "pattern": "Clave 3-2",
+          "clip": "Clave",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Twice"
+          "script": "Accelerate"
         },
         {
-          "script": "Half"
+          "script": "Decelerate"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Whirl"
+          "script": "Spin Up"
         },
         {
-          "script": "Unwind"
+          "script": "Mirror"
         }
       ]
     },
@@ -39,29 +39,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Heart",
-          "clip": "Double Time",
+          "pattern": "Tresillo",
+          "clip": "Tresillo Drive",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Twice"
+          "script": "Accelerate"
         },
         {
-          "script": "Half"
+          "script": "Decelerate"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Whirl"
+          "script": "Spin Up"
         },
         {
-          "script": "Unwind"
+          "script": "Mirror"
         }
       ]
     },
@@ -71,29 +71,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Zigzag",
-          "clip": "Seesaw",
+          "pattern": "Epicycloid 7-3",
+          "clip": "Carousel",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Twice"
+          "script": "Accelerate"
         },
         {
-          "script": "Half"
+          "script": "Decelerate"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Whirl"
+          "script": "Spin Up"
         },
         {
-          "script": "Unwind"
+          "script": "Mirror"
         }
       ]
     },
@@ -103,29 +103,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Orbit",
-          "clip": "Equator",
+          "pattern": "Ping Pong",
+          "clip": "Call and Response",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Twice"
+          "script": "Accelerate"
         },
         {
-          "script": "Half"
+          "script": "Decelerate"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ring"
+          "script": "Settle"
         },
         {
-          "script": "Whirl"
+          "script": "Spin Up"
         },
         {
-          "script": "Unwind"
+          "script": "Mirror"
         }
       ]
     }

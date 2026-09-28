@@ -70,6 +70,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LibraryKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionEditing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PadFunctions.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternShapes.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptPanelLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptPanel.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SplitFolder.cc"

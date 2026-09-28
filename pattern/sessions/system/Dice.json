@@ -6,6 +6,70 @@
       "q": 0.2,
       "slots": [
         {
+          "pattern": "Random",
+          "clip": "Random Walk",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Scatter"
+        },
+        {
+          "script": "Stitch"
+        },
+        {
+          "script": "Tilt Up"
+        },
+        {
+          "script": "Mirror"
+        },
+        {
+          "script": "Twice"
+        },
+        {
+          "script": "Halt"
+        }
+      ]
+    },
+    {
+      "threeD": 0.4,
+      "freq": 0.45,
+      "q": 0.2,
+      "slots": [
+        {
+          "pattern": "Arc",
+          "clip": "Scan",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Scatter"
+        },
+        {
+          "script": "Stitch"
+        },
+        {
+          "script": "Tilt Up"
+        },
+        {
+          "script": "Mirror"
+        },
+        {
+          "script": "Twice"
+        },
+        {
+          "script": "Halt"
+        }
+      ]
+    },
+    {
+      "threeD": 0.42,
+      "freq": 0.45,
+      "q": 0.2,
+      "slots": [
+        {
           "pattern": "Orbit",
           "clip": "Dice",
           "recordLengthLog2": 3
@@ -19,45 +83,13 @@
           "script": "Stitch"
         },
         {
-          "script": "Rewind"
+          "script": "Tilt Up"
         },
         {
-          "script": "Quarter"
+          "script": "Mirror"
         },
         {
-          "script": "Whirl"
-        },
-        {
-          "script": "Halt"
-        }
-      ]
-    },
-    {
-      "threeD": 0.4,
-      "freq": 0.45,
-      "q": 0.2,
-      "slots": [
-        {
-          "pattern": "Lissajous 5-4",
-          "clip": "Backspin",
-          "recordLengthLog2": 3
-        }
-      ],
-      "actions": [
-        {
-          "script": "Scatter"
-        },
-        {
-          "script": "Stitch"
-        },
-        {
-          "script": "Rewind"
-        },
-        {
-          "script": "Quarter"
-        },
-        {
-          "script": "Whirl"
+          "script": "Twice"
         },
         {
           "script": "Halt"
@@ -65,7 +97,7 @@
       ]
     },
     {
-      "threeD": 0.42,
+      "threeD": 0.44,
       "freq": 0.45,
       "q": 0.2,
       "slots": [
@@ -83,45 +115,13 @@
           "script": "Stitch"
         },
         {
-          "script": "Rewind"
+          "script": "Tilt Up"
         },
         {
-          "script": "Quarter"
+          "script": "Mirror"
         },
         {
-          "script": "Whirl"
-        },
-        {
-          "script": "Halt"
-        }
-      ]
-    },
-    {
-      "threeD": 0.44,
-      "freq": 0.45,
-      "q": 0.2,
-      "slots": [
-        {
-          "pattern": "Corner",
-          "clip": "Flutter",
-          "recordLengthLog2": 3
-        }
-      ],
-      "actions": [
-        {
-          "script": "Scatter"
-        },
-        {
-          "script": "Stitch"
-        },
-        {
-          "script": "Rewind"
-        },
-        {
-          "script": "Quarter"
-        },
-        {
-          "script": "Whirl"
+          "script": "Twice"
         },
         {
           "script": "Halt"

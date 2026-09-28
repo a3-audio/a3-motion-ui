@@ -30,6 +30,32 @@ class HeightMap;
 class PatternGenerator
 {
 public:
+  // The fifty-shape library (2026-09-28): rhythm cells that jump on their
+  // sixteenths, gestures from Smalley's motion typology, and dub moves. See
+  // .claude/notes/a3-motion-moods.md in the workspace for why each exists.
+  static std::unique_ptr<Pattern>
+  createTresillo (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createClave32 (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createPingPong (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createRiser (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createCollapse (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createVortex (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createEcho (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createPulse (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createAstroid (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createTrefoil (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createDrift (index_t lengthBeats, float radius, HeightMap const &heightMap);
+
   static std::unique_ptr<Pattern> createCircle (index_t lengthBeats,
                                                 float radius, float degrees,
                                                 HeightMap const &heightMap);

@@ -7,8 +7,8 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Orbit",
-          "clip": "Cellar",
+          "pattern": "Echo",
+          "clip": "Echo Chamber",
           "recordLengthLog2": 3
         }
       ],
@@ -17,19 +17,19 @@
           "script": "Sweep"
         },
         {
-          "script": "Sink"
+          "script": "Echo Throw"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ground"
+          "script": "Submerge"
         },
         {
-          "script": "Resonate"
+          "script": "Ping Pong"
         },
         {
-          "script": "Rewind"
+          "script": "Tape Stop"
         }
       ]
     },
@@ -39,8 +39,8 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Zigzag",
-          "clip": "Seesaw",
+          "pattern": "Circle",
+          "clip": "Sub Pressure",
           "recordLengthLog2": 3
         }
       ],
@@ -49,19 +49,19 @@
           "script": "Sweep"
         },
         {
-          "script": "Sink"
+          "script": "Echo Throw"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ground"
+          "script": "Submerge"
         },
         {
-          "script": "Resonate"
+          "script": "Ping Pong"
         },
         {
-          "script": "Rewind"
+          "script": "Tape Stop"
         }
       ]
     },
@@ -71,8 +71,8 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Triangle",
-          "clip": "Tide",
+          "pattern": "Helix",
+          "clip": "Tunnel",
           "recordLengthLog2": 3
         }
       ],
@@ -81,19 +81,19 @@
           "script": "Sweep"
         },
         {
-          "script": "Sink"
+          "script": "Echo Throw"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ground"
+          "script": "Submerge"
         },
         {
-          "script": "Resonate"
+          "script": "Ping Pong"
         },
         {
-          "script": "Rewind"
+          "script": "Tape Stop"
         }
       ]
     },
@@ -103,8 +103,8 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Orbit",
-          "clip": "Equator",
+          "pattern": "Ping Pong",
+          "clip": "Call and Response",
           "recordLengthLog2": 3
         }
       ],
@@ -113,19 +113,19 @@
           "script": "Sweep"
         },
         {
-          "script": "Sink"
+          "script": "Echo Throw"
         },
         {
           "script": "Rock"
         },
         {
-          "script": "Ground"
+          "script": "Submerge"
         },
         {
-          "script": "Resonate"
+          "script": "Ping Pong"
         },
         {
-          "script": "Rewind"
+          "script": "Tape Stop"
         }
       ]
     }

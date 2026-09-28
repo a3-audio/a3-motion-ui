@@ -7,14 +7,14 @@
       "q": 0.15,
       "slots": [
         {
-          "pattern": "Star",
-          "clip": "Surge",
+          "pattern": "Rose 5-Petal",
+          "clip": "Anthem",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Bloom"
+          "script": "Flare"
         },
         {
           "script": "Ring"
@@ -29,12 +29,76 @@
           "script": "Whirl"
         },
         {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     },
     {
       "threeD": 0.55,
+      "freq": 0.45,
+      "q": 0.15,
+      "slots": [
+        {
+          "pattern": "Lissajous 3-4",
+          "clip": "Festival",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Flare"
+        },
+        {
+          "script": "Ring"
+        },
+        {
+          "script": "Throw"
+        },
+        {
+          "script": "Unwind"
+        },
+        {
+          "script": "Whirl"
+        },
+        {
+          "script": "Reset"
+        }
+      ]
+    },
+    {
+      "threeD": 0.57,
+      "freq": 0.45,
+      "q": 0.15,
+      "slots": [
+        {
+          "pattern": "Trefoil",
+          "clip": "Euphoria",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Flare"
+        },
+        {
+          "script": "Ring"
+        },
+        {
+          "script": "Throw"
+        },
+        {
+          "script": "Unwind"
+        },
+        {
+          "script": "Whirl"
+        },
+        {
+          "script": "Reset"
+        }
+      ]
+    },
+    {
+      "threeD": 0.59,
       "freq": 0.45,
       "q": 0.15,
       "slots": [
@@ -46,7 +110,7 @@
       ],
       "actions": [
         {
-          "script": "Bloom"
+          "script": "Flare"
         },
         {
           "script": "Ring"
@@ -61,71 +125,7 @@
           "script": "Whirl"
         },
         {
-          "script": "Halt"
-        }
-      ]
-    },
-    {
-      "threeD": 0.57,
-      "freq": 0.45,
-      "q": 0.15,
-      "slots": [
-        {
-          "pattern": "Epicycloid 7-3",
-          "clip": "Carousel",
-          "recordLengthLog2": 3
-        }
-      ],
-      "actions": [
-        {
-          "script": "Bloom"
-        },
-        {
-          "script": "Ring"
-        },
-        {
-          "script": "Throw"
-        },
-        {
-          "script": "Unwind"
-        },
-        {
-          "script": "Whirl"
-        },
-        {
-          "script": "Halt"
-        }
-      ]
-    },
-    {
-      "threeD": 0.59,
-      "freq": 0.45,
-      "q": 0.15,
-      "slots": [
-        {
-          "pattern": "Heart",
-          "clip": "Double Time",
-          "recordLengthLog2": 3
-        }
-      ],
-      "actions": [
-        {
-          "script": "Bloom"
-        },
-        {
-          "script": "Ring"
-        },
-        {
-          "script": "Throw"
-        },
-        {
-          "script": "Unwind"
-        },
-        {
-          "script": "Whirl"
-        },
-        {
-          "script": "Halt"
+          "script": "Reset"
         }
       ]
     }

@@ -6,29 +6,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Ellipse",
-          "clip": "Breath",
+          "pattern": "Rose 7-Petal",
+          "clip": "Sunrise",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Breathe"
+        },
+        {
+          "script": "Widen"
+        },
+        {
+          "script": "Narrow"
         },
         {
           "script": "Bloom"
         },
         {
-          "script": "Shrink"
-        },
-        {
-          "script": "Sweep"
-        },
-        {
-          "script": "Halt"
+          "script": "Freeze"
         }
       ]
     },
@@ -38,29 +38,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Circle",
-          "clip": "Halo",
+          "pattern": "Lissajous 1-2",
+          "clip": "Aurora",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Breathe"
+        },
+        {
+          "script": "Widen"
+        },
+        {
+          "script": "Narrow"
         },
         {
           "script": "Bloom"
         },
         {
-          "script": "Shrink"
-        },
-        {
-          "script": "Sweep"
-        },
-        {
-          "script": "Halt"
+          "script": "Freeze"
         }
       ]
     },
@@ -70,29 +70,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Triangle",
-          "clip": "Tide",
+          "pattern": "Pulse",
+          "clip": "Float",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Breathe"
+        },
+        {
+          "script": "Widen"
+        },
+        {
+          "script": "Narrow"
         },
         {
           "script": "Bloom"
         },
         {
-          "script": "Shrink"
-        },
-        {
-          "script": "Sweep"
-        },
-        {
-          "script": "Halt"
+          "script": "Freeze"
         }
       ]
     },
@@ -102,29 +102,29 @@
       "q": 0.1,
       "slots": [
         {
-          "pattern": "Star",
-          "clip": "Slow Turn",
+          "pattern": "Infinity",
+          "clip": "Horizon",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Rise"
+          "script": "Lift"
         },
         {
-          "script": "Ring"
+          "script": "Breathe"
+        },
+        {
+          "script": "Widen"
+        },
+        {
+          "script": "Narrow"
         },
         {
           "script": "Bloom"
         },
         {
-          "script": "Shrink"
-        },
-        {
-          "script": "Sweep"
-        },
-        {
-          "script": "Halt"
+          "script": "Freeze"
         }
       ]
     }

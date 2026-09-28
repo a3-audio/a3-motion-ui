@@ -697,3 +697,45 @@ TEST (SessionFile, NoActionsWrittenLeavesTheSlotsActionsToBeRead)
   EXPECT_EQ (loadSession (file, 1, 1).channels[0].actions[0].script, "Slam");
   file.deleteFile ();
 }
+
+/** The library ships fifty shapes, fifty clips and fifty actions, and ten
+ *  sets built from them (maintainer, 2026-09-28): enough to cover the mood
+ *  meter's four corners several ways, few enough to learn. Each clip draws a
+ *  shape that ships -- a clip naming a missing one loads as nothing. */
+TEST (SessionFile, TheLibraryShipsFiftyOfEachAndTenSets)
+{
+  juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
+  juce::File const clips (A3_PATTERN_CLIPS_DIR);
+  juce::File const actions (A3_PATTERN_ACTIONS_DIR);
+  juce::File const sets (A3_PATTERN_SESSIONS_DIR);
+
+  auto const shapeFiles
+      = shapes.findChildFiles (juce::File::findFiles, false, "*.svg");
+  auto const clipFiles
+      = clips.findChildFiles (juce::File::findFiles, false, "*.json");
+  auto actionFiles
+      = actions.findChildFiles (juce::File::findFiles, false, "*.scd");
+  actionFiles.removeIf ([] (juce::File const &f) {
+    return f.getFileNameWithoutExtension () == "README";
+  });
+
+  EXPECT_EQ (shapeFiles.size (), 50);
+  EXPECT_EQ (clipFiles.size (), 50);
+  EXPECT_EQ (actionFiles.size (), 50);
+  EXPECT_EQ (sets.findChildFiles (juce::File::findFiles, false, "*.json")
+                 .size (),
+             10);
+
+  juce::StringArray shapeNames;
+  for (auto const &file : shapeFiles)
+    shapeNames.add (PatternFile::peek (file).name);
+  for (auto const &file : clipFiles)
+    {
+      auto const svg = juce::JSON::parse (file.loadFileAsString ())["svg"];
+      if (svg.isVoid () || svg.toString ().isEmpty ())
+        continue; // Default: the fallback, deliberately shapeless
+      EXPECT_TRUE (shapeNames.contains (svg.toString ()))
+          << file.getFileName () << " draws " << svg.toString ()
+          << ", which does not ship";
+    }
+}
