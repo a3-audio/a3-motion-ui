@@ -899,11 +899,6 @@ fieldNamed (juce::String const &name)
 juce::String
 renderScript (ClipSettings const &settings, bool commented)
 {
-  // Wide enough for the longest assignment there is (//~flatElevation = 0.5;)
-  // and no wider: the annotation should stand off the values, not across the
-  // screen.
-  constexpr int annotationColumn = 25;
-
   juce::StringArray lines;
   juce::String heading;
 
@@ -931,16 +926,10 @@ renderScript (ClipSettings const &settings, bool commented)
                    : juce::String (commented ? "//~" : "~") + note.name
                          + " = " + writtenValue (field->get (settings)) + ";";
 
-      while (assignment.length () < annotationColumn)
+      while (assignment.length () < scriptAnnotationColumn)
         assignment += " ";
 
-      auto annotation = juce::String (note.range);
-      if (juce::String (note.hint).isNotEmpty ())
-        {
-          while (annotation.length () < 8)
-            annotation += " ";
-          annotation += note.hint;
-        }
+      auto const annotation = scriptAnnotation (note);
 
       lines.add ((assignment + "// " + annotation).trimEnd ());
     }
@@ -960,6 +949,26 @@ juce::String
 actionScriptFor (ClipSettings const &settings)
 {
   return renderScript (settings, false);
+}
+
+juce::String
+scriptAnnotation (ActionScriptNote const &note)
+{
+  auto annotation = juce::String (note.range);
+  if (juce::String (note.hint).isNotEmpty ())
+    {
+      while (annotation.length () < 8)
+        annotation += " ";
+      annotation += note.hint;
+    }
+  return annotation;
+}
+
+juce::String
+writtenSettingFor (ClipSettings const &settings, juce::String const &name)
+{
+  auto const *field = fieldNamed (name);
+  return field == nullptr ? juce::String{} : writtenValue (field->get (settings));
 }
 
 juce::StringArray

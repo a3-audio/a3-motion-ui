@@ -45,6 +45,7 @@ target_sources("a3-motion-engine" PRIVATE
     Measure.cc
     Measure.hh
     ActionScript.cc
+    ScriptLine.cc
     ActionMotion.cc
     ClipFile.cc
     ClipMigration.cc

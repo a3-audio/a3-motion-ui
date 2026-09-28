@@ -149,4 +149,17 @@ std::vector<ActionScriptNote> const &actionScriptNotes ();
  *  exactly "leave this as the hand left it". */
 juce::String actionScriptTemplate ();
 
+/** Where a line's annotation starts, in every script the app writes: wide
+ *  enough for the longest assignment there is (//~flatElevation = 0.5;) and
+ *  no wider, so the annotation stands off the values, not across the screen. */
+constexpr int scriptAnnotationColumn = 25;
+
+/** What stands after a parameter's `// `: its range, then its hint. */
+juce::String scriptAnnotation (ActionScriptNote const &note);
+
+/** `name`'s value in `settings`, written as a script writes it; empty for a
+ *  name that is not a setting (`then`, `clip`, nonsense). */
+juce::String writtenSettingFor (ClipSettings const &settings,
+                                juce::String const &name);
+
 }
