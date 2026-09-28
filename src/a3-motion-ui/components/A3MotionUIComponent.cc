@@ -7765,9 +7765,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
           case 3:
             // elv, stepped the way the knob turns it: clockwise is higher.
-            pattern->setElevationBase (elevationBaseForKnob (
-                knobForElevationBase (pattern->getElevationBase ())
-                    + increment * 0.02f,
+            // A detent always moves it: the snap onto the poles and ear
+            // height is as wide as one step, and used to pull every step back.
+            pattern->setElevationBase (elevationBaseForEncoderStep (
+                pattern->getElevationBase (), increment,
                 pattern->getClipTop (), pattern->getClipBottom ()));
             refreshPatternDisplay (pattern);
             break;
