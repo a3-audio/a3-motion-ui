@@ -330,7 +330,9 @@ fields ()
       } },
     { "reach",
       [] (ClipSettings const &s) { return numberValue (s.reach, false); },
-      [] (ClipSettings &s, Value const &v) { s.reach = clampUnit (v.number); } },
+      // -1..1 like the clip's own: negative spreads towards the ceiling
+      // (#50 -- it was cut to 0..1).
+      [] (ClipSettings &s, Value const &v) { s.reach = clampBipolar (v.number); } },
     { "clipTop",
       [] (ClipSettings const &s) { return numberValue (s.clipTop, false); },
       [] (ClipSettings &s, Value const &v) {

@@ -604,3 +604,19 @@ TEST (ActionScript, TheTemplateNamesEverythingAndChangesNothing)
   EXPECT_EQ (result.settings.spin, 5);
   EXPECT_FLOAT_EQ (result.settings.reach, 0.25f);
 }
+
+// #50: reach is -1..1 -- negative spreads towards the ceiling -- as the clip
+// files, the MOTION page and every script's annotation say. The setter cut it
+// to 0..1, so a script could not spread a clip upwards.
+TEST (ActionScript, AScriptCanSpreadAClipUpwards)
+{
+  EXPECT_FLOAT_EQ (runActionScript ("~reach = -0.5;", ClipSettings{}, 1)
+                       .settings.reach,
+                   -0.5f);
+  EXPECT_FLOAT_EQ (runActionScript ("~reach = -2;", ClipSettings{}, 1)
+                       .settings.reach,
+                   -1.f);
+  EXPECT_FLOAT_EQ (runActionScript ("~reach = 2;", ClipSettings{}, 1)
+                       .settings.reach,
+                   1.f);
+}
