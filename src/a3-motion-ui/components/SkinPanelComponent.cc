@@ -44,20 +44,6 @@ headerFont ()
       juce::FontOptions (theme ().fontSize (FontRole::Header)).withStyle ("Bold"));
 }
 
-/** Three significant digits: enough to tell two settings apart by eye, and
- *  the same width whether the value is a count or a thickness of 0.0018. */
-juce::String
-formatSkinNumber (double value)
-{
-  if (juce::approximatelyEqual (value, 0.0))
-    return "0";
-
-  auto const magnitude
-      = static_cast<int> (std::floor (std::log10 (std::abs (value))));
-  auto const decimals = juce::jlimit (0, 4, 2 - magnitude);
-  return juce::String (value, decimals);
-}
-
 /** The theme's defaults, for a value or colour the file does not state.
  *  Built from `Theme{}`, which never changes while the app runs. */
 juce::var const &
@@ -93,8 +79,8 @@ public:
     setViewportIgnoreDragFlag (true);
     // The wheel scrolls the panel; a value is set by hand.
     setScrollWheelEnabled (false);
-    textFromValueFunction = [] (double value) {
-      return formatSkinNumber (value);
+    textFromValueFunction = [tunable] (double value) {
+      return skinTunableText (tunable, value);
     };
   }
 

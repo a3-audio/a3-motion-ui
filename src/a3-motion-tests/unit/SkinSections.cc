@@ -384,3 +384,34 @@ TEST (SkinSections, TheThemeHonoursTheSwitchesItself)
   EXPECT_FLOAT_EQ (theme.lineGlow, 0.f);
   EXPECT_FLOAT_EQ (theme.sphereGrid, 0.f);
 }
+
+// On is what a missing switch means, so switching back on removes it: a
+// skin toggled off and on again is the file it was, not one with a block of
+// `true`s in it that shows up in every diff.
+TEST (SkinSections, ASwitchBackOnLeavesNoTrace)
+{
+  auto skin = parse (R"({ "lineGlow": 0.5 })");
+  auto const before = asJson (skin);
+
+  auto const path = effectSwitchPath (SkinSection::Trajectory, "glow");
+  setSkinSwitch (skin, path, false);
+  setSkinSwitch (skin, path, true);
+
+  EXPECT_EQ (asJson (skin), before);
+}
+
+// A value reads the way the file writes it: a count without decimals, a
+// thickness with enough of them to tell two settings apart.
+TEST (SkinSections, AValueReadsTheWayTheFileWritesIt)
+{
+  SkinTunable const count{ "speakerLight.boltCount", "Bolt count", 1.0, 12.0,
+                           6.0, true };
+  SkinTunable const thickness{ "trajectoryThickness", "Thickness", 0.001, 0.08,
+                               0.006 };
+  SkinTunable const glow{ "lineGlow", "Glow", 0.0, 2.0, 1.0 };
+
+  EXPECT_EQ (skinTunableText (count, 7.0), "7");
+  EXPECT_EQ (skinTunableText (thickness, 0.0018), "0.0018");
+  EXPECT_EQ (skinTunableText (glow, 1.33), "1.33");
+  EXPECT_EQ (skinTunableText (glow, 0.0), "0");
+}

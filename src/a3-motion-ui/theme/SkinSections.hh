@@ -159,6 +159,10 @@ juce::NormalisableRange<double> skinTunableRange (SkinTunable const &tunable);
  *  everywhere. A whole number moves by at least one. */
 double stepSkinTunable (SkinTunable const &tunable, double value, int steps);
 
+/** What a bar says its value is. Three significant digits, and a count
+ *  without decimals. */
+juce::String skinTunableText (SkinTunable const &tunable, double value);
+
 /** How many steps the − and + keys divide a bar into. */
 constexpr int skinTunableStepsAcross = 100;
 

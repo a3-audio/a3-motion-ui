@@ -258,16 +258,40 @@ setSkinSwitch (juce::var &skin, juce::String const &path, bool on)
   if (segments.isEmpty () || !skin.isObject ())
     return;
 
-  auto parent = skin;
-  for (int i = 0; i < segments.size () - 1; ++i)
+  if (!on)
     {
-      auto *child = childObject (parent, juce::Identifier (segments[i]));
-      if (child == nullptr)
-        return;
-      parent = juce::var (child);
+      auto parent = skin;
+      for (int i = 0; i < segments.size () - 1; ++i)
+        {
+          auto *child = childObject (parent, juce::Identifier (segments[i]));
+          if (child == nullptr)
+            return;
+          parent = juce::var (child);
+        }
+
+      parent.getDynamicObject ()->setProperty (
+          juce::Identifier (segments.strings.getLast ()), false);
+      return;
     }
 
-  parent.getDynamicObject ()->setProperty (juce::Identifier (segments.strings.getLast ()), on);
+  // On is what a missing switch means: remove it, and any block it leaves
+  // empty, so a skin switched off and on again is the file it was.
+  juce::Array<juce::var> chain{ skin };
+  for (int i = 0; i < segments.size () - 1; ++i)
+    {
+      auto const next = chain.getLast ()[juce::Identifier (segments[i])];
+      if (!next.isObject ())
+        return;
+      chain.add (next);
+    }
+
+  for (int i = segments.size () - 1; i >= 0; --i)
+    {
+      auto *object = chain[i].getDynamicObject ();
+      object->removeProperty (juce::Identifier (segments[i]));
+      if (i > 0 && !object->getProperties ().isEmpty ())
+        break;
+    }
 }
 
 bool
@@ -345,6 +369,22 @@ stepSkinTunable (SkinTunable const &tunable, double value, int steps)
                       + static_cast<double> (steps) / skinTunableStepsAcross;
 
   return range.convertFrom0to1 (juce::jlimit (0.0, 1.0, across));
+}
+
+juce::String
+skinTunableText (SkinTunable const &tunable, double value)
+{
+  if (tunable.isWholeNumber)
+    return juce::String (juce::roundToInt (value));
+
+  if (juce::approximatelyEqual (value, 0.0))
+    return "0";
+
+  // Three significant digits: enough to tell two settings apart by eye, and
+  // the same width whether the value is a gain or a thickness of 0.0018.
+  auto const magnitude
+      = static_cast<int> (std::floor (std::log10 (std::abs (value))));
+  return juce::String (value, juce::jlimit (0, 4, 2 - magnitude));
 }
 
 }
