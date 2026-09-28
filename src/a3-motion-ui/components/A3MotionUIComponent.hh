@@ -866,11 +866,11 @@ private:
   /** ACTION's one route into a script (2026-09-29): `edit` applied to the
    *  shown button's source, in place -- every button holding that file takes
    *  it, the editor in FILES shows it, the file is written once the hand
-   *  stops. */
-  void editShownScript (
+   *  stops. False when the button has no script to write into. */
+  bool editShownScript (
       std::function<juce::String (juce::String const &)> const &edit);
   /** `name`'s line set to its value in `settings`. */
-  void writeShownScriptSetting (juce::String const &name,
+  bool writeShownScriptSetting (juce::String const &name,
                                 ClipSettings const &settings);
   void scheduleScriptWrite ();
   /** Everything waiting goes to disk now: before a set loads, before FILES

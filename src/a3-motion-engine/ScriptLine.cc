@@ -34,10 +34,12 @@ assigns (juce::String const &line, juce::String const &name)
 {
   auto text = line.trimStart ();
   auto live = true;
+  // `//~name` exactly: `// ~name is how fast` is prose about the line, and
+  // turning a knob must not overwrite what somebody wrote down.
   if (text.startsWith ("//"))
     {
       live = false;
-      text = text.substring (2).trimStart ();
+      text = text.substring (2);
     }
   if (!text.startsWith ("~" + name))
     return std::nullopt;

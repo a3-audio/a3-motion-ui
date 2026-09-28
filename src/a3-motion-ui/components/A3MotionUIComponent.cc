@@ -3408,6 +3408,10 @@ A3MotionUIComponent::fileTextIsFitToWrite (juce::StringArray const &errors,
 void
 A3MotionUIComponent::saveFileText ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   // The file the text came from, never the row that happens to be chosen:
   // the two can differ, and writing one file's text into another is the one
   // thing this key must never do.
@@ -3446,6 +3450,10 @@ A3MotionUIComponent::saveFileText ()
 void
 A3MotionUIComponent::saveFileTextAs ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   auto &panel = _browser->scriptPanel ();
   auto const text = panel.script ();
   auto const &list = currentList ();
@@ -4372,6 +4380,10 @@ A3MotionUIComponent::costOfRemovingLibraryEntry (int index) const
 void
 A3MotionUIComponent::renameChosenEntry (juce::String const &name)
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   if (_browser)
     currentList ().rename (_browser->getSelectedEntry (), name);
 }
@@ -4379,6 +4391,10 @@ A3MotionUIComponent::renameChosenEntry (juce::String const &name)
 void
 A3MotionUIComponent::deleteChosenEntry ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   // Asked twice, whatever the folder. A file thrown away in front of a room
   // does not come back, and the second press is the only thing standing
   // between a fat finger and somebody's work. Not a dialogue: there is nothing
@@ -4847,19 +4863,16 @@ A3MotionUIComponent::setShownButtonMotion (MotionParam param,
   if (button == nullptr || !button->settings)
     return;
   juce::String const name = motionParamScriptName (param);
+  MotionOverrides one;
   if (value)
-    {
-      MotionOverrides one;
-      one.set (param, *value);
-      writeShownScriptSetting (name, withMotion (*button->settings, one));
-    }
-  else
-    {
-      editShownScript ([&name] (juce::String const &source) {
-        return unsetScriptLine (source, name);
-      });
-    }
-  updateControlReadout (juce::String (motionParamCaption (param))
+    one.set (param, *value);
+  auto const written
+      = value ? writeShownScriptSetting (name, withMotion (*button->settings, one))
+              : editShownScript ([&name] (juce::String const &source) {
+                  return unsetScriptLine (source, name);
+                });
+  if (written)
+    updateControlReadout (juce::String (motionParamCaption (param))
                         + (value ? " " + juce::String (*value, 2)
                                  : juce::String (" from the clip")));
 }
@@ -4867,30 +4880,40 @@ A3MotionUIComponent::setShownButtonMotion (MotionParam param,
 void
 A3MotionUIComponent::setShownButtonAfter (std::optional<int> after)
 {
-  editShownScript ([&after] (juce::String const &source) {
+  auto const written = editShownScript ([&after] (juce::String const &source) {
     return after ? setScriptLine (source, "then", juce::String (*after + 1))
                  : unsetScriptLine (source, "then");
   });
-  updateControlReadout (
+  if (written)
+    updateControlReadout (
       "A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
       + " then " + afterName (after));
 }
 
-void
+bool
 A3MotionUIComponent::editShownScript (
     std::function<juce::String (juce::String const &)> const &edit)
 {
   // ACTION writes into the script (2026-09-29), in place: every button on
   // every channel holding this file takes the new text, the editor in FILES
   // shows it, and the file is written once the hand stops.
+  // A button with no script has nowhere to write, and says so rather than
+  // showing a value nothing holds. A script whose file has gone meanwhile
+  // (git, rm, an upgrade) is still the button's text: the edit applies and
+  // the write puts the file back -- or says CANNOT WRITE.
   auto *shown = shownActionButton ();
-  if (shown == nullptr || !shown->file.existsAsFile ())
-    return;
+  if (shown == nullptr || shown->file == juce::File{})
+    {
+      updateControlReadout (
+          "-- A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
+          + " HAS NO SCRIPT");
+      return false;
+    }
 
   auto const file = shown->file;
   auto const text = edit (shown->source);
   if (text == shown->source)
-    return;
+    return true;
 
   std::vector<std::array<juce::File, numActionButtons> > files;
   for (auto const &channel : _channelActions)
@@ -4919,14 +4942,15 @@ A3MotionUIComponent::editShownScript (
   scheduleScriptWrite ();
   updateActionPage ();
   updateClipSettingsDisplay ();
+  return true;
 }
 
-void
+bool
 A3MotionUIComponent::writeShownScriptSetting (juce::String const &name,
                                               ClipSettings const &settings)
 {
   auto const written = writtenSettingFor (settings, name);
-  editShownScript ([&name, &written] (juce::String const &source) {
+  return editShownScript ([&name, &written] (juce::String const &source) {
     return setScriptLine (source, name, written);
   });
 }
@@ -5092,9 +5116,9 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       return;
     }
 
-  writeShownScriptSetting (actionControlScriptName (control),
-                           clipSettingsFrom (*pattern));
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 void
@@ -5125,9 +5149,9 @@ A3MotionUIComponent::setActionControl (int control, double value)
     default:                           return;
     }
 
-  writeShownScriptSetting (actionControlScriptName (control),
-                           clipSettingsFrom (*pattern));
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 void
@@ -5177,9 +5201,9 @@ A3MotionUIComponent::resetActionControl (int control)
       return;
     }
 
-  writeShownScriptSetting (actionControlScriptName (control),
-                           clipSettingsFrom (*pattern));
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 namespace

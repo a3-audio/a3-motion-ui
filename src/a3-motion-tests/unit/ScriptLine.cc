@@ -166,3 +166,13 @@ TEST (ScriptLine, EveryNameRoundTrips)
     }
   EXPECT_GT (checked, 20) << "every setting, not none";
 }
+
+// Review 2026-09-29: prose that mentions a name is not a commented-out line.
+// Only `//~name` is -- README.scd and scripts that document their names this
+// way would otherwise lose a line of prose to a knob turn.
+TEST (ScriptLine, AProseCommentNamingALineIsLeftAlone)
+{
+  auto const out = setScriptLine ("// ~spin is how fast it turns\n", "spin", "3");
+  EXPECT_TRUE (out.startsWith ("// ~spin is how fast it turns\n")) << out;
+  EXPECT_TRUE (out.contains ("~spin = 3;")) << out;
+}
