@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 
 #include <JuceHeader.h>
@@ -69,6 +70,10 @@ struct ActionScriptResult
   ClipSettings settings;
   /** One line each, naming the line number and what was wrong with it. */
   juce::StringArray errors;
+  /** The names the script set, each once, in the order first set -- a line
+   *  that went wrong sets nothing. What tells the ACTION page's MOTION tile
+   *  a value comes from the script rather than from the clip. */
+  juce::StringArray assigned;
 };
 
 /** Read a script and work out what it makes of the settings it is given.
@@ -88,6 +93,16 @@ ActionScriptResult runActionScript (juce::String const &source,
  *  clip has it -- not as it was when the button was assigned. */
 ClipSettings resolveActionAt (juce::String const &source,
                               ClipSettings const &base, juce::int64 seed,
+                              ActionFeel const &feel);
+
+/** The same, with the values the button was turned to on the MOTION tile
+ *  (2026-09-28): the script first, against the clip; then the button's
+ *  motion over it; then its feel. The script does not see the turned values
+ *  -- a line reading `~spin` reads the clip's, as it would with nothing
+ *  turned. */
+ClipSettings resolveActionAt (juce::String const &source,
+                              ClipSettings const &base, juce::int64 seed,
+                              MotionOverrides const &motion,
                               ActionFeel const &feel);
 
 /** The other direction: settings written out as a script.

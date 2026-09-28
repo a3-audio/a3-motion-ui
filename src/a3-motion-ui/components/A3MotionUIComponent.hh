@@ -352,6 +352,9 @@ private:
   /** Where a knob stands now -- the ACTION page's nine are sliders. */
   void setActionControl (int control, double value);
   void resetActionControl (int control);
+  /** A MOTION tile value turned on the shown button, or with nothing given
+   *  handed back to the script. */
+  void setShownButtonMotion (MotionParam param, std::optional<float> value);
   static juce::String actionReadoutFor (int control,
                                         Pattern const &pattern);
 
@@ -820,6 +823,9 @@ private:
      *  set only keeps what was turned from it. */
     ActionFeel feel;
     ActionFeel scriptFeel;
+    /** What the button puts on the clip where it was turned on the ACTION
+     *  page's MOTION tile (2026-09-28), over what the script says. */
+    MotionOverrides motion;
     /** The dice rolled when the button was assigned. The script is worked out
      *  again at every press, against the clip as it stands then, and this
      *  keeps a random action landing where it landed. */

@@ -722,7 +722,14 @@ runActionScript (juce::String const &source, ClipSettings const &current,
           if (!reader.atEnd ())
             fail ("more on the line than one assignment");
 
+          auto const directionBefore = out.settings.direction;
           field->set (out.settings, value);
+
+          out.assigned.addIfNotAlreadyThere (name);
+          // An older script's \bounce or \random as the end sets the
+          // direction it meant, so that is set too.
+          if (out.settings.direction != directionBefore)
+            out.assigned.addIfNotAlreadyThere ("dir");
         }
       catch (ScriptError const &error)
         {
@@ -928,6 +935,16 @@ resolveActionAt (juce::String const &source, ClipSettings const &base,
                  juce::int64 seed, ActionFeel const &feel)
 {
   return withFeel (runActionScript (source, base, seed).settings, feel);
+}
+
+ClipSettings
+resolveActionAt (juce::String const &source, ClipSettings const &base,
+                 juce::int64 seed, MotionOverrides const &motion,
+                 ActionFeel const &feel)
+{
+  return withFeel (
+      withMotion (runActionScript (source, base, seed).settings, motion),
+      feel);
 }
 
 }

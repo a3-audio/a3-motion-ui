@@ -30,6 +30,14 @@
 namespace a3
 {
 
+/** Which tile stands in the ACTION page's card (2026-09-28): the button's
+ *  feel, or what it puts on the clip. */
+enum class ActionTile
+{
+  Audio,
+  Motion,
+};
+
 /** What the ACT key does, on a page of its own.
  *
  *  Which action clip the slot fires, and the envelope that fires it. The
@@ -99,6 +107,32 @@ public:
   void setRunningButton (int button);
 
 
+  /** The tile in the card. AUDIO and MOTION in the key column set it; it is
+   *  the page's own, like the list's scroll. */
+  void setTile (ActionTile tile);
+  ActionTile tile () const { return _tile; }
+
+  /** What the MOTION tile shows for the chosen button, indexed by
+   *  MotionParam. `hasAction` false: a button with nothing to put on a clip,
+   *  and the tile says so instead of offering knobs. `patternLengthBeats` is
+   *  what the speed field counts in, as CLIP's length keys do. */
+  void setMotionTile (std::array<MotionShown, numMotionParams> const &shown,
+                      bool hasAction, float patternLengthBeats);
+
+  /** Each field's own mode, true for Hold: the 1/H badge. */
+  void setActionButtonModes (std::array<bool, 6> const &holds);
+
+  /** A control, for the tests: an audio knob by Control, a tile control by
+   *  MotionParam. */
+  juce::Component *audioKnob (int control);
+  juce::Component *motionControl (MotionParam param);
+
+  /** A tile value was turned: the button's own from now on. In the settings'
+   *  units (motionValueOf). */
+  std::function<void (MotionParam param, float value)> onMotionSet;
+  /** Two taps on a tile value: back to the script. */
+  std::function<void (MotionParam param)> onMotionUnset;
+
   /** What the action field's list offers. The empty string is "no action",
    *  the way entry 0 of the library is "no clip". */
   void setActionChoices (juce::StringArray const &names);
@@ -129,9 +163,30 @@ private:
 
 
   void paintEditKey (juce::Graphics &g);
+  void paintTileKeys (juce::Graphics &g);
+  void paintAudioRowNames (juce::Graphics &g);
+  void paintMotionTile (juce::Graphics &g);
+  void paintMotionField (juce::Graphics &g, MotionParam param);
+  /** Which controls stand: the tile's, and of MOTION's only while the button
+   *  has an action to put them on. */
+  void showTheTile ();
+  /** The tile's knobs, built once: a knob for each of MOTION's values, a
+   *  field for each of CLIP's. */
+  void buildMotionControls ();
   void chooseFromActionList (juce::Point<int> point);
 
   ActionLayout _layout;
+  ActionTile _tile = ActionTile::Audio;
+  std::array<MotionShown, numMotionParams> _motionShown{};
+  bool _motionHasAction = false;
+  float _patternLengthBeats = 4.f;
+  std::array<bool, 6> _buttonHolds{};
+  /** A knob per MOTION value (null for a field), a hit area per field (null
+   *  for a knob), indexed by MotionParam. */
+  std::array<std::unique_ptr<PotKnob>, numMotionParams> _motionKnob;
+  std::array<std::unique_ptr<TouchControl>, numMotionParams> _motionField;
+  std::unique_ptr<TouchControl> _audioKeyTouch;
+  std::unique_ptr<TouchControl> _motionKeyTouch;
 
   int _channel = 0;
   int _slot = 0;

@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 // For numSpeedButtons, as in SettingsPersistence.hh.
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
@@ -123,6 +124,10 @@ struct Session
   {
     std::string script;
     std::optional<ActionFeel> feel;
+    /** What the button puts on the clip where it was turned on the ACTION
+     *  page's MOTION tile (2026-09-28), written as `"motion"` only when
+     *  something was. Empty: every value as the script says. */
+    MotionOverrides motion;
   };
 
   struct Channel

@@ -45,6 +45,7 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/OscEndpoints.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -751,6 +752,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
   _action->onControlDoubleTapped = [this] (int control) {
     resetActionControl (control);
+  };
+  _action->onMotionSet = [this] (MotionParam param, float value) {
+    setShownButtonMotion (param, value);
+  };
+  _action->onMotionUnset = [this] (MotionParam param) {
+    setShownButtonMotion (param, std::nullopt);
   };
   _action->onControlTapped = [this] (int control) {
     // Only the mode is a tap: the three knobs are turned, and a tap on one
@@ -3132,6 +3139,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.errors = {};
   action.feel = ActionFeel{};
   action.scriptFeel = ActionFeel{};
+  action.motion = {};
 
   if (!file.existsAsFile ())
     {
@@ -3194,7 +3202,8 @@ A3MotionUIComponent::firedActionOf (index_t channel, int button)
       auto const &pattern = _patterns[channel][0];
       base = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
     }
-  return resolveActionAt (action.source, *base, action.seed, action.feel);
+  return resolveActionAt (action.source, *base, action.seed, action.motion,
+                          action.feel);
 }
 
 juce::File
@@ -4720,6 +4729,45 @@ A3MotionUIComponent::updateActionPage ()
                                            : juce::String{};
     }
   _action->setActionButtons (names, _chosenActionButton[channel]);
+
+  std::array<bool, numActionButtons> holds{};
+  for (size_t button = 0; button < holds.size (); ++button)
+    holds[button] = _channelActions[channel][button].feel.actMode == ActMode::Hold;
+  _action->setActionButtonModes (holds);
+
+  // What the shown button puts on the clip, against the clip as it stands
+  // before any accent -- the base a press is worked out against.
+  auto const &pattern = _patterns[channel][0];
+  auto const accentRuns = _accentBase[channel].has_value ()
+                          && _engine.isChannelAccentActive (channel);
+  auto const base = accentRuns ? *_accentBase[channel]
+                    : pattern  ? clipSettingsFrom (*pattern)
+                               : ClipSettings{};
+  auto const playable = shown != nullptr && shown->settings.has_value ();
+  _action->setMotionTile (
+      playable ? motionShownFor (shown->source, base, shown->seed, shown->motion)
+               : std::array<MotionShown, numMotionParams>{},
+      playable, getPatternLengthBeats (channel, 0));
+}
+
+void
+A3MotionUIComponent::setShownButtonMotion (MotionParam param,
+                                           std::optional<float> value)
+{
+  auto *button = shownActionButton ();
+  if (button == nullptr || !button->settings)
+    return;
+
+  if (value)
+    button->motion.set (param, *value);
+  else
+    button->motion.unset (param);
+
+  scheduleSetSave ();
+  updateActionPage ();
+  updateControlReadout (juce::String (motionParamCaption (param))
+                        + (value ? " " + juce::String (*value, 2)
+                                 : juce::String (" from script")));
 }
 
 void
@@ -5234,6 +5282,7 @@ A3MotionUIComponent::applySet (juce::File const &file)
                                         juce::String (entry.script), ".scd"));
           if (entry.feel)
             _channelActions[index][static_cast<size_t> (b)].feel = *entry.feel;
+          _channelActions[index][static_cast<size_t> (b)].motion = entry.motion;
         }
 
       // Where the channel was parked. Empty on a first run, which is zero,
@@ -5389,6 +5438,8 @@ A3MotionUIComponent::buildSession ()
               = button.file.getFileNameWithoutExtension ().toStdString ();
           if (button.file.existsAsFile () && button.feel != button.scriptFeel)
             entry.feel = button.feel;
+          if (button.file.existsAsFile ())
+            entry.motion = button.motion;
         }
 
       channel.slots.resize (numClipSlots);

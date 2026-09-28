@@ -22,6 +22,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <a3-motion-engine/ActionMotion.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <array>
@@ -51,6 +53,11 @@ struct ActionLayout
   /** Opens the action's script in FILES, beside the list there -- the
    *  editor that stood on this page moved on 2026-09-27. */
   juce::Rectangle<int> editButton;
+
+  /** Which tile stands in the card (2026-09-28): the button's feel, or what
+   *  it puts on the clip. Under the mode, AUDIO over MOTION. */
+  juce::Rectangle<int> audioKey;
+  juce::Rectangle<int> motionKey;
 
 
   /** The list the chosen button is assigned from, open all the time between
@@ -83,11 +90,28 @@ struct ActionLayout
    *  the same arrangement the global strip names its channel rows with. */
   std::array<juce::Rectangle<int>, numRows> rowLabels;
 
+  /** The MOTION tile, in the same card: a cell per MotionParam, indexed by
+   *  it, four across in motionParamOrder -- MOTION's eight fields two to a
+   *  row, then CLIP's speed, direction and end. */
+  std::array<juce::Rectangle<int>, numMotionParams> motionControls;
+
   /** Knob size and text sizes, worked out for these cells -- the same
    *  numbers the clip bar hands its own knobs, so the two pages draw one
    *  knob rather than two similar ones. */
   ControlMetrics metrics{ 0, 0.f, 0.f };
 };
+
+/** Where the parts of an action field stand: its number (A1) top left, the
+ *  1/H badge that says how it plays top right, its action's name under them
+ *  across the whole field. */
+struct ActionFieldParts
+{
+  juce::Rectangle<int> number;
+  juce::Rectangle<int> modeBadge;
+  juce::Rectangle<int> name;
+};
+
+ActionFieldParts actionFieldParts (juce::Rectangle<int> field);
 
 /** How many rows of the action list are on screen at once.
  *
