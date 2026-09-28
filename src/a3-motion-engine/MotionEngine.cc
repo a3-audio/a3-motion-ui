@@ -349,6 +349,10 @@ MotionEngine::advanceAccents ()
           // action that said "stop" would have said nothing at all.
           applyEndActionAfterAccent (index);
           restoreAfterAction (index);
+          // Counted, not signalled: what a button's "then" fires is decided
+          // on the message thread, which reads this and works the script
+          // out there -- never here.
+          _accentView[index].ends.fetch_add (1, std::memory_order_relaxed);
         }
 
       // Let go of the clip once the accent is over, so a slot that was
@@ -519,6 +523,14 @@ MotionEngine::setChannelAction (index_t channel,
   message.action = std::move (action);
 
   submitFifoMessage (message);
+}
+
+unsigned
+MotionEngine::accentEndCount (index_t channel) const
+{
+  if (channel >= _accentView.size ())
+    return 0u;
+  return _accentView[channel].ends.load (std::memory_order_relaxed);
 }
 
 bool

@@ -22,8 +22,12 @@
 
 #include <JuceHeader.h>
 
+#include <array>
+
 #include <a3-motion-ui/components/ActionLayout.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+
+#include <a3-motion-engine/ActionMotion.hh>
 
 using namespace a3;
 
@@ -354,4 +358,211 @@ TEST (ActionLayout, TheCardHoldsOnlyTheKnobs)
   for (auto const &control : l.controls)
     EXPECT_TRUE (l.card.contains (control));
   EXPECT_FALSE (l.card.intersects (l.actModeField));
+}
+
+// -- AUDIO and MOTION (2026-09-28) -------------------------------------------
+//
+// Two more keys in the column, AUDIO and MOTION, choose which tile stands in
+// the card: the button's feel (the nine knobs) or what it puts on the clip --
+// every knob of MOTION and CLIP's speed, direction and end.
+
+namespace
+{
+/** The page as it stands on the rig: the clip part of a 768 px wide portrait
+ *  screen under its header row, read off a screenshot. */
+constexpr int rigPageWidth = 560;
+constexpr int rigPageHeight = 268;
+
+ActionLayout
+rigLayout ()
+{
+  return layOutActionPage ({ 0, 0, rigPageWidth, rigPageHeight }, headerSize,
+                           14.f, 1.f, {});
+}
+}
+
+TEST (ActionLayout, AudioAndMotionStandInTheColumnUnderTheMode)
+{
+  for (auto const &l : { rigLayout (), pageLayout () })
+    {
+      for (auto const key : { l.audioKey, l.motionKey })
+        {
+          ASSERT_FALSE (key.isEmpty ());
+          EXPECT_EQ (key.getX (), l.editButton.getX ());
+          EXPECT_EQ (key.getWidth (), l.editButton.getWidth ());
+          EXPECT_GE (key.getWidth (), fingertipSize);
+          EXPECT_GE (key.getHeight (), fingertipSize);
+          EXPECT_LE (key.getRight (), l.card.getX ());
+          EXPECT_GE (key.getY (), l.actModeField.getBottom ());
+        }
+      EXPECT_LE (l.audioKey.getBottom (), l.motionKey.getY ())
+          << "AUDIO over MOTION, not on it";
+    }
+}
+
+TEST (ActionLayout, EveryKeyFitsOnThePage)
+{
+  for (int width : { 560, 640, 768, 1024 })
+    for (int height : { 256, 268, 300, 400 })
+      {
+        juce::Rectangle<int> const page{ 0, 0, width, height };
+        auto const l = layOutActionPage (page, headerSize, 14.f, 1.f, {});
+        std::array<juce::Rectangle<int>, 5> const keys{
+          l.editButton, l.actModeField, l.afterKey, l.audioKey, l.motionKey
+        };
+        for (size_t i = 0; i < keys.size (); ++i)
+          {
+            EXPECT_TRUE (page.contains (keys[i])) << width << "x" << height;
+            EXPECT_GE (keys[i].getHeight (), fingertipSize)
+                << width << "x" << height;
+            if (i > 0)
+              EXPECT_LE (keys[i - 1].getBottom (), keys[i].getY ())
+                  << "key " << i << " at " << width << "x" << height;
+          }
+      }
+}
+
+TEST (ActionLayout, TheMotionTileStandsInTheCard)
+{
+  for (auto const &l : { rigLayout (), pageLayout () })
+    for (size_t i = 0; i < l.motionControls.size (); ++i)
+      {
+        auto const &cell = l.motionControls[i];
+        ASSERT_FALSE (cell.isEmpty ()) << i;
+        EXPECT_TRUE (l.card.contains (cell)) << i;
+        EXPECT_GE (cell.getY (), l.cardCaption.getBottom ())
+            << "under the tile's name, " << i;
+        for (size_t j = i + 1; j < l.motionControls.size (); ++j)
+          EXPECT_FALSE (cell.intersects (l.motionControls[j]))
+              << i << " and " << j;
+      }
+}
+
+// Four across, in motionParamOrder: MOTION's fields two to a row, each
+// field's pair as MOTION shows it (spin rot | swell reach, ...), then CLIP's
+// speed, dir and end on the last row.
+TEST (ActionLayout, TheMotionTileReadsLikeTheMotionPage)
+{
+  auto const l = rigLayout ();
+  auto const cell = [&l] (int at) {
+    return l.motionControls[static_cast<size_t> (motionParamOrder[static_cast<size_t> (at)])];
+  };
+
+  for (int at = 0; at < numMotionParams; ++at)
+    {
+      auto const column = at % 4;
+      auto const row = at / 4;
+      if (column > 0)
+        {
+          EXPECT_EQ (cell (at).getY (), cell (at - 1).getY ()) << at;
+          EXPECT_GE (cell (at).getX (), cell (at - 1).getRight ()) << at;
+        }
+      if (row > 0)
+        {
+          EXPECT_EQ (cell (at).getX (), cell (at - 4).getX ()) << at;
+          EXPECT_GE (cell (at).getY (), cell (at - 4).getBottom ()) << at;
+        }
+    }
+  EXPECT_EQ (motionParamOrder[0], MotionParam::Spin);
+  EXPECT_EQ (motionParamOrder[16], MotionParam::Speed);
+}
+
+// On the rig's page, and on anything bigger, every knob of the tile is a
+// fingertip -- nineteen of them in the room nine had.
+TEST (ActionLayout, EveryMotionControlIsAFingertipOnTheRig)
+{
+  for (int width : { rigPageWidth, 640, 768, 1024 })
+    for (int height : { rigPageHeight, 300, 400 })
+      {
+        auto const l = layOutActionPage ({ 0, 0, width, height }, headerSize,
+                                         14.f, 1.f, {});
+        for (auto const &cell : l.motionControls)
+          {
+            EXPECT_GE (cell.getWidth (), fingertipSize) << width << "x" << height;
+            EXPECT_GE (cell.getHeight (), fingertipSize)
+                << width << "x" << height;
+          }
+      }
+}
+
+// Smaller than that it shrinks rather than runs off the page.
+TEST (ActionLayout, TheMotionTileNeverEscapesThePage)
+{
+  for (int width : { 480, 560, 768 })
+    for (int height : { 160, 200, 268 })
+      {
+        juce::Rectangle<int> const page{ 0, 0, width, height };
+        auto const l = layOutActionPage (page, headerSize, 14.f, 1.f, {});
+        for (auto const &cell : l.motionControls)
+          EXPECT_TRUE (page.contains (cell)) << width << "x" << height;
+      }
+}
+
+// The card does not change size with the tile: the list and the fields left
+// of it stay where the hand left them.
+TEST (ActionLayout, BothTilesShareTheCard)
+{
+  auto const l = rigLayout ();
+  for (auto const &control : l.controls)
+    EXPECT_TRUE (l.card.contains (control));
+  for (auto const &cell : l.motionControls)
+    EXPECT_TRUE (l.card.contains (cell));
+}
+
+// -- 1 / H on each button (2026-09-28) ---------------------------------------
+//
+// Each field says how its own button plays: a small badge in its top right
+// corner, clear of the number and the name.
+
+TEST (ActionLayout, EachFieldHasABadgeClearOfItsNumberAndName)
+{
+  for (auto const &l : { rigLayout (), pageLayout () })
+    for (auto const &field : l.actionFields)
+      {
+        auto const parts = actionFieldParts (field);
+        ASSERT_FALSE (parts.modeBadge.isEmpty ());
+        EXPECT_TRUE (field.contains (parts.modeBadge));
+        EXPECT_TRUE (field.contains (parts.number));
+        EXPECT_TRUE (field.contains (parts.name));
+        EXPECT_FALSE (parts.modeBadge.intersects (parts.number));
+        EXPECT_FALSE (parts.modeBadge.intersects (parts.name));
+        EXPECT_FALSE (parts.number.intersects (parts.name));
+        // In the top right corner.
+        EXPECT_LT (parts.modeBadge.getCentreX (), field.getRight ());
+        EXPECT_GT (parts.modeBadge.getCentreX (), field.getCentreX ());
+        EXPECT_LT (parts.modeBadge.getCentreY (), field.getCentreY ());
+        EXPECT_GE (parts.number.getX (), field.getX ());
+        EXPECT_LE (parts.number.getRight (), parts.modeBadge.getX ());
+      }
+}
+
+// Big enough to read a letter in at a glance, however small the field.
+TEST (ActionLayout, TheBadgeIsReadable)
+{
+  for (int height : { 200, 256, 268, 300 })
+    {
+      auto const l
+          = layOutActionPage ({ 0, 0, 560, height }, headerSize, 14.f, 1.f, {});
+      for (auto const &field : l.actionFields)
+        {
+          auto const badge = actionFieldParts (field).modeBadge;
+          EXPECT_GE (badge.getHeight (), fingertipSize / 3) << height;
+          EXPECT_GE (badge.getWidth (), badge.getHeight ()) << height;
+        }
+    }
+}
+
+// What comes after the button's accent -- "then A3" -- stands under the
+// mode: both say what a press of this button does over time.
+TEST (ActionLayout, TheAfterKeyStandsUnderTheMode)
+{
+  for (auto const &l : { rigLayout (), pageLayout () })
+    {
+      ASSERT_FALSE (l.afterKey.isEmpty ());
+      EXPECT_EQ (l.afterKey.getX (), l.actModeField.getX ());
+      EXPECT_EQ (l.afterKey.getWidth (), l.actModeField.getWidth ());
+      EXPECT_GE (l.afterKey.getHeight (), fingertipSize);
+      EXPECT_GE (l.afterKey.getY (), l.actModeField.getBottom ());
+      EXPECT_LE (l.afterKey.getBottom (), l.audioKey.getY ());
+    }
 }

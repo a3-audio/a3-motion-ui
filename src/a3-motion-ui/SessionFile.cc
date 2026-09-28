@@ -25,6 +25,8 @@
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/TextFile.hh>
 
+#include <a3-motion-ui/components/ActionChain.hh>
+
 #include <iostream>
 
 namespace a3
@@ -238,6 +240,111 @@ readSpeedKeys (juce::var const &value)
 
 namespace
 {
+/** What a button was turned to on the MOTION tile, in the words a slot's
+ *  overrides use -- only what was turned, a default included. */
+juce::var
+writeMotion (MotionOverrides const &motion)
+{
+  auto *object = new juce::DynamicObject ();
+  for (auto const param : motionParamOrder)
+    {
+      auto const value = motion.get (param);
+      if (!value)
+        continue;
+
+      auto const key = motionParamKey (param);
+      auto const settings = withMotionValue (ClipSettings{}, param, *value);
+      switch (param)
+        {
+        case MotionParam::Direction:
+          object->setProperty (key, playDirectionToName (settings.direction));
+          break;
+        case MotionParam::EndAction:
+          object->setProperty (key, endActionToName (settings.endAction));
+          break;
+        case MotionParam::Spin:
+        case MotionParam::Swell:
+        case MotionParam::StretchX:
+        case MotionParam::StretchY:
+        case MotionParam::Sway:
+        case MotionParam::TiltSweep:
+        case MotionParam::RollSweep:
+        case MotionParam::Speed:
+          object->setProperty (
+              key, static_cast<int> (motionValueOf (settings, param)));
+          break;
+        case MotionParam::Rotate:
+        case MotionParam::Reach:
+        case MotionParam::SqueezeX:
+        case MotionParam::SqueezeY:
+        case MotionParam::Elevation:
+        case MotionParam::ClipTop:
+        case MotionParam::ClipBottom:
+        case MotionParam::Tilt:
+        case MotionParam::Roll:
+          object->setProperty (key, motionValueOf (settings, param));
+          break;
+        }
+    }
+  return juce::var (object);
+}
+
+/** The other way. A set without it -- every set before 2026-09-28 -- is a
+ *  button nobody turned. */
+MotionOverrides
+readMotion (juce::var const &value)
+{
+  MotionOverrides motion;
+  if (!value.isObject ())
+    return motion;
+
+  for (auto const param : motionParamOrder)
+    {
+      auto const v = value.getProperty (motionParamKey (param), juce::var ());
+      if (v.isVoid ())
+        continue;
+
+      switch (param)
+        {
+        case MotionParam::Direction:
+          motion.set (param, static_cast<float> (
+                                 playDirectionFromName (v.toString ())));
+          break;
+        case MotionParam::EndAction:
+          motion.set (param,
+                      static_cast<float> (endActionFromName (v.toString ())));
+          break;
+        case MotionParam::Spin:
+        case MotionParam::Swell:
+        case MotionParam::StretchX:
+        case MotionParam::StretchY:
+        case MotionParam::Sway:
+        case MotionParam::TiltSweep:
+        case MotionParam::RollSweep:
+        case MotionParam::Speed:
+        case MotionParam::Rotate:
+        case MotionParam::Reach:
+        case MotionParam::SqueezeX:
+        case MotionParam::SqueezeY:
+        case MotionParam::Elevation:
+        case MotionParam::ClipTop:
+        case MotionParam::ClipBottom:
+        case MotionParam::Tilt:
+        case MotionParam::Roll:
+          // Through the settings, so a hand-edited value out of range comes
+          // in held inside it, as a script's would.
+          motion.set (param,
+                      motionValueOf (withMotionValue (
+                                         ClipSettings{}, param,
+                                         static_cast<float> (
+                                             static_cast<double> (v))),
+                                     param));
+          break;
+        }
+    }
+  return motion;
+}
+
 /** A channel's six actions, or -- in a set written before 2026-09-27, when a
  *  channel had two slots with an action each -- those two as A1 and A2, with
  *  the envelope each slot had been turned to. Read before fitToDevice cuts the
@@ -255,6 +362,8 @@ readActions (Session::Channel &channel, juce::var const &value)
           action.script = entry["script"].toString ().toStdString ();
           if (auto const feel = readOverrides (entry["feel"]))
             action.feel = actionFeelFrom (*feel);
+          action.motion = readMotion (entry["motion"]);
+          action.after = afterFromName (entry["after"].toString ());
         }
       return;
     }
@@ -286,6 +395,10 @@ writeActions (std::array<Session::ActionEntry, numActionButtons> const &actions)
       if (action.feel)
         entry->setProperty ("feel",
                             writeOverrides (withFeel (ClipSettings{}, *action.feel)));
+      if (!action.motion.empty ())
+        entry->setProperty ("motion", writeMotion (action.motion));
+      if (action.after)
+        entry->setProperty ("after", afterName (action.after));
       entries.add (juce::var (entry));
     }
   return entries;
@@ -387,7 +500,8 @@ saveSession (juce::File const &file, Session const &set)
       auto const anyAction = std::any_of (
           channel.actions.begin (), channel.actions.end (),
           [] (Session::ActionEntry const &a) {
-            return !a.script.empty () || a.feel.has_value ();
+            return !a.script.empty () || a.feel.has_value ()
+                   || !a.motion.empty () || a.after.has_value ();
           });
       if (anyAction)
         entry->setProperty ("actions", writeActions (channel.actions));

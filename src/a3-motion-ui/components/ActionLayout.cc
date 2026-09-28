@@ -29,6 +29,34 @@ namespace a3
 
 namespace
 {
+/** MOTION's eight fields two to a row, each field's pair side by side: four
+ *  across. */
+constexpr int motionColumns = 4;
+constexpr int motionRows
+    = (numMotionParams + motionColumns - 1) / motionColumns;
+
+/** The MOTION tile in what the card has under its name: four across in
+ *  motionParamOrder, rows as tall as the AUDIO tile's knobs want (`rowCap`)
+ *  or as the card allows, whichever is less -- smaller than a fingertip
+ *  rather than off the page. */
+void
+layOutMotionTile (ActionLayout &out, juce::Rectangle<int> grid, int rowCap)
+{
+  auto const rowH = juce::jmin (rowCap, grid.getHeight () / motionRows);
+  auto const colW = grid.getWidth () / motionColumns;
+
+  for (int at = 0; at < numMotionParams; ++at)
+    {
+      auto const column = at % motionColumns;
+      auto const row = at / motionColumns;
+      auto const cell = juce::Rectangle<int>{ grid.getX () + column * colW,
+                                              grid.getY () + row * rowH, colW,
+                                              rowH };
+      out.motionControls[static_cast<size_t> (
+          motionParamOrder[static_cast<size_t> (at)])]
+          = cell.reduced (juce::roundToInt (theme ().paddingHair));
+    }
+}
 }
 
 ActionLayout
@@ -75,7 +103,10 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   auto const colW = juce::jmax (cellFloor,
                                 juce::jmax (gridKnob + 2,
                                             static_cast<int> (gridKnob * 1.35f)));
-  auto const gridW = labelW + 3 * colW;
+  // Wide enough for either tile: AUDIO's gutter and three columns, or
+  // MOTION's four -- one card for both, so switching tiles moves nothing
+  // left of it.
+  auto const gridW = juce::jmax (labelW + 3 * colW, motionColumns * colW);
   auto const cardW = juce::jmin (content.getWidth () * 2 / 3,
                                  gridW + 2 * juce::jmax (2, gridW / 40) + 6);
 
@@ -115,6 +146,9 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
             = band.removeFromLeft (colW).reduced (juce::roundToInt (theme ().paddingHair));
     }
 
+  layOutMotionTile (out, grid.withX (grid.getX () + indent).withWidth (gridW),
+                    juce::jmax (cellFloor, static_cast<int> (gridKnob * 1.35f)));
+
   // Left of the card, left to right (2026-09-28): the six buttons, the list
   // the chosen one is assigned from, and a column of keys -- EDIT, then the
   // chosen button's mode. No ACT key: the six fields fire their own actions.
@@ -126,6 +160,17 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   out.editButton = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
   keys.removeFromTop (gap);
   out.actModeField = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromTop (gap);
+  // What comes after the accent, under the mode: both say what a press of
+  // this button does over time.
+  out.afterKey = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromTop (gap);
+
+  // Which tile the card shows, at the foot of the column: AUDIO over
+  // MOTION, apart from the two keys that say what the button is.
+  out.motionKey = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
+  keys.removeFromBottom (gap);
+  out.audioKey = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
 
   // Three rows of two, as the pads stand on the panel: A1 A2 / A3 A4 / A5 A6.
   // A quarter each, so an action's name fits under its number; the list
@@ -155,6 +200,22 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
     bodySize,
   };
 
+  return out;
+}
+
+ActionFieldParts
+actionFieldParts (juce::Rectangle<int> field)
+{
+  ActionFieldParts out;
+  auto inner = field.reduced (field.getHeight () / 8);
+  auto numberRow = inner.removeFromTop (inner.getHeight () / 2);
+
+  // A square as tall as the number's row, in its right end: a letter read at
+  // a glance, and never over the number or the name.
+  out.modeBadge = numberRow.removeFromRight (numberRow.getHeight ());
+  numberRow.removeFromRight (numberRow.getHeight () / 4);
+  out.number = numberRow;
+  out.name = inner;
   return out;
 }
 

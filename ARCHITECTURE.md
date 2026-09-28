@@ -1341,15 +1341,42 @@ before it and a second press is resolved against those. The engine side
 home to itself, not to the first action.
 
 **The ACTION page** (`ActionLayout`, `ActionComponent`): left to right, the six fields (3×2, as on
-the panel), the list the chosen button is assigned from, a key column (EDIT, then the mode), and
-the Audio card with the chosen button's feel. A field going down chooses its button **and fires it**
-through the pad handler; up lets a Hold action go. There is no ACT key on the page — six keys that
-fire made a seventh redundant. `EncoderTarget::Kind::ActionButton`: the first encoder steps the
-chosen button. `_chosenActionButton[ch]` is also what the screen's ACT fires and what FILES' Load
-on ACTIONS assigns to.
+the panel), the list the chosen button is assigned from, a key column (EDIT, the mode, *then*,
+AUDIO, MOTION), and the card with the chosen button's tile. Since 2026-09-28 **a field only
+chooses** its button (`onButtonChosen`); everything else on the page shows the chosen one, and the
+card is outlined white while its action runs. Firing is the pads' job: a push on an action pad of
+the panel or the PADS page fires as before and then brings up the ACTION page of that channel with
+the pushed button chosen (`showPushedAction`, `actionPressShowsItsPage`) — not with Shift (a
+preview is auditioned from wherever the hand is, FILES most of all), not from the bar's ACT key, a
+scene or a chain, and not away from a take being armed or recorded. Each field carries a **1/H
+badge** for its own button's mode (`actionFieldParts`). `EncoderTarget::Kind::ActionButton`: the
+first encoder steps the chosen button; the others keep FREQ/Q of their column — the tiles have
+nine and nineteen values, which do not fall onto seven encoders cleanly. `_chosenActionButton[ch]`
+is also what the screen's ACT fires and what FILES' Load on ACTIONS assigns to.
+
+**Two tiles, one card** (2026-09-28). AUDIO is the nine feel knobs. MOTION is every knob of the
+MOTION page and CLIP's speed, direction and end, for what the button puts on the clip:
+`motionParamOrder` lays them out four across, MOTION's eight fields two to a row, then speed, dir
+and end. Each value is shown as it will land (`motionShownFor`) in one of three looks: grey where
+neither the script nor a turn sets it (the clip's own value, as a hint), the channel's colour where
+the script sets it (`ActionScriptResult::assigned`), and on a wash where it was turned on the
+button. A turn makes it the button's own (`ActionButton::motion`, `MotionOverrides`); two taps give
+it back to the script. A press resolves the script against the clip, then the button's motion, then
+its feel (`resolveActionAt` with `MotionOverrides`). A button without an action shows "no action"
+instead of the tile.
+
+**Then** (2026-09-28): each button can name another of its channel's buttons to fire when its
+accent is over (`ActionButton::after`, the key under the mode: a tap steps --, A1..A6, two taps
+clear it). The engine only counts accents that end (`MotionEngine::accentEndCount`, on the edge
+where the clip is given back); `ActionChain` decides on the message thread, once per end, from the
+button that ran the accent. A chained button plays as a one-shot — no finger holds it. Chains may
+loop; another action press, Play|Pause or Stop on the channel ends one.
 
 **Sets** keep `"slots"` with one entry, so an older build still reads a new set, and add
-`"actions"` (six entries, written only if one is non-empty). A set from before maps its two slot
+`"actions"` (six entries, written only if one is non-empty). An entry holds `"script"`, `"feel"`
+where it was turned, `"motion"` — the MOTION tile's turned values in the slot overrides' own
+words, e.g. `{ "spin": 0, "reach": -0.5, "direction": "rev" }` — and `"after": "A3"`, each only
+when set. A set from before maps its two slot
 actions to A1/A2. On the first start of the new build `migrateTwoSlotSets()` copies every two-slot
 set to `pattern/backup-two-slots/` once — the debounced save and `renameInSets()` would otherwise
 truncate them all within a minute.

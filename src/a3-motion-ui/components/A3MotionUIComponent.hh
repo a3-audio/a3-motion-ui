@@ -50,6 +50,7 @@
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
+#include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
@@ -352,6 +353,23 @@ private:
   /** Where a knob stands now -- the ACTION page's nine are sliders. */
   void setActionControl (int control, double value);
   void resetActionControl (int control);
+  /** A MOTION tile value turned on the shown button, or with nothing given
+   *  handed back to the script. */
+  void setShownButtonMotion (MotionParam param, std::optional<float> value);
+  /** What the shown button fires when its accent is over. */
+  void setShownButtonAfter (std::optional<int> after);
+
+  /** Each channel's chain of actions: which button's accent runs, and what
+   *  follows it (see ActionChain). Followed every tick. */
+  std::array<ActionChain, numChannelsInitial> _actionChains;
+  void followActionChains ();
+  /** A button fired by the chain, as if pressed and let go: nobody holds it,
+   *  so a Hold button plays as a one-shot here. */
+  void fireChainedAction (index_t channel, int button);
+  /** A push on an action pad of the panel or the PADS page: the ACTION page
+   *  of that channel, with the pushed button chosen -- after the press has
+   *  fired, so nothing about the firing waits for the page. */
+  void showPushedAction (index_t channel, index_t pad, PadSource source);
   static juce::String actionReadoutFor (int control,
                                         Pattern const &pattern);
 
@@ -827,6 +845,13 @@ private:
      *  set only keeps what was turned from it. */
     ActionFeel feel;
     ActionFeel scriptFeel;
+    /** What the button puts on the clip where it was turned on the ACTION
+     *  page's MOTION tile (2026-09-28), over what the script says. */
+    MotionOverrides motion;
+    /** The button of the same channel fired when this one's accent is over
+     *  (2026-09-28), or nothing. Kept when another script is assigned: it
+     *  belongs to the button's place in the set, not to the script. */
+    std::optional<int> after;
     /** The dice rolled when the button was assigned. The script is worked out
      *  again at every press, against the clip as it stands then, and this
      *  keeps a random action landing where it landed. */
