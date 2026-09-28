@@ -20,8 +20,12 @@
 
 #include "PatternGenerator.hh"
 
+#include <algorithm>
 #include <cmath>
+#include <functional>
 #include <numeric>
+#include <utility>
+#include <vector>
 
 #include <a3-motion-engine/elevation/HeightMap.hh>
 
@@ -921,6 +925,278 @@ PatternGenerator::createRandom (index_t lengthBeats, float radius,
     }
 
   return pattern;
+}
+
+// -- The fifty-shape library (2026-09-28) ------------------------------------
+//
+// Two ways to draw: a curve over one lap, or steps that land on sixteenths.
+// Everything below is one of those with the idea written as numbers.
+
+namespace
+{
+using Curve = std::function<std::pair<float, float> (float lap)>;
+
+std::unique_ptr<Pattern>
+emptyPattern (char const *name, index_t lengthBeats)
+{
+  auto pattern = std::make_unique<Pattern> ();
+  pattern->setName (name);
+  pattern->resize (lengthBeats
+                   * static_cast<index_t> (TempoClock::getTicksPerBeat ()));
+  pattern->setStatus (Pattern::Status::Idle);
+  return pattern;
+}
+
+void
+place (Pattern &pattern, index_t tick, float x, float y,
+       HeightMap const &heightMap)
+{
+  auto position = Pos::fromCartesian (x, y, 0);
+  position.setZ (heightMap.computeHeight (position));
+  pattern.setTick (tick, position);
+}
+
+/** A curve on the unit disc, scaled to `radius`. `jumpsHome` leaves the
+ *  last tick empty, for a gesture that goes one way and starts again rather
+ *  than coming back: the seam then reads as the jump it is, not as a line
+ *  drawn across the room. */
+std::unique_ptr<Pattern>
+fromCurve (char const *name, index_t lengthBeats, float radius,
+           Curve const &curve, HeightMap const &heightMap,
+           bool jumpsHome = false)
+{
+  auto pattern = emptyPattern (name, lengthBeats);
+  auto const numTicks = pattern->getNumTicks ();
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    {
+      if (jumpsHome && tick + 1 == numTicks)
+        break;
+      auto const [x, y] = curve (float (tick) / float (numTicks));
+      place (*pattern, tick, radius * x, radius * y, heightMap);
+    }
+  return pattern;
+}
+
+/** Where a stepped figure lands, and on which sixteenth. */
+struct Step
+{
+  int sixteenth;
+  float x;
+  float y;
+};
+
+/** Held positions that change on the given sixteenths -- a rhythm, spoken
+ *  as places. The tick before each landing is left empty, as Corner does,
+ *  so a jump is drawn as a jump. */
+std::unique_ptr<Pattern>
+fromSteps (char const *name, index_t lengthBeats, float radius,
+           std::vector<Step> const &steps, HeightMap const &heightMap)
+{
+  auto pattern = emptyPattern (name, lengthBeats);
+  auto const numTicks = pattern->getNumTicks ();
+  auto const perSixteenth
+      = static_cast<index_t> (TempoClock::getTicksPerBeat () / 4);
+
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    {
+      auto const sixteenth = static_cast<int> (tick / perSixteenth);
+      auto current = steps.back ();
+      for (auto const &step : steps)
+        if (step.sixteenth <= sixteenth)
+          current = step;
+
+      auto const nextTick = tick + 1;
+      auto const landsNext
+          = nextTick % perSixteenth == 0
+            && std::any_of (steps.begin (), steps.end (),
+                            [&] (Step const &s) {
+                              return static_cast<index_t> (s.sixteenth)
+                                         * perSixteenth
+                                     == nextTick % numTicks;
+                            });
+      if (landsNext)
+        continue; // the gap before a landing
+
+      place (*pattern, tick, radius * current.x, radius * current.y,
+             heightMap);
+    }
+  return pattern;
+}
+
+/** Points evenly round the disc, starting at the front. */
+std::vector<Step>
+roundTheRoom (std::vector<int> const &sixteenths)
+{
+  std::vector<Step> steps;
+  auto const n = static_cast<float> (sixteenths.size ());
+  for (size_t i = 0; i < sixteenths.size (); ++i)
+    {
+      auto const angle = pi<float> () / 2.f + 2.f * pi<float> () * i / n;
+      steps.push_back ({ sixteenths[i], std::cos (angle), std::sin (angle) });
+    }
+  return steps;
+}
+
+constexpr float turn = 2.f * pi<float> ();
+}
+
+// Tresillo, 3+3+2 in eighths: the cell under clave, and the one EDM builds
+// its tension on before a drop. Three places, jumped to on 1, the "and" of
+// 2 and 4.
+std::unique_ptr<Pattern>
+PatternGenerator::createTresillo (index_t lengthBeats, float radius,
+                                  HeightMap const &heightMap)
+{
+  return fromSteps ("Tresillo", lengthBeats, radius,
+                    roundTheRoom ({ 0, 6, 12 }), heightMap);
+}
+
+// Son clave 3-2: three strokes in the first bar, two in the second.
+std::unique_ptr<Pattern>
+PatternGenerator::createClave32 (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  return fromSteps ("Clave 3-2", lengthBeats, radius,
+                    roundTheRoom ({ 0, 6, 12, 20, 24 }), heightMap);
+}
+
+// Call and response: left on one beat, right on the next.
+std::unique_ptr<Pattern>
+PatternGenerator::createPingPong (index_t lengthBeats, float radius,
+                                  HeightMap const &heightMap)
+{
+  std::vector<Step> steps;
+  for (int beat = 0; beat < static_cast<int> (lengthBeats); ++beat)
+    steps.push_back ({ beat * 4, beat % 2 == 0 ? -1.f : 1.f, 0.f });
+  return fromSteps ("Ping Pong", lengthBeats, radius, steps, heightMap);
+}
+
+// Smalley's centrifugence, and the riser of a build-up: out from the middle
+// in four turns, one way, then home in a jump.
+std::unique_ptr<Pattern>
+PatternGenerator::createRiser (index_t lengthBeats, float radius,
+                               HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Riser", lengthBeats, radius,
+      [] (float t) {
+        return std::pair{ t * std::cos (4.f * turn * t),
+                          t * std::sin (4.f * turn * t) };
+      },
+      heightMap, true);
+}
+
+// Centripetence, contraction: in from the edge, three turns.
+std::unique_ptr<Pattern>
+PatternGenerator::createCollapse (index_t lengthBeats, float radius,
+                                  HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Collapse", lengthBeats, radius,
+      [] (float t) {
+        return std::pair{ (1.f - t) * std::cos (3.f * turn * t),
+                          (1.f - t) * std::sin (3.f * turn * t) };
+      },
+      heightMap, true);
+}
+
+// Smalley's vortex: inwards, and faster the tighter it gets -- the turn goes
+// with the square of the lap, the way a skater pulls in their arms.
+std::unique_ptr<Pattern>
+PatternGenerator::createVortex (index_t lengthBeats, float radius,
+                                HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Vortex", lengthBeats, radius,
+      [] (float t) {
+        auto const r = 1.f - 0.9f * t;
+        auto const a = 6.f * turn * t * t;
+        return std::pair{ r * std::cos (a), r * std::sin (a) };
+      },
+      heightMap, true);
+}
+
+// A dub echo: thrown out and back four times, each throw half the last, the
+// way a tape delay's repeats fall away.
+std::unique_ptr<Pattern>
+PatternGenerator::createEcho (index_t lengthBeats, float radius,
+                              HeightMap const &heightMap)
+{
+  auto const lap = static_cast<int> (lengthBeats) * 4;
+  auto const d = 1.f / std::sqrt (2.f);
+  std::vector<Step> steps;
+  auto reach = 1.f;
+  for (int i = 0; i < 4; ++i)
+    {
+      steps.push_back ({ i * lap / 4, reach * d, reach * d });
+      steps.push_back ({ i * lap / 4 + lap / 8, 0.f, 0.f });
+      reach /= 2.f;
+    }
+  return fromSteps ("Echo", lengthBeats, radius, steps, heightMap);
+}
+
+// Dilation and contraction on a turn: the circle breathes four times round.
+std::unique_ptr<Pattern>
+PatternGenerator::createPulse (index_t lengthBeats, float radius,
+                               HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Pulse", lengthBeats, radius,
+      [] (float t) {
+        auto const r = 0.7f + 0.3f * std::cos (4.f * turn * t);
+        return std::pair{ r * std::cos (turn * t), r * std::sin (turn * t) };
+      },
+      heightMap);
+}
+
+// Four cusps, sharp at the tips and slow between them: a star that turns
+// its corners hard -- tense rather than round.
+std::unique_ptr<Pattern>
+PatternGenerator::createAstroid (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Astroid", lengthBeats, radius,
+      [] (float t) {
+        auto const c = std::cos (turn * t), s = std::sin (turn * t);
+        return std::pair{ c * c * c, s * s * s };
+      },
+      heightMap);
+}
+
+// A trefoil: three leaves drawn in one line, flowing, never stopping.
+std::unique_ptr<Pattern>
+PatternGenerator::createTrefoil (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Trefoil", lengthBeats, radius,
+      [] (float t) {
+        auto const a = turn * t;
+        return std::pair{ (std::sin (a) + 2.f * std::sin (2.f * a)) / 3.f,
+                          (std::cos (a) - 2.f * std::cos (2.f * a)) / 3.f };
+      },
+      heightMap);
+}
+
+// A slow wander that still comes home. Polar, so it cannot leave the disc:
+// the distance breathes on three whole multiples of the lap and the bearing
+// sways about one steady turn, so it reads as organic and closes without a
+// seam.
+std::unique_ptr<Pattern>
+PatternGenerator::createDrift (index_t lengthBeats, float radius,
+                               HeightMap const &heightMap)
+{
+  return fromCurve (
+      "Drift", lengthBeats, radius,
+      [] (float t) {
+        auto const a = turn * t;
+        auto const r = 0.6f + 0.25f * std::sin (3.f * a + 1.f)
+                       + 0.15f * std::sin (5.f * a + 2.f);
+        auto const bearing = a + 0.35f * std::sin (2.f * a + 0.7f);
+        return std::pair{ r * std::cos (bearing), r * std::sin (bearing) };
+      },
+      heightMap);
 }
 
 }

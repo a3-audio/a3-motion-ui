@@ -99,6 +99,18 @@ getPatternDefs ()
     { "Triangle",      4, [] (int b, float r, auto const &h) { return PatternGenerator::createTriangle   (b, r, h); }},
     { "Wave",         16, [] (int b, float r, auto const &h) { return PatternGenerator::createWave       (b, r, h); }},
     { "Zigzag",        8, [] (int b, float r, auto const &h) { return PatternGenerator::createZigzag     (b, r, h); }},
+    // The fifty-shape library (2026-09-28): rhythm cells, Smalley's motions, dub.
+    { "Tresillo",      4, [] (int b, float r, auto const &h) { return PatternGenerator::createTresillo   (b, r, h); }},
+    { "Clave 3-2",     8, [] (int b, float r, auto const &h) { return PatternGenerator::createClave32    (b, r, h); }},
+    { "Ping Pong",     4, [] (int b, float r, auto const &h) { return PatternGenerator::createPingPong   (b, r, h); }},
+    { "Riser",        32, [] (int b, float r, auto const &h) { return PatternGenerator::createRiser      (b, r, h); }},
+    { "Collapse",     16, [] (int b, float r, auto const &h) { return PatternGenerator::createCollapse   (b, r, h); }},
+    { "Vortex",       32, [] (int b, float r, auto const &h) { return PatternGenerator::createVortex     (b, r, h); }},
+    { "Echo",         16, [] (int b, float r, auto const &h) { return PatternGenerator::createEcho       (b, r, h); }},
+    { "Pulse",        16, [] (int b, float r, auto const &h) { return PatternGenerator::createPulse      (b, r, h); }},
+    { "Astroid",      16, [] (int b, float r, auto const &h) { return PatternGenerator::createAstroid    (b, r, h); }},
+    { "Trefoil",      16, [] (int b, float r, auto const &h) { return PatternGenerator::createTrefoil    (b, r, h); }},
+    { "Drift",        32, [] (int b, float r, auto const &h) { return PatternGenerator::createDrift      (b, r, h); }},
   };
   // clang-format on
 }
