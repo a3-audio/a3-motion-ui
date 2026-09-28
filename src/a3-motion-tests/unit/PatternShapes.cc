@@ -243,3 +243,68 @@ TEST (PatternShapes, TheDriftNeverTurnsBack)
       ASSERT_GT (cross, 0.f) << "at tick " << t;
     }
 }
+
+// -- Library v2 rhythm cells (2026-09-28) --------------------------------------
+// The first read of a lap counts as a landing, so a figure whose last place is
+// held over the loop starts its list with 0.
+
+TEST (PatternShapes, FourFloorLandsOnEveryBeat)
+{
+  auto const p = PatternGenerator::createFourFloor (4, radius, heightMap);
+  EXPECT_EQ (p->getName (), "Four Floor");
+  EXPECT_EQ (onsetsOf (*p), (std::vector<int>{ 0, 4, 8, 12 }));
+}
+
+TEST (PatternShapes, OffbeatLandsBetweenTheBeats)
+{
+  auto const p = PatternGenerator::createOffbeat (4, radius, heightMap);
+  EXPECT_EQ (onsetsOf (*p), (std::vector<int>{ 0, 2, 6, 10, 14 }));
+}
+
+TEST (PatternShapes, ClaveTwoThreeIsTheOtherWayRound)
+{
+  auto const p = PatternGenerator::createClave23 (8, radius, heightMap);
+  EXPECT_EQ (onsetsOf (*p), (std::vector<int>{ 0, 4, 8, 16, 22, 28 }));
+}
+
+TEST (PatternShapes, GallopIsOneTwoThreeOnEveryBeat)
+{
+  auto const p = PatternGenerator::createGallop (4, radius, heightMap);
+  EXPECT_EQ (onsetsOf (*p),
+             (std::vector<int>{ 0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15 }));
+}
+
+// Swing sits between the sixteenths: the second eighth of each beat lands two
+// thirds of the way through it, not half.
+TEST (PatternShapes, ShuffleSwingsTheSecondEighth)
+{
+  auto const p = PatternGenerator::createShuffle (4, radius, heightMap);
+  auto const beat = static_cast<index_t> (TempoClock::getTicksPerBeat ());
+  auto const swung = beat * 2 / 3;
+  ASSERT_EQ (p->getNumTicks (), 4 * beat);
+  for (index_t b = 0; b < 4; ++b)
+    {
+      auto const before = p->getTick (b * beat + swung - 2);
+      auto const after = p->getTick (b * beat + swung + 2);
+      ASSERT_TRUE (before.isValid () && after.isValid ()) << b;
+      EXPECT_FALSE (samePlace (before, after)) << "no landing on beat " << b;
+      EXPECT_TRUE (samePlace (p->getTick (b * beat + beat / 2),
+                              p->getTick (b * beat + beat / 4)))
+          << "a straight eighth landed on beat " << b;
+    }
+}
+
+TEST (PatternShapes, TheNewRhythmCellsStayInsideTheirRadius)
+{
+  for (auto const &p : { PatternGenerator::createFourFloor (4, radius, heightMap),
+                         PatternGenerator::createOffbeat (4, radius, heightMap),
+                         PatternGenerator::createClave23 (8, radius, heightMap),
+                         PatternGenerator::createShuffle (4, radius, heightMap),
+                         PatternGenerator::createGallop (4, radius, heightMap) })
+    {
+      auto const r = radii (*p);
+      ASSERT_FALSE (r.empty ()) << p->getName ();
+      for (auto const v : r)
+        ASSERT_LE (v, radius + 1e-4f) << p->getName ();
+    }
+}
