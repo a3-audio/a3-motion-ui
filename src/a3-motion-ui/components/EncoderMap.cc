@@ -143,9 +143,17 @@ encoderTarget (BarPage page, int column, int row, bool clicked, bool shift)
     case BarPage::Motion: return onMotion (column, row, clicked);
     case BarPage::Mixer: return onMixer (column, row);
     case BarPage::Action:
-      if (column == 0 && row == 0)
-        return { EncoderTarget::Kind::ActionButton };
-      return columnChannelPot (row);
+      {
+        // The page's columns left to right (2026-09-28): the list, the six
+        // buttons, the mode, the "then". The lower row keeps FREQ and Q.
+        if (row != 0)
+          return columnChannelPot (row);
+        EncoderTarget::Kind const upper[] = {
+          EncoderTarget::Kind::ActionList, EncoderTarget::Kind::ActionButton,
+          EncoderTarget::Kind::ActionMode, EncoderTarget::Kind::ActionAfter
+        };
+        return { upper[column] };
+      }
     default: return columnChannelPot (row);
     }
 }

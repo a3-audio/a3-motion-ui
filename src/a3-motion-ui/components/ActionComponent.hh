@@ -164,6 +164,13 @@ public:
 
   ActionLayout const &layout () const { return _layout; }
 
+  /** The encoder over the list: moves its highlight by `increment` rows,
+   *  from the assigned script if nothing is highlighted, and returns the
+   *  name now under it. Assigns nothing -- see chooseListCursor(). */
+  juce::String moveListCursor (int increment);
+  /** The press: the highlighted script goes on the chosen button. */
+  void chooseListCursor ();
+
   /** A name was picked out of the action list; empty means "fire nothing". */
   std::function<void (juce::String const &name)> onActionChosen;
   /** EDIT: open this action's script in FILES, beside the list there. */
@@ -229,6 +236,10 @@ private:
    *  and a list drawn from row zero with no window is one whose last entries
    *  cannot be reached at all. */
   int _listTop = 0;
+  /** The row the list's encoder has walked to, -1 for none: then it starts
+   *  from the assigned script. Apart from _actionName, because walking is
+   *  not assigning. */
+  int _listCursor = -1;
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
   /** One per envelope control; the mode beside the name stays a key. */
   std::array<std::unique_ptr<PotKnob>, numControls> _knob;
