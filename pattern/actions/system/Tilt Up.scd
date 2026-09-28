@@ -1,7 +1,7 @@
-// Tilt Up -- held, the figure's plane leans forward and rocks.
+// Tilt Up -- held, the figure's plane leans forward and turns over.
 // Mood: more -- the room tips towards you (Q1/Q2).
 //
-// Tilt leans the whole figure; its sweep rocks it back and forth on a bar.
+// Tilt leans the whole figure; its sweep turns it over, once in four bars.
 
 // ---- Shape -----------------------------------------------------------
 //~speedLog2 = 0;        // -7..4   how fast, as a power of two; -3 is the 1/8
@@ -20,10 +20,10 @@
 //~sqzY = 0;             // -1..1   the same left-right
 //~strX = 0;             // -8..8   ~sqzX's own sweep, out and back
 //~strY = 0;             // -8..8   the same for ~sqzY
-~tilt = 0.6;             // -1..1   the figure's plane leant forward (+) or back
-//~roll = 0;             // -1..1   the figure's plane leant to the left (+) or right
-~tswp = 4;               // -8..8   ~tilt's own sweep, out and back
-//~rswp = 0;             // -8..8   ~roll's own sweep, out and back
+~tilt = 0.6;             // -2..2   the figure's plane leant forward (+) or back
+//~roll = 0;             // -2..2   the figure's plane leant to the left (+) or right
+~tswp = 4;               // -8..8   turns ~tilt round, like spin
+//~rswp = 0;             // -8..8   turns ~roll round, like spin
 //~spin = 0;             // -8..8   bars per revolution, sign = direction
 //~swell = 0;            // -8..8   sweeps ~reach out of where it sits and back
 //~sway = 0;             // -8..8   sweeps ~base towards the pole the sign says

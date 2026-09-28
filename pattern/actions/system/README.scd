@@ -106,10 +106,18 @@
 //                            table as spin. Positive pulls it out, negative
 //                            presses it flat. What swell is to reach.
 //   ~strY           -8..8    the same for ~sqzY.
-//   ~tilt           -1..1    the figure's plane leant forward (+) or back.
-//   ~roll           -1..1    the figure's plane leant to the left (+) or right.
-//   ~tswp           -8..8    ~tilt's own sweep, out and back.
-//   ~rswp           -8..8    ~roll's own sweep, out and back.
+//   ~tilt           -2..2    the figure's plane leant forward (+) or back,
+//                            in quarter turns: 1 stands it on its front
+//                            edge, 2 turns it upside down. An angle on a
+//                            ring, so it wraps like ~rotate: 3 is -1.
+//   ~roll           -2..2    the figure's plane leant to the left (+) or
+//                            right, the same way.
+//   ~tswp           -8..8    turns ~tilt round, like spin turns ~rotate: the
+//                            plane keeps turning over, forward for positive,
+//                            back for negative, one whole turn in the
+//                            bars-per-revolution of ~spin's table. 0 stands
+//                            still at ~tilt.
+//   ~rswp           -8..8    the same for ~roll: the plane tumbles sideways.
 //   ~spin           -8..8    how fast the whole figure turns under the blob,
 //                            as bars per revolution: |1| is 32 bars, then
 //                            16, 8, 4, 2, 1, 1/2, and |8| is a quarter bar.

@@ -28,6 +28,7 @@
 
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
 #include <a3-motion-ui/components/ControllerLayout.hh>
@@ -792,22 +793,20 @@ ClipSettingsComponent::setMotionStretch (int x, int y)
 }
 
 void
-ClipSettingsComponent::setMotionLean (float tilt, float roll, float sweptTilt,
-                                      float sweptRoll, int tiltSweep,
-                                      int rollSweep)
+ClipSettingsComponent::setMotionLean (float tilt, float roll,
+                                      std::optional<float> sweptTilt,
+                                      std::optional<float> sweptRoll,
+                                      int tiltSweep, int rollSweep)
 {
-  putOnKnob (motionSection, 10, juce::jlimit (-1.f, 1.f, tilt));
+  // Rings, like rot: brought round rather than held at an end (SpaceTurn).
+  putOnKnob (motionSection, 10, wrappedLean (tilt));
   putOnKnob (motionSection, 11,
              juce::jlimit (-lfoMaxStep, lfoMaxStep, tiltSweep));
-  putOnKnob (motionSection, 12, juce::jlimit (-1.f, 1.f, roll));
+  putOnKnob (motionSection, 12, wrappedLean (roll));
   putOnKnob (motionSection, 13,
              juce::jlimit (-lfoMaxStep, lfoMaxStep, rollSweep));
-  putReachOnKnob (motionSection, 10,
-                  sweptTilt < -1.5f ? std::nullopt
-                                    : std::optional<float> (sweptTilt));
-  putReachOnKnob (motionSection, 12,
-                  sweptRoll < -1.5f ? std::nullopt
-                                    : std::optional<float> (sweptRoll));
+  putReachOnKnob (motionSection, 10, sweptTilt);
+  putReachOnKnob (motionSection, 12, sweptRoll);
 }
 
 void

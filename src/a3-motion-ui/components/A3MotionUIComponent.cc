@@ -7878,8 +7878,8 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
           case 10:
           case 12:
             {
-              // The two leans, a tenth per step like the squeezes: bipolar,
-              // -1..1, a quarter turn at the ends.
+              // The two leans, a tenth of a quarter turn per step like the
+              // squeezes' tenth: rings of -2..2 that the setters wrap.
               auto const amount = 0.1f * static_cast<float> (increment);
               if (sub == 10)
                 pattern->setTilt (pattern->getTilt () + amount);
@@ -8423,7 +8423,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     _clipSettings->setMotionLean (
         knobOf (Knob::Tilt, ClipSettings{}.tilt),
         knobOf (Knob::Roll, ClipSettings{}.roll),
-        tiltSweep != 0 ? turn.tilt : -2.f, rollSweep != 0 ? turn.roll : -2.f,
+        tiltSweep != 0 ? std::optional<float> (turn.tilt) : std::nullopt,
+        rollSweep != 0 ? std::optional<float> (turn.roll) : std::nullopt,
         tiltSweep, rollSweep);
   }
   _clipSettings->setSweeps (stepOf (Knob::Spin, ClipSettings{}.spin), swell,

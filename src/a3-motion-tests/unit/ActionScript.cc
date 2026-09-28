@@ -246,6 +246,39 @@ TEST (ActionScript, AValueOutsideItsRangeIsBroughtBackIn)
   EXPECT_FLOAT_EQ (out.squeezeY, -1.f);
 }
 
+// The leans are angles on a ring since their sweeps turn them round
+// (2026-09-28): in quarter turns, -2..2 the whole turn, and a value past it
+// wraps the way ~rotate does rather than stopping at an end.
+TEST (ActionScript, ALeanWrapsRatherThanStopping)
+{
+  auto const out = run ("~tilt = 1.5;\n~roll = -1.75;\n");
+  EXPECT_FLOAT_EQ (out.tilt, 1.5f);
+  EXPECT_FLOAT_EQ (out.roll, -1.75f);
+
+  auto const round = run ("~tilt = 3;\n~roll = -2.5;\n");
+  EXPECT_FLOAT_EQ (round.tilt, -1.f);
+  EXPECT_FLOAT_EQ (round.roll, 1.5f);
+
+  // What a script said before is the same angle now.
+  auto const old = run ("~tilt = 1;\n~roll = -1;\n");
+  EXPECT_FLOAT_EQ (old.tilt, 1.f);
+  EXPECT_FLOAT_EQ (old.roll, -1.f);
+}
+
+// And the table the scripts' comments come from says so.
+TEST (ActionScript, TheLeanAnnotationsNameTheRing)
+{
+  for (auto const &note : actionScriptNotes ())
+    {
+      auto const name = juce::String (note.name);
+      if (name == "tilt" || name == "roll")
+        EXPECT_EQ (juce::String (note.range).trim (), "-2..2") << name;
+      if (name == "tswp" || name == "rswp")
+        EXPECT_FALSE (juce::String (note.hint).contains ("out and back"))
+            << name << " turns round now";
+    }
+}
+
 TEST (ActionScript, RubbishIsReportedRatherThanGuessedAt)
 {
   ClipSettings current;

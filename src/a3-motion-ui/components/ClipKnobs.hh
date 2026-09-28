@@ -117,34 +117,59 @@ motionKnobSpec (int sub)
     case 8: return { 0.0, 1.0, 0.0, 0.0, false, false, caption::fade };
     // Which way a bridge leans, in whole notches either side of the middle.
     case 9: return { -4.0, 4.0, 1.0, 0.0, true, false, caption::bias };
-    // The figure's plane leant in the room, each lean beside its sweep.
-    case 10: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::tilt };
+    // The figure's plane leant in the room, each lean beside its sweep. A
+    // ring like rot, since the sweeps turn the plane round rather than
+    // rocking it (2026-09-28): -2..2 quarter turns is the whole turn, and
+    // upright stands at the top (knobAngleFraction).
+    case 10: return { -2.0, 2.0, 0.0, 0.0, true, true, caption::tilt };
     case 11: return sweep (caption::tiltSweep);
-    case 12: return { -1.0, 1.0, 0.0, 0.0, true, false, caption::roll };
+    case 12: return { -2.0, 2.0, 0.0, 0.0, true, true, caption::roll };
     case 13: return sweep (caption::rollSweep);
     default: return {};
     }
 }
 
-/** Where a modulation is holding a knob's value right now, in the angle
- *  fraction PotKnob draws in -- -1 to 1 across the scale, 0 to 2 round a
- *  ring -- or -2 when nothing is moving it.
+/** Where a value stands on its knob, in the angle fraction PotKnob draws in:
+ *  -1 to 1 across a scale, 0 at the top; round a ring, 0 to 2 for a whole
+ *  turn measured from the value zero, so zero is at the top of every ring --
+ *  rot's 0 and an upright lean alike (2026-09-28). A ring that ran from its
+ *  minimum would put a -2..2 lean's upright at the bottom.
  *
- *  The same mapping the LookAndFeel applies to the value itself, so the blue
- *  arc starts exactly at the pointer. When the knobs became sliders on
- *  2026-09-23 the modulation was left behind with the old painting code and
- *  the arcs vanished (a3-motion-ui#35); this is the one place that says how
- *  a held value becomes an arc. */
+ *  The one mapping the pointer (LookAndFeel_A3::drawRotarySlider) and the
+ *  modulation's arc (reachOnKnob) are both drawn with, so the arc starts
+ *  exactly at the pointer. */
+constexpr float
+knobAngleFraction (double min, double max, bool wraps, double value)
+{
+  if (!(max > min))
+    return 0.f;
+
+  if (wraps)
+    return static_cast<float> (value / (max - min) * 2.0);
+
+  return static_cast<float> ((value - min) / (max - min) * 2.0 - 1.0);
+}
+
+constexpr float
+knobAngleFraction (ClipKnobSpec const &spec, double value)
+{
+  return knobAngleFraction (spec.min, spec.max, spec.wraps, value);
+}
+
+/** Where a modulation is holding a knob's value right now, in the angle
+ *  fraction PotKnob draws in (knobAngleFraction), or -2 when nothing is
+ *  moving it.
+ *
+ *  When the knobs became sliders on 2026-09-23 the modulation was left
+ *  behind with the old painting code and the arcs vanished (a3-motion-ui#35);
+ *  this is the one place that says how a held value becomes an arc. */
 constexpr float
 reachOnKnob (ClipKnobSpec const &spec, std::optional<float> held)
 {
   if (!held.has_value () || !(spec.max > spec.min))
     return -2.f;
 
-  auto const proportion
-      = (static_cast<double> (*held) - spec.min) / (spec.max - spec.min);
-  return static_cast<float> (spec.wraps ? proportion * 2.0
-                                        : proportion * 2.0 - 1.0);
+  return knobAngleFraction (spec, static_cast<double> (*held));
 }
 
 }

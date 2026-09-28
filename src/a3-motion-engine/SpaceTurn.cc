@@ -21,7 +21,6 @@
 #include "SpaceTurn.hh"
 
 #include <a3-motion-engine/Pattern.hh>
-#include <a3-motion-engine/TempoLfo.hh>
 
 #include <cmath>
 
@@ -71,18 +70,45 @@ unturnedInSpace (Pos const &direction, SpaceTurn turn)
                          -turn.tilt * quarterTurn);
 }
 
+float
+wrappedLean (float quarterTurns)
+{
+  auto const half = leanQuarterTurnsPerTurn * 0.5f;
+  // Untouched when already on the ring: shifting by a half turn and back
+  // costs a float's last bit, and a saved lean has to come back as it was.
+  if (quarterTurns >= -half && quarterTurns < half)
+    return quarterTurns;
+
+  auto wrapped = std::fmod (quarterTurns + half, leanQuarterTurnsPerTurn);
+  if (wrapped < 0.f)
+    wrapped += leanQuarterTurnsPerTurn;
+  return wrapped - half;
+}
+
+namespace
+{
+/** A standing lean and how far its sweep has carried it round, counted only
+ *  while the sweep runs. */
+float
+leanOf (float standing, int sweep, float phase)
+{
+  auto const turned = sweep == 0 ? 0.f : phase * leanQuarterTurnsPerTurn;
+  return wrappedLean (standing + turned);
+}
+}
+
 SpaceTurn
 spaceTurnOf (Pattern const &pattern)
 {
-  // Out of where each was set and back, towards the end its sweep's sign
-  // points at -- bipolar, like the squeezes.
+  // Round and round, like the spin, rather than out and back (2026-09-28):
+  // the phase is in cycles, and a cycle is a whole turn of the plane.
   // Through getKnob: a take's lanes play over the settings here too.
-  return { lfoSweepBipolar (pattern.getKnob (Knob::Tilt),
-                            pattern.getKnobStep (Knob::TiltSweep),
-                            pattern.getTiltLfoPhase ()),
-           lfoSweepBipolar (pattern.getKnob (Knob::Roll),
-                            pattern.getKnobStep (Knob::RollSweep),
-                            pattern.getRollLfoPhase ()) };
+  return { leanOf (pattern.getKnob (Knob::Tilt),
+                   pattern.getKnobStep (Knob::TiltSweep),
+                   pattern.getTiltLfoPhase ()),
+           leanOf (pattern.getKnob (Knob::Roll),
+                   pattern.getKnobStep (Knob::RollSweep),
+                   pattern.getRollLfoPhase ()) };
 }
 
 }

@@ -79,9 +79,10 @@ struct ClipSettings
   int squeezeXLfo = 0;
   int squeezeYLfo = 0;
   /** How far the figure's plane is leant in the room (2026-09-27): tilt
-   *  forward or back, roll to either side, bipolar with zero upright and a
-   *  quarter turn at the ends -- see SpaceTurn. Each with its own sweep, a
-   *  signed TempoLfo step, the way the squeezes have theirs. */
+   *  forward or back, roll to either side, in quarter turns with zero
+   *  upright -- an angle on a closed ring, -2..2 the whole turn, see
+   *  SpaceTurn. Each with its own sweep, a signed TempoLfo step that turns
+   *  it round the way spin turns rot (2026-09-28). */
   float tilt = 0.f;
   float roll = 0.f;
   int tiltLfo = 0;

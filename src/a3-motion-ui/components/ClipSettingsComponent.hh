@@ -266,10 +266,13 @@ public:
                          float sweptY = -2.f);
   /** Each squeeze's own sweep, as signed TempoLfo steps. */
   void setMotionStretch (int x, int y);
-  /** tilt and roll, where each one's sweep holds it now (-2 for no sweep),
-   *  and the two sweeps' steps (2026-09-27). */
-  void setMotionLean (float tilt, float roll, float sweptTilt, float sweptRoll,
-                      int tiltSweep, int rollSweep);
+  /** tilt and roll, where each one's sweep has turned it now (nothing for no
+   *  sweep), and the two sweeps' steps (2026-09-27). Optional rather than a
+   *  -2 sentinel: a lean is a ring of -2..2 since 2026-09-28, so -2 is a
+   *  real angle -- upside down. */
+  void setMotionLean (float tilt, float roll, std::optional<float> sweptTilt,
+                      std::optional<float> sweptRoll, int tiltSweep,
+                      int rollSweep);
 
   /** The clip's three slow sweeps, as signed TempoLfo steps: how fast the
    *  figure turns under the blob, how fast reach opens and closes, how fast

@@ -21,10 +21,10 @@
 //~sqzY = 0;             // -1..1   the same left-right
 //~strX = 0;             // -8..8   ~sqzX's own sweep, out and back
 //~strY = 0;             // -8..8   the same for ~sqzY
-//~tilt = 0;             // -1..1   the figure's plane leant forward (+) or back
-//~roll = 0;             // -1..1   the figure's plane leant to the left (+) or right
-//~tswp = 0;             // -8..8   ~tilt's own sweep, out and back
-//~rswp = 0;             // -8..8   ~roll's own sweep, out and back
+//~tilt = 0;             // -2..2   the figure's plane leant forward (+) or back
+//~roll = 0;             // -2..2   the figure's plane leant to the left (+) or right
+//~tswp = 0;             // -8..8   turns ~tilt round, like spin
+//~rswp = 0;             // -8..8   turns ~roll round, like spin
 ~spin = 0;               // -8..8   bars per revolution, sign = direction
 ~swell = 0;              // -8..8   sweeps ~reach out of where it sits and back
 ~sway = 0;               // -8..8   sweeps ~base towards the pole the sign says

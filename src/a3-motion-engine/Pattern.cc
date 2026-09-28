@@ -21,6 +21,7 @@
 #include "Pattern.hh"
 
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 
 #include "TrajectoryShape.hh"
 
@@ -500,7 +501,9 @@ Pattern::getTilt () const
 void
 Pattern::setTilt (float amount)
 {
-  _tilt.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+  // Wrapped onto its ring rather than clamped, like the rotate: a lean has
+  // no ends since its sweep turns it round (see SpaceTurn).
+  _tilt.store (wrappedLean (amount), std::memory_order_relaxed);
 }
 
 float
@@ -512,7 +515,7 @@ Pattern::getRoll () const
 void
 Pattern::setRoll (float amount)
 {
-  _roll.store (std::clamp (amount, -1.f, 1.f), std::memory_order_relaxed);
+  _roll.store (wrappedLean (amount), std::memory_order_relaxed);
 }
 
 int
