@@ -26,6 +26,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
@@ -417,4 +418,51 @@ TEST (ActionFiring, AFeelIsTheEnvelopesAndTheMode)
 TEST (ActionFiring, AFreshFeelIsTheClipDefaults)
 {
   EXPECT_EQ (ActionFeel{}, actionFeelFrom (ClipSettings{}));
+}
+
+
+// -- Resolved at the press (2026-09-28) ---------------------------------------
+//
+// A button used to keep what its script made of the clip at the moment it
+// was assigned -- every field of it. Load another clip, or turn a knob, and
+// the next press threw the channel back to the old clip's values for as long
+// as the accent ran. Now a script is worked out against the clip as it
+// stands when the button goes down, with the dice the button rolled when it
+// was assigned.
+
+TEST (ActionFiring, AnActionLeavesWhatItDoesNotNameAsTheClipHasItNow)
+{
+  juce::String const script = "~reach = ~reach * 0.5;";
+  ClipSettings first;
+  first.rotate = 0.1f;
+  first.reach = 0.8f;
+  ClipSettings second = first;
+  second.rotate = 0.7f;
+  second.reach = 0.4f;
+
+  auto const onFirst = resolveActionAt (script, first, 1, ActionFeel{});
+  auto const onSecond = resolveActionAt (script, second, 1, ActionFeel{});
+
+  EXPECT_FLOAT_EQ (onFirst.rotate, 0.1f);
+  EXPECT_FLOAT_EQ (onFirst.reach, 0.4f);
+  EXPECT_FLOAT_EQ (onSecond.rotate, 0.7f);
+  EXPECT_FLOAT_EQ (onSecond.reach, 0.2f);
+}
+
+TEST (ActionFiring, TheSameSeedRollsTheSameDiceOnEveryPress)
+{
+  juce::String const script = "~rotate = rrand(0.0, 1.0);";
+  ClipSettings const clip;
+  EXPECT_FLOAT_EQ (resolveActionAt (script, clip, 42, ActionFeel{}).rotate,
+                   resolveActionAt (script, clip, 42, ActionFeel{}).rotate);
+}
+
+TEST (ActionFiring, TheButtonsFeelIsOnTheResolvedAction)
+{
+  ActionFeel feel;
+  feel.envelopeAttack = 5;
+  feel.actMode = ActMode::Hold;
+  auto const fired = resolveActionAt ("~reach = 0.3;", ClipSettings{}, 1, feel);
+  EXPECT_EQ (fired.envelopeAttack, 5);
+  EXPECT_EQ (fired.actMode, ActMode::Hold);
 }

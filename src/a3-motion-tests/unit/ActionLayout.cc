@@ -115,7 +115,6 @@ TEST (ActionLayout, NothingEscapesThePage)
   EXPECT_TRUE (page.contains (l.actionListArea));
   EXPECT_TRUE (page.contains (l.actModeField));
   EXPECT_TRUE (page.contains (l.editButton));
-  EXPECT_TRUE (page.contains (l.fireButton));
   for (auto const &control : l.controls)
     EXPECT_TRUE (page.contains (control));
   for (auto const &label : l.rowLabels)
@@ -328,33 +327,31 @@ TEST (ActionLayout, TheListStandsBetweenTheButtonsAndTheKeys)
   ASSERT_FALSE (l.actionListArea.isEmpty ());
   for (auto const &field : l.actionFields)
     EXPECT_LE (field.getRight (), l.actionListArea.getX ());
-  EXPECT_LE (l.actionListArea.getRight (), l.fireButton.getX ());
+  EXPECT_LE (l.actionListArea.getRight (), l.editButton.getX ());
   EXPECT_GE (actionListVisibleRows (l), 3);
 }
 
-TEST (ActionLayout, TheKeysStandInAColumnWithActAtItsFoot)
+// EDIT at the top of the column and the mode under it (2026-09-28). There
+// is no ACT key on the page any more: the six fields fire their own actions.
+TEST (ActionLayout, TheKeysStandInAColumnEditThenMode)
 {
   auto const l = pageLayout ();
-  for (auto const key : { l.actModeField, l.editButton, l.fireButton })
+  for (auto const key : { l.editButton, l.actModeField })
     {
       ASSERT_FALSE (key.isEmpty ());
-      EXPECT_EQ (key.getX (), l.fireButton.getX ());
+      EXPECT_EQ (key.getX (), l.editButton.getX ());
       EXPECT_GE (key.getWidth (), fingertipSize);
       EXPECT_GE (key.getHeight (), fingertipSize);
       EXPECT_LE (key.getRight (), l.card.getX ());
     }
-  EXPECT_LE (l.actModeField.getBottom (), l.editButton.getY ());
-  EXPECT_LE (l.editButton.getBottom (), l.fireButton.getY ());
-
-  // The one key that happens now takes what the column has left.
-  EXPECT_EQ (l.fireButton.getBottom (), l.actionListArea.getBottom ());
-  EXPECT_GE (l.fireButton.getHeight (), l.editButton.getHeight ());
+  EXPECT_EQ (l.editButton.getY (), l.actionListArea.getY ());
+  EXPECT_LE (l.editButton.getBottom (), l.actModeField.getY ());
 }
 
 TEST (ActionLayout, TheCardHoldsOnlyTheKnobs)
 {
   auto const l = pageLayout ();
-  EXPECT_FALSE (l.card.intersects (l.fireButton));
   for (auto const &control : l.controls)
     EXPECT_TRUE (l.card.contains (control));
+  EXPECT_FALSE (l.card.intersects (l.actModeField));
 }

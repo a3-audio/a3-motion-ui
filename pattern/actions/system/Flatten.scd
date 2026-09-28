@@ -1,4 +1,5 @@
 // Flatten -- held, the whole take is pinned to one height.
+// Mood: less -- the height is pinned; calmer, focused.
 //
 // Flat mode ignores the reach and puts every point of the figure at one
 // elevation, so the movement is left with its plan and nothing of its height:

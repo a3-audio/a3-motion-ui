@@ -1,4 +1,5 @@
 // Overhead -- the clip snaps to the cap above the listener.
+// Mood: more -- snaps up and bright; pleasant, high energy (Q1).
 //
 // Base at the north pole with a short reach keeps the whole trajectory in
 // the top of the sphere, and the turn keeps it from sitting still up there.

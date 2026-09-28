@@ -1,4 +1,5 @@
 // Ring -- a band at ear height, turning.
+// Mood: less -- settles at ear height; steady, grounded (Q4).
 //
 // The base sits at the equator and the clip's top and bottom are cut in
 // towards it, which leaves a horizontal ring however tall the recorded

@@ -1,4 +1,5 @@
 // Bloom -- held, the clip opens out to the whole sphere over two bars.
+// Mood: more -- opens out and lifts; calm to euphoric (Q4 -> Q1).
 //
 // Reach is how far down the sphere the trajectory's outer edge lands, so
 // putting it at one and taking the attack up to two bars is a room that

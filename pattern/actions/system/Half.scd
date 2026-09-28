@@ -1,4 +1,5 @@
 // Half -- whatever the clip is doing, less of it.
+// Mood: less -- less of whatever the clip is doing; energy down.
 //
 // Every line here reads the clip's own value and works from it, so the same
 // action means something different on every clip it is fired at.

@@ -1,4 +1,5 @@
 // Sweep -- the filter alone, held. Nothing moves.
+// Mood: more -- the filter builds, nothing moves; tension that lifts.
 //
 // No movement value is named, so the trajectory is untouched and the cutoff
 // does all the work: a long open on the way in, a longer close on the way

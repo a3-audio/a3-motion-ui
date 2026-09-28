@@ -166,8 +166,12 @@ generator and the test runner:
   plugged into the switch at the venue and the rec mode is a working habit; a set that changed
   either out from under you on load would be a surprise at the one moment nobody wants one.
 
-  **A slot carries the two files it came from** — `clip` and `action`, by name and without a path, so
-  a set travels — and its whole `ClipSettings`, not only what differs from the clip's own file. The
+  **A slot carries the file it came from** — `clip`, by name and without a path, so a set
+  travels — and its whole `ClipSettings`, not only what differs from the clip's own file. Since one
+  clip per channel (2026-09-27) there is one slot per channel, and the channel carries
+  **`actions`**: six entries, a script by name and the button's feel where it was turned (see
+  "One clip per channel, six action buttons" below). The slot's old `action` is read only from sets
+  written before, as A1/A2. The
   difference was worked out with `clipHasDrifted()`, which answers false for a slot with *no* clip
   file at all, so every slot filled straight from a shape wrote nothing and came back as a bare shape
   with its settings gone. `overrides` stays a `std::optional` for one reason only: a set written
@@ -176,7 +180,7 @@ generator and the test runner:
 
   **What was running runs again** — from the top, on the next *downbeat*. Whether, and nothing more:
   where a clip had got to is not in the format, because a set coming back mid-figure would start
-  somewhere nobody chose. The downbeat rather than the next beat because this is eight clips starting
+  somewhere nobody chose. The downbeat rather than the next beat because this is four clips starting
   together and together is the whole point of a set; a pad press is one clip and gets the nearer
   quantisation.
 
@@ -757,8 +761,8 @@ and a fallback naming a figure would put one into every empty slot.
 *and* every value the clip settings menu holds — speed, rotate, spin, swell, the envelope, the whole
 elevation block, direction, end action, act mode, fade. One file is one clip with its settings,
 which is why the browser's library list *is* the list of clips. A **set** (`SetFile`) is the layer
-above: which clip sits in which of the eight slots, plus what belongs to the device rather than to a
-clip — record length and per-channel 3d/freq/Q.
+above: which clip and which six actions each channel has, plus what belongs to the device rather
+than to a clip — record length and per-channel 3d/freq/Q.
 
 **The header row reads left to right in the order it is reached for**: folder, the three views of
 the clip, the two slots, the four things you do to it. Marks are square and one row high; the three
@@ -767,10 +771,9 @@ gives way below that — `clipSettingsPreferredHeight()` solves for it twice, on
 bar and once as a fixed thirty-four pixels, because at the smallest font and pot the fingertip is
 not a share and solving as though it were left the global grid six pixels tall.
 
-**"Slot 1" is two keys, not a heading.** A heading saying which clip you are looking at and a
-control changing which clip you are looking at want the same place — reading "Slot 1" left you no
-way to reach slot 2 without going to the pads page. They light like the tabs beside them, because
-they answer the same kind of question. Not on the pads page, which shows every slot at once.
+**The slot keys are gone** (2026-09-27): a channel holds one clip, so there is no second one to
+reach. `slotButtons` is still laid out, empty, until the slot dimension is collapsed (step G of
+the one-clip plan).
 
 **The library's five keys are Filter, Rename, Save, Save as and Delete**, and all five say the same
 words on every tab.
@@ -1087,41 +1090,36 @@ reaches, and a pad's colour comes in already worked out by `padLEDCallback()`, t
 also writes the panel's LEDs. Empty, idle, armed and running therefore look on screen exactly as
 they look on the hardware, because one place decides what they mean.
 
-Its geometry is `ControllerLayout` — channels across, slots down, and where they meet one clip with
-its four pads: **play beside stop on top, action beside settings below**. `Slot N` is not written
-in the header there — the page shows every slot at once, so naming one says something untrue about
-what you are looking at. That arrangement was read
-off the device, not derived: taken from the pad-index order it had action and stop the wrong way
-round, and pressing the pad drawn as ACT reported STOP. A pad's *identity* does come from
-`padFunctionByPadIndex` / `slotForPadIndex` in `io/PadFunctions.hh`, the same tables the panel is
-read with — those say which pad is which function, but only the hardware says where that function
-sits under a hand. `fingertipSize` is the floor for anything hit in a hurry, and
+Its geometry is `ControllerLayout` — a box per channel, each holding the channel's **eight pads
+in the panel's own arrangement: two columns of four, Play|Pause top left, PAGE top right, A1–A6
+below** (A1 A2 / A3 A4 / A5 A6). A pad's identity comes from `padFunctionByPadIndex` /
+`actionButtonForPad` in `io/PadFunctions.hh`, the same tables the panel is read with — those say
+which pad is which function; the arrangement on screen was read off the device, because only the
+hardware says where a function sits under a hand (taken from the pad-index order once, it had
+action and stop swapped). `fingertipSize` is the floor for anything hit in a hurry, and
 `controllerPreferredHeight()` is why the bar can be taller than the clip settings alone would ask
 for: both pages share one area, so it has to satisfy the hungrier of them.
 
-**A scene column stands left of the channels** (asked for on 2026-09-22), one pad per pad row
-(`ControllerLayout::scenes[slot][row]`, `sceneRowFunction`): the top one fires the slot's row of
-Play pads across every channel, the bottom one its row of Action pads. Nine pad widths across, the
-scene pad exactly as wide as a pad, so it reads as one more pad and not as a margin. Both go through
+**A scene block stands left of the channels**, shaped like a channel: `scenes[0][pad]` fires that pad
+on every channel — Play all, each action on every channel that has it — and in PAGE's place
+**Stop all** (`stopChannel()` per channel), because the panel has no Stop pad any more and Page
+across four channels would only step the shown one's pages. Everything else goes through
 `handlePadPress()` per channel — one route to what a pad means. **A scene's Play starts only the
-clips of its row that stand still** (`sceneStartsClip()`); a single Play pad toggles, but a scene
-that toggled would start half a row and stop the other half. Screen only: the panel has no such
-pads.
+clips that stand still** (`sceneStartsClip()`); a single Play pad toggles, but a scene that toggled
+would start half the room and stop the other half. Screen only: the panel has no such pads.
 
-**What the page shows is a slot's state, a press, and an action.** A pad under a finger runs
-towards the skin's text colour for as long as it is held — before this, Play turned green but Stop
-left nothing behind, since what it does is make a pad go dark. The Action pad of the slot that fired
-a channel's accent turns white with a black mark for as long as that accent runs, on every channel
-(`padBaseColour()`; `highlight` vanished on the yellow channel, and a violet borrowed from the
-sphere was one colour too many), lit from
-`isChannelAccentActive()`): a pressed ACT used to look like a Play and said nothing about how long
-the action would last. The engine knows the accent per channel, so the slot is remembered where the
-pad was pressed (`_actionSlot`). `isChannelAccentActive()` reads a published atomic now rather than
-the clock thread's envelopes — the bar and this page both ask it several times a second.
+**What a pad shows is one rule, `padShadeStatus()`** (`theme/PadStatusColours`), read by the panel's
+LEDs and this page alike. Only Play|Pause follows its clip's status — six action pads blinking with
+the clip's schedule would say nothing Play does not already say. An action pad is at the idle shade
+when its button carries an action and at the empty shade when it does not; it goes **white**
+(`padBaseColour()`) for exactly as long as its action runs — rise, hold and fall — lit from
+`isChannelAccentActive()` and `_actionSlot`, which remembers which button fired the channel's
+accent. PAGE is full on the channel the screen shows. A pad under a finger runs towards the skin's
+text colour for as long as it is held.
 
-**The Settings pad goes to the clip it names** — selects it and turns the bar to CLIP. Selecting
-alone was right on the panel, where the clip settings are always on screen, and did nothing visible
-from the pads page, which covers them.
+**PAGE goes to the clip it names**: on another channel it selects it; on the shown channel it steps
+the bar's pages (`nextClipPage()`, Shift backwards), and it closes FILES/MIXER/PADS first, because
+PAGE is about the clip and the overlay covers it.
 
 **The panel's six function keys** are listed once: `io/FunctionKeys.hh` holds `functionKeyOrder`
 (`TAP, clock, REC, recmode, MENU, SHIFT`), and the panel is wired from it row by row. The screen
@@ -1312,6 +1310,53 @@ which one a hand is on. TAP keeps two thirds of that row against SHIFT's one, be
 control here that has to be hit *in time* and a tempo tap that misses is worse than a modifier that
 takes a second go. Record needs no screen twin: the strip's REC button already records into the
 shown clip.
+
+#### One clip per channel, six action buttons
+
+Decided 2026-09-27 (plan: `.claude/notes/a3-motion-one-clip-per-channel.md` in the workspace).
+A channel holds **one clip** and **six action buttons**; the two slots with one action each are
+gone from the panel and the screen. Internally the slot dimension still exists with size one
+(`numPadSlots = numClipSlots = 1`) until it is collapsed; every slot index is 0.
+
+**The pads** (`io/PadFunctions.hh`): `PadFunction` is `PlayPause`, `Page`, `Action`;
+`padFunctionByPadIndex` and `actionButtonForPad` say which of the eight is which, and
+`padIndexFor()` / `padIndexForAction()` go the other way — the screen's PLAY and ACT keys and the
+ACTION page's fields reach `handlePadPress()` through them, so there is one route to what a pad
+means. STOP on the screen is `stopChannel()`: the panel has none, SHIFT + Play|Pause stops at once.
+
+**A button is `ActionButton`** — file, source, dice seed, errors, and its **feel** (`ActionFeel`:
+the three envelopes and the act mode). The feel is read from the script when it is assigned
+(`actionFeelFrom`) and from then on belongs to the button: the ACTION page's knobs write
+`_channelActions[ch][chosen].feel`, and the set stores it where it differs from what the script
+said. With one feel per clip, six buttons would all have felt the same, and assigning a script used
+to *write* its envelope onto the clip, so the last one assigned won.
+
+**A script is worked out at the press** (`firedActionOf()` → `resolveActionAt()`), against the clip
+as it stands then, with the seed the button rolled when it was assigned. It used to be worked out
+once, at assignment, and the whole result kept — every field of the old clip — so after a new clip
+or a turned knob a press threw the channel back for the length of the accent. During a running
+accent the pattern already wears the first action, so `_accentBase` keeps the clip's settings from
+before it and a second press is resolved against those. The engine side
+(`applyAccentHeld`): the latest action goes over the **original** restore point, so the clip comes
+home to itself, not to the first action.
+
+**The ACTION page** (`ActionLayout`, `ActionComponent`): left to right, the six fields (3×2, as on
+the panel), the list the chosen button is assigned from, a key column (EDIT, then the mode), and
+the Audio card with the chosen button's feel. A field going down chooses its button **and fires it**
+through the pad handler; up lets a Hold action go. There is no ACT key on the page — six keys that
+fire made a seventh redundant. `EncoderTarget::Kind::ActionButton`: the first encoder steps the
+chosen button. `_chosenActionButton[ch]` is also what the screen's ACT fires and what FILES' Load
+on ACTIONS assigns to.
+
+**Sets** keep `"slots"` with one entry, so an older build still reads a new set, and add
+`"actions"` (six entries, written only if one is non-empty). A set from before maps its two slot
+actions to A1/A2. On the first start of the new build `migrateTwoSlotSets()` copies every two-slot
+set to `pattern/backup-two-slots/` once — the debounced save and `renameInSets()` would otherwise
+truncate them all within a minute.
+
+**The build fails on a forgotten enum case** (`-Werror=switch` on the UI target). The rewrite of
+`handlePadPress()` dropped the whole Play|Pause case; gcc said so with `-Wswitch`, and the line
+drowned in the float-equal warnings. Do not silence it with a `default:`.
 
 #### Every file beside its list: `ScriptPanel` in FILES
 

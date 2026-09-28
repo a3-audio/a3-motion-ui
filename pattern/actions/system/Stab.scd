@@ -1,4 +1,5 @@
 // Stab -- one point, in and out inside a sixteenth.
+// Mood: more -- a short, tight hit; tense (Q2).
 //
 // The opposite of Slam: the sound collapses to a spot instead of filling the
 // room, and the resonance carries what little length there is.

@@ -1,4 +1,5 @@
 // Squash -- held, the figure is pressed flat and springs back when you let go.
+// Mood: less -- pressed flat, springs back; pressure (Q2/Q3).
 //
 // The two squeezes are the only thing on the clip page that changes a figure's
 // shape rather than where it sits, and nothing was reaching for them. Pressed

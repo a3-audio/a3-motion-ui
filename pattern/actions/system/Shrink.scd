@@ -1,4 +1,5 @@
 // Shrink -- held, everything pulls in to a point over the listener.
+// Mood: less -- pulls in to a point overhead; intimate, suspended (Q3/Q4).
 //
 // Bloom's other half, and the one that makes a transition sound like it is
 // being taken away rather than faded out.

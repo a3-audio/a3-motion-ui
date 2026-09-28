@@ -4,7 +4,12 @@ Der A3-Motion-Controller zeichnet Bewegungstrajektorien für bis zu vier Audioka
 und spielt sie zurück — als Azimut/Elevation-Daten für Ihr räumliches Audiosystem. Dieses
 Handbuch beschreibt Bildschirm, Bedienelemente und alle Clip-Parameter.
 
-*Firmware v03.2 · 4 Kanäle · 2 Clip-Slots pro Kanal*
+*Firmware v03.2 · 4 channels · one clip and six action buttons per channel*
+
+> **Language:** chapters 4 and 6 and the pad row in chapter 2 were rewritten in English for the
+> one-clip panel (2026-09-28). The rest of this manual is the German archive and is partly out of
+> date; the maintained user reference is
+> [a3-doc › A³ Motion](https://a3-audio.github.io/a3-doc/user/a3motion.html).
 
 ## Inhalt
 
@@ -61,7 +66,7 @@ Jeder der vier Kanäle hat identische Bedienelemente:
 
 | Element | Funktion |
 |---|---|
-| 8 Pads | Play/Pause, Action, Stop, Settings — je zweimal, eines pro Clip-Slot (Kapitel 4). |
+| 8 pads | Play/Pause and PAGE, then the six action buttons A1–A6 (chapter 4). |
 | Motion-Encoder | Oberer Drehregler. Blättert durch die vier Sektionen im Clip-Einstellungen-Panel. |
 | Pot-Encoder | Unterer Drehregler. Ändert den Wert des gerade markierten Reglers; Drücken wechselt zwischen mehreren Reglern innerhalb einer Sektion. |
 
@@ -97,20 +102,31 @@ der Sphäre sie gerade liegt. Andere, nur mitlaufende Clips werden dünner und �
 sphärenabgewandten (unteren) Hälfte — etwas abgedunkelt gezeichnet, damit die aktuelle
 Bearbeitung immer klar erkennbar bleibt.
 
-## 4. Kanäle & Clips
+## 4. Channels, the clip and six actions
 
-Jeder Kanal hat zwei Clip-Slots. Die acht Pads eines Kanals sind in zwei Blöcke zu je
-vier Pads aufgeteilt — ein Block pro Slot, jeweils mit denselben vier Funktionen:
+Each channel holds **one clip** and **six action buttons**. Its eight pads stand in two columns of
+four:
 
-| Pad | Funktion |
+| | left | right |
+|---|---|---|
+| row 1 | **Play/Pause** | **PAGE** |
+| row 2 | **A1** | **A2** |
+| row 3 | **A3** | **A4** |
+| row 4 | **A5** | **A6** |
+
+| Pad | What it does |
 |---|---|
-| Play/Pause | Idle → Wiedergabe (startet auf den nächsten Takt-Downbeat). Während der Wiedergabe stoppt ein erneuter Druck den Clip. |
-| Action | Nur in Kombination mit **Shift** aktiv — löst Preview-and-Fire aus (Kapitel 6). Ohne Shift derzeit ohne Funktion. |
-| Stop | Stoppt den Clip in diesem Slot (aus Wiedergabe, Aufnahme oder geplantem Zustand). |
-| Settings | Wählt diesen Slot im Clip-Einstellungen-Panel aus (Kapitel 7). |
+| Play/Pause | Idle → plays from the next downbeat; playing → stops on the next downbeat. With **Shift**, at once — which is also how a clip is stopped now: there is no Stop pad. |
+| PAGE | On another channel: selects it. On the shown channel: steps CLIP → MOTION → ACTION → CHMIX → REC (Shift: backwards). |
+| A1–A6 | Fires that button's action for as long as its accent lasts; a button with nothing on it does nothing. With **Shift** on a stopped clip: preview (chapter 6). |
 
-Ein leerer Slot zeigt im Clip-Einstellungen-Panel „Empty" und hat keine Wirkung, bis
-eine Form geladen (Kapitel 7.1) oder eine neue Trajektorie aufgenommen wird (Kapitel 5).
+An action pad is dim when its button carries an action and dark when it does not, and turns white
+while its action runs. Which action sits on which button, and how each one plays, is set on the
+ACTION page; the shipped sets put the moves that add energy in the left column and the ones that
+take it away in the right.
+
+A channel without a clip shows "--" and does nothing until a shape is loaded (chapter 7.1) or a new
+trajectory is recorded (chapter 5).
 
 ## 5. Eine Trajektorie aufnehmen
 
@@ -140,17 +156,16 @@ An unsaved take is also thrown away when something replaces it: a new take in th
 dropped on the slot, a set loaded, or a restart. To record again over an unsaved take from the
 bar, press SAVE or DISCARD first; on the panel, Record + Play pad works straight away.
 
-## 6. Wiedergabe
+## 6. Playback
 
-Play/Pause und Stop starten bzw. beenden die Wiedergabe eines Slots, jeweils
-quantisiert auf den nächsten Downbeat (Kapitel 4).
+Play/Pause starts and stops a channel's clip on the next downbeat (chapter 4); Shift + Play/Pause
+does it at once. Loading a set stops everything and starts what the set says was running, on the
+next downbeat.
 
 ### Preview-and-Fire
 
-Halten Sie **Shift** und drücken Sie das Action-Pad eines idlen Slots: Der Clip spielt
-sofort probeweise ab, ohne OSC-Ausgabe zu senden — Sie können währenddessen mit dem
-Motion-Encoder durch andere Formen blättern (Kapitel 7.1), um eine passende zu finden.
-Lassen Sie Action los, um die Vorschau zu beenden.
+Hold **Shift** and press an action pad of a stopped clip: the clip plays at once as a preview,
+without sending OSC. Let the pad go to end the preview.
 
 ## 7. Clip-Einstellungen
 

@@ -493,18 +493,64 @@ TEST (SessionFile, EveryShippedSetNamesShapesThatExist)
 
   for (auto const &file : files)
     {
-      auto const set = loadSession (file, 4, 2);
+      auto const set = loadSession (file, 4, 1);
       EXPECT_EQ (juce::String (set.name), file.getFileNameWithoutExtension ())
           << "a set's name is what the browser lists it under";
       ASSERT_EQ (set.channels.size (), 4u) << file.getFileName ();
 
       for (auto const &channel : set.channels)
         {
-          ASSERT_EQ (channel.slots.size (), 2u) << file.getFileName ();
+          ASSERT_EQ (channel.slots.size (), 1u) << file.getFileName ();
           for (auto const &slot : channel.slots)
             EXPECT_TRUE (known.contains (juce::String (slot.patternName)))
                 << file.getFileName () << ": no shape called "
                 << slot.patternName;
+        }
+    }
+}
+
+/** Since one clip per channel (2026-09-28) a shipped set is a mood: each
+ *  channel has one clip, named, whose own shape is the one the set names, and
+ *  six actions that exist -- no button left empty, so a set loaded mid-night
+ *  never leaves the previous set's actions under the fingers. And one slot
+ *  in the file, so an older build reading it does not find a second clip the
+ *  device would quietly drop. */
+TEST (SessionFile, EveryShippedSetIsOneClipAndSixActionsPerChannel)
+{
+  juce::File const dir (A3_PATTERN_SESSIONS_DIR);
+  juce::File const clips (A3_PATTERN_CLIPS_DIR);
+  juce::File const actions (A3_PATTERN_ACTIONS_DIR);
+
+  for (auto const &file :
+       dir.findChildFiles (juce::File::findFiles, false, "*.json"))
+    {
+      auto const parsed = juce::JSON::parse (file.loadFileAsString ());
+      auto const *channels = parsed["channels"].getArray ();
+      ASSERT_NE (channels, nullptr) << file.getFileName ();
+      for (auto const &entry : *channels)
+        EXPECT_EQ (entry["slots"].size (), 1) << file.getFileName ();
+
+      auto const set = loadSession (file, 4, 1);
+      for (auto const &channel : set.channels)
+        {
+          auto const &slot = channel.slots[0];
+          auto const clipFile = clips.getChildFile (
+              juce::String (slot.clipFile) + ".json");
+          ASSERT_TRUE (clipFile.existsAsFile ())
+              << file.getFileName () << ": no clip called " << slot.clipFile;
+          EXPECT_EQ (juce::JSON::parse (clipFile.loadFileAsString ())["svg"]
+                         .toString (),
+                     juce::String (slot.patternName))
+              << file.getFileName () << ": " << slot.clipFile
+              << " is not drawn with " << slot.patternName;
+
+          for (auto const &action : channel.actions)
+            EXPECT_TRUE (actions
+                             .getChildFile (juce::String (action.script)
+                                            + ".scd")
+                             .existsAsFile ())
+                << file.getFileName () << ": no action called '"
+                << action.script << "'";
         }
     }
 }

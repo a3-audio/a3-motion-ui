@@ -1,4 +1,5 @@
 // Quarter -- the figure is turned a quarter and plays at a quarter the pace.
+// Mood: less -- a slow quarter shift; suspended (Q3).
 //
 // A standing turn, not a spin: rotate moves where the shape faces and leaves
 // it there, so this is the one that re-aims a take rather than setting it

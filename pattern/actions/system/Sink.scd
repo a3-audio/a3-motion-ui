@@ -1,4 +1,5 @@
 // Sink -- held, the sound goes under the floor.
+// Mood: less -- goes under the floor; dark, heavy (Q3).
 //
 // Rise turned over. The far pole is 1, and a clip parked there reads as
 // weight rather than height -- useful under a breakdown that has to feel

@@ -1,4 +1,5 @@
 // Slam -- the whole clip thrown wide open, and gone again.
+// Mood: more -- the extreme push, an impact; high energy, tense (Q2).
 //
 // The hit for a drop landing. Nothing about it is gradual, so the times are
 // the shortest the envelope has and every ceiling is at the top.

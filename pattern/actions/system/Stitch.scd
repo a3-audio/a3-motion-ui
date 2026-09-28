@@ -1,4 +1,5 @@
 // Stitch -- the holes in a take are joined up, and they lead somewhere else.
+// Mood: less -- the holes glide shut; smooth, calm (Q4).
 //
 // Fade says how much of the take the joins take over and bias says where each
 // one leads: at the nearest other run, the movement closes into one line; sent

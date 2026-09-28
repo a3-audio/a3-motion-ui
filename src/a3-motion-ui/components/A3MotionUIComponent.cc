@@ -759,10 +759,19 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
-  // A tap on one of the six fields chooses it: the list, the keys, the card
-  // and the screen's ACT act on it from then on.
-  _action->onButtonChosen = [this] (int button) {
+  // The six fields are the channel's action pads on the screen: down chooses
+  // the button (the list, the keys, the card and the screen's ACT act on it
+  // from then on) and fires it through the pad's own handler, so the two
+  // cannot come to mean different things.
+  _action->onButtonHeld = [this] (int button, bool held) {
+    auto const pad = padIndexForAction (button);
+    if (!held)
+      {
+        handlePadRelease (_clipSettingsChannel, pad);
+        return;
+      }
     chooseActionButton (button);
+    handlePadPress (_clipSettingsChannel, pad);
   };
 
   _action->onActionChosen = [this] (juce::String const &name) {
@@ -772,17 +781,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                        ? juce::File{}
                        : namedFileIn (actionsDir (), name, ".scd"));
     refreshBrowser ();
-  };
-
-  // The fat key under the knobs, which is the ACT pad in another place: same
-  // handler, so the two cannot come to mean different things.
-  _action->onFireHeld = [this] (bool held) {
-    auto const pad = padIndexForAction (
-        _chosenActionButton[_clipSettingsChannel]);
-    if (held)
-      handlePadPress (_clipSettingsChannel, pad);
-    else
-      handlePadRelease (_clipSettingsChannel, pad);
   };
 
   // EDIT: the shown clip's action, opened beside the list in FILES. A Save
@@ -2240,6 +2238,48 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
   switch (function)
     {
+    case PadFunction::PlayPause:
+      {
+        if (!pattern)
+          break;
+
+        // **On the next downbeat**, and with Shift on the spot -- which,
+        // since the panel lost its Stop pads (2026-09-27), is also how a
+        // running clip is stopped now.
+        //
+        // This used to be the next beat, on the reasoning that a bar is up to
+        // a metre's worth of beats away and a clip starting that late reads as
+        // a button that did not work. What that reasoning was missing is that
+        // a figure which does not begin on the one runs the whole pass against
+        // the music -- and it was written before the key blinked while it
+        // waited, which is what makes the wait legible rather than dead.
+        auto const on = isButtonPressed (Button::Shift)
+                            ? _now
+                            : TempoClock::nextDownBeat (_now);
+
+        auto const status = pattern->getStatus ();
+        if (status == Pattern::Status::Idle)
+          {
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+            _engine.playPattern (pattern, on);
+          }
+        else if (status == Pattern::Status::Playing)
+          {
+            // On the next downbeat, like a start, and with Shift on the spot.
+            // A pause that answered a lap later read as a key that does not
+            // work (maintainer, 2026-09-25). The key blinks while it waits.
+            _engine.stopPattern (pattern, on);
+          }
+        else if (status == Pattern::Status::ScheduledForPlaying)
+          {
+            // Not started yet, so there is no lap to finish: this is calling
+            // off the start that is waiting for the downbeat. Taken back
+            // rather than stopped -- a stop scheduled on top of a start is
+            // still a start, see cancelScheduledPlay().
+            _engine.cancelScheduledPlay (pattern);
+          }
+        break;
+      }
     case PadFunction::Page:
       {
         // Another channel's PAGE brings that channel up on the page you are
@@ -2720,6 +2760,10 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
   // before the settings have been read -- writing them out from there would
   // put every other setting back to its default.
   persistSettings ();
+  // And the set itself becomes the current one on disk. Nothing else a Load
+  // does schedules the write, so a restart straight after loading came back
+  // with the set from before (2026-09-28).
+  scheduleSetSave ();
 
   updateControlReadout ("-- LOADED " + name.toUpperCase ());
   refreshBrowser ();
@@ -3106,9 +3150,8 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   // A seed that is new every time a script is chosen, so a script with dice
   // in it throws them again on being picked -- picking it is the gesture that
   // says "give me another one of these".
-  auto const result
-      = runActionScript (action.source, current,
-                         juce::Time::getHighResolutionTicks ());
+  action.seed = juce::Time::getHighResolutionTicks ();
+  auto const result = runActionScript (action.source, current, action.seed);
 
   action.settings = result.settings;
   action.errors = result.errors;
@@ -3136,15 +3179,22 @@ A3MotionUIComponent::shownActionButton ()
 }
 
 std::optional<ClipSettings>
-A3MotionUIComponent::firedActionOf (index_t channel, int button) const
+A3MotionUIComponent::firedActionOf (index_t channel, int button)
 {
-  if (channel >= _channelActions.size () || button < 0
-      || button >= numActionButtons)
+  if (channel >= _channelActions.size () || channel >= _accentBase.size ()
+      || button < 0 || button >= numActionButtons)
     return std::nullopt;
   auto const &action = _channelActions[channel][static_cast<size_t> (button)];
   if (!action.settings)
     return std::nullopt;
-  return withFeel (*action.settings, action.feel);
+
+  auto &base = _accentBase[channel];
+  if (!base || !_engine.isChannelAccentActive (channel))
+    {
+      auto const &pattern = _patterns[channel][0];
+      base = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+    }
+  return resolveActionAt (action.source, *base, action.seed, action.feel);
 }
 
 juce::File

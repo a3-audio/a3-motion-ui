@@ -82,6 +82,14 @@ ActionScriptResult runActionScript (juce::String const &source,
                                     ClipSettings const &current,
                                     juce::int64 seed);
 
+/** What a button fires: its script worked out against the clip as it stands
+ *  now (`base`), with the dice its `seed` set, and the button's own feel on
+ *  it. Called at the press, so what the script does not name stays as the
+ *  clip has it -- not as it was when the button was assigned. */
+ClipSettings resolveActionAt (juce::String const &source,
+                              ClipSettings const &base, juce::int64 seed,
+                              ActionFeel const &feel);
+
 /** The other direction: settings written out as a script.
  *
  *  What "save action" produces, so that everything the app writes is
