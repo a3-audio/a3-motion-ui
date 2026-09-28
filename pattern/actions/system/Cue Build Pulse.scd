@@ -39,11 +39,11 @@
 // ---- Accent ----------------------------------------------------------
 //~attack = 2;           // 0..6    rise while ACT is held, in bar fractions
 //~decay = 3;            // 0..6    fall once ACT is let go
-//~envelopeMax = 1;      // 0..1    the 3d it rises to
+~envelopeMax = 0;        // 0..1    the 3d it rises to
 //~freqAttack = 2;       // 0..6    the same for the filter's cutoff
 //~freqDecay = 3;        // 0..6
-//~freqMax = 0;          // 0..1    0 is off
+~freqMax = 0;            // 0..1    0 is off
 //~qAttack = 2;          // 0..6    and for its resonance
 //~qDecay = 3;           // 0..6
-//~qMax = 0;             // 0..1    0 is off
+~qMax = 0;               // 0..1    0 is off
 //~act = \oneshot;       //         \oneshot \hold

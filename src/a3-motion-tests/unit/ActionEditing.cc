@@ -167,3 +167,33 @@ TEST (CueClip, AMissingClipIsAnErrorAndNoCue)
   EXPECT_FALSE (t.file.exists ());
   EXPECT_TRUE (t.error.contains ("Peak Gone")) << t.error;
 }
+
+// Library v2 review: what a press on a Cue button does. The Cue is decided
+// before anything else, so a Cue whose clip is gone does nothing -- it never
+// falls through to an ordinary accent (review #1) -- and a take waiting for
+// SAVE is never thrown away by one tap on stage (review #4).
+TEST (CuePress, AButtonThatIsNoCueGoesOnAsAnAction)
+{
+  EXPECT_EQ (cuePressFor (false, false, false, false), CuePress::NotACue);
+}
+
+TEST (CuePress, ACueWithItsClipLoadsIt)
+{
+  EXPECT_EQ (cuePressFor (true, true, false, false), CuePress::Load);
+}
+
+TEST (CuePress, ACueWhoseClipIsGoneDoesNothing)
+{
+  EXPECT_EQ (cuePressFor (true, false, false, false), CuePress::NoClip);
+}
+
+TEST (CuePress, ACueWaitsForATakeToBeSaved)
+{
+  EXPECT_EQ (cuePressFor (true, true, false, true), CuePress::TakeWaiting);
+}
+
+TEST (CuePress, ACueNeverGoesOverATakeGoingIn)
+{
+  EXPECT_EQ (cuePressFor (true, true, true, false), CuePress::Recording);
+  EXPECT_EQ (cuePressFor (true, true, true, true), CuePress::Recording);
+}

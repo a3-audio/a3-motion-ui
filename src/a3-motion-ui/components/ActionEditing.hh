@@ -108,4 +108,22 @@ struct CueTarget
 CueTarget cueClipFor (std::optional<juce::String> const &clip,
                       juce::File const &clipsDir);
 
+/** What a press on a button does when its script names a clip. */
+enum class CuePress
+{
+  /** Not a Cue: the button fires its action as ever. */
+  NotACue,
+  /** The clip goes onto the channel and starts on the downbeat. */
+  Load,
+  /** The clip it names is gone: nothing happens, and the strip says so. */
+  NoClip,
+  /** A take on the channel waits for SAVE or DISCARD: nothing happens. */
+  TakeWaiting,
+  /** A take is going in on the channel: nothing happens. */
+  Recording,
+};
+
+CuePress cuePressFor (bool isCue, bool clipExists, bool recording,
+                      bool takeWaiting);
+
 }

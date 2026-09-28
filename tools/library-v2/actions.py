@@ -122,7 +122,9 @@ CUES = ['Groove Four Floor', 'Build Riser', 'Peak Anthem', 'Drop Impact',
         'Break Standstill', 'Build Pulse', 'Deep Undertow', 'Float Aurora',
         'Closing Sunset', 'Warmup Halo', 'Dub Echo', 'Closing Still']
 for clip in CUES:
-    A.append((write, 'Cue ' + clip,
+    # Silent as well: a Cue fires no accent, and if its clip is ever gone the
+    # button must not turn into one that changes the sound.
+    A.append((move, 'Cue ' + clip,
               f'puts {clip} on the channel, from the next downbeat.',
               'a change of clip -- the next phase of the night.',
               'The clip goes onto the channel and starts on the downbeat (Shift:\nat once), and stays.',

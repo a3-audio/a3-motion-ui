@@ -375,7 +375,8 @@ private:
    *  onto a channel: FILES Load (through applyClip) and a Cue press. False
    *  when nothing landed: no such clip, or a clip without a figure on an
    *  empty channel. */
-  bool loadClipIntoChannel (index_t channel, juce::File const &clipFile);
+  bool loadClipIntoChannel (index_t channel, juce::File const &clipFile,
+                            bool stopTheOldOneNow = true);
   /** Read direction and end action back out of the pattern into the strip.
    *  Both live in two places, and the pattern is the one a clip writes. */
   void syncClipUIParamsFromPattern (index_t channel, index_t slot);
@@ -833,6 +834,9 @@ private:
     /** The clip a Cue puts on the channel (library v2); empty for every
      *  other action. Resolved when the script is put on the button. */
     juce::File cueClip;
+    /** The script names a clip at all -- a Cue even when the clip is gone,
+     *  so the press does nothing rather than fall through to an accent. */
+    bool isCue = false;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Which of a channel's six buttons the ACTION page shows and edits, and

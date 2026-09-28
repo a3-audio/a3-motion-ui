@@ -128,4 +128,18 @@ cueClipFor (std::optional<juce::String> const &clip,
   return { file, {} };
 }
 
+CuePress
+cuePressFor (bool isCue, bool clipExists, bool recording, bool takeWaiting)
+{
+  if (!isCue)
+    return CuePress::NotACue;
+  if (recording)
+    return CuePress::Recording;
+  if (takeWaiting)
+    return CuePress::TakeWaiting;
+  if (!clipExists)
+    return CuePress::NoClip;
+  return CuePress::Load;
+}
+
 }

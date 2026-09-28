@@ -2301,34 +2301,53 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // plain accents that look assigned would be six ways to be misled.
         // A Cue (library v2): the button's clip goes onto the channel and
         // starts on the next downbeat -- Shift at once -- and stays there.
-        // No accent: a Cue changes what plays, not how it plays.
-        if (auto const &cue
-            = _channelActions[channel][static_cast<size_t> (button)].cueClip;
-            cue.existsAsFile ())
-          {
-            // Never over a take that is going in on this channel.
-            if (_recordingSlot.has_value () && _recordingSlot->first == channel)
+        // No accent: a Cue changes what plays, not how it plays. Decided
+        // before anything else, so a Cue whose clip is gone never falls
+        // through to an ordinary accent.
+        {
+          auto const &cueButton
+              = _channelActions[channel][static_cast<size_t> (button)];
+          auto const press = cuePressFor (
+              cueButton.isCue, cueButton.cueClip.existsAsFile (),
+              _recordingSlot.has_value () && _recordingSlot->first == channel,
+              _pendingTakes.isPending (channel, slot));
+          switch (press)
+            {
+            case CuePress::NotACue:
               break;
-            if (!loadClipIntoChannel (channel, cue))
-              break;
-            if (auto const &loaded = _patterns[channel][slot])
+            case CuePress::Recording:
+              return;
+            case CuePress::TakeWaiting:
+              updateControlReadout ("-- SAVE THE TAKE FIRST");
+              return;
+            case CuePress::NoClip:
+              updateControlReadout ("-- NO SUCH CLIP");
+              return;
+            case CuePress::Load:
               {
-                auto const status = loaded->getStatus ();
-                if (status != Pattern::Status::Playing
-                    && status != Pattern::Status::ScheduledForPlaying)
+                if (!loadClipIntoChannel (channel, cueButton.cueClip, false))
+                  return;
+                if (auto const &loaded = _patterns[channel][slot])
                   {
-                    loaded->setPlaybackLength (getPlaybackLength (channel, slot));
-                    _engine.playPattern (loaded,
-                                         isButtonPressed (Button::Shift)
-                                             ? _now
-                                             : TempoClock::nextDownBeat (_now));
+                    auto const status = loaded->getStatus ();
+                    if (status != Pattern::Status::Playing
+                        && status != Pattern::Status::ScheduledForPlaying)
+                      {
+                        loaded->setPlaybackLength (
+                            getPlaybackLength (channel, slot));
+                        _engine.playPattern (
+                            loaded, isButtonPressed (Button::Shift)
+                                        ? _now
+                                        : TempoClock::nextDownBeat (_now));
+                      }
                   }
+                refreshBrowser ();
+                updateClipSettingsDisplay ();
+                scheduleSetSave ();
+                return;
               }
-            refreshBrowser ();
-            updateClipSettingsDisplay ();
-            scheduleSetSave ();
-            break;
-          }
+            }
+        }
 
         auto const fired = firedActionOf (channel, button);
         if (!fired)
@@ -3053,7 +3072,8 @@ A3MotionUIComponent::putFigureInSlot (index_t channel, index_t slot, int index,
 
 bool
 A3MotionUIComponent::loadClipIntoChannel (index_t channel,
-                                          juce::File const &clipFile)
+                                          juce::File const &clipFile,
+                                          bool stopTheOldOneNow)
 {
   // One clip per channel: the slot is always the first.
   index_t const slot = 0;
@@ -3080,8 +3100,11 @@ A3MotionUIComponent::loadClipIntoChannel (index_t channel,
       if (auto const &was = _patterns[channel][slot])
         {
           auto const status = was->getStatus ();
-          if (status == Pattern::Status::Playing
-              || status == Pattern::Status::Recording)
+          // Not for a Cue: the engine hands over on the new clip's start,
+          // and stopping now would leave the room still until the downbeat.
+          if (stopTheOldOneNow
+              && (status == Pattern::Status::Playing
+                  || status == Pattern::Status::Recording))
             _engine.stopPattern (was, _now);
           _motionComponent->unsetPreviewPattern (was);
           _motionComponent->removePatternDisplayData (was);
@@ -3177,6 +3200,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.feel = ActionFeel{};
   action.scriptFeel = ActionFeel{};
   action.cueClip = juce::File{};
+  action.isCue = false;
 
   if (!file.existsAsFile ())
     {
@@ -3211,6 +3235,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   // button does nothing, the same rule as an empty button.
   auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
   action.cueClip = cue.file;
+  action.isCue = result.clip.has_value ();
   if (cue.error.isNotEmpty ())
     action.errors.add (cue.error);
 
