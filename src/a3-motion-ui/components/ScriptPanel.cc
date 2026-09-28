@@ -31,7 +31,7 @@ namespace a3
 
 ScriptPanel::ScriptPanel ()
 {
-  // The keys have to land here rather than in the void: Onboard types into
+  // The keys have to land here rather than in the void: the keyboard types into
   // whatever has the focus, and a panel that never asked for it gets nothing.
   setWantsKeyboardFocus (true);
 

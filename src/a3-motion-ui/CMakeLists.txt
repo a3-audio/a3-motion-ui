@@ -150,6 +150,12 @@ target_sources("a3-motion-ui" PRIVATE
     components/BarKnob.cc
     components/KnobHold.cc
     components/EncoderMap.cc
+    components/BarKeyboardLayout.cc
+    components/BarKeyboardLayout.hh
+    components/BarKeyboardModel.cc
+    components/BarKeyboardModel.hh
+    components/BarKeyboardComponent.cc
+    components/BarKeyboardComponent.hh
     components/PatternDisplay.cc
     components/ColumnBreak.cc
     components/ColumnBreak.hh

@@ -51,6 +51,7 @@
 #include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
+#include <a3-motion-ui/components/BarKeyboardComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/MixerStripComponent.hh>
@@ -709,6 +710,11 @@ private:
   void  applyTheme () override;
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
+  /** Whether the panel's encoders type rather than turn: the keyboard is
+   *  up and SHIFT is not held (BarKeyboardModel.hh has the table). */
+  bool  keyboardTakesEncoders ();
+  /** The keyboard onto the bar's clip content and its fields. */
+  void  placeKeyboard ();
   /** Light the status bar's icon for what the browsed row allows. */
   void  refreshKeyboardIcon ();
   void  rebuildGlobalSettingsOptions ();
@@ -794,6 +800,8 @@ private:
    *  records into the shown clip. */
   std::unique_ptr<ControllerComponent> _controller;
   std::unique_ptr<ActionComponent> _action;
+  /** The in-app keyboard, over the bar's clip content while text is typed. */
+  std::unique_ptr<BarKeyboardComponent> _barKeyboard;
   /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;

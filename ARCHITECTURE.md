@@ -1031,7 +1031,7 @@ What "open" does depends on the row:
 |---|---|
 | main menu, a row with values (Skin, Sphere in Menu) | the list of its values replaces the rows (`GlobalSettingsComponent::openPicker`); the arrows walk it and the skin previews, a tap or Enter chooses, Escape or Back puts it back |
 | main menu, a row that leads somewhere | that page |
-| a number or text | the typing mask and Onboard; Enter keeps, Escape, Back and Close undo |
+| a number or text | the typing mask and the bar keyboard; Enter keeps, Escape, Back and Close undo |
 | a skin number | the same, plus **− / +** keys (and the arrows) that step it live — dialling while watching the sphere lives here now |
 | a colour | the colour picker |
 | Save, Rename, Delete, Reset | fires — only on a double tap or Enter, never on a tap |
@@ -1462,25 +1462,59 @@ Back is exactly what the Menu key does (`toggleGlobalSettings`) — one level at
 
 #### On-screen keyboard
 
-The UI draws no keyboard. `io/OnScreenKeyboard.{hh,cc}` asks **Onboard** — the system's on-screen
-keyboard — to show or hide over D-Bus (`org.onboard.Onboard`, methods `Show`/`Hide`/`ToggleVisible`
-on `/org/onboard/Onboard/Keyboard`), shelling out to `dbus-send`. Onboard's D-Bus service file
-starts it on the first call, so there is nothing to launch and nothing to keep running.
+**The keyboard is the app's own and stands in the bar** (2026-09-28, replacing Onboard). Asked for
+as *"ein keyboard welches nur den bereich vom clipsettingeditor ausfüllt und auf unser hardware
+controller layout passt"*. `BarKeyboardComponent` covers exactly the clip content
+(`ClipSettingsComponent::clipContentBounds()`, the rectangle CLIP, MOTION, ACTION, CHMIX and REC
+use), so the sphere, the channel row, the header and the global strip stay in view -- and with
+them every field text is typed into, because all of those lie over the sphere: the menu's masks
+and skin names (`SkinEditorComponent`), the FILES rename row (`BrowserComponent`) and the FILES
+script editor (`ScriptPanel`). It is a child of the bar, always on top of ACTION and CHMIX.
 
-Onboard types into whatever window has the focus, so text arrives as ordinary key events;
-`SkinEditorComponent::keyPressed` is what turns them into edits. The icon at the right of the
-status bar toggles the keyboard, always.
+**Laid out on the encoders' four by two.** `pageFieldGrid()` is the one grid of eight fields CLIP,
+MOTION and REC stand in; the keyboard splits each field into two rows of three keys
+(`BarKeyboardLayout`), so it is four rows of twelve and every key stands under exactly one
+encoder. Wide keys (space, HIDE) span whole slots. QWERTZ, because the maintainer types German:
 
-Two machine-level settings matter, both in the user's dconf database rather than in this repo (see
-the README for the one-liners):
+| Row | Letters page | Symbols page (123) |
+|---|---|---|
+| 1 | `q w e` `r t z` `u i o` `p ü DEL` | `1 2 3` `4 5 6` `7 8 9` `0 . DEL` |
+| 2 | `a s d` `f g h` `j k l` `ö ä ENTER` | `- / "` `: ; =` `~ \ '` `, + ENTER` |
+| 3 | `SHIFT y x` `c v b` `n m ß` `. - _` | `( ) {` `} [ ]` `< > *` `_ \| !` |
+| 4 | `123 ◀ ▶` `SPACE ···` `··· ···` `ESC HIDE ···` | `ABC ◀ ▶` (the rest as on letters) |
 
-- `org.onboard.window docking-edge` must be `bottom`. Onboard docks at the **top** by default,
-  which covers the status bar and with it the icon that hides it again.
-- `org.onboard theme` should be `Blackboard`, with `system-theme-tracking-enabled` off. Onboard
-  otherwise follows the system theme, which here is a light beige against a dark UI.
+The symbols page holds what the shipped scripts, clips and sets are written with; the editing
+keys stand in the same place on both pages. SHIFT once is the next letter, twice CAPS, a third
+time off. DEL and the arrows act on touch and repeat while held; every other key types on release,
+so a finger can slide off a wrong key.
 
-A keyboard of the project's own used to live in `components/KeyboardComponent.{hh,cc}`; it was
-removed in favour of Onboard, which already maintains a layout, key faces and a press model.
+**It types nothing itself.** A key becomes a `juce::KeyPress` (`BarKeyboardModel::pressKey`) and
+goes through the window's peer (`ComponentPeer::handleKeyPress`) to whatever holds the focus,
+exactly as a plugged-in keyboard's key would -- the masks, the rename row and JUCE's code editor
+already know what Backspace, Enter, Escape and the arrows mean. The keyboard therefore **never
+takes the focus** (`setMouseClickGrabsKeyboardFocus (false)`): the rename row and the script editor
+end their edit when they lose it.
+
+It opens and closes with the edit: the same `onNamingChanged` / `onRenameEditingChanged` /
+`onEditingChanged` callbacks that used to call Onboard call `showKeyboard()`. So ENTER closes it
+wherever Enter ends the edit (masks, rename); in the script editor ENTER is a new line and ESC or
+HIDE put it away. HIDE leaves the field open; the status bar's KEYS key toggles the keyboard
+always.
+
+**The panel while it is up** (the table lives in `BarKeyboardModel.hh`):
+
+| Panel | While typing |
+|---|---|
+| encoder, turned | walks the six keys of the field it stands under (upper: key rows 1-2, lower: 3-4); the first detent only shows the ring |
+| encoder, pressed | types the key its ring is on |
+| SHIFT + encoder | FREQ / Q of its channel, as always |
+| SHIFT held + a key | capital letter |
+| pads, pots, TAP, clock, REC, recmode, MENU | unchanged |
+
+No pad types: the pads play the set, and the keyboard is opened mid-set.
+
+`io/OnScreenKeyboard.{hh,cc}` (the Onboard D-Bus client) is no longer called by the app; it is
+still built and tested until it is removed.
 
 #### Hardware I/O (`src/a3-motion-ui/io`)
 
