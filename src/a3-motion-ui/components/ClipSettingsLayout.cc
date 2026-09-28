@@ -217,21 +217,47 @@ elevationCircleBounds (juce::Rectangle<int> cell)
                                r * 2, r * 2);
 }
 
+namespace
+{
+/** What clip-top and clip-bottom have left of the sphere, ordered before the
+ *  clamp so clips pushed past each other pin the axis to where they crossed
+ *  rather than inverting the range. */
+float
+insideClipBand (float base, float clipTop, float clipBottom)
+{
+  auto const top = std::clamp (clipTop, 0.f, 1.f);
+  auto const bottom = 1.f - std::clamp (clipBottom, 0.f, 1.f);
+  return juce::jlimit (juce::jmin (top, bottom), juce::jmax (top, bottom),
+                       base);
+}
+}
+
 float
 elevationBaseForKnob (float knob, float clipTop, float clipBottom)
 {
-  // What clip-top and clip-bottom have left of the sphere, ordered before the
-  // clamp so clips pushed past each other pin the axis to where they crossed
-  // rather than inverting the range. Snapped first and clamped last, so the
-  // snap cannot pull the line out of the band.
-  auto const top = std::clamp (clipTop, 0.f, 1.f);
-  auto const bottom = 1.f - std::clamp (clipBottom, 0.f, 1.f);
-  auto const low = juce::jmin (top, bottom);
-  auto const high = juce::jmax (top, bottom);
-
+  // Snapped first and clamped last, so the snap cannot pull the line out of
+  // the band.
   auto const base = snapElevationBase (knobForElevationBase (
       std::clamp (knob, 0.f, 1.f)));
-  return juce::jlimit (low, high, base);
+  return insideClipBand (base, clipTop, clipBottom);
+}
+
+float
+elevationBaseForEncoderStep (float base, int increment, float clipTop,
+                             float clipBottom)
+{
+  constexpr float step = 0.02f;
+  auto const knob = std::clamp (
+      knobForElevationBase (base) + static_cast<float> (increment) * step, 0.f,
+      1.f);
+
+  auto const snapped = elevationBaseForKnob (knob, clipTop, clipBottom);
+  if (snapped != base || increment == 0)
+    return snapped;
+
+  // The snap pulled the detent straight back onto the mark it left: take the
+  // step as it is. A finger still lands on the mark; a turn is never stuck.
+  return insideClipBand (knobForElevationBase (knob), clipTop, clipBottom);
 }
 
 float

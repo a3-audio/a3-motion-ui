@@ -293,6 +293,13 @@ juce::Rectangle<int> elevationCircleBounds (juce::Rectangle<int> cell);
  *  cannot set a value beside. */
 float snapElevationBase (float base);
 
+/** Where one detent of the elv encoder takes the base: a knob step of 0.02,
+ *  clockwise higher. It always leaves the mark it stands on -- the snap that
+ *  pulls a finger onto the poles and ear height reaches exactly one step, and
+ *  used to pull every detent straight back (2026-09-28). */
+float elevationBaseForEncoderStep (float base, int increment, float clipTop,
+                                   float clipBottom);
+
 /** The base elv sets: the knob turned the way a level is (clockwise is
  *  higher, where the base counts from the top), held inside the clip band
  *  and snapped like the graphic's finger was. */
