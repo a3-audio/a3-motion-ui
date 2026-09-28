@@ -588,6 +588,26 @@ constexpr HeightShare barButtonMax{ 6 };
  *  of its width. Nothing for a negative fraction -- the clip is not playing. */
 juce::Rectangle<int> progressFill (juce::Rectangle<int> bar, float fraction);
 
+/** Whose a panel's frame says it is: the shown clip's, in its channel's
+ *  colour, or all four channels', in grey. */
+enum class PanelFrameInk
+{
+  ShownChannel,
+  AllChannels,
+};
+
+struct PanelFrame
+{
+  juce::Rectangle<int> bounds;
+  PanelFrameInk ink;
+};
+
+constexpr std::size_t numPanelFrames = 3;
+
+/** The bar's panels, each framed by the same hairline (2026-09-28). */
+std::array<PanelFrame, numPanelFrames>
+panelFrames (ClipSettingsLayout const &layout);
+
 /** How tall the row of channel faces is, above everything else in the bar: a
  *  button as the bar's buttons are sized by the knob, never under a
  *  fingertip, and the frame's inset round it. Not a share of the bar, so the
