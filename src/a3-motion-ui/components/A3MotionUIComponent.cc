@@ -8336,14 +8336,16 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
         return;
       }
 
-    case EncoderTarget::Kind::ActionMode:
-      applyActionControl (ActionComponent::ActMode, increment);
+    case EncoderTarget::Kind::ActionKey:
+      _action->moveKeyRing (increment);
       return;
 
-    case EncoderTarget::Kind::ActionAfter:
-      // The same step the key's tap takes, both ways.
-      if (_action->onAfterStepped)
-        _action->onAfterStepped (increment);
+    case EncoderTarget::Kind::ActionTile:
+      _action->switchTile ();
+      return;
+
+    case EncoderTarget::Kind::ActionValue:
+      _action->turnMarkedValue (target.sub, increment);
       return;
 
     case EncoderTarget::Kind::ActionButton:
@@ -8393,16 +8395,16 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
-  // ACTION (2026-09-28): enc 1 assigns what it walked to, enc 3 is EDIT,
-  // enc 4 switches the card -- each the key it stands beside.
+  // ACTION (2026-09-28): enc 2 assigns what it walked to, enc 3 presses the
+  // ringed key, enc 4 switches the card, enc 5..8 mark the card's next row.
   if (target.kind == EncoderTarget::Kind::ActionList)
     _action->chooseListCursor ();
-  if (target.kind == EncoderTarget::Kind::ActionMode && _action->onEditPressed)
-    _action->onEditPressed ();
-  if (target.kind == EncoderTarget::Kind::ActionAfter)
-    _action->setTile (_action->tile () == ActionTile::Audio
-                          ? ActionTile::Motion
-                          : ActionTile::Audio);
+  if (target.kind == EncoderTarget::Kind::ActionKey)
+    _action->pressKeyRing ();
+  if (target.kind == EncoderTarget::Kind::ActionTile)
+    _action->switchTile ();
+  if (target.kind == EncoderTarget::Kind::ActionValue)
+    _action->stepValueRow ();
   if (target.kind == EncoderTarget::Kind::MixerKey)
     {
       auto const channel = static_cast<int> (_clipSettingsChannel);

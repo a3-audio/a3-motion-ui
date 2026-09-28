@@ -1349,15 +1349,18 @@ the panel or the PADS page fires as before and then brings up the ACTION page of
 the pushed button chosen (`showPushedAction`, `actionPressShowsItsPage`) — not with Shift (a
 preview is auditioned from wherever the hand is, FILES most of all), not from the bar's ACT key, a
 scene or a chain, and not away from a take being armed or recorded. Each field carries a **1/H
-badge** for its own button's mode (`actionFieldParts`). The four upper encoders stand under the
-page's columns (maintainer, 2026-09-28): enc 1 `ActionList` walks a highlight through the list
-and a press assigns it (`moveListCursor`/`chooseListCursor` — walking is not assigning, so
-turning past forty scripts mid-set changes nothing); enc 2 `ActionButton` steps the chosen
-button; enc 3 `ActionMode` steps its mode, a press is EDIT; enc 4 `ActionAfter` steps its
-"then", a press switches AUDIO/MOTION. The highlight resets only when the name or the chosen
-button really changes — the page is told the name on every update. The lower four keep FREQ/Q
-of their column — the tiles have nine and nineteen values, which do not fall onto four
-encoders cleanly. `_chosenActionButton[ch]`
+badge** for its own button's mode (`actionFieldParts`). The encoders (maintainer, 2026-09-28): enc 1 `ActionButton` chooses A1–A6;
+enc 2 `ActionList` walks a highlight through the list and a press assigns it (`moveListCursor`/
+`chooseListCursor` — walking is not assigning, so turning past forty scripts mid-set changes
+nothing); enc 3 `ActionKey` rings EDIT / mode / then and a press does what a tap on the ringed key
+does (`moveKeyRing`/`pressKeyRing`, through the tap's own callbacks); enc 4 `ActionTile` switches
+AUDIO/MOTION, which are tabs along the card's top. enc 5–8 `ActionValue` turn the four values of
+the card's marked row left to right (AUDIO: atk/dec/max, enc 8 idle; MOTION: four across, five
+rows, `ActionLayout::motionColumns`), and a press on any of them marks the next row and comes
+round (`stepValueRow`) — the MOTION page's "a press switches the row", on a card of nine or
+nineteen values. Another tile starts at its first row. The ring and the row mark are drawn only
+once an encoder has been used. The list highlight resets only when the name or the chosen button
+really changes — the page is told the name on every update. SHIFT keeps FREQ/Q on all eight. `_chosenActionButton[ch]`
 is also what the screen's ACT fires and what FILES' Load on ACTIONS assigns to.
 
 **Two tiles, one card** (2026-09-28). AUDIO is the nine feel knobs. MOTION is every knob of the

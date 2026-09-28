@@ -144,13 +144,19 @@ encoderTarget (BarPage page, int column, int row, bool clicked, bool shift)
     case BarPage::Mixer: return onMixer (column, row);
     case BarPage::Action:
       {
-        // The page's columns left to right (2026-09-28): the list, the six
-        // buttons, the mode, the "then". The lower row keeps FREQ and Q.
+        // The upper row stands under the page's columns (maintainer,
+        // 2026-09-28): the six buttons, the list, the key column, the tabs.
+        // The lower row turns the card's marked row, left to right.
         if (row != 0)
-          return columnChannelPot (row);
+          {
+            EncoderTarget t;
+            t.kind = EncoderTarget::Kind::ActionValue;
+            t.sub = column;
+            return t;
+          }
         EncoderTarget::Kind const upper[] = {
-          EncoderTarget::Kind::ActionList, EncoderTarget::Kind::ActionButton,
-          EncoderTarget::Kind::ActionMode, EncoderTarget::Kind::ActionAfter
+          EncoderTarget::Kind::ActionButton, EncoderTarget::Kind::ActionList,
+          EncoderTarget::Kind::ActionKey, EncoderTarget::Kind::ActionTile
         };
         return { upper[column] };
       }

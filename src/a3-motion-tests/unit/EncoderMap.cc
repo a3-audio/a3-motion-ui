@@ -156,7 +156,6 @@ TEST (EncoderMap, ShiftOrAPageWithoutFieldsTurnsTheColumnsFreqAndQ)
                    ChannelPot::Q);
       }
 
-  EXPECT_EQ (turn (BarPage::Action, 2, bottom).pot, ChannelPot::Q);
 }
 
 // ACTION's own encoders are in ActionEncoders.cc.

@@ -40,6 +40,14 @@ enum class ActionTile
   Motion,
 };
 
+/** The key column, top to bottom -- what the panel's third encoder rings. */
+enum class ActionKey
+{
+  Edit,
+  Mode,
+  After,
+};
+
 /** What the ACT key does, on a page of its own.
  *
  *  Which action clip the slot fires, and the envelope that fires it. The
@@ -171,6 +179,23 @@ public:
   /** The press: the highlighted script goes on the chosen button. */
   void chooseListCursor ();
 
+  /** The encoder over the key column: moves its ring, EDIT at the top, and
+   *  returns the key under it. */
+  ActionKey moveKeyRing (int increment);
+  /** Its press: what a tap on the ringed key does. */
+  void pressKeyRing ();
+
+  /** AUDIO to MOTION and back -- the fourth encoder. */
+  void switchTile ();
+
+  /** The card's row the lower encoders turn, from the top; a press on one
+   *  of them marks the next and comes round. */
+  int markedValueRow () const;
+  void stepValueRow ();
+  /** Value `column` of the marked row by `increment` steps, through the
+   *  same callbacks the knob or field there answers with. */
+  void turnMarkedValue (int column, int increment);
+
   /** A name was picked out of the action list; empty means "fire nothing". */
   std::function<void (juce::String const &name)> onActionChosen;
   /** EDIT: open this action's script in FILES, beside the list there. */
@@ -240,6 +265,18 @@ private:
    *  from the assigned script. Apart from _actionName, because walking is
    *  not assigning. */
   int _listCursor = -1;
+  /** The key the key column's encoder rings. Drawn only once the encoder
+   *  has been turned: a ring nobody put there is a question on the page. */
+  ActionKey _keyRing = ActionKey::Edit;
+  bool _keyRingShown = false;
+  /** The card's row the lower encoders turn, per tile from the top; marked
+   *  once one of them has been used. */
+  int _valueRow = 0;
+  bool _valueRowShown = false;
+  int valueRowsOfTile () const;
+  void turnAudioValue (int column, int increment);
+  void turnMotionValue (int column, int increment);
+  void paintEncoderMarks (juce::Graphics &g);
   std::array<std::unique_ptr<TouchControl>, numControls> _touch;
   /** One per envelope control; the mode beside the name stays a key. */
   std::array<std::unique_ptr<PotKnob>, numControls> _knob;
