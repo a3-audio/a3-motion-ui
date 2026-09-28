@@ -7,29 +7,29 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Echo",
-          "clip": "Echo Chamber",
+          "pattern": "Rhythm Echo",
+          "clip": "Dub Echo",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Sweep"
+          "script": "Dub Spring"
         },
         {
-          "script": "Echo Throw"
+          "script": "Dub Stitch"
         },
         {
-          "script": "Rock"
+          "script": "Dub Bounce Back"
         },
         {
-          "script": "Submerge"
+          "script": "Dub Echo Throw"
         },
         {
-          "script": "Ping Pong"
+          "script": "FX Sweep"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Deep Undertow"
         }
       ]
     },
@@ -39,29 +39,29 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Circle",
-          "clip": "Sub Pressure",
+          "pattern": "Orbit Pendulum",
+          "clip": "Dub Pendulum",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Sweep"
+          "script": "Dub Spring"
         },
         {
-          "script": "Echo Throw"
+          "script": "Dub Stitch"
         },
         {
-          "script": "Rock"
+          "script": "Dub Bounce Back"
         },
         {
-          "script": "Submerge"
+          "script": "Dub Echo Throw"
         },
         {
-          "script": "Ping Pong"
+          "script": "FX Sweep"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Deep Undertow"
         }
       ]
     },
@@ -71,29 +71,29 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Helix",
-          "clip": "Tunnel",
+          "pattern": "Spiral Helix",
+          "clip": "Dub Tunnel",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Sweep"
+          "script": "Dub Spring"
         },
         {
-          "script": "Echo Throw"
+          "script": "Dub Stitch"
         },
         {
-          "script": "Rock"
+          "script": "Dub Bounce Back"
         },
         {
-          "script": "Submerge"
+          "script": "Dub Echo Throw"
         },
         {
-          "script": "Ping Pong"
+          "script": "FX Sweep"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Deep Undertow"
         }
       ]
     },
@@ -103,29 +103,29 @@
       "q": 0.2,
       "slots": [
         {
-          "pattern": "Ping Pong",
-          "clip": "Call and Response",
+          "pattern": "Orbit Kepler",
+          "clip": "Dub Kepler",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Sweep"
+          "script": "Dub Spring"
         },
         {
-          "script": "Echo Throw"
+          "script": "Dub Stitch"
         },
         {
-          "script": "Rock"
+          "script": "Dub Bounce Back"
         },
         {
-          "script": "Submerge"
+          "script": "Dub Echo Throw"
         },
         {
-          "script": "Ping Pong"
+          "script": "FX Sweep"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Deep Undertow"
         }
       ]
     }

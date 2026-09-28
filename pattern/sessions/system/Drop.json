@@ -4,128 +4,128 @@
     {
       "threeD": 0.51,
       "freq": 0.45,
-      "q": 0.35,
+      "q": 0.3,
       "slots": [
         {
-          "pattern": "Vortex",
-          "clip": "Maelstrom",
+          "pattern": "Edge Astroid",
+          "clip": "Drop Impact",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Impact"
+          "script": "Speed Stutter"
         },
         {
-          "script": "Sink"
+          "script": "Speed Halt"
         },
         {
-          "script": "Stab"
+          "script": "Width Full"
         },
         {
-          "script": "Squash"
+          "script": "Width Point"
         },
         {
-          "script": "Whirl"
+          "script": "FX Punch"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Break Standstill"
         }
       ]
     },
     {
       "threeD": 0.55,
       "freq": 0.45,
-      "q": 0.35,
+      "q": 0.3,
       "slots": [
         {
-          "pattern": "Pendulum",
-          "clip": "Siren",
+          "pattern": "Edge Square",
+          "clip": "Drop Warehouse",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Impact"
+          "script": "Speed Stutter"
         },
         {
-          "script": "Sink"
+          "script": "Speed Halt"
         },
         {
-          "script": "Stab"
+          "script": "Width Full"
         },
         {
-          "script": "Squash"
+          "script": "Width Point"
         },
         {
-          "script": "Whirl"
+          "script": "FX Punch"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Break Standstill"
         }
       ]
     },
     {
       "threeD": 0.57,
       "freq": 0.45,
-      "q": 0.35,
+      "q": 0.3,
       "slots": [
         {
-          "pattern": "Square",
-          "clip": "Warehouse",
+          "pattern": "Edge Corner",
+          "clip": "Drop Strobe",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Impact"
+          "script": "Speed Stutter"
         },
         {
-          "script": "Sink"
+          "script": "Speed Halt"
         },
         {
-          "script": "Stab"
+          "script": "Width Full"
         },
         {
-          "script": "Squash"
+          "script": "Width Point"
         },
         {
-          "script": "Whirl"
+          "script": "FX Punch"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Break Standstill"
         }
       ]
     },
     {
       "threeD": 0.59,
       "freq": 0.45,
-      "q": 0.35,
+      "q": 0.3,
       "slots": [
         {
-          "pattern": "Lissajous 5-4",
-          "clip": "Backspin",
+          "pattern": "Cycle Epi 3-1",
+          "clip": "Drop Whirlwind",
           "recordLengthLog2": 3
         }
       ],
       "actions": [
         {
-          "script": "Impact"
+          "script": "Speed Stutter"
         },
         {
-          "script": "Sink"
+          "script": "Speed Halt"
         },
         {
-          "script": "Stab"
+          "script": "Width Full"
         },
         {
-          "script": "Squash"
+          "script": "Width Point"
         },
         {
-          "script": "Whirl"
+          "script": "FX Punch"
         },
         {
-          "script": "Tape Stop"
+          "script": "Cue Break Standstill"
         }
       ]
     }

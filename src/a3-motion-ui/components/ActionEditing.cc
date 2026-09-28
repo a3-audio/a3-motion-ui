@@ -21,6 +21,7 @@
 #include "ActionEditing.hh"
 
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-engine/SplitFolder.hh>
 
 namespace a3
 {
@@ -113,6 +114,32 @@ copyBaseFor (juce::File const &from)
 {
   return from == juce::File{} ? juce::String{ "Action" }
                               : from.getFileNameWithoutExtension ();
+}
+
+CueTarget
+cueClipFor (std::optional<juce::String> const &clip,
+            juce::File const &clipsDir)
+{
+  if (!clip.has_value ())
+    return {};
+  auto const file = namedFileIn (clipsDir, *clip, ".json");
+  if (!file.existsAsFile ())
+    return { {}, "no clip called " + *clip };
+  return { file, {} };
+}
+
+CuePress
+cuePressFor (bool isCue, bool clipExists, bool recording, bool takeWaiting)
+{
+  if (!isCue)
+    return CuePress::NotACue;
+  if (recording)
+    return CuePress::Recording;
+  if (takeWaiting)
+    return CuePress::TakeWaiting;
+  if (!clipExists)
+    return CuePress::NoClip;
+  return CuePress::Load;
 }
 
 }

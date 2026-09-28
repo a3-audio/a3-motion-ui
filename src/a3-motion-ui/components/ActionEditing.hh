@@ -94,4 +94,36 @@ bool errorsBlockSaving (juce::StringArray const &errors,
  *  "Bloom 2" through freeFileIn), or "Action" for one with no origin. */
 juce::String copyBaseFor (juce::File const &from);
 
+/** Where a Cue button's clip lives. `file` is empty for a script without a
+ *  `~clip` line, and for one naming a clip that does not exist -- then `error`
+ *  says which, for the editor's strip, and the button does nothing. */
+struct CueTarget
+{
+  juce::File file;
+  juce::String error;
+};
+
+/** The clip a script's `~clip` names, looked up in the clips folder the way
+ *  FILES looks it up (shipped half, then the user's). */
+CueTarget cueClipFor (std::optional<juce::String> const &clip,
+                      juce::File const &clipsDir);
+
+/** What a press on a button does when its script names a clip. */
+enum class CuePress
+{
+  /** Not a Cue: the button fires its action as ever. */
+  NotACue,
+  /** The clip goes onto the channel and starts on the downbeat. */
+  Load,
+  /** The clip it names is gone: nothing happens, and the strip says so. */
+  NoClip,
+  /** A take on the channel waits for SAVE or DISCARD: nothing happens. */
+  TakeWaiting,
+  /** A take is going in on the channel: nothing happens. */
+  Recording,
+};
+
+CuePress cuePressFor (bool isCue, bool clipExists, bool recording,
+                      bool takeWaiting);
+
 }

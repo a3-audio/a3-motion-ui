@@ -1,0 +1,133 @@
+{
+  "name": "Float",
+  "channels": [
+    {
+      "threeD": 0.26,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Loop 1-2",
+          "clip": "Float Aurora",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Move Unwind"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Closing Sunset"
+        }
+      ]
+    },
+    {
+      "threeD": 0.3,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Cycle Hypo 7-2",
+          "clip": "Float Canopy",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Move Unwind"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Closing Sunset"
+        }
+      ]
+    },
+    {
+      "threeD": 0.32,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Flower Petal",
+          "clip": "Float Blossom",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Move Unwind"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Closing Sunset"
+        }
+      ]
+    },
+    {
+      "threeD": 0.34,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Loop Figure 8",
+          "clip": "Float Lullaby",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Move Unwind"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Closing Sunset"
+        }
+      ]
+    }
+  ]
+}

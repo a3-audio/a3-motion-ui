@@ -1016,7 +1016,9 @@ centreOnItsPath (Pattern &pattern, float radius, HeightMap const &heightMap)
 /** Where a stepped figure lands, and on which sixteenth. */
 struct Step
 {
-  int sixteenth;
+  /** In sixteenths, and not only whole ones: a swung eighth lands between
+   *  them. */
+  float sixteenth;
   float x;
   float y;
 };
@@ -1031,27 +1033,27 @@ fromSteps (char const *name, index_t lengthBeats, float radius,
   auto pattern = emptyPattern (name, lengthBeats);
   auto const numTicks = pattern->getNumTicks ();
   auto const perSixteenth
-      = static_cast<index_t> (TempoClock::getTicksPerBeat () / 4);
+      = static_cast<float> (TempoClock::getTicksPerBeat ()) / 4.f;
+
+  auto const landingTick = [&] (Step const &s) {
+    return static_cast<index_t> (std::lround (s.sixteenth * perSixteenth))
+           % numTicks;
+  };
 
   for (index_t tick = 0; tick < numTicks; ++tick)
     {
-      auto const sixteenth = static_cast<int> (tick / perSixteenth);
       auto current = steps.back ();
       for (auto const &step : steps)
-        if (step.sixteenth <= sixteenth)
+        if (landingTick (step) <= tick)
           current = step;
 
-      auto const nextTick = tick + 1;
+      auto const nextTick = (tick + 1) % numTicks;
       auto const landsNext
-          = nextTick % perSixteenth == 0
-            && std::any_of (steps.begin (), steps.end (),
-                            [&] (Step const &s) {
-                              return static_cast<index_t> (s.sixteenth)
-                                         * perSixteenth
-                                     == nextTick % numTicks;
-                            });
+          = std::any_of (steps.begin (), steps.end (), [&] (Step const &s) {
+              return landingTick (s) == nextTick;
+            });
       if (landsNext)
-        continue; // the gap before a landing
+        continue; // the gap before a landing, so a jump is drawn as a jump
 
       place (*pattern, tick, radius * current.x, radius * current.y,
              heightMap);
@@ -1061,7 +1063,7 @@ fromSteps (char const *name, index_t lengthBeats, float radius,
 
 /** Points evenly round the disc, starting at the front. */
 std::vector<Step>
-roundTheRoom (std::vector<int> const &sixteenths)
+roundTheRoom (std::vector<float> const &sixteenths)
 {
   std::vector<Step> steps;
   auto const n = static_cast<float> (sixteenths.size ());
@@ -1084,7 +1086,7 @@ PatternGenerator::createTresillo (index_t lengthBeats, float radius,
                                   HeightMap const &heightMap)
 {
   return fromSteps ("Tresillo", lengthBeats, radius,
-                    roundTheRoom ({ 0, 6, 12 }), heightMap);
+                    roundTheRoom ({ 0.f, 6.f, 12.f }), heightMap);
 }
 
 // Son clave 3-2: three strokes in the first bar, two in the second.
@@ -1093,7 +1095,7 @@ PatternGenerator::createClave32 (index_t lengthBeats, float radius,
                                  HeightMap const &heightMap)
 {
   return fromSteps ("Clave 3-2", lengthBeats, radius,
-                    roundTheRoom ({ 0, 6, 12, 20, 24 }), heightMap);
+                    roundTheRoom ({ 0.f, 6.f, 12.f, 20.f, 24.f }), heightMap);
 }
 
 // Call and response: left on one beat, right on the next.
@@ -1103,7 +1105,8 @@ PatternGenerator::createPingPong (index_t lengthBeats, float radius,
 {
   std::vector<Step> steps;
   for (int beat = 0; beat < static_cast<int> (lengthBeats); ++beat)
-    steps.push_back ({ beat * 4, beat % 2 == 0 ? -1.f : 1.f, 0.f });
+    steps.push_back ({ static_cast<float> (beat * 4),
+                       beat % 2 == 0 ? -1.f : 1.f, 0.f });
   return fromSteps ("Ping Pong", lengthBeats, radius, steps, heightMap);
 }
 
@@ -1164,8 +1167,10 @@ PatternGenerator::createEcho (index_t lengthBeats, float radius,
   auto reach = 1.f;
   for (int i = 0; i < 4; ++i)
     {
-      steps.push_back ({ i * lap / 4, reach * d, reach * d });
-      steps.push_back ({ i * lap / 4 + lap / 8, 0.f, 0.f });
+      steps.push_back ({ static_cast<float> (i * lap / 4), reach * d,
+                         reach * d });
+      steps.push_back ({ static_cast<float> (i * lap / 4 + lap / 8), 0.f,
+                         0.f });
       reach /= 2.f;
     }
   return fromSteps ("Echo", lengthBeats, radius, steps, heightMap);
@@ -1236,6 +1241,75 @@ PatternGenerator::createDrift (index_t lengthBeats, float radius,
       heightMap);
   centreOnItsPath (*pattern, radius, heightMap);
   return pattern;
+}
+
+// Four on the floor: a landing on every beat, round the room -- the kick.
+std::unique_ptr<Pattern>
+PatternGenerator::createFourFloor (index_t lengthBeats, float radius,
+                                   HeightMap const &heightMap)
+{
+  std::vector<float> beats;
+  for (index_t b = 0; b < lengthBeats; ++b)
+    beats.push_back (static_cast<float> (b * 4));
+  return fromSteps ("Four Floor", lengthBeats, radius, roundTheRoom (beats),
+                    heightMap);
+}
+
+// The house hi-hat: between the beats, from one side to the other.
+std::unique_ptr<Pattern>
+PatternGenerator::createOffbeat (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  std::vector<Step> steps;
+  for (index_t b = 0; b < lengthBeats; ++b)
+    steps.push_back ({ static_cast<float> (b * 4 + 2),
+                       b % 2 == 0 ? -1.f : 1.f, 0.f });
+  return fromSteps ("Offbeat", lengthBeats, radius, steps, heightMap);
+}
+
+// Son clave 2-3: two strokes in the first bar, three in the second.
+std::unique_ptr<Pattern>
+PatternGenerator::createClave23 (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  return fromSteps ("Clave 2-3", lengthBeats, radius,
+                    roundTheRoom ({ 4.f, 8.f, 16.f, 22.f, 28.f }), heightMap);
+}
+
+// Shuffle: the second eighth of each beat swung to two thirds, two places.
+std::unique_ptr<Pattern>
+PatternGenerator::createShuffle (index_t lengthBeats, float radius,
+                                 HeightMap const &heightMap)
+{
+  std::vector<Step> steps;
+  for (index_t b = 0; b < lengthBeats; ++b)
+    {
+      auto const at = static_cast<float> (b * 4);
+      steps.push_back ({ at, 0.f, 1.f });
+      steps.push_back ({ at + 8.f / 3.f, 0.f, -1.f });
+    }
+  return fromSteps ("Shuffle", lengthBeats, radius, steps, heightMap);
+}
+
+// The gallop: x.xx on every beat -- one, and-a -- over three places visited
+// in turn.
+std::unique_ptr<Pattern>
+PatternGenerator::createGallop (index_t lengthBeats, float radius,
+                                HeightMap const &heightMap)
+{
+  std::vector<Step> steps;
+  int hit = 0;
+  for (index_t b = 0; b < lengthBeats; ++b)
+    for (auto const s : { 0.f, 2.f, 3.f })
+      {
+        auto const a = pi<float> () / 2.f
+                       + 2.f * pi<float> () * static_cast<float> (hit % 3)
+                             / 3.f;
+        steps.push_back ({ static_cast<float> (b * 4) + s, std::cos (a),
+                           std::sin (a) });
+        ++hit;
+      }
+  return fromSteps ("Gallop", lengthBeats, radius, steps, heightMap);
 }
 
 }

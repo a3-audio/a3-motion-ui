@@ -466,3 +466,64 @@ TEST (ActionFiring, TheButtonsFeelIsOnTheResolvedAction)
   EXPECT_EQ (fired.envelopeAttack, 5);
   EXPECT_EQ (fired.actMode, ActMode::Hold);
 }
+
+// Library v2 (2026-09-28): every shipped action but FX writes all three
+// ceilings as 0. It must still hold the clip for its envelope and give it
+// back -- and never move 3d, freq or Q while it does.
+TEST (ActionFiring, AMovementOnlyActionMovesTheClipAndNotTheSound)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true); // nothing leaves the machine from a test
+  engine.setTempoBPM (240.f);
+
+  auto pattern = clipWithAShortAccent (ActMode::OneShot);
+  auto const before = clipSettingsFrom (*pattern);
+  engine.setChannelPot3 (0, 0.4f); // 3d, where the hand left it
+  engine.setChannelPot1 (0, 0.3f); // freq
+  engine.setChannelPot2 (0, 0.2f); // q
+
+  ActionFeel silent = actionFeelFrom (before);
+  silent.envelopeMax = 0.f;
+  silent.freqMax = 0.f;
+  silent.qMax = 0.f;
+  silent.actMode = ActMode::OneShot;
+  engine.setChannelAction (0, resolveActionAt ("~spin = 6;", before, 1, silent));
+  engine.setChannelAccentHeld (0, true, pattern);
+
+  ASSERT_TRUE (waitUntil ([&] { return pattern->getSpin () == 6; }))
+      << "the action never reached the clip";
+  EXPECT_FLOAT_EQ (engine.getChannelPot3Effective (0), 0.4f);
+  EXPECT_FLOAT_EQ (engine.getChannelPot1Effective (0), 0.3f);
+  EXPECT_FLOAT_EQ (engine.getChannelPot2Effective (0), 0.2f);
+
+  EXPECT_TRUE (waitUntil ([&] { return clipSettingsFrom (*pattern) == before; }))
+      << "the clip never came back from a silent action";
+  EXPECT_FLOAT_EQ (engine.getChannelPot3Effective (0), 0.4f);
+}
+
+// Library v2 review: a Cue puts a new clip on a channel whose clip is still
+// running. The engine hands over at the new clip's start -- scheduling it must
+// not stop the running one now, or the room stands still until the downbeat.
+TEST (ActionFiring, AClipScheduledOnAChannelLeavesTheRunningOneUntilItStarts)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+
+  auto running = clipWithAShortAccent (ActMode::OneShot);
+  running->setPlaybackLength (Measure{ 1, 0, 0 });
+  engine.playPattern (running, Measure{});
+  ASSERT_TRUE (waitUntil ([&] {
+    return running->getStatus () == Pattern::Status::Playing;
+  })) << "the first clip never started";
+
+  auto next = clipWithAShortAccent (ActMode::OneShot);
+  next->setPlaybackLength (Measure{ 1, 0, 0 });
+  engine.playPattern (next, Measure{ 1000, 0, 0 });
+
+  juce::Thread::sleep (200);
+  EXPECT_NE (running->getStatus (), Pattern::Status::Idle)
+      << "the running clip stopped before the new one started";
+}
