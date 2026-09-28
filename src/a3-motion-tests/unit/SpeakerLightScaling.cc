@@ -358,10 +358,12 @@ TEST (SphereCorona, ShippedConfigMakesTheCoronaVisible)
 
   auto const vuMax = static_cast<float> (glow["vuMax"]);
   auto const curve = static_cast<float> (glow["curve"]);
-  auto const intensity = static_cast<float> (glow["intensity"]);
 
-  EXPECT_GT (speakerLightLevel (subwooferRmsMean, vuMax, curve) * intensity,
-             0.1f)
+  // The range, not the brightness. How bright the corona is (`intensity`) is
+  // a look, and the shipped default has been the quiet one since 2026-09-28
+  // (quiet-indigo-2, the maintainer's pick), which turns it off. What must
+  // hold for any skin is that turning it up shows the subwoofer's real level.
+  EXPECT_GT (speakerLightLevel (subwooferRmsMean, vuMax, curve), 0.1f)
       << "vuMax " << vuMax << " is far above the subwoofer's actual range";
 }
 
