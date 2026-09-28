@@ -59,7 +59,7 @@ struct ActionLayout
   juce::Rectangle<int> afterKey;
 
   /** Which tile stands in the card (2026-09-28): the button's feel, or what
-   *  it puts on the clip. Under the mode, AUDIO over MOTION. */
+   *  it puts on the clip. Tabs side by side along the card's top. */
   juce::Rectangle<int> audioKey;
   juce::Rectangle<int> motionKey;
 
@@ -75,9 +75,8 @@ struct ActionLayout
    *  controls in the bar does. */
   juce::Rectangle<int> card;
 
-  /** What the card is called. "Audio", because that is what the nine knobs
-   *  do -- the accent and the two filters -- and a card of nine unnamed knobs
-   *  beside a script is a card you have to work out. */
+  /** The band along the card's top that the two tabs share: what the card
+   *  shows is named by the tab that is lit. */
   juce::Rectangle<int> cardCaption;
 
   /** Three envelopes' worth of attack, decay and ceiling, in reading order --
@@ -85,6 +84,13 @@ struct ActionLayout
    *  because it is what ACT has always done, then the cutoff, then the
    *  resonance. */
   static constexpr int numRows = 3;
+
+  /** MOTION's eight fields two to a row, each field's pair side by side:
+   *  four across, in motionParamOrder -- which is also how the panel's lower
+   *  encoders turn a row of it. */
+  static constexpr int motionColumns = 4;
+  static constexpr int motionRows
+      = (numMotionParams + motionColumns - 1) / motionColumns;
   std::array<juce::Rectangle<int>, numRows * 3> controls;
 
   /** The bands the controls stand on, top to bottom. */

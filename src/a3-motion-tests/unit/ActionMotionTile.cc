@@ -266,3 +266,19 @@ TEST (ActionMotionTile, TheAfterKeyStepsAndClears)
   key->onDoubleTap (0, 0);
   EXPECT_TRUE (cleared);
 }
+
+// The page crashed on its first paint (2026-09-28): the AUDIO tile's row
+// names called themselves. The tile tests never painted, so they stayed
+// green -- this one paints both tiles, the way the screen does.
+TEST (ActionMotionTile, ThePagePaintsOnBothTiles)
+{
+  Page p;
+  p.page.setMotionTile ({}, true, 4.f);
+  for (auto const tile : { ActionTile::Audio, ActionTile::Motion })
+    {
+      p.page.setTile (tile);
+      auto const image = p.page.createComponentSnapshot (
+          p.page.getLocalBounds ());
+      EXPECT_EQ (image.getWidth (), p.page.getWidth ());
+    }
+}

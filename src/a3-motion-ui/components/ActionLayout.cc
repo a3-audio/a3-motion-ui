@@ -29,11 +29,8 @@ namespace a3
 
 namespace
 {
-/** MOTION's eight fields two to a row, each field's pair side by side: four
- *  across. */
-constexpr int motionColumns = 4;
-constexpr int motionRows
-    = (numMotionParams + motionColumns - 1) / motionColumns;
+constexpr int motionColumns = ActionLayout::motionColumns;
+constexpr int motionRows = ActionLayout::motionRows;
 
 /** The MOTION tile in what the card has under its name: four across in
  *  motionParamOrder, rows as tall as the AUDIO tile's knobs want (`rowCap`)
@@ -115,9 +112,17 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
 
   auto grid = sectionContentBounds (out.card);
 
-  // The card is named before anything stands on it.
-  out.cardCaption = grid.removeFromTop (
-      juce::jmin (grid.getHeight () / 5, static_cast<int> (headerSize * 1.4f)));
+  // The card's two tiles are tabs along its top (maintainer, 2026-09-28):
+  // the name of what the card shows is the key that shows it. Taller than a
+  // caption was, because it is touched: a fingertip, like every key.
+  out.cardCaption = grid.removeFromTop (juce::jmax (
+      fingertipSize, static_cast<int> (headerSize * 1.4f)));
+  {
+    auto tabs = out.cardCaption;
+    auto const hair = juce::roundToInt (theme ().paddingHair);
+    out.audioKey = tabs.removeFromLeft (tabs.getWidth () / 2).reduced (hair, 0);
+    out.motionKey = tabs.reduced (hair, 0);
+  }
   grid.removeFromTop (gap / 2);
 
   // Where the rows begin: at the top of what the card has left, so the knobs
@@ -164,13 +169,6 @@ layOutActionPage (juce::Rectangle<int> bounds, float headerSize,
   // What comes after the accent, under the mode: both say what a press of
   // this button does over time.
   out.afterKey = keys.removeFromTop (juce::jmin (keyH, keys.getHeight ()));
-  keys.removeFromTop (gap);
-
-  // Which tile the card shows, at the foot of the column: AUDIO over
-  // MOTION, apart from the two keys that say what the button is.
-  out.motionKey = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
-  keys.removeFromBottom (gap);
-  out.audioKey = keys.removeFromBottom (juce::jmin (keyH, keys.getHeight ()));
 
   // Three rows of two, as the pads stand on the panel: A1 A2 / A3 A4 / A5 A6.
   // A quarter each, so an action's name fits under its number; the list

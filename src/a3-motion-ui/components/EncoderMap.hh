@@ -54,11 +54,15 @@ struct EncoderTarget
     ActionList,
     /** ACTION: steps the chosen action button, A1..A6. */
     ActionButton,
-    /** ACTION: steps the chosen button's mode; a press is EDIT. */
-    ActionMode,
-    /** ACTION: steps what the chosen button fires after; a press switches
-     *  the card between AUDIO and MOTION. */
-    ActionAfter,
+    /** ACTION: rings a key of the key column (EDIT, mode, then); a press
+     *  presses it. */
+    ActionKey,
+    /** ACTION: switches the card between AUDIO and MOTION, turned or
+     *  pressed. */
+    ActionTile,
+    /** ACTION, the lower row: value `sub` of the card's marked row; a press
+     *  marks the next row. */
+    ActionValue,
     /** FREQ or Q of the encoder's own column's channel. */
     ColumnChannelPot,
   };

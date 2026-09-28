@@ -519,41 +519,9 @@ TEST (SessionFile, AWrongNumberOfSpeedKeysIsIgnored)
 
 // ── One clip per channel, six actions (2026-09-27) ───────────────────────
 
-// Six action buttons per channel, each by the script's name (a set travels)
-// and with how it is played -- written only where that differs from the
-// defaults, like a slot's overrides.
-TEST (SessionFile, AChannelCarriesSixActionsWithTheirFeel)
-{
-  Session set;
-  set.channels.resize (1);
-  set.channels[0].slots.resize (1);
-  auto &actions = set.channels[0].actions;
-  actions[0].script = "Bloom";
-  ActionFeel feel;
-  feel.envelopeAttack = 5;
-  feel.actMode = ActMode::Hold;
-  actions[0].feel = feel;
-  actions[3].script = "Ground";
-
-  auto const file = tempSet ("a3-session-actions.json");
-  ASSERT_TRUE (saveSession (file, set));
-  auto const read = loadSession (file, 1, 1);
-
-  EXPECT_EQ (read.channels[0].actions[0].script, "Bloom");
-  ASSERT_TRUE (read.channels[0].actions[0].feel.has_value ());
-  EXPECT_EQ (*read.channels[0].actions[0].feel, feel);
-  EXPECT_EQ (read.channels[0].actions[3].script, "Ground");
-  EXPECT_FALSE (read.channels[0].actions[3].feel.has_value ());
-  EXPECT_TRUE (read.channels[0].actions[1].script.empty ());
-
-  // "slots" stays, so an older build still reads a new set.
-  EXPECT_TRUE (file.loadFileAsString ().contains ("\"slots\""));
-  file.deleteFile ();
-}
-
 // An old set had an action per slot, two per channel. Read by this build it
-// keeps the clip of slot 1 -- and both actions, as A1 and A2, with the
-// envelope each slot had been turned to.
+// keeps the clip of slot 1 -- and both actions, as A1 and A2. What a slot had
+// been turned to is not kept: the scripts say how they play (2026-09-29).
 TEST (SessionFile, AnOldSetsTwoSlotActionsBecomeA1AndA2)
 {
   auto const file = tempSet ("a3-session-two-slots.json");
@@ -568,11 +536,7 @@ TEST (SessionFile, AnOldSetsTwoSlotActionsBecomeA1AndA2)
 
   auto const &actions = read.channels[0].actions;
   EXPECT_EQ (actions[0].script, "Slam");
-  ASSERT_TRUE (actions[0].feel.has_value ());
-  EXPECT_EQ (actions[0].feel->envelopeAttack, 5);
-  EXPECT_EQ (actions[0].feel->actMode, ActMode::Hold);
   EXPECT_EQ (actions[1].script, "Bloom");
-  EXPECT_FALSE (actions[1].feel.has_value ()) << "nothing turned: the script's";
   file.deleteFile ();
 }
 
@@ -634,114 +598,39 @@ TEST (SessionFile, ASetNamingThingsThatNoLongerShipStillLoads)
 
 // ── What a button puts on the clip (2026-09-28) ──────────────────────────
 
-// The values a button was turned to on the MOTION tile, per action entry --
-// including one turned to a default, which is still the button's choice.
-TEST (SessionFile, AnActionCarriesTheMotionItWasTurnedTo)
+// ACTION writes into the script since 2026-09-29: a set names each button's
+// script and nothing more.
+TEST (SessionFile, AChannelNamesItsSixScriptsAndNothingElse)
 {
   Session set;
   set.channels.resize (1);
   set.channels[0].slots.resize (1);
-  auto &action = set.channels[0].actions[2];
-  action.script = "Bloom";
-  action.motion.set (MotionParam::Spin, 0.f);
-  action.motion.set (MotionParam::Reach, -0.5f);
-  action.motion.set (MotionParam::Elevation, 0.75f);
-  action.motion.set (MotionParam::Speed, -2.f);
-  action.motion.set (MotionParam::Direction,
-                     static_cast<float> (PlayDirection::Forward));
-  action.motion.set (MotionParam::EndAction,
-                     static_cast<float> (EndAction::Pause));
+  set.channels[0].actions[0].script = "Lift Up";
+  set.channels[0].actions[5].script = "Cue Peak Anthem";
 
-  auto const file = tempSet ("a3-session-action-motion.json");
-  ASSERT_TRUE (saveSession (file, set));
-  auto const read = loadSession (file, 1, 1);
-
-  EXPECT_EQ (read.channels[0].actions[2].motion, action.motion);
-  EXPECT_TRUE (read.channels[0].actions[0].motion.empty ());
-  EXPECT_TRUE (file.loadFileAsString ().contains ("\"motion\""));
-  file.deleteFile ();
-}
-
-// Nothing turned, nothing written: a set stays as short as it was.
-TEST (SessionFile, NoMotionIsWrittenWhereNothingWasTurned)
-{
-  Session set;
-  set.channels.resize (1);
-  set.channels[0].slots.resize (1);
-  set.channels[0].actions[0].script = "Bloom";
-
-  auto const file = tempSet ("a3-session-no-motion.json");
-  ASSERT_TRUE (saveSession (file, set));
-  EXPECT_FALSE (file.loadFileAsString ().contains ("\"motion\""));
-  file.deleteFile ();
-}
-
-// A set from before the tile loads as it did: every value from the script.
-TEST (SessionFile, AnOlderActionEntryLoadsWithNothingTurned)
-{
-  auto const file = tempSet ("a3-session-before-motion.json");
-  ASSERT_TRUE (file.replaceWithText (R"({ "channels": [ { "slots": [ {} ],
-      "actions": [ { "script": "Slam", "feel": { "envAttack": 5 } } ] } ] })"));
-
-  auto const read = loadSession (file, 1, 1);
-  auto const &action = read.channels[0].actions[0];
-  EXPECT_EQ (action.script, "Slam");
-  ASSERT_TRUE (action.feel.has_value ());
-  EXPECT_EQ (action.feel->envelopeAttack, 5);
-  EXPECT_TRUE (action.motion.empty ());
-  file.deleteFile ();
-}
-
-// The words a slot's overrides use, so one file has one name per value.
-TEST (SessionFile, MotionIsWrittenInTheSetsOwnWords)
-{
-  Session set;
-  set.channels.resize (1);
-  set.channels[0].slots.resize (1);
-  auto &action = set.channels[0].actions[0];
-  action.script = "Bloom";
-  action.motion.set (MotionParam::Direction,
-                     static_cast<float> (PlayDirection::Reverse));
-  action.motion.set (MotionParam::Swell, 3.f);
-
-  auto const file = tempSet ("a3-session-motion-words.json");
+  auto const file = tempSet ("a3-session-scripts-only.json");
   ASSERT_TRUE (saveSession (file, set));
   auto const text = file.loadFileAsString ();
-  EXPECT_TRUE (text.contains ("\"direction\": \"rev\"")) << text;
-  EXPECT_TRUE (text.contains ("\"swell\": 3")) << text;
-  file.deleteFile ();
-}
-
-// What a button fires when its accent is over -- "then A3" -- per action
-// entry, written only when set.
-TEST (SessionFile, AnActionCarriesWhatComesAfterIt)
-{
-  Session set;
-  set.channels.resize (1);
-  set.channels[0].slots.resize (1);
-  set.channels[0].actions[0].script = "Bloom";
-  set.channels[0].actions[0].after = 2;
-  set.channels[0].actions[1].script = "Slam";
-
-  auto const file = tempSet ("a3-session-after.json");
-  ASSERT_TRUE (saveSession (file, set));
-  auto const text = file.loadFileAsString ();
-  EXPECT_TRUE (text.contains ("\"after\": \"A3\"")) << text;
-  EXPECT_EQ (text.indexOf ("\"after\""), text.lastIndexOf ("\"after\""))
-      << "written for the one button that has it";
+  EXPECT_FALSE (text.contains ("\"feel\"")) << text;
+  EXPECT_FALSE (text.contains ("\"motion\"")) << text;
+  EXPECT_FALSE (text.contains ("\"after\"")) << text;
 
   auto const read = loadSession (file, 1, 1);
-  EXPECT_EQ (read.channels[0].actions[0].after, std::optional<int> (2));
-  EXPECT_FALSE (read.channels[0].actions[1].after.has_value ());
+  EXPECT_EQ (read.channels[0].actions[0].script, "Lift Up");
+  EXPECT_EQ (read.channels[0].actions[5].script, "Cue Peak Anthem");
   file.deleteFile ();
 }
 
-TEST (SessionFile, AnOlderActionEntryHasNothingAfterIt)
+TEST (SessionFile, AnOlderSetWithTurnedValuesStillLoadsItsScripts)
 {
-  auto const file = tempSet ("a3-session-before-after.json");
+  auto const file = tempSet ("a3-session-turned-values.json");
   ASSERT_TRUE (file.replaceWithText (R"({ "channels": [ { "slots": [ {} ],
-      "actions": [ { "script": "Slam" } ] } ] })"));
+      "actions": [ { "script": "Speed Halt", "motion": { "rotate": 0.1, "strX": 8 } },
+                   { "script": "Width Point", "after": "A1" },
+                   { "script": "Lift Up", "feel": { "envAttack": 5 } } ] } ] })"));
   auto const read = loadSession (file, 1, 1);
-  EXPECT_FALSE (read.channels[0].actions[0].after.has_value ());
+  EXPECT_EQ (read.channels[0].actions[0].script, "Speed Halt");
+  EXPECT_EQ (read.channels[0].actions[1].script, "Width Point");
+  EXPECT_EQ (read.channels[0].actions[2].script, "Lift Up");
   file.deleteFile ();
 }

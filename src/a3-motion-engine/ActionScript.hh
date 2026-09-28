@@ -78,6 +78,9 @@ struct ActionScriptResult
    *  that went wrong sets nothing. What tells the ACTION page's MOTION tile
    *  a value comes from the script rather than from the clip. */
   juce::StringArray assigned;
+  /** The button, 0-based, a `~then = N;` line fires when this action's
+   *  accent is over (2026-09-29). Empty: nothing after. */
+  std::optional<int> then;
 };
 
 /** Read a script and work out what it makes of the settings it is given.
@@ -148,5 +151,18 @@ std::vector<ActionScriptNote> const &actionScriptNotes ();
  *  a line is uncommented, because a commented line assigns nothing, which is
  *  exactly "leave this as the hand left it". */
 juce::String actionScriptTemplate ();
+
+/** Where a line's annotation starts, in every script the app writes: wide
+ *  enough for the longest assignment there is (//~flatElevation = 0.5;) and
+ *  no wider, so the annotation stands off the values, not across the screen. */
+constexpr int scriptAnnotationColumn = 25;
+
+/** What stands after a parameter's `// `: its range, then its hint. */
+juce::String scriptAnnotation (ActionScriptNote const &note);
+
+/** `name`'s value in `settings`, written as a script writes it; empty for a
+ *  name that is not a setting (`then`, `clip`, nonsense). */
+juce::String writtenSettingFor (ClipSettings const &settings,
+                                juce::String const &name);
 
 }

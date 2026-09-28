@@ -18,10 +18,10 @@
 
 */
 
-// ACTION on the panel (2026-09-28): the four upper encoders stand under the
-// page's four columns -- the list, the six buttons, the mode, the "then" --
-// and the list is walked with a highlight a press assigns, so turning past
-// forty scripts mid-set never puts one on a button by accident.
+// ACTION on the panel (maintainer, 2026-09-28): enc 1 chooses A1..A6, enc 2
+// walks the list with a highlight a press assigns, enc 3 rings a key of the
+// key column and a press presses it, enc 4 switches AUDIO/MOTION. enc 5..8
+// turn the four values of the tile's marked row; a press marks the next row.
 
 #include <gtest/gtest.h>
 
@@ -29,6 +29,9 @@
 
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/EncoderMap.hh>
+
+#include <optional>
+#include <vector>
 
 using namespace a3;
 
@@ -58,21 +61,29 @@ struct Page
 
 TEST (ActionEncoders, TheUpperFourStandUnderThePagesColumns)
 {
-  EXPECT_EQ (onAction (0, top), EncoderTarget::Kind::ActionList);
-  EXPECT_EQ (onAction (1, top), EncoderTarget::Kind::ActionButton);
-  EXPECT_EQ (onAction (2, top), EncoderTarget::Kind::ActionMode);
-  EXPECT_EQ (onAction (3, top), EncoderTarget::Kind::ActionAfter);
+  EXPECT_EQ (onAction (0, top), EncoderTarget::Kind::ActionButton);
+  EXPECT_EQ (onAction (1, top), EncoderTarget::Kind::ActionList);
+  EXPECT_EQ (onAction (2, top), EncoderTarget::Kind::ActionKey);
+  EXPECT_EQ (onAction (3, top), EncoderTarget::Kind::ActionTile);
 }
 
-TEST (ActionEncoders, TheLowerFourAndShiftKeepTheChannelsFreqAndQ)
+TEST (ActionEncoders, TheLowerFourTurnTheMarkedRowsValues)
 {
   for (int column = 0; column < 4; ++column)
     {
-      EXPECT_EQ (onAction (column, bottom),
-                 EncoderTarget::Kind::ColumnChannelPot);
-      EXPECT_EQ (onAction (column, top, true),
-                 EncoderTarget::Kind::ColumnChannelPot);
+      auto const t = encoderTarget (BarPage::Action, column, bottom, false,
+                                    false);
+      EXPECT_EQ (t.kind, EncoderTarget::Kind::ActionValue);
+      EXPECT_EQ (t.sub, column);
     }
+}
+
+TEST (ActionEncoders, ShiftKeepsTheChannelsFreqAndQ)
+{
+  for (int column = 0; column < 4; ++column)
+    for (int row : { top, bottom })
+      EXPECT_EQ (onAction (column, row, true),
+                 EncoderTarget::Kind::ColumnChannelPot);
 }
 
 TEST (ActionEncoders, TheHighlightStartsOnTheAssignedScript)
@@ -135,4 +146,130 @@ TEST (ActionEncoders, ChoosingAnotherButtonStartsTheWalkAgain)
   p.page.moveListCursor (2);
   p.page.setActionButtons (names, 1);
   EXPECT_EQ (p.page.moveListCursor (1), "Move Spin");
+}
+
+// ── enc 3: the key column ───────────────────────────────────────────────
+
+TEST (ActionEncoders, TheRingWalksEditHoldThenAndStopsAtTheEnds)
+{
+  Page p;
+  EXPECT_EQ (p.page.moveKeyRing (1), ActionKey::Mode);
+  EXPECT_EQ (p.page.moveKeyRing (1), ActionKey::After);
+  EXPECT_EQ (p.page.moveKeyRing (5), ActionKey::After);
+  EXPECT_EQ (p.page.moveKeyRing (-5), ActionKey::Edit);
+}
+
+TEST (ActionEncoders, APressDoesWhatATapOnTheRingedKeyDoes)
+{
+  Page p;
+  int edits = 0;
+  std::vector<int> tapped;
+  int afterSteps = 0;
+  p.page.onEditPressed = [&edits] { ++edits; };
+  p.page.onControlTapped = [&tapped] (int control) { tapped.push_back (control); };
+  p.page.onAfterStepped = [&afterSteps] (int increment) { afterSteps += increment; };
+
+  p.page.pressKeyRing ();
+  EXPECT_EQ (edits, 1) << "the ring starts on EDIT";
+
+  p.page.moveKeyRing (1);
+  p.page.pressKeyRing ();
+  ASSERT_EQ (tapped.size (), 1u);
+  EXPECT_EQ (tapped[0], ActionComponent::ActMode);
+
+  p.page.moveKeyRing (1);
+  p.page.pressKeyRing ();
+  EXPECT_EQ (afterSteps, 1);
+}
+
+// ── enc 4: the tiles, now tabs on the card ──────────────────────────────
+
+// Where the tabs stand is ActionLayout.AudioAndMotionAreTabsOnTopOfTheCard.
+
+TEST (ActionEncoders, SwitchingTheTileGoesBackAndForth)
+{
+  Page p;
+  p.page.switchTile ();
+  EXPECT_EQ (p.page.tile (), ActionTile::Motion);
+  p.page.switchTile ();
+  EXPECT_EQ (p.page.tile (), ActionTile::Audio);
+}
+
+// ── enc 5..8: the marked row ────────────────────────────────────────────
+
+TEST (ActionEncoders, OnAudioTheFirstThreeTurnTheMarkedRowsKnobs)
+{
+  Page p;
+  std::vector<std::pair<int, int> > dragged;
+  p.page.onControlDragged = [&dragged] (int control, int increment) {
+    dragged.emplace_back (control, increment);
+  };
+
+  p.page.turnMarkedValue (1, 2);
+  p.page.stepValueRow ();
+  p.page.turnMarkedValue (0, -1);
+  p.page.turnMarkedValue (3, 1); // AUDIO has three across: nothing
+
+  ASSERT_EQ (dragged.size (), 2u);
+  EXPECT_EQ (dragged[0], std::make_pair (int (ActionComponent::Decay), 2));
+  EXPECT_EQ (dragged[1], std::make_pair (int (ActionComponent::FreqAttack), -1));
+}
+
+TEST (ActionEncoders, APressMarksTheNextRowAndComesRound)
+{
+  Page p;
+  EXPECT_EQ (p.page.markedValueRow (), 0);
+  p.page.stepValueRow ();
+  p.page.stepValueRow ();
+  EXPECT_EQ (p.page.markedValueRow (), 2);
+  p.page.stepValueRow ();
+  EXPECT_EQ (p.page.markedValueRow (), 0) << "AUDIO has three rows";
+}
+
+TEST (ActionEncoders, OnMotionTheFourTurnTheMarkedRow)
+{
+  Page p;
+  p.page.setMotionTile ({}, true, 4.f);
+  p.page.switchTile ();
+  std::vector<MotionParam> set;
+  p.page.onMotionSet = [&set] (MotionParam param, float) { set.push_back (param); };
+
+  p.page.turnMarkedValue (0, 1);
+  p.page.turnMarkedValue (3, 1);
+  for (int row = 1; row <= 4; ++row)
+    p.page.stepValueRow ();
+  p.page.turnMarkedValue (0, 1); // the last row: speed, dir, end
+  p.page.turnMarkedValue (3, 1); // nothing stands there
+
+  ASSERT_EQ (set.size (), 3u);
+  EXPECT_EQ (set[0], motionParamOrder[0]);
+  EXPECT_EQ (set[1], motionParamOrder[3]);
+  EXPECT_EQ (set[2], motionParamOrder[16]);
+
+  p.page.stepValueRow ();
+  EXPECT_EQ (p.page.markedValueRow (), 0) << "MOTION has five rows";
+}
+
+TEST (ActionEncoders, ATurnOnAMotionKnobMovesItsValue)
+{
+  Page p;
+  std::array<MotionShown, numMotionParams> shown{};
+  p.page.setMotionTile (shown, true, 4.f);
+  p.page.switchTile ();
+  std::optional<float> spin;
+  p.page.onMotionSet = [&spin] (MotionParam param, float value) {
+    if (param == MotionParam::Spin)
+      spin = value;
+  };
+  p.page.turnMarkedValue (0, 1);
+  ASSERT_TRUE (spin.has_value ());
+  EXPECT_GT (*spin, 0.f);
+}
+
+TEST (ActionEncoders, AnotherTileStartsOnItsFirstRow)
+{
+  Page p;
+  p.page.stepValueRow ();
+  p.page.switchTile ();
+  EXPECT_EQ (p.page.markedValueRow (), 0);
 }

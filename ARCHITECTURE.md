@@ -1325,11 +1325,11 @@ ACTION page's fields reach `handlePadPress()` through them, so there is one rout
 means. STOP on the screen is `stopChannel()`: the panel has none, SHIFT + Play|Pause stops at once.
 
 **A button is `ActionButton`** — file, source, dice seed, errors, and its **feel** (`ActionFeel`:
-the three envelopes and the act mode). The feel is read from the script when it is assigned
-(`actionFeelFrom`) and from then on belongs to the button: the ACTION page's knobs write
-`_channelActions[ch][chosen].feel`, and the set stores it where it differs from what the script
-said. With one feel per clip, six buttons would all have felt the same, and assigning a script used
-to *write* its envelope onto the clip, so the last one assigned won.
+the three envelopes and the act mode). The feel is what the script says (`actionFeelFrom` in
+`runButtonScript`); since 2026-09-29 the ACTION page's knobs write it into the script, not onto the
+button (see **ACTION writes into the script** below). With one feel per clip, six buttons would all
+have felt the same, and assigning a script used to *write* its envelope onto the clip, so the last
+one assigned won.
 
 **A script is worked out at the press** (`firedActionOf()` → `resolveActionAt()`), against the clip
 as it stands then, with the seed the button rolled when it was assigned. It used to be worked out
@@ -1349,40 +1349,54 @@ the panel or the PADS page fires as before and then brings up the ACTION page of
 the pushed button chosen (`showPushedAction`, `actionPressShowsItsPage`) — not with Shift (a
 preview is auditioned from wherever the hand is, FILES most of all), not from the bar's ACT key, a
 scene or a chain, and not away from a take being armed or recorded. Each field carries a **1/H
-badge** for its own button's mode (`actionFieldParts`). The four upper encoders stand under the
-page's columns (maintainer, 2026-09-28): enc 1 `ActionList` walks a highlight through the list
-and a press assigns it (`moveListCursor`/`chooseListCursor` — walking is not assigning, so
-turning past forty scripts mid-set changes nothing); enc 2 `ActionButton` steps the chosen
-button; enc 3 `ActionMode` steps its mode, a press is EDIT; enc 4 `ActionAfter` steps its
-"then", a press switches AUDIO/MOTION. The highlight resets only when the name or the chosen
-button really changes — the page is told the name on every update. The lower four keep FREQ/Q
-of their column — the tiles have nine and nineteen values, which do not fall onto four
-encoders cleanly. `_chosenActionButton[ch]`
+badge** for its own button's mode (`actionFieldParts`). The encoders (maintainer, 2026-09-28): enc 1 `ActionButton` chooses A1–A6;
+enc 2 `ActionList` walks a highlight through the list and a press assigns it (`moveListCursor`/
+`chooseListCursor` — walking is not assigning, so turning past forty scripts mid-set changes
+nothing); enc 3 `ActionKey` rings EDIT / mode / then and a press does what a tap on the ringed key
+does (`moveKeyRing`/`pressKeyRing`, through the tap's own callbacks); enc 4 `ActionTile` switches
+AUDIO/MOTION, which are tabs along the card's top. enc 5–8 `ActionValue` turn the four values of
+the card's marked row left to right (AUDIO: atk/dec/max, enc 8 idle; MOTION: four across, five
+rows, `ActionLayout::motionColumns`), and a press on any of them marks the next row and comes
+round (`stepValueRow`) — the MOTION page's "a press switches the row", on a card of nine or
+nineteen values. Another tile starts at its first row. The ring and the row mark are drawn only
+once an encoder has been used. The list highlight resets only when the name or the chosen button
+really changes — the page is told the name on every update. SHIFT keeps FREQ/Q on all eight. `_chosenActionButton[ch]`
 is also what the screen's ACT fires and what FILES' Load on ACTIONS assigns to.
 
 **Two tiles, one card** (2026-09-28). AUDIO is the nine feel knobs. MOTION is every knob of the
 MOTION page and CLIP's speed, direction and end, for what the button puts on the clip:
 `motionParamOrder` lays them out four across, MOTION's eight fields two to a row, then speed, dir
-and end. Each value is shown as it will land (`motionShownFor`) in one of three looks: grey where
-neither the script nor a turn sets it (the clip's own value, as a hint), the channel's colour where
-the script sets it (`ActionScriptResult::assigned`), and on a wash where it was turned on the
-button. A turn makes it the button's own (`ActionButton::motion`, `MotionOverrides`); two taps give
-it back to the script. A press resolves the script against the clip, then the button's motion, then
-its feel (`resolveActionAt` with `MotionOverrides`). A button without an action shows "no action"
-instead of the tile.
+and end. Each value is shown as it will land (`motionShownFor`, with no overrides since
+2026-09-29): grey where the script leaves it to the clip (the clip's own value, as a hint), the
+channel's colour where the script sets it (`ActionScriptResult::assigned`). A turn writes the line
+into the script; two taps comment it out again. The third look ("turned on the button", a wash) is
+no longer reached — `MotionSource::Button` stays in the component for now. A button without an
+action shows "no action" instead of the tile.
 
 **Then** (2026-09-28): each button can name another of its channel's buttons to fire when its
-accent is over (`ActionButton::after`, the key under the mode: a tap steps --, A1..A6, two taps
-clear it). The engine only counts accents that end (`MotionEngine::accentEndCount`, on the edge
+accent is over — the script's `~then = N;` (1..6), read into `ActionButton::after`; the key under
+the mode steps --, A1..A6 and writes the line, two taps comment it out. The engine only counts accents that end (`MotionEngine::accentEndCount`, on the edge
 where the clip is given back); `ActionChain` decides on the message thread, once per end, from the
 button that ran the accent. A chained button plays as a one-shot — no finger holds it. Chains may
 loop; another action press, Play|Pause or Stop on the channel ends one.
 
+**ACTION writes into the script** (maintainer, 2026-09-29: "what you see is what you get"). Every
+value set on the page — the nine AUDIO knobs, the mode, "then", the nineteen MOTION values — is a
+line edit on the chosen button's script (`setScriptLine`/`unsetScriptLine` in `ScriptLine.hh`):
+the one `~name` line changes, comments and every other line stay; a commented line is uncommented,
+a missing one added under its section, a dice expression becomes the number. A double tap on a
+MOTION value or on "then" comments the line out ("as the clip is" / nothing after). The edit is
+in place, shipped scripts included, and reaches every button on every channel holding that file
+(`editShownScript` → `buttonsHoldingFile` → `runButtonScript`); the FILES editor showing it takes
+the same line change even while it holds unsaved typing (`ScriptPanel::applyEdit`). The file is
+written ~300 ms after the last change (`PendingScriptWrites`, through `writeTextFile` — JUCE's
+`replaceWithText` would write CRLF), flushed before a set load, before FILES reads a file, and on
+quit; a failed write says `-- CANNOT WRITE <NAME>`.
+
 **Sets** keep `"slots"` with one entry, so an older build still reads a new set, and add
-`"actions"` (six entries, written only if one is non-empty). An entry holds `"script"`, `"feel"`
-where it was turned, `"motion"` — the MOTION tile's turned values in the slot overrides' own
-words, e.g. `{ "spin": 0, "reach": -0.5, "direction": "rev" }` — and `"after": "A3"`, each only
-when set. A set from before maps its two slot
+`"actions"` (six entries, written only if one is non-empty). An entry holds `"script"` and nothing
+else since 2026-09-29; a set's older `"feel"`, `"motion"` and `"after"` are ignored on load. A set
+from before maps its two slot
 actions to A1/A2. On the first start of the new build `migrateTwoSlotSets()` copies every two-slot
 set to `pattern/backup-two-slots/` once — the debounced save and `renameInSets()` would otherwise
 truncate them all within a minute.

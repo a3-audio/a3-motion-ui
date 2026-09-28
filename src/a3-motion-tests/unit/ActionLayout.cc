@@ -381,22 +381,26 @@ rigLayout ()
 }
 }
 
-TEST (ActionLayout, AudioAndMotionStandInTheColumnUnderTheMode)
+// AUDIO and MOTION are tabs along the card's top (maintainer, 2026-09-28),
+// no longer keys in the column: the tab that is lit names what the card shows.
+TEST (ActionLayout, AudioAndMotionAreTabsOnTopOfTheCard)
 {
   for (auto const &l : { rigLayout (), pageLayout () })
     {
       for (auto const key : { l.audioKey, l.motionKey })
         {
           ASSERT_FALSE (key.isEmpty ());
-          EXPECT_EQ (key.getX (), l.editButton.getX ());
-          EXPECT_EQ (key.getWidth (), l.editButton.getWidth ());
-          EXPECT_GE (key.getWidth (), fingertipSize);
+          EXPECT_TRUE (l.card.contains (key)) << "on the card";
           EXPECT_GE (key.getHeight (), fingertipSize);
-          EXPECT_LE (key.getRight (), l.card.getX ());
-          EXPECT_GE (key.getY (), l.actModeField.getBottom ());
+          EXPECT_GE (key.getWidth (), fingertipSize);
+          EXPECT_LE (key.getBottom (), l.rows[0].getY ()) << "above its rows";
+          EXPECT_GT (key.getX (), l.actionListArea.getRight ())
+              << "out of the key column";
+          for (auto const &control : l.motionControls)
+            EXPECT_FALSE (key.intersects (control));
         }
-      EXPECT_LE (l.audioKey.getBottom (), l.motionKey.getY ())
-          << "AUDIO over MOTION, not on it";
+      EXPECT_LE (l.audioKey.getRight (), l.motionKey.getX ())
+          << "AUDIO beside MOTION, not on it";
     }
 }
 
@@ -407,8 +411,8 @@ TEST (ActionLayout, EveryKeyFitsOnThePage)
       {
         juce::Rectangle<int> const page{ 0, 0, width, height };
         auto const l = layOutActionPage (page, headerSize, 14.f, 1.f, {});
-        std::array<juce::Rectangle<int>, 5> const keys{
-          l.editButton, l.actModeField, l.afterKey, l.audioKey, l.motionKey
+        std::array<juce::Rectangle<int>, 3> const keys{
+          l.editButton, l.actModeField, l.afterKey
         };
         for (size_t i = 0; i < keys.size (); ++i)
           {
@@ -418,6 +422,12 @@ TEST (ActionLayout, EveryKeyFitsOnThePage)
             if (i > 0)
               EXPECT_LE (keys[i - 1].getBottom (), keys[i].getY ())
                   << "key " << i << " at " << width << "x" << height;
+          }
+        for (auto const tab : { l.audioKey, l.motionKey })
+          {
+            EXPECT_TRUE (page.contains (tab)) << width << "x" << height;
+            EXPECT_GE (tab.getHeight (), fingertipSize)
+                << width << "x" << height;
           }
       }
 }
@@ -563,6 +573,5 @@ TEST (ActionLayout, TheAfterKeyStandsUnderTheMode)
       EXPECT_EQ (l.afterKey.getWidth (), l.actModeField.getWidth ());
       EXPECT_GE (l.afterKey.getHeight (), fingertipSize);
       EXPECT_GE (l.afterKey.getY (), l.actModeField.getBottom ());
-      EXPECT_LE (l.afterKey.getBottom (), l.audioKey.getY ());
     }
 }

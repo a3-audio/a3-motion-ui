@@ -35,6 +35,7 @@
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-ui/components/PendingScriptWrites.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <a3-motion-ui/SettingsPersistence.hh>
@@ -840,17 +841,12 @@ private:
     std::optional<ClipSettings> settings;
     /** What the script got wrong, line by line. */
     juce::StringArray errors;
-    /** How it is played -- the envelopes and the mode, the button's own
-     *  since the feel left the clip -- and what the script itself said, so a
-     *  set only keeps what was turned from it. */
+    /** How it is played -- the envelopes and the mode -- as its script says
+     *  (ACTION writes there since 2026-09-29, so the button keeps no feel of
+     *  its own). */
     ActionFeel feel;
-    ActionFeel scriptFeel;
-    /** What the button puts on the clip where it was turned on the ACTION
-     *  page's MOTION tile (2026-09-28), over what the script says. */
-    MotionOverrides motion;
-    /** The button of the same channel fired when this one's accent is over
-     *  (2026-09-28), or nothing. Kept when another script is assigned: it
-     *  belongs to the button's place in the set, not to the script. */
+    /** The button of the same channel fired when this one's accent is over,
+     *  from the script's `~then`, or nothing. */
     std::optional<int> after;
     /** The dice rolled when the button was assigned. The script is worked out
      *  again at every press, against the clip as it stands then, and this
@@ -864,6 +860,22 @@ private:
     bool isCue = false;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
+  /** Works `action`'s source out against the channel's clip and puts what
+   *  it says on the button: settings, errors, feel, then, a Cue's clip. */
+  void runButtonScript (index_t channel, ActionButton &action);
+  /** ACTION's one route into a script (2026-09-29): `edit` applied to the
+   *  shown button's source, in place -- every button holding that file takes
+   *  it, the editor in FILES shows it, the file is written once the hand
+   *  stops. False when the button has no script to write into. */
+  bool editShownScript (
+      std::function<juce::String (juce::String const &)> const &edit);
+  /** `name`'s line set to its value in `settings`. */
+  bool writeShownScriptSetting (juce::String const &name,
+                                ClipSettings const &settings);
+  void scheduleScriptWrite ();
+  /** Everything waiting goes to disk now: before a set loads, before FILES
+   *  reads a file, and on quit. */
+  void flushScriptWrites ();
   /** Which of a channel's six buttons the ACTION page shows and edits, and
    *  the screen's ACT fires (2026-09-27). A1 until one is chosen. */
   std::array<int, numChannelsInitial> _chosenActionButton{};
@@ -935,6 +947,10 @@ private:
   /** Counts up on every scheduled save so a later one supersedes an earlier:
    *  a drag on the grid is dozens of changes and one arrangement. */
   int _setSaveGeneration = 0;
+  /** Scripts ACTION changed and has not written yet, and the debounce's
+   *  generation (2026-09-29). */
+  PendingScriptWrites _scriptWrites;
+  int _scriptWriteGeneration = 0;
 
   /** Which page the bar is on. Kept here as well as in the bar because a
    *  value's *meaning* can depend on it — Shape's knob is the rotation on one

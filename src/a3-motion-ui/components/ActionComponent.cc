@@ -30,6 +30,8 @@
 #include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
+
+#include <cmath>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -419,6 +421,128 @@ ActionComponent::chooseListCursor ()
   onActionChosen (_choices[_listCursor]);
 }
 
+ActionKey
+ActionComponent::moveKeyRing (int increment)
+{
+  constexpr int numKeys = 3;
+  auto const at = juce::jlimit (0, numKeys - 1,
+                                static_cast<int> (_keyRing) + increment);
+  _keyRing = static_cast<ActionKey> (at);
+  _keyRingShown = true;
+  repaint ();
+  return _keyRing;
+}
+
+void
+ActionComponent::pressKeyRing ()
+{
+  // The tap's own callbacks, so a press and a finger cannot mean two things.
+  switch (_keyRing)
+    {
+    case ActionKey::Edit:
+      if (onEditPressed)
+        onEditPressed ();
+      return;
+    case ActionKey::Mode:
+      if (onControlTapped)
+        onControlTapped (ActMode);
+      return;
+    case ActionKey::After:
+      if (onAfterStepped)
+        onAfterStepped (1);
+      return;
+    }
+}
+
+void
+ActionComponent::switchTile ()
+{
+  setTile (_tile == ActionTile::Audio ? ActionTile::Motion
+                                      : ActionTile::Audio);
+}
+
+int
+ActionComponent::valueRowsOfTile () const
+{
+  return _tile == ActionTile::Audio ? ActionLayout::numRows
+                                    : ActionLayout::motionRows;
+}
+
+int
+ActionComponent::markedValueRow () const
+{
+  return _valueRow;
+}
+
+void
+ActionComponent::stepValueRow ()
+{
+  _valueRow = (_valueRow + 1) % valueRowsOfTile ();
+  _valueRowShown = true;
+  repaint ();
+}
+
+void
+ActionComponent::turnMarkedValue (int column, int increment)
+{
+  _valueRowShown = true;
+  repaint ();
+  switch (_tile)
+    {
+    case ActionTile::Audio: turnAudioValue (column, increment); return;
+    case ActionTile::Motion: turnMotionValue (column, increment); return;
+    }
+}
+
+void
+ActionComponent::turnAudioValue (int column, int increment)
+{
+  // Attack, decay, ceiling across; the fourth encoder has no column here.
+  if (!juce::isPositiveAndBelow (column, 3) || !onControlDragged)
+    return;
+  onControlDragged (_valueRow * 3 + column, increment);
+}
+
+void
+ActionComponent::turnMotionValue (int column, int increment)
+{
+  auto const at = _valueRow * ActionLayout::motionColumns + column;
+  if (!_motionHasAction || !juce::isPositiveAndBelow (column, 4)
+      || !juce::isPositiveAndBelow (at, numMotionParams) || !onMotionSet)
+    return;
+
+  auto const param = motionParamOrder[static_cast<size_t> (at)];
+  auto const &shown = _motionShown[static_cast<size_t> (param)];
+
+  if (motionParamIsAField (param))
+    {
+      onMotionSet (param, steppedMotionValue (param, shown.value, increment));
+      return;
+    }
+
+  // A knob, stepped on its own scale: whole steps where it counts them,
+  // otherwise the fiftieth the panel's encoders take everywhere else.
+  auto const spec = motionTileKnobSpec (param);
+  auto const step
+      = spec.interval > 0.0 ? spec.interval : (spec.max - spec.min) / 50.0;
+  auto knob = motionKnobValue (param, shown.value) + increment * step;
+  if (spec.wraps)
+    {
+      auto const span = spec.max - spec.min;
+      knob = spec.min + std::fmod (std::fmod (knob - spec.min, span) + span, span);
+    }
+  else
+    {
+      knob = juce::jlimit (spec.min, spec.max, knob);
+    }
+
+  auto const &top = _motionShown[static_cast<size_t> (MotionParam::ClipTop)];
+  auto const &bottom
+      = _motionShown[static_cast<size_t> (MotionParam::ClipBottom)];
+  onMotionSet (param,
+               motionValueForKnob (param, knob, top.value, bottom.value));
+}
+
 void
 ActionComponent::setActMode (int mode)
 {
@@ -460,6 +584,9 @@ ActionComponent::setTile (ActionTile tile)
     return;
 
   _tile = tile;
+  // The other tile's rows are other rows: the lower encoders start again at
+  // its top.
+  _valueRow = 0;
   showTheTile ();
   repaint ();
 }
@@ -721,22 +848,21 @@ ActionComponent::paintAfterKey (juce::Graphics &g)
 void
 ActionComponent::paintAudioRowNames (juce::Graphics &g)
 {
-  switch (_tile)
-    {
-    case ActionTile::Audio: paintAudioRowNames (g); break;
-    case ActionTile::Motion: paintMotionTile (g); break;
-    }
-  paintTileKeys (g);
-  paintAfterKey (g);
-
-  // The chosen button's action is running: the card says so in the white
-  // its field and its pad wear, so what the page shows reads as live.
-  if (_runningButton >= 0 && _runningButton == _chosenButton)
-    {
-      g.setColour (toColour (theme ().textPrimary));
-      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
-                              theme ().strokeThick);
-    }
+  // Which row is which, said once each rather than on every knob.
+  // "3d", not "accent": what the row drives is the channel's 3d, and naming
+  // it after the thing it moves puts it in the same words as the global
+  // strip's rows -- which is where the eye has already learned them.
+  char const *const rowNames[] = { "3d", caption::frequency, "q" };
+  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What a row's name ("3d", "freq", "q") may cost.
+  constexpr float rowNameCap = 14.f;
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    g.drawText (rowNames[row],
+                _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
+                    juce::roundToInt (theme ().paddingSmall)),
+                juce::Justification::centredRight);
 }
 
 void
@@ -902,6 +1028,16 @@ ActionComponent::paint (juce::Graphics &g)
     case ActionTile::Motion: paintMotionTile (g); break;
     }
   paintTileKeys (g);
+  paintAfterKey (g);
+
+  // The chosen button's action is running: the card says so in the white
+  // its field and its pad wear, so what the page shows reads as live.
+  if (_runningButton >= 0 && _runningButton == _chosenButton)
+    {
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
+                              theme ().strokeThick);
+    }
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
   // two places is a knob that lies about what it can do. It stands under
@@ -925,23 +1061,51 @@ ActionComponent::paint (juce::Graphics &g)
               modeBounds, juce::Justification::centred);
 
 
-  // What the card holds: AUDIO -- the accent and the two filters, the
-  // channel's audio -- or MOTION, what the button puts on the clip. Named
-  // like the key that shows it.
-  if (!_layout.cardCaption.isEmpty ())
-    {
-      g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
-      // What the tile's name over the card may cost.
-      constexpr float audioCaptionCap = 16.f;
-      g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
-          _layout.cardCaption.getHeight () * 0.7f, audioCaptionCap))));
-      g.drawText (_tile == ActionTile::Audio ? "AUDIO" : "MOTION",
-                  _layout.cardCaption,
-                  juce::Justification::centred);
-    }
+  paintEncoderMarks (g);
 
   // Last, so it covers what it opens over.
   paintActionList (g);
+}
+
+void
+ActionComponent::paintEncoderMarks (juce::Graphics &g)
+{
+  // Where the panel's encoders stand on this page: a ring on the key the
+  // third one would press, an outline round the row the lower four turn.
+  // Outlines in the channel's colour, the list's highlight's language.
+  g.setColour (_channelColour);
+  auto const stroke = theme ().strokeThick;
+
+  if (_keyRingShown)
+    {
+      auto const key = _keyRing == ActionKey::Edit   ? _layout.editButton
+                       : _keyRing == ActionKey::Mode ? _layout.actModeField
+                                                     : _layout.afterKey;
+      g.drawRoundedRectangle (key.toFloat ().expanded (stroke),
+                              theme ().radiusControl, stroke);
+    }
+
+  if (!_valueRowShown)
+    return;
+
+  juce::Rectangle<int> row;
+  if (_tile == ActionTile::Audio)
+    row = _layout.rows[static_cast<size_t> (
+        juce::jlimit (0, ActionLayout::numRows - 1, _valueRow))];
+  else
+    for (int column = 0; column < ActionLayout::motionColumns; ++column)
+      {
+        auto const at = _valueRow * ActionLayout::motionColumns + column;
+        if (!juce::isPositiveAndBelow (at, numMotionParams))
+          break;
+        auto const cell = _layout.motionControls[static_cast<size_t> (
+            motionParamOrder[static_cast<size_t> (at)])];
+        row = row.isEmpty () ? cell : row.getUnion (cell);
+      }
+
+  if (!row.isEmpty ())
+    g.drawRoundedRectangle (row.toFloat (), theme ().radiusControl,
+                            theme ().strokeThin);
 }
 
 }
