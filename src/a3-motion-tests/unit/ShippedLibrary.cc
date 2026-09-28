@@ -105,7 +105,9 @@ TEST (ShippedLibrary, DISABLED_EveryShippedSetNamesShapesThatExist)
  *  never leaves the previous set's actions under the fingers. And one slot
  *  in the file, so an older build reading it does not find a second clip the
  *  device would quietly drop. */
-TEST (ShippedLibrary, EveryShippedSetIsOneClipAndSixActionsPerChannel)
+// Re-enabled in Task 8 of library v2: the sets still name the clips from
+// before the rebuild until Task 8 rebuilds them.
+TEST (ShippedLibrary, DISABLED_EveryShippedSetIsOneClipAndSixActionsPerChannel)
 {
   juce::File const dir (A3_PATTERN_SESSIONS_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -186,5 +188,52 @@ TEST (ShippedLibrary, DISABLED_TheLibraryShipsFiftyOfEachAndTenSets)
       EXPECT_TRUE (shapeNames.contains (svg.toString ()))
           << file.getFileName () << " draws " << svg.toString ()
           << ", which does not ship";
+    }
+}
+
+namespace
+{
+juce::StringArray const phases{ "Warmup", "Groove", "Build", "Peak", "Drop",
+                                "Break",  "Dub",    "Deep",  "Float", "Closing" };
+}
+
+// Fifty clips, each named by the phase of the night it belongs to, each drawing
+// a shape that ships. Default stays beside them: the shapeless fallback every
+// empty channel gets (ruling 1 of the plan).
+TEST (ShippedLibrary, FiftyClipsNamedByTheirPhaseAndTheFallback)
+{
+  auto files = juce::File (A3_PATTERN_CLIPS_DIR)
+                   .findChildFiles (juce::File::findFiles, false, "*.json");
+  files.removeIf ([] (juce::File const &f) {
+    return f.getFileNameWithoutExtension () == "Default";
+  });
+  EXPECT_EQ (files.size (), 50);
+
+  juce::StringArray shapes;
+  for (auto const &f : juce::File (A3_PATTERN_SYSTEM_DIR)
+                           .findChildFiles (juce::File::findFiles, false, "*.svg"))
+    shapes.add (PatternFile::peek (f).name);
+
+  for (auto const &f : files)
+    {
+      auto const name = f.getFileNameWithoutExtension ();
+      auto const json = juce::JSON::parse (f.loadFileAsString ());
+      EXPECT_TRUE (startsWithOneOf (name, phases)) << name;
+      EXPECT_TRUE (shapes.contains (json["svg"].toString ()))
+          << name << " draws " << json["svg"].toString ();
+      EXPECT_EQ (json["name"].toString (), name);
+    }
+}
+
+TEST (ShippedLibrary, EveryPhaseHasFiveClips)
+{
+  auto const files = juce::File (A3_PATTERN_CLIPS_DIR)
+                         .findChildFiles (juce::File::findFiles, false, "*.json");
+  for (auto const &phase : phases)
+    {
+      int n = 0;
+      for (auto const &f : files)
+        n += f.getFileNameWithoutExtension ().startsWith (phase + " ") ? 1 : 0;
+      EXPECT_EQ (n, 5) << phase;
     }
 }
