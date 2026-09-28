@@ -78,6 +78,9 @@ struct ActionScriptResult
    *  that went wrong sets nothing. What tells the ACTION page's MOTION tile
    *  a value comes from the script rather than from the clip. */
   juce::StringArray assigned;
+  /** The button, 0-based, a `~then = N;` line fires when this action's
+   *  accent is over (2026-09-29). Empty: nothing after. */
+  std::optional<int> then;
 };
 
 /** Read a script and work out what it makes of the settings it is given.

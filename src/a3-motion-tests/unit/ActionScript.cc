@@ -665,3 +665,37 @@ TEST (ActionScript, TheTemplateOffersTheClipLineCommentedOut)
 {
   EXPECT_TRUE (actionScriptFor (ClipSettings{}).contains ("//~clip = \"\";"));
 }
+
+// -- ~then (2026-09-29) ------------------------------------------------------
+// What fires when this action's accent is over: a button of the same channel,
+// by its number. In the script since ACTION writes everything there.
+
+TEST (ActionScript, AThenLineNamesAButton)
+{
+  auto const r = runActionScript ("~then = 3;", ClipSettings{}, 1);
+  EXPECT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("; ");
+  ASSERT_TRUE (r.then.has_value ());
+  EXPECT_EQ (*r.then, 2) << "button 3 is index 2";
+}
+
+TEST (ActionScript, AScriptWithoutThenFiresNothingAfter)
+{
+  EXPECT_FALSE (runActionScript ("~spin = 3;", ClipSettings{}, 1).then.has_value ());
+}
+
+TEST (ActionScript, ThenTakesOnlyTheSixButtons)
+{
+  for (auto const *line : { "~then = 0;", "~then = 7;", "~then = 2.5;", "~then = \\hold;" })
+    {
+      auto const r = runActionScript (line, ClipSettings{}, 1);
+      ASSERT_EQ (r.errors.size (), 1) << line;
+      EXPECT_TRUE (r.errors[0].contains ("1..6")) << line << ": " << r.errors[0];
+      EXPECT_FALSE (r.then.has_value ()) << line;
+    }
+}
+
+TEST (ActionScript, TheTemplateOffersThenCommentedOut)
+{
+  EXPECT_TRUE (actionScriptTemplate ().contains ("//~then = 1;"));
+  EXPECT_TRUE (actionScriptNames ().contains ("then"));
+}

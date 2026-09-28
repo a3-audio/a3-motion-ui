@@ -46,3 +46,4 @@
 ~qDecay = 1;             // 0..6
 ~qMax = 0.6;             // 0..1    0 is off
 ~act = \hold;            //         \oneshot \hold
+//~then = 1;             // 1..6    fires that button when the accent is over

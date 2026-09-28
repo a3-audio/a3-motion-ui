@@ -743,6 +743,25 @@ runActionScript (juce::String const &source, ClipSettings const &current,
               continue;
             }
 
+          // What fires when the accent is over (2026-09-29): a button of the
+          // channel by its number. Not a ClipSettings field -- it says what
+          // comes next, not how this one plays.
+          if (name == "then")
+            {
+              reader.expect ('=');
+              Evaluator evaluator (reader, out.settings, random);
+              auto const value = evaluator.expression ();
+              reader.takeIf (';');
+              if (!reader.atEnd ())
+                fail ("more on the line than one assignment");
+              if (value.kind != Value::Kind::Number || !value.whole
+                  || value.number < 1 || value.number > numActionButtons)
+                fail ("~then takes a button, 1..6");
+              out.then = static_cast<int> (value.number) - 1;
+              out.assigned.addIfNotAlreadyThere (name);
+              continue;
+            }
+
           auto const *field = findField (name);
           if (field == nullptr)
             fail ("no such name: ~" + name);
@@ -844,6 +863,7 @@ actionScriptNotes ()
     { "qDecay", "Accent", "0..6", "" },
     { "qMax", "Accent", "0..1", "0 is off" },
     { "act", "Accent", "", "\\oneshot \\hold" },
+    { "then", "Accent", "1..6", "fires that button when the accent is over" },
   };
 
   return list;
@@ -906,7 +926,8 @@ renderScript (ClipSettings const &settings, bool commented)
     {
       auto const *field = fieldNamed (note.name);
       auto const isClip = juce::String (note.name) == "clip";
-      if (field == nullptr && !isClip)
+      auto const isThen = juce::String (note.name) == "then";
+      if (field == nullptr && !isClip && !isThen)
         continue;
 
       if (heading != note.heading)
@@ -922,9 +943,10 @@ renderScript (ClipSettings const &settings, bool commented)
       // A clip line has no value in a ClipSettings to write: it is offered,
       // commented out, as the line a Cue uncomments.
       auto assignment
-          = isClip ? juce::String ("//~clip = \"\";")
-                   : juce::String (commented ? "//~" : "~") + note.name
-                         + " = " + writtenValue (field->get (settings)) + ";";
+          = isClip   ? juce::String ("//~clip = \"\";")
+            : isThen ? juce::String ("//~then = 1;")
+                     : juce::String (commented ? "//~" : "~") + note.name
+                           + " = " + writtenValue (field->get (settings)) + ";";
 
       while (assignment.length () < scriptAnnotationColumn)
         assignment += " ";
@@ -977,6 +999,8 @@ actionScriptNames ()
   juce::StringArray names;
   for (auto const &field : fields ())
     names.add (field.name);
+  // Not a setting, but a line a script may write (2026-09-29).
+  names.add ("then");
 
   names.sort (false);
   return names;
