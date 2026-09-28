@@ -332,6 +332,18 @@ Pattern::getBridgePlan () const
   return _bridgePlan;
 }
 
+std::string const &
+Pattern::getEndClip () const
+{
+  return _endClip;
+}
+
+void
+Pattern::setEndClip (std::string name)
+{
+  _endClip = std::move (name);
+}
+
 EndAction
 Pattern::getEndAction () const
 {

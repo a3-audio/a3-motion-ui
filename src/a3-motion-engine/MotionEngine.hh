@@ -223,6 +223,19 @@ public:
    *  played at. See advancePlayhead(). */
   void stopPatternAtEnd (std::shared_ptr<Pattern> pattern);
 
+  /** What takes `channel` over when `from`'s pass runs out with the end
+   *  action Clip: `follow`, from its top, on that same tick. An empty
+   *  `follow` takes back whatever was armed, and `from`'s end is then a stop.
+   *
+   *  Armed ahead rather than asked for at the end, because loading a clip
+   *  reads files and the clock thread never does: the message thread builds
+   *  the follow whenever the clip or its follow changes, and the clock
+   *  thread only has to switch pointers on the tick. For `from` alone -- a
+   *  follow chosen for one clip is not taken by whatever else is in the
+   *  channel when a pass ends. */
+  void armFollowPattern (index_t channel, std::shared_ptr<Pattern> from,
+                         std::shared_ptr<Pattern> follow);
+
   /** Take back a start that has not happened yet.
    *
    *  Not a stop scheduled on top of it, which is what this used to be: `stop()`
@@ -332,6 +345,8 @@ private:
       SetAccentHeld,
       /** What ACT does to a slot. Same reason. */
       SetChannelAction,
+      /** The follow of an end action Clip. Same reason. */
+      ArmFollow,
     } command;
 
     Pos position;
@@ -339,6 +354,8 @@ private:
     std::shared_ptr<Pattern> pattern;
     /** What a take starts from, for StartRecording. */
     std::shared_ptr<Pattern> seed;
+    /** The follow, for ArmFollow; `pattern` is the clip it follows. */
+    std::shared_ptr<Pattern> follow;
     Measure timepoint;
     Measure length;
 
@@ -372,6 +389,18 @@ private:
   void startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                        std::shared_ptr<Pattern> const &seed);
   void startPlaying (std::shared_ptr<Pattern> pattern);
+  /** A pass from the top: the play position, the lap and every slow
+   *  movement's phase back to where a start puts them. What a start and a
+   *  hand-over to a follow clip have in common. */
+  void beginPass (Pattern &pattern);
+  /** `playing`'s pass ended on this tick with the end action Clip. When a
+   *  follow is armed for it, the follow is what the channel plays from this
+   *  tick on; answers it, or nothing. */
+  std::shared_ptr<Pattern> startFollow (index_t channel,
+                                        Pattern const &playing);
+  /** Where one tick of `playing` at `playPosition` puts the channel, and the
+   *  slow movements one tick on. */
+  void playTick (index_t channel, Pattern &playing, float playPosition);
   void stop (std::shared_ptr<Pattern> pattern);
 
   std::priority_queue<Message, std::vector<Message>, std::greater<Message> >
@@ -485,6 +514,10 @@ private:
    *  down at the moment one was fired. The second is what "empty" means here:
    *  no snapshot, nothing to fall back to, so nothing is written back. */
   std::vector<std::optional<ClipSettings> > _channelAction;
+  /** Per channel, the clip armed to follow and the one it follows. The
+   *  clock thread's alone, like the accent state above. */
+  std::vector<std::shared_ptr<Pattern> > _followFrom;
+  std::vector<std::shared_ptr<Pattern> > _follow;
   std::vector<std::optional<ClipSettings> > _accentRestore;
 
   /** What the readers of an accent are allowed to see.

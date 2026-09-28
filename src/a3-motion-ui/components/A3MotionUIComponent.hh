@@ -182,6 +182,9 @@ private:
    *  one, which cannot say "half a beat" and so could not say anything faster
    *  than one beat per traversal either. */
   Measure getPlaybackLength (index_t channel, index_t slot) const;
+  /** The same for a pattern that is in no slot yet -- a follow clip being
+   *  prepared. One pass of it at its own speed. */
+  Measure playbackLengthOf (Pattern const &pattern) const;
 
   /** Push the clip's direction and end action into the pattern, which is where
    *  the engine reads them. */
@@ -370,9 +373,47 @@ private:
    *  carries. A clip written before a clip had to name a figure leaves the
    *  slot's own alone and lands only its values. */
   void applyClip (index_t channel, index_t slot, int index);
+  /** Puts a clip file on a channel -- its shape, settings, lanes and the
+   *  file it came from -- without starting it. The one route a clip takes
+   *  onto a channel: FILES Load (through applyClip) and a Cue press. False
+   *  when nothing landed: no such clip, or a clip without a figure on an
+   *  empty channel. */
+  bool loadClipIntoChannel (index_t channel, juce::File const &clipFile);
   /** Read direction and end action back out of the pattern into the strip.
    *  Both live in two places, and the pattern is the one a clip writes. */
   void syncClipUIParamsFromPattern (index_t channel, index_t slot);
+
+  /** Make `pattern`, loaded from `clipFile`, what the channel holds: the
+   *  slot, the clip file it is saved back to, the strip's direction and end,
+   *  the line on the sphere, the channel row's name, and the set. The
+   *  previous pattern's line goes. Stops nothing and starts nothing: the
+   *  follow of an end action Clip is already running when it gets here. */
+  void putPatternInChannel (index_t channel, std::shared_ptr<Pattern> pattern,
+                            juce::File const &clipFile);
+
+  /** Keep each channel's follow clip loaded and handed to the engine: the
+   *  clip its clip's end action Clip names, built on this thread whenever
+   *  the clip in the channel or the name changes, so the clock thread only
+   *  has to switch to it on the tick the pass ends. Asked every frame and
+   *  cheap when nothing changed -- an action's `~end = \clip` reaches the
+   *  clip on the clock thread, where nobody could have told this side. */
+  void armFollowClips ();
+  /** The follow's name while the channel's end is Clip, and nothing
+   *  otherwise -- or while the channel holds a take not yet saved, which a
+   *  follow would throw away. */
+  std::string followWantedFor (index_t channel) const;
+  /** The engine started `pattern` in `channel`. When it is that channel's
+   *  armed follow, the channel now holds it. */
+  void takeOverFollow (index_t channel,
+                       std::shared_ptr<Pattern> const &pattern);
+  /** What the END field names: the armed follow's name, or nothing when the
+   *  shown clip's end would find nothing to hand over to. */
+  juce::String followShownFor (index_t channel) const;
+  /** Walk the shown clip's follow through the clips, the way the clip field
+   *  walks the clip itself. */
+  void stepFollowClip (index_t channel, int increment);
+  /** Step the end action through Loop, Stop, Paus and Clip. */
+  void stepEndAction (index_t channel, index_t slot, int increment);
 
   /** Whether this slot has drifted from the clip it was filled from. Asked,
    *  not remembered -- see clipHasDrifted(). */
@@ -797,6 +838,18 @@ private:
   /** Which clip each slot was filled from, [channel][slot]. Empty for a slot
    *  holding nothing, or one holding a shape that has no clip. */
   std::vector<std::vector<juce::File> > _slotClipFile;
+
+  /** Per channel, the follow handed to the engine and what it was built
+   *  from: the clip it follows, the name asked for, and the file that name
+   *  found. Compared each frame, rebuilt when either side changed. */
+  struct ArmedFollow
+  {
+    std::shared_ptr<Pattern> from;
+    std::string name;
+    juce::File file;
+    std::shared_ptr<Pattern> follow;
+  };
+  std::vector<ArmedFollow> _armedFollows;
   /** One of a channel's six action buttons (2026-09-27): the script it
    *  fires and how it is played.
    *

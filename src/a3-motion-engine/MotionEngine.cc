@@ -141,6 +141,8 @@ MotionEngine::createChannels (index_t const numChannels)
   _qEnvelope.resize (numChannels);
   _accentPattern.resize (numChannels);
   _channelAction.resize (numChannels);
+  _followFrom.resize (numChannels);
+  _follow.resize (numChannels);
   _accentRestore.resize (numChannels);
   _accentView = std::vector<AccentView> (numChannels);
   _freqView = std::vector<AccentView> (numChannels);
@@ -425,6 +427,12 @@ MotionEngine::applyEndActionAfterAccent (index_t channel)
       // what it says is "keep going". Ending the clip here would make the
       // accent a stop button that only some settings noticed.
       break;
+
+    case EndAction::Clip:
+      // Like Loop, for a reason of its own: the follow is bound to the bar
+      // grid the pass ends on, and an accent ends wherever a finger let go.
+      // The chain carries on at the end of the pass.
+      break;
     }
 }
 
@@ -633,6 +641,18 @@ MotionEngine::stopPatternAtEnd (std::shared_ptr<Pattern> pattern)
   message.pattern = pattern;
   message.timepoint = {};
   message.length = {};
+  submitFifoMessage (message);
+}
+
+void
+MotionEngine::armFollowPattern (index_t channel, std::shared_ptr<Pattern> from,
+                                std::shared_ptr<Pattern> follow)
+{
+  Message message;
+  message.command = Message::Command::ArmFollow;
+  message.channel = channel;
+  message.pattern = std::move (from);
+  message.follow = std::move (follow);
   submitFifoMessage (message);
 }
 
@@ -965,6 +985,15 @@ MotionEngine::handleFifoMessage (Message const &message)
           _channelAction[message.channel] = message.action;
         break;
       }
+    case Message::Command::ArmFollow:
+      {
+        if (message.channel < _follow.size ())
+          {
+            _followFrom[message.channel] = message.pattern;
+            _follow[message.channel] = message.follow;
+          }
+        break;
+      }
     case Message::Command::SetRecordingPosition:
       {
         _recordingPosition = message.position;
@@ -1163,6 +1192,7 @@ MotionEngine::handleStartStopMessages ()
         case Message::Command::SetRecordingPosition:
         case Message::Command::ReleaseRecordingPosition:
         case Message::Command::SetRecordingMode:
+        case Message::Command::ArmFollow:
           {
             throw std::runtime_error (
                 "invalid command message in start/stop queue");
@@ -1269,26 +1299,32 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   channel._patternScheduledForPlaying = nullptr;
   finishRecording ();
 
-  pattern->setPlayPosition (0.f);
-  pattern->setLap (0, 0.f);
+  beginPass (*pattern);
+}
+
+void
+MotionEngine::beginPass (Pattern &pattern)
+{
+  pattern.setPlayPosition (0.f);
+  pattern.setLap (0, 0.f);
   // Unturned, like the take was recorded. A clip that resumed wherever the
   // last pass stopped would come back somewhere different every time, which
   // is not something you can aim at.
-  pattern->setSpinPhase (0.f);
-  pattern->setReachLfoPhase (0.f);
-  pattern->setElevationLfoPhase (0.f);
-  pattern->setSqueezeXLfoPhase (0.f);
-  pattern->setSqueezeYLfoPhase (0.f);
-  pattern->setTiltLfoPhase (0.f);
-  pattern->setRollLfoPhase (0.f);
+  pattern.setSpinPhase (0.f);
+  pattern.setReachLfoPhase (0.f);
+  pattern.setElevationLfoPhase (0.f);
+  pattern.setSqueezeXLfoPhase (0.f);
+  pattern.setSqueezeYLfoPhase (0.f);
+  pattern.setTiltLfoPhase (0.f);
+  pattern.setRollLfoPhase (0.f);
 
   // Reverse starts at the end and walks back, so the first tick has somewhere
   // to come from; Random drops in at a random phase.
-  auto const direction = pattern->getPlayDirection ();
-  pattern->setPlaySign (initialSign (direction));
+  auto const direction = pattern.getPlayDirection ();
+  pattern.setPlaySign (initialSign (direction));
   auto const from = initialPosition (direction, _random.nextFloat ());
   if (from > 0.f)
-    pattern->setPlayPosition (from);
+    pattern.setPlayPosition (from);
 }
 
 void
@@ -1508,7 +1544,6 @@ MotionEngine::performPlayback ()
               || (status == Pattern::Status::ScheduledForRecording
                   && statusLast == Pattern::Status::Playing))
             {
-              auto const ticksPatternLength = channel->_patternPlaying->getNumTicks ();
               auto const ticksPlaybackLength = Measure::convertToTicks (
                   channel->_patternPlaying->getPlaybackLength (), _tempoClock.getBeatsPerBar ());
 
@@ -1538,94 +1573,140 @@ MotionEngine::performPlayback ()
 
               if (stepped.stopped)
                 {
+                  // Only a pass that ran out on its own hands over: not one a
+                  // Play press asked to finish, and not one a stop or a take
+                  // is already scheduled over.
+                  auto const follows
+                      = playing.getEndAction () == EndAction::Clip
+                        && !playing.getStopAtEnd ()
+                        && status == Pattern::Status::Playing;
+
                   // Taken out of playback here, so nothing writes this
                   // channel's position again: the blob stands where the pass
                   // left it, which is what stopping at the end means.
                   playing.setStatus (Pattern::Status::Idle);
                   playing.setStopAtEnd (false);
-                  channel->_patternPlaying = nullptr;
+
+                  auto const follow
+                      = follows ? startFollow (chIdx, playing) : nullptr;
+                  channel->_patternPlaying = follow;
+                  if (!follow)
+                    continue;
+
+                  // The follow's first tick is this one -- the tick a looping
+                  // clip would have been back at its top on -- so there is no
+                  // tick without a clip and none with two.
+                  playTick (chIdx, *follow, follow->getPlayPosition ());
+                  notifyPatternStatusListeners (
+                      PatternStatusMessage::Status::Playing, follow);
                   continue;
                 }
 
-              auto const playPosition = stepped.position;
-
-              // Use interpolated playback for smooth motion between keyframes.
-              // Which ticks the pass spans depends on the end action: a loop
-              // includes the seam back to the first tick, a bounce turns round
-              // at the last one instead of running into it.
-              auto const fractionalTick = fractionalTickForPlayback (
-                  playPosition, ticksPatternLength, playing.getPlayDirection ());
-              auto position2D = channel->_patternPlaying->getInterpolatedTick (fractionalTick);
-
-              // Before anything reads a knob: the lanes play over the
-              // settings this tick -- see Pattern::getKnob().
-              playing.playKnobs (fractionalTick);
-
-              // The whole shape turns under the blob. One tick's worth here,
-              // and the renderer turns the drawn line by the same phase — the
-              // blob has to stay on its line.
-              auto const ticksPerBar
-                  = static_cast<float> (TempoClock::getTicksPerBeat ())
-                    * static_cast<float> (_tempoClock.getBeatsPerBar ());
-              playing.setSpinPhase (advanceLfoPhase (
-                  playing.getSpinPhase (), playing.getKnobStep (Knob::Spin),
-                  ticksPerBar));
-              playing.setReachLfoPhase (
-                  advanceLfoPhase (playing.getReachLfoPhase (),
-                                   playing.getKnobStep (Knob::Swell),
-                  ticksPerBar));
-              playing.setElevationLfoPhase (
-                  advanceLfoPhase (playing.getElevationLfoPhase (),
-                                   playing.getKnobStep (Knob::Sway),
-                  ticksPerBar));
-              playing.setSqueezeXLfoPhase (
-                  advanceLfoPhase (playing.getSqueezeXLfoPhase (),
-                                   playing.getKnobStep (Knob::StretchX),
-                  ticksPerBar));
-              playing.setSqueezeYLfoPhase (
-                  advanceLfoPhase (playing.getSqueezeYLfoPhase (),
-                                   playing.getKnobStep (Knob::StretchY),
-                  ticksPerBar));
-              playing.setTiltLfoPhase (advanceLfoPhase (
-                  playing.getTiltLfoPhase (),
-                  playing.getKnobStep (Knob::TiltSweep), ticksPerBar));
-              playing.setRollLfoPhase (advanceLfoPhase (
-                  playing.getRollLfoPhase (),
-                  playing.getKnobStep (Knob::RollSweep), ticksPerBar));
-
-              if (position2D.isValid ())
-                {
-                  // Shaped before it is projected: in the recorded 2D disc
-                  // the radius is the elevation and the angle is the azimuth,
-                  // so turning the disc turns the trajectory around the pole
-                  // and leaves every point at the height it was played in at,
-                  // while squeezing an axis of it presses the figure flat
-                  // without moving where it sits.
-                  //
-                  // One call, and the renderer makes the same one -- see
-                  // shapedPosition(), which also fixes the order the two
-                  // happen in.
-                  position2D = shapedPosition (position2D, shapingOf (playing));
-
-                  // Apply this clip's own elevation mapping (sphere
-                  // projection) at playback time — elevation parameters
-                  // live on the Pattern itself, not the channel.
-                  auto params
-                      = channel->_patternPlaying->getElevationParams ();
-                  // ... with both slow sweeps laid over it, if they are
-                  // sweeping. The renderer calls the same function from the
-                  // same phases -- see sweptElevation() -- or the line would
-                  // be drawn somewhere the blob is not running.
-                  params = sweptElevation (params, playing);
-                  // And the whole figure leant in the room, last -- the
-                  // renderer leans it by the same call (spaceTurnOf).
-                  auto position = turnedInSpace (
-                      _heightMap.mapTo3D (position2D, params),
-                      spaceTurnOf (playing));
-                  channel->setPosition (position);
-                }
+              playTick (chIdx, playing, stepped.position);
             }
         }
+    }
+}
+
+std::shared_ptr<Pattern>
+MotionEngine::startFollow (index_t channel, Pattern const &playing)
+{
+  if (channel >= _follow.size () || _followFrom[channel].get () != &playing)
+    return nullptr;
+
+  auto follow = std::move (_follow[channel]);
+  _follow[channel] = nullptr;
+  _followFrom[channel] = nullptr;
+  if (!follow)
+    return nullptr;
+
+  follow->setStatus (Pattern::Status::Playing);
+  follow->setStopAtEnd (false);
+  _channels[channel]->_playingStarted = _now;
+  beginPass (*follow);
+  return follow;
+}
+
+void
+MotionEngine::playTick (index_t chIdx, Pattern &playing, float playPosition)
+{
+  auto &channel = _channels[chIdx];
+  auto const ticksPatternLength = playing.getNumTicks ();
+
+  // Use interpolated playback for smooth motion between keyframes.
+  // Which ticks the pass spans depends on the end action: a loop
+  // includes the seam back to the first tick, a bounce turns round
+  // at the last one instead of running into it.
+  auto const fractionalTick = fractionalTickForPlayback (
+      playPosition, ticksPatternLength, playing.getPlayDirection ());
+  auto position2D = playing.getInterpolatedTick (fractionalTick);
+
+  // Before anything reads a knob: the lanes play over the
+  // settings this tick -- see Pattern::getKnob().
+  playing.playKnobs (fractionalTick);
+
+  // The whole shape turns under the blob. One tick's worth here,
+  // and the renderer turns the drawn line by the same phase — the
+  // blob has to stay on its line.
+  auto const ticksPerBar
+      = static_cast<float> (TempoClock::getTicksPerBeat ())
+        * static_cast<float> (_tempoClock.getBeatsPerBar ());
+  playing.setSpinPhase (advanceLfoPhase (
+      playing.getSpinPhase (), playing.getKnobStep (Knob::Spin),
+      ticksPerBar));
+  playing.setReachLfoPhase (
+      advanceLfoPhase (playing.getReachLfoPhase (),
+                       playing.getKnobStep (Knob::Swell),
+      ticksPerBar));
+  playing.setElevationLfoPhase (
+      advanceLfoPhase (playing.getElevationLfoPhase (),
+                       playing.getKnobStep (Knob::Sway),
+      ticksPerBar));
+  playing.setSqueezeXLfoPhase (
+      advanceLfoPhase (playing.getSqueezeXLfoPhase (),
+                       playing.getKnobStep (Knob::StretchX),
+      ticksPerBar));
+  playing.setSqueezeYLfoPhase (
+      advanceLfoPhase (playing.getSqueezeYLfoPhase (),
+                       playing.getKnobStep (Knob::StretchY),
+      ticksPerBar));
+  playing.setTiltLfoPhase (advanceLfoPhase (
+      playing.getTiltLfoPhase (),
+      playing.getKnobStep (Knob::TiltSweep), ticksPerBar));
+  playing.setRollLfoPhase (advanceLfoPhase (
+      playing.getRollLfoPhase (),
+      playing.getKnobStep (Knob::RollSweep), ticksPerBar));
+
+  if (position2D.isValid ())
+    {
+      // Shaped before it is projected: in the recorded 2D disc
+      // the radius is the elevation and the angle is the azimuth,
+      // so turning the disc turns the trajectory around the pole
+      // and leaves every point at the height it was played in at,
+      // while squeezing an axis of it presses the figure flat
+      // without moving where it sits.
+      //
+      // One call, and the renderer makes the same one -- see
+      // shapedPosition(), which also fixes the order the two
+      // happen in.
+      position2D = shapedPosition (position2D, shapingOf (playing));
+
+      // Apply this clip's own elevation mapping (sphere
+      // projection) at playback time — elevation parameters
+      // live on the Pattern itself, not the channel.
+      auto params
+          = playing.getElevationParams ();
+      // ... with both slow sweeps laid over it, if they are
+      // sweeping. The renderer calls the same function from the
+      // same phases -- see sweptElevation() -- or the line would
+      // be drawn somewhere the blob is not running.
+      params = sweptElevation (params, playing);
+      // And the whole figure leant in the room, last -- the
+      // renderer leans it by the same call (spaceTurnOf).
+      auto position = turnedInSpace (
+          _heightMap.mapTo3D (position2D, params),
+          spaceTurnOf (playing));
+      channel->setPosition (position);
     }
 }
 

@@ -232,11 +232,23 @@ TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
   EXPECT_FALSE (tapAdvancesValue (0, 0));
   EXPECT_FALSE (tapAdvancesValue (0, 1));
   EXPECT_TRUE (tapAdvancesValue (0, 2));
-  EXPECT_TRUE (tapAdvancesValue (0, 3));
+  // The end action steps on a tap too, but through a route of its own -- see
+  // TheEndsTapIsNotItsDrag.
+  EXPECT_FALSE (tapAdvancesValue (0, 3));
   EXPECT_FALSE (tapAdvancesValue (0, 4)) << "there is no fifth control";
 
   // Global: the rec mode has few states.
   EXPECT_TRUE (tapAdvancesValue (3, 0));
+}
+
+// A tap on END steps the end action; a drag on it, while the end is Clip,
+// walks the clip that follows. A tap reaching the page as a drag of one step
+// could not be told from the first step of that walk, so the tap takes the
+// other route, the one a tap without a direction takes.
+TEST (ClipSettingsLayout, TheEndsTapIsNotItsDrag)
+{
+  EXPECT_TRUE (tapTogglesValue (0, 3));
+  EXPECT_FALSE (tapTogglesValue (0, 2)) << "the direction has no second list";
 }
 
 // The two are alternatives, not layers: a tap either steps a value on or

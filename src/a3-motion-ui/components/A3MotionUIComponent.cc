@@ -1307,6 +1307,24 @@ A3MotionUIComponent::persistSettings () const
 }
 
 Measure
+A3MotionUIComponent::playbackLengthOf (Pattern const &pattern) const
+{
+  // What getPlaybackLength() works out for a pattern in a slot, for one that
+  // is in none yet.
+  auto const patternBeats
+      = pattern.getNumTicks () > 0
+            ? static_cast<float> (pattern.getNumTicks ())
+                  / static_cast<float> (TempoClock::getTicksPerBeat ())
+            : defaultPatternLengthBeats;
+  auto const ticks = playbackLengthTicks (
+      playbackLengthBeats (patternBeats, pattern.getSpeedLog2 ()),
+      static_cast<index_t> (TempoClock::getTicksPerBeat ()));
+
+  return Measure{ 0, 0, static_cast<int> (ticks) }.consolidate (
+      _engine.getBeatsPerBar ());
+}
+
+Measure
 A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
 {
   auto const ticks = playbackLengthTicks (
@@ -1450,6 +1468,7 @@ A3MotionUIComponent::initializePatterns ()
   _patterns.resize (numChannels);
   _clipUIParams.resize (numChannels);
   _slotClipFile.resize (numChannels);
+  _armedFollows.resize (numChannels);
 
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numClipSlots);
@@ -2638,6 +2657,7 @@ A3MotionUIComponent::saveSlotClipAsCopy ()
       = freeNameIn (_patternLibrary->getClipDir (), base, ".json")
             .toStdString ();
   copy.settings = clipSettingsFrom (*pattern);
+  copy.endClip = pattern->getEndClip ();
   copy.lanes = pattern->getLanes ();
 
   auto const target = newFileIn (_patternLibrary->getClipDir (),
@@ -3020,14 +3040,16 @@ A3MotionUIComponent::putFigureInSlot (index_t channel, index_t slot, int index,
   scheduleSetSave ();
 }
 
-void
-A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+bool
+A3MotionUIComponent::loadClipIntoChannel (index_t channel,
+                                          juce::File const &clipFile)
 {
-  auto const entry = _patternLibrary->getEntry (index);
+  // One clip per channel: the slot is always the first.
+  index_t const slot = 0;
 
-  auto const clip = ClipFile::load (entry.clipFile);
+  auto const clip = ClipFile::load (clipFile);
   if (!clip.has_value ())
-    return;
+    return false;
 
   // The figure it names, if it names one. A clip is the whole playable thing
   // -- a figure and every value it is played with -- so choosing one fills
@@ -3063,17 +3085,16 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // no figure dropped on an empty slot leaves it plainly empty rather than
   // holding settings nothing can play.
   if (!pattern)
-    return;
+    return false;
 
   // Every value out of the clip. Sections could be held against this until
   // 2026-09-27; the locks are gone.
-  applyClipSettings (*pattern, clip->settings);
-  applyLanes (*pattern, *clip);
+  applyClipValues (*pattern, *clip);
 
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
   // the other way round.
-  setSlotClipFile (channel, slot, entry.clipFile);
+  setSlotClipFile (channel, slot, clipFile);
 
   // The bar follows what was just changed, the same as choosing a shape does.
   selectClip (channel, slot);
@@ -3082,6 +3103,17 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // write the strip's own direction and end action over the ones the preset
   // just brought.
   syncClipUIParamsFromPattern (channel, slot);
+  return true;
+}
+
+void
+A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+{
+  if (!loadClipIntoChannel (channel,
+                            _patternLibrary->getEntry (index).clipFile))
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
 
   // It keeps running if it was running. You tap a preset to hear it on the
   // clip that is playing; restarting would drop you back at the top of a
@@ -3101,6 +3133,157 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   refreshAllPadRowLabels ();
   if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
     updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::putPatternInChannel (index_t channel,
+                                          std::shared_ptr<Pattern> pattern,
+                                          juce::File const &clipFile)
+{
+  if (channel >= _patterns.size () || !pattern)
+    return;
+
+  // One clip per channel since 2026-09-27: the channel's clip is its slot 0.
+  auto const slot = index_t{ 0 };
+
+  if (auto const &was = _patterns[channel][slot]; was && was != pattern)
+    {
+      _motionComponent->unsetPreviewPattern (was);
+      _motionComponent->removePatternDisplayData (was);
+    }
+
+  // What comes in replaces an unsaved take, as filling from the library does.
+  dropPendingTake (channel, slot);
+
+  pattern->setChannel (channel);
+  _patterns[channel][slot] = std::move (pattern);
+  _slotClipFile[channel][slot] = clipFile;
+
+  syncClipUIParamsFromPattern (channel, slot);
+  refreshPatternDisplay (_patterns[channel][slot]);
+
+  refreshBrowser ();
+  refreshAllPadRowLabels ();
+  if (channel == _clipSettingsChannel && slot == _clipSettingsSlot)
+    updateClipSettingsDisplay ();
+
+  scheduleSetSave ();
+}
+
+std::string
+A3MotionUIComponent::followWantedFor (index_t channel) const
+{
+  if (channel >= _patterns.size ())
+    return {};
+
+  auto const &pattern = _patterns[channel][0];
+  if (!pattern || pattern->getEndAction () != EndAction::Clip)
+    return {};
+
+  // A take waiting for SAVE or DISCARD is not handed over to anything: the
+  // follow would take its place, and the take with it.
+  if (_pendingTakes.isPending (channel, 0))
+    return {};
+
+  return pattern->getEndClip ();
+}
+
+void
+A3MotionUIComponent::armFollowClips ()
+{
+  for (index_t channel = 0;
+       channel < _patterns.size () && channel < _armedFollows.size ();
+       ++channel)
+    {
+      auto const &pattern = _patterns[channel][0];
+      auto const wanted = followWantedFor (channel);
+      auto &armed = _armedFollows[channel];
+      if (armed.from == pattern && armed.name == wanted)
+        continue;
+
+      armed.from = pattern;
+      armed.name = wanted;
+      armed.file = wanted.empty ()
+                       ? juce::File{}
+                       : _patternLibrary->clipFileNamed (juce::String (wanted));
+      armed.follow = wanted.empty () ? nullptr
+                                     : _patternLibrary->loadClip (armed.file);
+      if (armed.follow)
+        {
+          armed.follow->setChannel (channel);
+          armed.follow->setPlaybackLength (playbackLengthOf (*armed.follow));
+        }
+
+      // An empty follow takes back what was armed: the end is then a stop.
+      _engine.armFollowPattern (channel, pattern, armed.follow);
+
+      if (channel == _clipSettingsChannel)
+        updateClipSettingsDisplay ();
+    }
+}
+
+void
+A3MotionUIComponent::takeOverFollow (index_t channel,
+                                     std::shared_ptr<Pattern> const &pattern)
+{
+  if (channel >= _armedFollows.size () || !pattern)
+    return;
+
+  auto &armed = _armedFollows[channel];
+  if (armed.follow != pattern || _patterns[channel][0] == pattern)
+    return;
+
+  auto const file = armed.file;
+  // Disarmed here, so the next frame arms the follow's own follow: a chain
+  // is each clip handing over to the next, one at a time.
+  armed = {};
+
+  // Not selected: a clip a chain started did not come from a finger, and the
+  // bar stays on whatever the hand last chose -- see "The bar follows the
+  // hand" in ARCHITECTURE.md.
+  putPatternInChannel (channel, pattern, file);
+}
+
+juce::String
+A3MotionUIComponent::followShownFor (index_t channel) const
+{
+  if (channel >= _armedFollows.size ())
+    return {};
+
+  auto const &armed = _armedFollows[channel];
+  if (!armed.follow || armed.from != _patterns[channel][0])
+    return {};
+  return juce::String (armed.name);
+}
+
+void
+A3MotionUIComponent::stepFollowClip (index_t channel, int increment)
+{
+  auto const &pattern = _patterns[channel][0];
+  if (!pattern)
+    return;
+
+  // From the follow if it is in the library, from the channel's own clip if
+  // there is none yet: the first step lands beside what is playing.
+  auto from = 0;
+  if (!pattern->getEndClip ().empty ())
+    from = _patternLibrary->indexForClipFile (
+        _patternLibrary->clipFileNamed (juce::String (pattern->getEndClip ())));
+  if (from <= 0)
+    from = _patternLibrary->indexForClipFile (_slotClipFile[channel][0]);
+
+  auto const next = stepThroughLibrary (from, increment, true);
+  if (next <= 0)
+    return;
+
+  auto const name
+      = _patternLibrary->getEntry (next).clipFile.getFileNameWithoutExtension ();
+  pattern->setEndClip (name.toStdString ());
+  updateControlReadout ("-- THEN " + name.toUpperCase ());
+
+  armFollowClips ();
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
 }
 
 void
@@ -4999,6 +5182,9 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     {
     case Status::Playing:
       {
+        // An end action Clip handed the channel over on the clock thread; the
+        // channel holds the follow from now on.
+        takeOverFollow (channel, messagePatternStatus.pattern);
         break;
       }
     case Status::Recording:
@@ -5307,6 +5493,10 @@ A3MotionUIComponent::applySet (juce::File const &file)
               // carries settings, not takes.
               if (clip)
                 applyLanes (*pattern, *clip);
+              // The follow is the clip's unless the set chose another.
+              pattern->setEndClip (!saved.endClip.empty () ? saved.endClip
+                                   : clip             ? clip->endClip
+                                                      : std::string ());
             }
 
           // And what was running runs again -- from the top, on the next
@@ -5433,6 +5623,7 @@ A3MotionUIComponent::buildSession ()
               // slot filled straight from a shape wrote nothing, and came
               // back as the bare shape with its settings gone.
               saved.overrides = clipSettingsFrom (*pattern);
+              saved.endClip = pattern->getEndClip ();
             }
         }
     }
@@ -6178,6 +6369,8 @@ A3MotionUIComponent::timerCallback ()
     updateClipSettingsDisplay ();
   _wasMoving = moving;
 
+  armFollowClips ();
+
   // Two seconds' worth of ticks, which is the pace this used to run at.
   if (++_timerTick % libraryCheckTicks != 0)
     return;
@@ -6187,6 +6380,10 @@ A3MotionUIComponent::timerCallback ()
   if (fp != _lastLibraryFingerprint)
     {
       _lastLibraryFingerprint = fp;
+      // A follow is a snapshot of its clip file: one saved since is armed
+      // again on the next frame.
+      for (auto &armed : _armedFollows)
+        armed.from = nullptr;
       std::cout << "PatternLibrary: directory change detected, refreshing..."
                 << std::endl;
       _patternLibrary->refresh ();
@@ -7668,11 +7865,15 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 
         if (sub == 3)
           {
-            params.endAction
-                = (params.endAction + increment % value::numEndActions
-                   + value::numEndActions)
-                  % value::numEndActions;
-            applyMotionMode (channel, slot);
+            // A drag on END while it says Clip walks the clip that follows;
+            // otherwise it steps the end action, as a tap does -- see
+            // handleClipSettingsToggle(), which is where a tap lands.
+            if (params.endAction == static_cast<int> (EndAction::Clip))
+              {
+                stepFollowClip (channel, increment);
+                break;
+              }
+            stepEndAction (channel, slot, increment);
             break;
           }
 
@@ -7926,10 +8127,34 @@ A3MotionUIComponent::handleClipSettingsToggle (index_t channel, int section,
   if (channel != _clipSettingsChannel)
     return;
 
-  // Nothing toggles any more. pole and flat were the last two, and the
-  // elevation base the graphic sets says what they said -- see
-  // tapTogglesValue(), which now answers no to everything.
-  juce::ignoreUnused (section, sub);
+  // END is the one left: its tap steps the end action, while its drag walks
+  // the follow when the end is Clip -- a tap arriving as a drag's first step
+  // could not be told from that walk. See tapTogglesValue().
+  if (section == ClipSettingsComponent::trajectoryIndex && sub == 3)
+    stepEndAction (channel, _clipSettingsSlot, 1);
+}
+
+void
+A3MotionUIComponent::stepEndAction (index_t channel, index_t slot,
+                                    int increment)
+{
+  auto &params = _clipUIParams[channel][slot];
+  params.endAction = (params.endAction + increment % value::numEndActions
+                      + value::numEndActions)
+                     % value::numEndActions;
+  applyMotionMode (channel, slot);
+
+  // Clip with nothing to hand over to is a stop, and the field says so; the
+  // readout says how to give it something.
+  if (params.endAction == static_cast<int> (EndAction::Clip))
+    {
+      armFollowClips ();
+      if (followShownFor (channel).isEmpty ())
+        updateControlReadout ("-- CLIP: DRAG END TO CHOOSE WHICH");
+    }
+
+  updateClipSettingsDisplay ();
+  scheduleSetSave ();
 }
 
 SphereCamera
@@ -8379,7 +8604,8 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     }
 
   _clipSettings->setMotionDirection (_clipUIParams[channel][slot].direction);
-  _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction);
+  _clipSettings->setMotionEndAction (_clipUIParams[channel][slot].endAction,
+                                     followShownFor (channel));
   _clipSettings->setMotionFadeReach (
       pattern ? pattern->getFadeReach () : ClipSettings{}.fadeReach);
   _clipSettings->setMotionBridgeBias (

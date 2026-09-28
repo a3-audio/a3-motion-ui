@@ -84,6 +84,15 @@ TEST (ActionScript, ListsAreWrittenAsSymbols)
   EXPECT_EQ (out.actMode, ActMode::Hold);
 }
 
+// \clip hands the channel to the clip that follows -- the one the clip itself
+// names. A script cannot name one: that needs a string, and strings are not
+// in the language yet.
+TEST (ActionScript, TheEndCanBeAClip)
+{
+  auto const out = run ("~end = \\clip;\n");
+  EXPECT_EQ (out.endAction, EndAction::Clip);
+}
+
 // A script written while bounce and random were end actions keeps doing what
 // it did: the end it names becomes the direction, looping.
 TEST (ActionScript, AnOldBounceOrRandomEndBecomesADirection)

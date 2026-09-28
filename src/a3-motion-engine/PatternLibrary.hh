@@ -127,6 +127,20 @@ public:
   /** Load a full Pattern object for the given index. */
   std::shared_ptr<Pattern> loadPattern (int index) const;
 
+  /** A clip as something to play: the figure it names, with every value the
+   *  clip carries put on it (applyClipValues). Nothing when the file cannot
+   *  be read or names no figure the library has -- there is then nothing to
+   *  play, and an empty pattern would play it silently.
+   *
+   *  The half of "load this clip into a channel" that needs no channel: the
+   *  follow of an end action Clip is built with it before the pass it
+   *  follows has ended. */
+  std::shared_ptr<Pattern> loadClip (juce::File const &clipFile) const;
+
+  /** The clip file a name stands for, the performer's own first. One that
+   *  does not exist when nobody has the name. */
+  juce::File clipFileNamed (juce::String const &name) const;
+
   /** Save a pattern to the user directory, with the clip that carries its
    *  settings beside it. Generates a unique filename. Returns the assigned
    *  index after refreshing the library, or 0 on failure -- and a failure is

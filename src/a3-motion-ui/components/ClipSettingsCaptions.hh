@@ -21,6 +21,7 @@
 #pragma once
 
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/Playhead.hh>
 
 #include <JuceHeader.h>
 
@@ -150,7 +151,7 @@ constexpr int numActModes
     = static_cast<int> (sizeof (actModeNames) / sizeof (*actModeNames));
 
 /** In EndAction's order, which is the bar's order: the index is the enum. */
-constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus" };
+constexpr char const *endActionNames[] = { "Loop", "Stop", "Paus", "Clip" };
 constexpr int numEndActions
     = static_cast<int> (sizeof (endActionNames) / sizeof (*endActionNames));
 // What happens to what a take never wrote — glide across it, or hold and jump.
@@ -189,11 +190,26 @@ shownDirection (int direction)
   return std::clamp (direction, 0, value::numDirections - 1);
 }
 
-/** Which of the names an end action shows -- one of the three there are. */
+/** Which of the names an end action shows -- one of the four there are. */
 constexpr int
 shownEndAction (int endAction)
 {
   return std::clamp (endAction, 0, value::numEndActions - 1);
+}
+
+/** What the END field says. The end action's name, except for Clip, where
+ *  the word would only say that *something* follows: there it is an arrow and
+ *  the clip that does. `follow` is empty when there is nothing to hand over
+ *  to -- none chosen, or a name the library does not have -- and the field
+ *  then says what happens instead, which is a stop. */
+inline juce::String
+endActionFieldText (int endAction, juce::String const &follow)
+{
+  if (shownEndAction (endAction) != static_cast<int> (EndAction::Clip))
+    return value::endActionNames[shownEndAction (endAction)];
+
+  auto const arrow = juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92 "));
+  return arrow + (follow.isEmpty () ? juce::String ("Stop") : follow);
 }
 
 /** The names over the fields of CLIP, MOTION and REC (2026-09-27): what a

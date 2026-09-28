@@ -131,6 +131,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternLibraryClips.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipSettings.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionFiring.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/EndActionClip.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionScript.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SerialReconnect.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternSpeedAndFade.cc"

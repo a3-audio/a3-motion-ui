@@ -78,6 +78,11 @@ enum class EndAction
    *  where you happen to land is a pause, and calling it a stop meant there
    *  was no way to ask for the other one. */
   Pause,
+  /** Hand the channel to another clip: the one this clip names as its
+   *  follow (`endClip`), from its top, on the tick this pass ends. The pass
+   *  itself ends as Stop ends it -- which is also what happens when there is
+   *  no follow to take over. See MotionEngine::armFollowPattern(). */
+  Clip,
 };
 
 /** Where a clip's playhead stands, and which way it is travelling.

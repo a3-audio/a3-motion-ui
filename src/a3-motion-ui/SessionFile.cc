@@ -323,6 +323,8 @@ loadSession (juce::File const &file, int numChannels, int numSlots)
                     = static_cast<int> (slotEntry["recordLengthLog2"]);
                 slot.clipFile = slotEntry["clip"].toString ().toStdString ();
                 slot.action = slotEntry["action"].toString ().toStdString ();
+                slot.endClip
+                    = slotEntry["endClip"].toString ().toStdString ();
                 slot.playing = slotEntry.getProperty ("playing", false);
                 slot.overrides = readOverrides (slotEntry["overrides"]);
                 channel.slots.push_back (slot);
@@ -369,6 +371,8 @@ saveSession (juce::File const &file, Session const &set)
             slotEntry->setProperty ("clip", juce::String (slot.clipFile));
           if (!slot.action.empty ())
             slotEntry->setProperty ("action", juce::String (slot.action));
+          if (!slot.endClip.empty ())
+            slotEntry->setProperty ("endClip", juce::String (slot.endClip));
 
           // Only when it was. A set full of "playing": false says the same
           // thing as a set that does not mention it, at four times the length.

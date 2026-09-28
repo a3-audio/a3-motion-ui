@@ -228,7 +228,7 @@ symbolIndex (Value const &v, juce::StringArray const &words)
 
 // In the enums' order. Bounce and random are directions since 2026-09-26;
 // the end still accepts them from older scripts -- see its setter.
-juce::StringArray const endActionWords{ "loop", "stop", "pause" };
+juce::StringArray const endActionWords{ "loop", "stop", "pause", "clip" };
 juce::StringArray const directionWords{ "forward", "reverse", "bounce",
                                         "random" };
 juce::StringArray const actModeWords{ "oneshot", "hold" };
