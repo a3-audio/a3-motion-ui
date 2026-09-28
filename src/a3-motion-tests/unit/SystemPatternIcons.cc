@@ -268,8 +268,16 @@ isDeliberatelyOffCentre (juce::String const &name)
   // room, not a figure around it. Orbit is a Kepler ellipse with the listener
   // at a focus rather than the middle, which is the whole idea -- the sound
   // comes close and goes far. Random is random.
+  //
+  // Riser, Collapse and Vortex (2026-09-28) are anchored at the middle rather
+  // than balanced round it: they open out of the listener's position or close
+  // into it, one way, and a spin turns them about that anchor, which is the
+  // point. Their outer turns carry more path than the inner ones, so the
+  // centre of their path always lies off to one side.
   return name.contains ("Arc") || name.contains ("Petal")
-         || name.contains ("Orbit") || name.contains ("Random");
+         || name.contains ("Orbit") || name.contains ("Random")
+         || name.contains ("Riser") || name.contains ("Collapse")
+         || name.contains ("Vortex");
 }
 }
 

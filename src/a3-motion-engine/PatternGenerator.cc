@@ -977,6 +977,42 @@ fromCurve (char const *name, index_t lengthBeats, float radius,
   return pattern;
 }
 
+/** Moves a figure so the middle of its path -- weighted by length, as the
+ *  eye weighs it -- is the middle of the room, and shrinks it back inside
+ *  `radius` if the move pushed it out. Rotation turns about the room's
+ *  middle, so a figure off to one side wobbles instead of turning. */
+void
+centreOnItsPath (Pattern &pattern, float radius, HeightMap const &heightMap)
+{
+  auto const n = pattern.getNumTicks ();
+  double sx = 0.0, sy = 0.0, total = 0.0;
+  for (index_t i = 0; i < n; ++i)
+    {
+      auto const a = pattern.getTick (i), b = pattern.getTick ((i + 1) % n);
+      if (!a.isValid () || !b.isValid ())
+        continue;
+      auto const w = std::hypot (b.x () - a.x (), b.y () - a.y ());
+      sx += (a.x () + b.x ()) * 0.5 * w;
+      sy += (a.y () + b.y ()) * 0.5 * w;
+      total += w;
+    }
+  if (total <= 0.0)
+    return;
+
+  auto const cx = static_cast<float> (sx / total);
+  auto const cy = static_cast<float> (sy / total);
+  auto furthest = 0.f;
+  for (index_t i = 0; i < n; ++i)
+    if (auto const p = pattern.getTick (i); p.isValid ())
+      furthest = std::max (furthest, std::hypot (p.x () - cx, p.y () - cy));
+  auto const scale = furthest > radius ? radius / furthest : 1.f;
+
+  for (index_t i = 0; i < n; ++i)
+    if (auto const p = pattern.getTick (i); p.isValid ())
+      place (pattern, i, (p.x () - cx) * scale, (p.y () - cy) * scale,
+             heightMap);
+}
+
 /** Where a stepped figure lands, and on which sixteenth. */
 struct Step
 {
@@ -1187,7 +1223,8 @@ std::unique_ptr<Pattern>
 PatternGenerator::createDrift (index_t lengthBeats, float radius,
                                HeightMap const &heightMap)
 {
-  return fromCurve (
+  // Lopsided by nature, so centred afterwards: a wander has no anchor.
+  auto pattern = fromCurve (
       "Drift", lengthBeats, radius,
       [] (float t) {
         auto const a = turn * t;
@@ -1197,6 +1234,8 @@ PatternGenerator::createDrift (index_t lengthBeats, float radius,
         return std::pair{ r * std::cos (bearing), r * std::sin (bearing) };
       },
       heightMap);
+  centreOnItsPath (*pattern, radius, heightMap);
+  return pattern;
 }
 
 }
