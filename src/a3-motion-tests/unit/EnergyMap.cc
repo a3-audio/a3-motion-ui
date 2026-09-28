@@ -864,7 +864,7 @@ TEST (Bolts, MostOfTheTimeThereIsNoStrike)
   EXPECT_GT (boltStrike (1.f, 0.6f), 0.9f);
 }
 
-TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
+TEST (Bolts, ShippedConfigHasAWorkingDutyCycle)
 {
   auto const parsed = shippedSkin ();
   ASSERT_FALSE (parsed.isVoid ()) << "no skin to check";
@@ -878,8 +878,10 @@ TEST (Bolts, ShippedConfigStrikesRatherThanGlows)
   EXPECT_GT (duty, 0.f) << "at zero every bolt is always on";
   EXPECT_LT (duty, 1.f) << "at one none of them ever strike";
 
-  EXPECT_GT (static_cast<float> (speakerLight["boltCore"]), 0.f)
-      << "the core is what makes it read as lightning rather than as colour";
+  // Whether a bolt has a white core -- strikes rather than glows -- is a look.
+  // The shipped default is the quiet one since 2026-09-28 (quiet-indigo-2,
+  // the maintainer's pick), which glows; boltCore is still in the file so a
+  // skin can turn it up.
 }
 
 
