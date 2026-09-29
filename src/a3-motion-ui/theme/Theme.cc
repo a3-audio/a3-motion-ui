@@ -559,4 +559,44 @@ migrateSkinNames (juce::var const &skin)
   return result;
 }
 
+juce::var
+copyOfSkin (juce::var const &skin)
+{
+  return juce::JSON::parse (juce::JSON::toString (skin, true));
+}
+
+bool
+sameSkin (juce::var const &a, juce::var const &b)
+{
+  if (auto const *objectA = a.getDynamicObject ())
+    {
+      auto const *objectB = b.getDynamicObject ();
+      if (objectB == nullptr)
+        return false;
+      auto const &propsA = objectA->getProperties ();
+      auto const &propsB = objectB->getProperties ();
+      if (propsA.size () != propsB.size ())
+        return false;
+      for (auto const &property : propsA)
+        if (!propsB.contains (property.name)
+            || !sameSkin (property.value, propsB[property.name]))
+          return false;
+      return true;
+    }
+
+  if (auto const *arrayA = a.getArray ())
+    {
+      auto const *arrayB = b.getArray ();
+      if (arrayB == nullptr || arrayA->size () != arrayB->size ())
+        return false;
+      for (int i = 0; i < arrayA->size (); ++i)
+        if (!sameSkin ((*arrayA)[i], (*arrayB)[i]))
+          return false;
+      return true;
+    }
+
+  return b.getDynamicObject () == nullptr && b.getArray () == nullptr
+         && a == b;
+}
+
 }

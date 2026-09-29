@@ -746,6 +746,7 @@ private:
   juce::Component *skinPageInFront () const;
   void  applyEditedSkin ();
   void  saveEditedSkin ();
+  void  saveEditedSkinIfChanged ();
   void  saveSkinAsNew ();
   void  renameEditedSkin (juce::String const &name);
   void  deleteEditedSkin ();
@@ -841,6 +842,9 @@ private:
   std::unique_ptr<SkinEditorComponent> _skinEditor;
   std::unique_ptr<SkinPanelComponent> _skinPanel;
   bool _skinPanelOpen = false;
+  // The skin as it was read from its file, a copy of its own: closing saves
+  // only when the edited one says something else (#53).
+  juce::var _skinAsOpened;
   std::unique_ptr<ColourPickerComponent> _colourPicker;
   bool _colourPickerOpen = false;
   juce::String _colourPath;

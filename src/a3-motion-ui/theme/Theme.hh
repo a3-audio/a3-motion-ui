@@ -385,6 +385,16 @@ juce::String activeSkinName (juce::File const &configFile);
  *  Every other name is its own. */
 juce::String skinNameToWriteTo (juce::String const &edited);
 
+/** A skin as it stands now, kept apart from the one the editor goes on
+ *  changing: a juce::var holds its object by reference, and a copy that
+ *  shared it would change along with the edits and never differ. */
+juce::var copyOfSkin (juce::var const &skin);
+
+/** Whether two skins say the same, key order aside. Closing the editor saves
+ *  only when this is false: a look without a change used to write the file
+ *  and, on the shipped skin, switch the device to "custom" (#53). */
+bool sameSkin (juce::var const &a, juce::var const &b);
+
 /** `skin` with the groups under the names they have now.
  *
  *  The names grew with the code and stopped saying what the things are: the

@@ -110,10 +110,26 @@ scriptErrorsOf (juce::String const &script)
 }
 
 juce::String
-copyBaseFor (juce::File const &from)
+copyBaseFor (juce::File const &from, juce::File const &folder)
 {
-  return from == juce::File{} ? juce::String{ "Action" }
-                              : from.getFileNameWithoutExtension ();
+  if (from != juce::File{})
+    return from.getFileNameWithoutExtension ();
+
+  // Sets live in sessions/, but a set is called a set -- the same word
+  // saveCurrentSession() names a new one with.
+  auto const list = folder.getFileName ();
+  if (list == "sessions")
+    return "Set";
+  if (list == "clips")
+    return "Clip";
+  return "Action";
+}
+
+bool
+isActionScript (juce::File const &file)
+{
+  return file.hasFileExtension (".scd")
+         && !file.getFileNameWithoutExtension ().equalsIgnoreCase ("README");
 }
 
 CueTarget

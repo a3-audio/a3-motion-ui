@@ -3353,6 +3353,10 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   if (channel >= _channelActions.size () || button < 0
       || button >= numActionButtons)
     return;
+  // Empty clears the button; anything else has to be an action -- the
+  // manual beside the scripts is not one (#57).
+  if (file != juce::File{} && !isActionScript (file))
+    return;
 
   auto &action = _channelActions[channel][static_cast<size_t> (button)];
   action.file = file;
@@ -3608,7 +3612,7 @@ A3MotionUIComponent::saveFileTextAs ()
   // came from. Counted against both halves, or a new file would take a
   // shipped name; written into the user half.
   auto const copy
-      = freeFileIn (list.folder (), copyBaseFor (_panelFile), list.extension ());
+      = freeFileIn (list.folder (), copyBaseFor (_panelFile, list.folder ()), list.extension ());
   if (!fileTextIsFitToWrite (fileErrorsOf (text, copy), copy))
     return;
 
@@ -4962,7 +4966,8 @@ A3MotionUIComponent::updateActionPage ()
   juce::StringArray choices;
   choices.add ("");
   for (auto const &entry : listFilesIn (actionsDir (), ".scd"))
-    choices.add (entry.name);
+    if (isActionScript (entry.file))
+      choices.add (entry.name);
   _action->setActionChoices (choices);
 
   _action->setActionName (action.existsAsFile ()
@@ -7410,6 +7415,7 @@ A3MotionUIComponent::openSkinEditor ()
   // new ones, and the first save would write a mixture.
   _skinPanel->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
                        file.getFileNameWithoutExtension ());
+  _skinAsOpened = copyOfSkin (_skinPanel->getSkin ());
   _skinPanelOpen = true;
   _globalSettings->setVisible (false);
   _skinPanel->setVisible (true);
@@ -7453,7 +7459,7 @@ A3MotionUIComponent::closeSkinPanel ()
   // Written on the way out, like the list: a drag produces a value per
   // mouse sample, and a file save per sample would wake the watcher all the
   // way through it.
-  saveEditedSkin ();
+  saveEditedSkinIfChanged ();
 
   showKeyboard (false);
   _skinPanelOpen = false;
@@ -7817,6 +7823,7 @@ A3MotionUIComponent::reopenEditorOn (juce::String const &name)
 
   _skinEditor->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
                         file.getFileNameWithoutExtension ());
+  _skinAsOpened = copyOfSkin (_skinEditor->getSkin ());
 
   // The menu underneath is showing a list of skins that just changed.
   rebuildGlobalSettingsOptions ();
@@ -7833,7 +7840,7 @@ A3MotionUIComponent::closeSkinEditor ()
   // produces a value per tick, and a file save per tick would spend the
   // session writing to disk and waking the file watcher.
   if (_configPageKeys.isEmpty ())
-    saveEditedSkin ();
+    saveEditedSkinIfChanged ();
   else
     saveConfigPage ();
 
@@ -7917,6 +7924,17 @@ A3MotionUIComponent::saveEditedSkin ()
   // immediately not shown.
   if (target != edited)
     applySkinNamed (target);
+
+  _skinAsOpened = copyOfSkin (editedSkin ());
+}
+
+void
+A3MotionUIComponent::saveEditedSkinIfChanged ()
+{
+  // A look is not an edit. Saving regardless wrote the file on every visit
+  // and, on the shipped skin, branched the device off to "custom" (#53).
+  if (!sameSkin (_skinAsOpened, editedSkin ()))
+    saveEditedSkin ();
 }
 
 
