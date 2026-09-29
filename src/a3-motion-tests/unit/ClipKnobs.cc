@@ -131,3 +131,42 @@ TEST (ClipKnobs, TheSwellAndTheStretchesHoldOnTheirOwnScale)
       EXPECT_FLOAT_EQ (reachOnKnob (motionKnobSpec (sub), 1.f), 1.f) << sub;
     }
 }
+
+// tilt and roll are angles on a closed ring since their sweeps turn them round
+// (2026-09-28): a whole turn is -2..2 quarter turns, and upright -- zero --
+// stands at the top of the ring the way rot's zero does.
+TEST (ClipKnobs, TheLeansAreRingsWithUprightAtTheTop)
+{
+  for (auto const sub : { 10, 12 })
+    {
+      auto const spec = motionKnobSpec (sub);
+      EXPECT_TRUE (spec.wraps) << sub;
+      EXPECT_EQ (spec.min, -2.0) << sub;
+      EXPECT_EQ (spec.max, 2.0) << sub;
+      EXPECT_EQ (spec.resetTo, 0.0) << sub;
+
+      EXPECT_FLOAT_EQ (knobAngleFraction (spec, 0.0), 0.f) << sub;
+      // A quarter turn a quarter of the way round, clockwise.
+      EXPECT_FLOAT_EQ (knobAngleFraction (spec, 1.0), 0.5f) << sub;
+      EXPECT_FLOAT_EQ (knobAngleFraction (spec, -1.0), -0.5f) << sub;
+
+      EXPECT_FLOAT_EQ (reachOnKnob (spec, 1.5f), 0.75f) << sub;
+      EXPECT_FLOAT_EQ (reachOnKnob (spec, 0.f), 0.f) << sub;
+    }
+}
+
+// The pointer and the arc are one mapping: the value's angle is the one the
+// held value's arc is measured from.
+TEST (ClipKnobs, APointerAndItsArcShareOneAngle)
+{
+  for (int sub = 0; sub < numMotionKnobs; ++sub)
+    {
+      auto const spec = motionKnobSpec (sub);
+      auto const mid = 0.5 * (spec.min + spec.max) + 0.1 * (spec.max - spec.min);
+      EXPECT_FLOAT_EQ (knobAngleFraction (spec, mid),
+                       reachOnKnob (spec, static_cast<float> (mid)))
+          << sub;
+    }
+  // rot keeps its reading: a quarter turn is half of PotKnob's 0..2.
+  EXPECT_FLOAT_EQ (knobAngleFraction (motionKnobSpec (0), 0.25), 0.5f);
+}

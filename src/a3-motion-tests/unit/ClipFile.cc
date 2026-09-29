@@ -27,6 +27,7 @@
 #include "ClipSettingsFields.hh"
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
 using namespace a3;
@@ -246,6 +247,27 @@ TEST (ClipFile, AClipFromBeforeTheBaseKeepsItsPole)
 
   south.deleteFile ();
   north.deleteFile ();
+}
+
+// A lean saved before tilt and roll turned round (2026-09-28) is the same
+// angle now -- the unit is still the quarter turn -- so a clip whose sweep is
+// 0 sounds as it did. Only the range around it grew into a ring.
+TEST (ClipFile, ALeanSavedBeforeTheRingKeepsItsAngle)
+{
+  auto const file = tempClip ("a3-clip-old-lean.json");
+  file.replaceWithText (R"({ "name": "Leant", "svg": "16_Circle",
+                             "tilt": -1, "roll": 0.75,
+                             "tswp": 0, "rswp": 0 })");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+
+  Pattern pattern;
+  applyClipSettings (pattern, read->settings);
+  EXPECT_FLOAT_EQ (spaceTurnOf (pattern).tilt, -1.f);
+  EXPECT_FLOAT_EQ (spaceTurnOf (pattern).roll, 0.75f);
+
+  file.deleteFile ();
 }
 
 // A file that names the base itself wins over the old flag -- that is what a

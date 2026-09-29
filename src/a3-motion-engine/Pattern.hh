@@ -258,9 +258,10 @@ public:
   void setSqueezeYLfoPhase (float phase);
 
   /** How far the figure's plane is leant in the room, and each lean's own
-   *  sweep (2026-09-27) -- see SpaceTurn and ClipSettings::tilt. Bipolar,
-   *  clamped to -1..1; the sweeps are signed TempoLfo steps with their running
-   *  phases, reset when playback starts. */
+   *  sweep (2026-09-27) -- see SpaceTurn and ClipSettings::tilt. Angles in
+   *  quarter turns on a closed ring, wrapped to -2..2 (2026-09-28); the
+   *  sweeps are signed TempoLfo steps that turn them round, with their
+   *  running phases, reset when playback starts. */
   float getTilt () const;
   void setTilt (float amount);
   float getRoll () const;

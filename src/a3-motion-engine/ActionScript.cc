@@ -21,6 +21,7 @@
 #include "ActionScript.hh"
 
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
@@ -323,15 +324,17 @@ fields ()
         s.squeezeYLfo = clampStep (v.number, -lfoMaxStep, lfoMaxStep);
       } },
     // How far the figure's plane is leant in the room, and each lean's sweep.
+    // A lean is an angle on a ring, so it wraps like ~rotate: 3 quarter turns
+    // is -1, not "as far as it goes".
     { "tilt",
       [] (ClipSettings const &s) { return numberValue (s.tilt, false); },
       [] (ClipSettings &s, Value const &v) {
-        s.tilt = clampBipolar (v.number);
+        s.tilt = wrappedLean (static_cast<float> (v.number));
       } },
     { "roll",
       [] (ClipSettings const &s) { return numberValue (s.roll, false); },
       [] (ClipSettings &s, Value const &v) {
-        s.roll = clampBipolar (v.number);
+        s.roll = wrappedLean (static_cast<float> (v.number));
       } },
     { "tswp",
       [] (ClipSettings const &s) { return numberValue (s.tiltLfo, true); },
@@ -837,12 +840,12 @@ actionScriptNotes ()
     { "sqzY", "Motion", "-1..1", "the same left-right" },
     { "strX", "Motion", "-8..8", "~sqzX's own sweep, out and back" },
     { "strY", "Motion", "-8..8", "the same for ~sqzY" },
-    { "tilt", "Motion", "-1..1",
+    { "tilt", "Motion", "-2..2",
       "the figure's plane leant forward (+) or back" },
-    { "roll", "Motion", "-1..1",
+    { "roll", "Motion", "-2..2",
       "the figure's plane leant to the left (+) or right" },
-    { "tswp", "Motion", "-8..8", "~tilt's own sweep, out and back" },
-    { "rswp", "Motion", "-8..8", "~roll's own sweep, out and back" },
+    { "tswp", "Motion", "-8..8", "turns ~tilt round, like spin" },
+    { "rswp", "Motion", "-8..8", "turns ~roll round, like spin" },
     { "spin", "Motion", "-8..8", "bars per revolution, sign = direction" },
     { "swell", "Motion", "-8..8",
       "sweeps ~reach out of where it sits and back" },

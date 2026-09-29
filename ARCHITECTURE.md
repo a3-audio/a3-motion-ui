@@ -277,6 +277,19 @@ generator and the test runner:
   ellipse standing in the room, and a spinning circle — the commonest take there is — would look
   as though the spin had stopped working.
 
+- `SpaceTurn` — **the figure's plane leant in the room**, after the height map: `tilt` about the
+  left-right axis (positive takes the front down), `roll` about the front-back axis (positive takes
+  the left down). Both in **quarter turns on a closed ring**, `-2..2` the whole turn, wrapped by
+  `wrappedLean()` rather than clamped, the way `rot` wraps. Their sweeps `tswp`/`rswp` **turn them
+  round like spin turns rot** (2026-09-28, *„nicht hin und her sondern rundrum"*): one revolution
+  per the step's bars on the `TempoLfo` table, sign the direction, 0 still — and a stopped sweep adds
+  nothing, `turnsOf()`'s rule. Before that they swept out and back (`lfoSweepBipolar`) within
+  `-1..1`. The unit stayed the quarter turn so every lean saved as `-1..1` is the same angle now; a
+  clip with a sweep set tumbles instead of rocking, which was the point. Past a quarter turn is still
+  a rigid turn of the whole sphere, so upside down is a figure hanging from the floor, with its
+  clip-top/-bottom turned over with it (the clips cut before the lean). The knobs are rings with
+  upright at the top (`knobAngleFraction`, which measures a ring from its value zero).
+
   **The clip's third modulation is not a movement at all.** `Envelope` is the accent: it rises while
   the **ACT pad is held**, stays up for as long as it is held, and falls when it is let go. The hold
   is the finger, which is why there is no sustain control — on a pad, how long a thing lasts is a

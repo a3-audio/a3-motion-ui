@@ -21,6 +21,7 @@
 #include "LookAndFeel.hh"
 
 #include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/components/ClipKnobs.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
@@ -178,9 +179,13 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
     }
 
   // -1..1 across the scale, which is what the arc is drawn from -- and for a
-  // ring, 0..2 round it, because a turn has no ends to run between.
-  auto const angle = knob->wraps () ? sliderPosProportional * 2.f
-                                    : sliderPosProportional * 2.f - 1.f;
+  // ring, 0..2 round it from the value zero, because a turn has no ends to
+  // run between and its zero belongs at the top (knobAngleFraction).
+  auto const angle
+      = knob->wraps ()
+            ? knobAngleFraction (slider.getMinimum (), slider.getMaximum (),
+                                 true, slider.getValue ())
+            : sliderPosProportional * 2.f - 1.f;
 
   paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
                 mixerControlMetrics (),

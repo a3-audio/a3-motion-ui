@@ -76,6 +76,29 @@ TEST (KnobAutomation, AKnobReadsItsSetting)
   EXPECT_FLOAT_EQ (pattern.getKnob (Knob::RollSweep), 4.f);
 }
 
+// A lane records the standing lean, and since tilt and roll became rings
+// (2026-09-28) that is any angle round the turn -- played back, it is the
+// lean the clip stands at, with its sweep turning on from there.
+TEST (KnobAutomation, ALeanLaneHoldsAnyAngleRoundTheRing)
+{
+  OneLap oneLap;
+  auto &pattern = oneLap.pattern;
+  pattern.setTilt (1.5f);
+  pattern.setKnobHeld (Knob::Tilt, true);
+
+  KnobRecorders recorders;
+  recordLap (pattern, recorders, RecMode::Touch);
+
+  auto const lanes = pattern.getLanes ();
+  auto const tilt = lanes[static_cast<std::size_t> (Knob::Tilt)].at (3.0);
+  ASSERT_TRUE (tilt.has_value ());
+  EXPECT_FLOAT_EQ (*tilt, 1.5f);
+
+  pattern.setKnobSetting (Knob::Tilt, 2.5f);
+  EXPECT_FLOAT_EQ (pattern.getKnob (Knob::Tilt), -1.5f)
+      << "a lean set through its knob wraps like the setter";
+}
+
 TEST (KnobAutomation, AHeldKnobIsRecordedIntoItsLane)
 {
   OneLap oneLap;
