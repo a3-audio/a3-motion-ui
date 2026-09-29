@@ -76,8 +76,17 @@ fi
 
 BUILT_AT="$(date -r "$TEST_BINARY" '+%Y-%m-%d %H:%M:%S')"
 
+# The shipped material as committed (see src/a3-motion-tests/CMakeLists.txt):
+# what ACTION and the skin panel write into the working copy on the rig is a
+# set being played, not the library the tests hold to its promises.
+COMMITTED_DIR="$BUILD_DIR/committed"
+rm -rf "$COMMITTED_DIR"
+mkdir -p "$COMMITTED_DIR"
+git -C "$SCRIPT_DIR" archive HEAD config pattern | tar -x -C "$COMMITTED_DIR"
+COMMITTED_AT="$(git -C "$SCRIPT_DIR" log -1 --format='%h')"
+
 echo ""
-echo "=== Running tests ($BUILD_TYPE, runner built $BUILT_AT) ==="
+echo "=== Running tests ($BUILD_TYPE, runner built $BUILT_AT, library as committed in $COMMITTED_AT) ==="
 
 set +e
 ctest --test-dir "$BUILD_DIR" --output-on-failure "${CTEST_ARGS[@]}"
