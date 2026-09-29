@@ -102,6 +102,11 @@ Unit tests use GoogleTest via `src/a3-motion-tests` (built when `TESTS_ENABLED=O
 ./test.sh -d                          # the Debug build
 ```
 
+**The library as committed:** `test.sh` exports HEAD's `config/` and `pattern/` into
+`build/committed/` before every run, and the tests read the shipped material from there — not from
+the working copy, which ACTION and the skin panel write into while a set is played. A bare `ctest`
+without that export fails `ShippedLibrary.TheTestsReadTheCommittedState` and says why.
+
 **One build at a time:** `build.sh` (and so `test.sh`) takes a machine-wide lock
 (`$XDG_RUNTIME_DIR/a3-motion-ui-build.lock`); a second build in another worktree waits and says
 for whom. Two `-j4` builds on four cores take as long as both in a row.

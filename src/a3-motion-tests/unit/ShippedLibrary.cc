@@ -342,3 +342,18 @@ TEST (ShippedLibrary, TenSetsOnePerPhaseLaidOutTheSameWay)
         }
     }
 }
+
+// The library the tests hold to their promises is what is committed, not what
+// the rig's working copy holds: ACTION writes its settings into the scripts
+// while a set is played (2026-09-29, Speed Double's ~envelopeMax 0.05 turned
+// OnlyFXChangesTheSound red), and the skin panel writes into custom.json.
+// test.sh exports HEAD into build/committed before every run.
+TEST (ShippedLibrary, TheTestsReadTheCommittedState)
+{
+  for (auto const *path : { A3_PATTERN_ACTIONS_DIR, A3_PATTERN_CLIPS_DIR,
+                            A3_PATTERN_SESSIONS_DIR, A3_PATTERN_SYSTEM_DIR,
+                            A3_CONFIG_JSON_PATH })
+    EXPECT_TRUE (juce::String (path).contains ("/committed/")) << path;
+  EXPECT_TRUE (juce::File (A3_PATTERN_ACTIONS_DIR).isDirectory ())
+      << "nothing exported -- run the suite through test.sh";
+}
