@@ -2331,8 +2331,22 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
               {
                 if (!loadClipIntoChannel (channel, cueButton.cueClip, false))
                   return;
+                updateControlReadout (
+                    "CH" + juce::String (channel + 1) + " " + name + " CUE "
+                    + cueButton.cueClip.getFileNameWithoutExtension ()
+                          .toUpperCase ());
                 if (auto const &loaded = _patterns[channel][slot])
                   {
+                    // The script's own lines ride on the clip it cues: ACTION
+                    // shows them for this button and writes them into its
+                    // script, and a press that dropped them did nothing at
+                    // all on a channel already playing that clip.
+                    applyClipSettings (
+                        *loaded,
+                        cuedClipSettings (cueButton.source,
+                                          clipSettingsFrom (*loaded),
+                                          cueButton.seed));
+                    syncClipUIParamsFromPattern (channel, slot);
                     auto const status = loaded->getStatus ();
                     if (status != Pattern::Status::Playing
                         && status != Pattern::Status::ScheduledForPlaying)

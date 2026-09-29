@@ -197,3 +197,53 @@ TEST (CuePress, ACueNeverGoesOverATakeGoingIn)
   EXPECT_EQ (cuePressFor (true, true, true, false), CuePress::Recording);
   EXPECT_EQ (cuePressFor (true, true, true, true), CuePress::Recording);
 }
+
+// What a Cue puts on the channel. The ACTION page shows a Cue button's motion
+// and writes a turned value into its script (~reach = 0.82;), so the press has
+// to carry those lines onto the clip it cues -- it used to load the clip file
+// and drop every other line, which on a channel already playing that clip
+// left the press doing nothing at all.
+namespace
+{
+ClipSettings
+aCuedClip ()
+{
+  ClipSettings clip;
+  clip.reach = 0.35f;
+  clip.spin = 1;
+  clip.reachLfo = 2;
+  clip.envelopeAttack = 2;
+  clip.envelopeMax = 1.f;
+  clip.actMode = ActMode::OneShot;
+  return clip;
+}
+}
+
+TEST (CueClip, ACuePutsItsOwnLinesOnTheClip)
+{
+  auto const cued = cuedClipSettings (
+      "~clip = \"Warmup Halo\";\n~reach = 0.82;\n~spin = -2;\n", aCuedClip (),
+      1);
+
+  EXPECT_FLOAT_EQ (cued.reach, 0.82f);
+  EXPECT_EQ (cued.spin, -2);
+  EXPECT_EQ (cued.reachLfo, 2) << "a line the script leaves out stays the clip's";
+}
+
+// A Cue has no accent: its ceilings and envelope lines must not change how the
+// clip's own ACT is played afterwards.
+TEST (CueClip, ACueLeavesTheClipsFeelAlone)
+{
+  auto const cued = cuedClipSettings (
+      "~clip = \"Warmup Halo\";\n~attack = 0;\n~envelopeMax = 0;\n"
+      "~act = \\hold;\n",
+      aCuedClip (), 1);
+
+  EXPECT_EQ (actionFeelFrom (cued), actionFeelFrom (aCuedClip ()));
+}
+
+TEST (CueClip, ACueWithOnlyItsClipLinePutsTheClipAsItIs)
+{
+  EXPECT_EQ (cuedClipSettings ("~clip = \"Warmup Halo\";\n", aCuedClip (), 1),
+             aCuedClip ());
+}
