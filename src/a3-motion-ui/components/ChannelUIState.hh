@@ -32,7 +32,10 @@ struct ChannelUIState
   bool highlighted = false;
   bool grabbed = false;
   juce::Point<float> grabOffset;
-  juce::Point<float> posAnchor;
+  /** How far the blob is drawn off its channel's place while a held blob
+   *  pushes it aside, in the sphere's 2D pixels (#56): the drawing moves,
+   *  the channel does not. See BlobPush. */
+  juce::Point<float> pushOffset;
 
   bool isRecording = false;
   float progress = 1.f;

@@ -150,6 +150,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/ActionMotionKnobs.cc
     components/ActionChain.cc
     components/PendingScriptWrites.cc
+    components/BlobPush.cc
     components/BarKnob.cc
     components/KnobHold.cc
     components/EncoderMap.cc

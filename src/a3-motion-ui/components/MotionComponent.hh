@@ -222,6 +222,9 @@ private:
                                        float radiusPixel) const;
 
   void disoccludeBlobs ();
+  /** Where a channel's blob is drawn: its place, plus the push a held blob
+   *  gives it (#56) -- what the shader draws and what a finger aims at. */
+  Pos drawnChannelPosition (index_t channel) const;
 
   MotionEngine &_engine;
 
