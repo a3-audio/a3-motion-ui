@@ -537,6 +537,13 @@ struct ClipSettingsLayout
 juce::Rectangle<int> cardOfControl (ClipSettingsLayout const &layout,
                                     int section, int sub);
 
+/** The encoders' four by two over the clip content, one size to the pixel:
+ *  the fields CLIP, MOTION and REC stand in, and the in-app keyboard's
+ *  grid on every page (BarKeyboardLayout.hh). Needs `clipContent` and
+ *  `buttonHeight` laid out. */
+std::array<juce::Rectangle<int>, 8>
+pageFieldGrid (ClipSettingsLayout const &layout);
+
 /** A share of the bar's height, written as the divisor that is actually
  *  divided by.
  *

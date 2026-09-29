@@ -356,6 +356,11 @@ public:
    *  controller page covers when it is showing. Under the header row, which
    *  belongs to the bar on both pages. */
   juce::Rectangle<int> clipContentBounds () const;
+  /** The in-app keyboard's eight fields -- the encoders' four by two --
+   *  relative to clipContentBounds(), on every page. And the bar's type
+   *  sizes, which its keys are lettered in. */
+  std::array<juce::Rectangle<int>, 8> keyboardFields () const;
+  ControlMetrics barMetrics () const { return _layout.metrics; }
   /** A tab was tapped. */
   std::function<void (BarPage page)> onPageSelected;
   /** The elevation picture in the global strip was tapped: switch camera

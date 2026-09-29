@@ -24,6 +24,7 @@
 #include <algorithm>
 
 #include <a3-motion-ui/components/BarButton.hh>
+#include <a3-motion-ui/components/BarKeyboardLayout.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
 
 #include <a3-motion-engine/ClipSettings.hh>
@@ -1315,6 +1316,16 @@ juce::Rectangle<int>
 ClipSettingsComponent::clipContentBounds () const
 {
   return _layout.clipContent;
+}
+
+std::array<juce::Rectangle<int>, 8>
+ClipSettingsComponent::keyboardFields () const
+{
+  auto fields = keyboardFieldsOf (_layout);
+  auto const origin = _layout.clipContent.getPosition ();
+  for (auto &field : fields)
+    field -= origin;
+  return fields;
 }
 
 void

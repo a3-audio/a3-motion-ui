@@ -490,9 +490,7 @@ fieldGrid (juce::Rectangle<int> area, int gap)
 std::array<juce::Rectangle<int>, 8> const &
 layOutPageOfFields (ClipSettingsLayout &out)
 {
-  auto const gap = juce::jmax (2, out.buttonHeight / 8);
-  auto const &f = out.pageFields
-      = fieldGrid (sectionContentBounds (out.clipContent), gap);
+  auto const &f = out.pageFields = pageFieldGrid (out);
 
   out.sectionCards[0] = out.clipContent;
   out.sectionLabels[0] = {};
@@ -546,9 +544,7 @@ layOutRecordPage (ClipSettingsLayout &out)
 void
 layOutMotionPage (ClipSettingsLayout &out)
 {
-  auto const gap = juce::jmax (2, out.buttonHeight / 8);
-  auto const &f = out.pageFields
-      = fieldGrid (sectionContentBounds (out.clipContent), gap);
+  auto const &f = out.pageFields = pageFieldGrid (out);
 
   out.sectionCards[2] = out.clipContent;
   out.sectionCards[1] = out.clipContent;
@@ -1109,6 +1105,13 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
     layOutRecordPage (out);
 
   return out;
+}
+
+std::array<juce::Rectangle<int>, 8>
+pageFieldGrid (ClipSettingsLayout const &layout)
+{
+  return fieldGrid (sectionContentBounds (layout.clipContent),
+                    juce::jmax (2, layout.buttonHeight / 8));
 }
 
 }

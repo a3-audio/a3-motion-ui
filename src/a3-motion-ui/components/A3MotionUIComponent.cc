@@ -18,7 +18,6 @@
 
 */
 
-#include <a3-motion-ui/io/OnScreenKeyboard.hh>
 #include "A3MotionUIComponent.hh"
 
 #include <a3-motion-engine/tempo/BeatTrace.hh>
@@ -500,8 +499,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _skinEditor->onReset = [this] { resetEditedSkinToDefault (); };
   _skinEditor->onDelete = [this] { deleteEditedSkin (); };
 
-  // The keyboard is Onboard, the system's own — see io/OnScreenKeyboard.hh.
-  // It types into whatever window has the focus, which is this one.
+  // The keyboard is the app's own, in the bar -- see BarKeyboardComponent.
+  // It types into whatever holds the focus, which the mask takes.
   _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
   _skinEditor->onColourPicked = [this] (auto const &path, auto colour) {
     openColourPicker (path, colour);
@@ -1009,6 +1008,21 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _controller->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_controller);
   _clipSettings->addChildComponent (*_mixerStrip);
+
+  // The keyboard, over the clip content like ACTION and CHMIX, and above
+  // them. Its keys go out as ordinary key presses through the window's peer
+  // -- the same way a plugged-in keyboard's do -- to whatever holds the focus.
+  _barKeyboard = std::make_unique<BarKeyboardComponent> ();
+  _barKeyboard->setAlwaysOnTop (true);
+  _barKeyboard->onKey = [this] (juce::KeyPress const &key) {
+    if (auto *peer = getPeer ())
+      peer->handleKeyPress (key);
+  };
+  _barKeyboard->onHide = [this] { showKeyboard (false); };
+  _barKeyboard->onPlacementStale = [this] { placeKeyboard (); };
+  _barKeyboard->isShiftHeld
+      = [this] { return isButtonPressed (Button::Shift); };
+  _clipSettings->addChildComponent (*_barKeyboard);
   selectClip (0, 0); // sensible default before any button has been pressed
 
   // The device's own habits, restored: the clock mode, the rec mode, and the
@@ -1594,6 +1608,7 @@ A3MotionUIComponent::resized ()
     }
   if (_mixerStrip && _clipSettings)
     _mixerStrip->setBounds (_clipSettings->clipContentBounds ());
+  placeKeyboard ();
 
   // The menu covers the sphere and nothing else. It used to take the clip
   // settings' space as well — the bar gave up its bounds and the menu had the
@@ -7509,46 +7524,51 @@ A3MotionUIComponent::applyPickedColour ()
   applyEditedSkin ();
 }
 
-namespace
-{
-/** How long Onboard takes to fade in or out before it answers with the state
- *  it arrived at. */
-constexpr int keyboardSettleMs = 800;
-}
-
 void
 A3MotionUIComponent::showKeyboard (bool shown)
 {
-  shown ? onScreenKeyboard::show () : onScreenKeyboard::hide ();
+  if (!_barKeyboard)
+    return;
 
-  // What was just asked for, at once. Onboard is asked again once it has
-  // settled rather than now: it fades in and out, and asked straight away it
-  // still answers with the state it is leaving -- which lit KEYS while the
-  // keyboard went away and greyed it while it came up. The second look is
-  // what catches Onboard's own hide key.
-  if (_statusBar)
-    _statusBar->setKeyboardState (shown ? StatusBar::KeyboardState::Shown
-                                        : StatusBar::KeyboardState::Available);
+  _barKeyboard->setVisible (shown);
+  // Above ACTION and CHMIX, which share its area -- without taking the
+  // focus from the field it types into.
+  if (shown)
+    _barKeyboard->toFront (false);
 
-  juce::Component::SafePointer<A3MotionUIComponent> self (this);
-  juce::Timer::callAfterDelay (keyboardSettleMs, [self] {
-    if (self != nullptr)
-      self->refreshKeyboardIcon ();
-  });
+  refreshKeyboardIcon ();
 }
 
 void
 A3MotionUIComponent::toggleKeyboard ()
 {
-  // Always available, whatever is on screen: it is the system's keyboard and
-  // it types into whatever has the focus.
-  auto const wasShown = onScreenKeyboard::isShown ();
+  // Always available, whatever is on screen: it types into whatever has the
+  // focus.
+  auto const wasShown = _barKeyboard && _barKeyboard->isVisible ();
   showKeyboard (!wasShown);
 
   // Showing it over a row that can be typed says what it is for. A row that
   // is only turned stays that way; the keyboard is then simply up.
   if (!wasShown && _skinEditorOpen && !_skinEditor->isNaming ())
     _skinEditor->beginTypingBrowsedRow ();
+}
+
+void
+A3MotionUIComponent::placeKeyboard ()
+{
+  if (!_barKeyboard || !_clipSettings)
+    return;
+
+  _barKeyboard->setBounds (_clipSettings->clipContentBounds ());
+  _barKeyboard->setFields (_clipSettings->keyboardFields (),
+                           _clipSettings->barMetrics ());
+}
+
+bool
+A3MotionUIComponent::keyboardTakesEncoders ()
+{
+  return encodersDriveKeyboard (_barKeyboard && _barKeyboard->isVisible (),
+                                isButtonPressed (Button::Shift));
 }
 
 void
@@ -7559,8 +7579,9 @@ A3MotionUIComponent::refreshKeyboardIcon ()
 
   using State = StatusBar::KeyboardState;
 
-  auto const state = onScreenKeyboard::isShown () ? State::Shown
-                                                 : State::Available;
+  auto const state = _barKeyboard && _barKeyboard->isVisible ()
+                         ? State::Shown
+                         : State::Available;
 
   _statusBar->setKeyboardState (state);
 }
@@ -8509,6 +8530,12 @@ A3MotionUIComponent::encoderTargetAt (int column, int row)
 void
 A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
 {
+  if (keyboardTakesEncoders ())
+    {
+      _barKeyboard->turnEncoder (column, row, increment);
+      return;
+    }
+
   auto const target = encoderTargetAt (column, row);
   auto const shown = _clipSettingsChannel;
 
@@ -8602,6 +8629,12 @@ void
 A3MotionUIComponent::handleEncoderPress (int column, int row)
 {
   disarmOnOtherInput ();
+
+  if (keyboardTakesEncoders ())
+    {
+      _barKeyboard->pressEncoder (column, row);
+      return;
+    }
 
   // A click switches what the encoder turns, where there are two things
   // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.
