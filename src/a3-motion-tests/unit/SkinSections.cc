@@ -227,11 +227,17 @@ TEST (SkinSections, ASkinWithoutSwitchesRendersExactlyAsBefore)
       juce::File::findFiles, false, "*.json");
   ASSERT_FALSE (files.isEmpty ());
 
+  // Only the skins it is about: one the panel has written switches into --
+  // the working skin, custom.json, as soon as a switch is flipped -- is not a
+  // skin without switches, and it made this red on the rig's own checkout.
+  auto checked = 0;
   for (auto const &file : files)
     {
       auto const skin
           = migrateSkinNames (juce::JSON::parse (file.loadFileAsString ()));
-      ASSERT_FALSE (skin.hasProperty ("switches")) << file.getFileName ();
+      if (skin.hasProperty ("switches"))
+        continue;
+      ++checked;
 
       auto const applied = withSkinSwitchesApplied (skin);
       EXPECT_EQ (asJson (applied), asJson (skin)) << file.getFileName ();
@@ -242,6 +248,8 @@ TEST (SkinSections, ASkinWithoutSwitchesRendersExactlyAsBefore)
       EXPECT_FLOAT_EQ (after.blobSparkle, before.blobSparkle);
       EXPECT_FLOAT_EQ (after.braidRadius, before.braidRadius);
     }
+
+  EXPECT_GT (checked, 0) << "no shipped skin left to hold this against";
 }
 
 // Every switch on says the same as no switches at all.
