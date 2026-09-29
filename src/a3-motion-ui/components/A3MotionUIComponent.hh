@@ -58,6 +58,7 @@
 #include <a3-motion-ui/components/MixerStripComponent.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
+#include <a3-motion-ui/components/SkinPanelComponent.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -686,6 +687,19 @@ private:
    *  save. */
   void  openSkinEditor ();
   void  closeSkinEditor ();
+  /** The skin panel: the Skin Editor row opens it, Back closes it. The full
+   *  list (closeSkinEditor above) is one level further in, opened from its
+   *  footer, and returns to it. */
+  void  closeSkinPanel ();
+  void  openFullSkinList ();
+  /** The skin being edited, and its name: the full list's while it is open,
+   *  the panel's otherwise. One answer for applying, saving and the colour
+   *  picker, so the three cannot edit two different documents. */
+  juce::var editedSkin () const;
+  juce::String editedSkinName () const;
+  /** The skin page in front -- the list or the panel -- which the colour
+   *  picker hides while it is up and shows again after. */
+  juce::Component *skinPageInFront () const;
   void  applyEditedSkin ();
   void  saveEditedSkin ();
   void  saveSkinAsNew ();
@@ -776,6 +790,8 @@ private:
   int _headerSizeIndex = 1; // default 100%
   int _bodySizeIndex = 1;   // default 100%
   std::unique_ptr<SkinEditorComponent> _skinEditor;
+  std::unique_ptr<SkinPanelComponent> _skinPanel;
+  bool _skinPanelOpen = false;
   std::unique_ptr<ColourPickerComponent> _colourPicker;
   bool _colourPickerOpen = false;
   juce::String _colourPath;

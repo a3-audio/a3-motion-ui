@@ -347,7 +347,7 @@ the screen split into `MotionComponent` (the sphere) and, docked to the bottom q
 clip — Shape, Elevation, Motion — plus a global section taking the bar's right half) with
 `GlobalSettingsComponent`
 (Skin, Skin Editor, Network, Button LEDs, Pattern Folder, Sphere in Menu — opened by
-the Menu button; sizes and fonts are skin values, edited in the Skin Editor) drawn on top of it while open. Both settings
+the Menu button; sizes and fonts are skin values, edited in the Skin Editor's *Text and size* section) drawn on top of it while open. Both settings
 components share that bottom-quarter rect, carved out of `MotionComponent`'s actual bounds rather
 than just overlaid — `MotionComponent` renders via its own directly-attached `OpenGLContext`, which
 always composites above normal JUCE components regardless of z-order/`toFront()`, so nothing can
@@ -1079,6 +1079,44 @@ be held two at a time — the channel grid's knobs — take no latch.
 **Clockmode is not in this menu.** It is a button in the clip settings bar, visible and switchable
 without opening anything — a setting in two places is a setting whose location you have to
 remember.
+
+#### The skin panel: sections, switches, bars
+
+The menu's **Skin Editor** row opens `SkinPanelComponent`, not the list. Asked for on 2026-09-28:
+*"der skineditor ist unübersichtlich. wir müssen stark parameter reduzieren und sinnvoll in
+kategorien trennen … jede sektion benötigt als erstes eine option an/aus und für seine effekte auch
+an/aus. der skineditor liegt komplett über der einzustellenden fläche. pack ihn nach links."*
+
+- **Where.** A panel two fifths wide at the left edge of `MotionComponent`, full height, no scrim
+  (`skinPanelBounds`). The sphere moves over into what is left
+  (`MotionComponent::setSphereLeftInset`, `sphereRegion` in `SkinPanelLayout.hh`); where the
+  picture with its towers is wider than that, the whole of it is drawn smaller
+  (`speakerSceneReach`) rather than cut off at the edge — the speakers are three of the sections.
+  It stays touchable: move a blob while tuning its corona.
+- **What.** Six sections named after what a performer sees — Sphere, Background, Speaker tops,
+  Speaker bass, Blob, Trajectory — plus *Text and size* for the fonts, pot size and bar height, which
+  have no other home on the device. The table is `theme/SkinSections.cc`: per section a switch, its
+  effects (each a switch and the one amount it is tuned by, on one row), a few more bars and a few
+  colours. About forty of the skin's ~110 values; the rest are hidden, not removed.
+- **Switches** live in their own block, `switches.<section>.on` and `switches.<section>.<effect>`.
+  **Missing means on**, so every skin written before them draws exactly as it did (tested against
+  every shipped skin). A switch never touches the value it governs: `withSkinSwitchesApplied()`
+  writes each switched-off effect's "off" into a *copy* before anything renders — `loadTheme()`
+  applies it itself, and `MotionComponent::applyVisualConfig()` does for what it reads straight off
+  the var. The file keeps the number; on again brings it back.
+- **How a value is set.** A `juce::Slider` in `LinearBar` style per row, relative and one to one
+  with its own width (`setSliderSnapsToMousePosition (false)`, `setMouseDragSensitivity` = width in
+  `resized()`), so landing on a bar to read it changes nothing. `−`/`+` beside it step a hundredth
+  of the travel and repeat while held (`Button::setRepeatSpeed`). A double tap puts the bar back
+  to what it held when the panel opened (`setDoubleClickReturnValue`). Ranges are skewed
+  (`NormalisableRange::setSkewForCentre`) so what ships sits near the middle. The encoders were
+  left alone: they are freq and Q whatever is on screen.
+- **The old list** is one level further in, behind the footer (*All values and skin actions*):
+  every value, typing, Save as new / Rename / Delete / Reset. It edits the same document and hands
+  it back when Back leaves it. Config pages (Network) still use it directly.
+- **Back** closes one level: picker → list → panel → menu. The panel saves on close, like the list.
+- `sphereGrid` is new: the graticule was compiled in at 0.08; it is a skin value (default 1) so
+  the Sphere section's *Grid* switch has something to switch.
 
 #### The bar's two pages
 

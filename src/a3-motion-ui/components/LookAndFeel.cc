@@ -79,6 +79,45 @@ LookAndFeel_A3::applyTheme (Theme const &theme)
 
 namespace
 {
+/** A flat bar: a well, filled from the left up to `sliderPos`, with its name
+ *  on the left and its value on the right. The value is the reading, so it
+ *  is the light one; the name is a caption. */
+void
+paintSkinBar (juce::Graphics &g, juce::Rectangle<int> bounds, float sliderPos,
+              juce::Slider &slider)
+{
+  auto const enabled = slider.isEnabled ();
+  auto const alpha = [enabled] (float rung) {
+    return enabled ? rung : rung * theme ().alphaDisabled;
+  };
+
+  auto const area = bounds.toFloat ();
+  auto const radius = theme ().radiusControl;
+
+  g.setColour (toColour (theme ().textPrimary, alpha (theme ().alphaFill)));
+  g.fillRoundedRectangle (area, radius);
+
+  auto const filled = area.withRight (
+      juce::jlimit (area.getX (), area.getRight (), sliderPos));
+  if (filled.getWidth () > 0.f)
+    {
+      g.setColour (toColour (theme ().textPrimary,
+                             alpha (theme ().alphaFillEmphasis)));
+      g.fillRoundedRectangle (filled, radius);
+    }
+
+  auto text = bounds.reduced (juce::roundToInt (theme ().padding), 0);
+  g.setFont (juce::Font (juce::FontOptions (theme ().fontSize (FontRole::Body))));
+
+  g.setColour (toColour (theme ().textMuted, alpha (theme ().alphaActive)));
+  g.drawText (slider.getName (), text, juce::Justification::centredLeft,
+              true);
+
+  g.setColour (toColour (theme ().textPrimary, alpha (theme ().alphaActive)));
+  g.drawText (slider.getTextFromValue (slider.getValue ()), text,
+              juce::Justification::centredRight, false);
+}
+
 juce::Font
 scaled (juce::Font font)
 {
@@ -155,7 +194,10 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
 juce::Slider::SliderLayout
 LookAndFeel_A3::getSliderLayout (juce::Slider &slider)
 {
-  if (slider.getSliderStyle () != juce::Slider::LinearVertical)
+  // A bar is its own track, end to end: the value's mark reaches both edges
+  // and stays under the finger.
+  if (slider.getSliderStyle () != juce::Slider::LinearVertical
+      && slider.getSliderStyle () != juce::Slider::LinearBar)
     return juce::LookAndFeel_V4::getSliderLayout (slider);
 
   juce::Slider::SliderLayout layout;
@@ -170,6 +212,13 @@ LookAndFeel_A3::drawLinearSlider (juce::Graphics &g, int x, int y, int width,
                                   juce::Slider::SliderStyle style,
                                   juce::Slider &slider)
 {
+  if (style == juce::Slider::LinearBar)
+    {
+      paintSkinBar (g, juce::Rectangle<int> (x, y, width, height), sliderPos,
+                    slider);
+      return;
+    }
+
   if (style != juce::Slider::LinearVertical)
     {
       juce::LookAndFeel_V4::drawLinearSlider (g, x, y, width, height,
@@ -210,6 +259,65 @@ applyThemeEverywhere (Theme loaded, juce::Component &inTree)
       applyThemeToTree (*root);
       root->repaint ();
     }
+}
+
+void
+LookAndFeel_A3::drawToggleButton (juce::Graphics &g, juce::ToggleButton &button,
+                                  bool highlighted, bool down)
+{
+  juce::ignoreUnused (highlighted);
+
+  auto const on = button.getToggleState ();
+  auto const enabled = button.isEnabled ();
+  auto const alpha = [enabled] (float rung) {
+    return enabled ? rung : rung * theme ().alphaDisabled;
+  };
+
+  // A pill in the middle of whatever the button was given, as tall as a
+  // row's content allows.
+  auto const bounds = button.getLocalBounds ().toFloat ();
+  auto const height = juce::jmin (bounds.getHeight (), bounds.getWidth () / 2);
+  auto const track = bounds.withSizeKeepingCentre (bounds.getWidth (), height);
+  auto const round = height / 2;
+
+  g.setColour (toColour (theme ().textPrimary,
+                         alpha (on || down ? theme ().alphaFillEmphasis
+                                           : theme ().alphaFill)));
+  g.fillRoundedRectangle (track, round);
+  g.setColour (toColour (theme ().textPrimary, alpha (theme ().alphaOutline)));
+  g.drawRoundedRectangle (track, round, theme ().strokeThin);
+
+  auto const knobSide = height - 2 * theme ().paddingTight;
+  auto const knob = juce::Rectangle<float> (knobSide, knobSide).withCentre (
+      { on ? track.getRight () - round : track.getX () + round,
+        track.getCentreY () });
+
+  g.setColour (on ? toColour (theme ().textPrimary, alpha (theme ().alphaActive))
+                  : toColour (theme ().textMuted, alpha (theme ().alphaMuted)));
+  g.fillEllipse (knob);
+}
+
+void
+LookAndFeel_A3::drawButtonBackground (juce::Graphics &g, juce::Button &button,
+                                      juce::Colour const &backgroundColour,
+                                      bool highlighted, bool down)
+{
+  juce::ignoreUnused (backgroundColour, highlighted);
+
+  auto const enabled = button.isEnabled ();
+  auto const alpha = [enabled] (float rung) {
+    return enabled ? rung : rung * theme ().alphaDisabled;
+  };
+
+  auto const area = button.getLocalBounds ().toFloat ();
+  auto const radius = theme ().radiusControl;
+
+  g.setColour (toColour (theme ().textPrimary,
+                         alpha (down ? theme ().alphaFillEmphasis
+                                     : theme ().alphaFill)));
+  g.fillRoundedRectangle (area, radius);
+  g.setColour (toColour (theme ().textPrimary, alpha (theme ().alphaOutline)));
+  g.drawRoundedRectangle (area, radius, theme ().strokeThin);
 }
 
 }

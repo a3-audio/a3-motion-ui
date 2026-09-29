@@ -98,6 +98,18 @@ public:
                          float maxSliderPos,
                          juce::Slider::SliderStyle style,
                          juce::Slider &slider) override;
+
+  /** The skin panel's switches: a pill, lifted and lit while on. On and off
+   *  are said by lightness rather than by a hue -- every hue on this screen
+   *  already means a channel or a state. */
+  void drawToggleButton (juce::Graphics &g, juce::ToggleButton &button,
+                         bool highlighted, bool down) override;
+  /** A key face: the designer's one key -- a faint face, lifted while the
+   *  finger is on it, a hairline round it. The skin panel's − and + are
+   *  the only TextButtons in the app. */
+  void drawButtonBackground (juce::Graphics &g, juce::Button &button,
+                             juce::Colour const &backgroundColour,
+                             bool highlighted, bool down) override;
 };
 
 

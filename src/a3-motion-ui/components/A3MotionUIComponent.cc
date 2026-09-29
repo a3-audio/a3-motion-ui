@@ -507,6 +507,18 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     openColourPicker (path, colour);
   };
 
+  // What the Skin Editor row opens: a narrow panel at the left edge, so the
+  // sphere it changes stays in view (SkinPanelComponent.hh). The list above
+  // stays for what the panel leaves out, one level further in.
+  _skinPanel = std::make_unique<SkinPanelComponent> ();
+  _skinPanel->setAlwaysOnTop (true);
+  _motionComponent->addChildComponent (*_skinPanel);
+  _skinPanel->onValueChanged = [this] { applyEditedSkin (); };
+  _skinPanel->onColourPicked = [this] (auto const &path, auto colour) {
+    openColourPicker (path, colour);
+  };
+  _skinPanel->onOpenFullList = [this] { openFullSkinList (); };
+
   _colourPicker = std::make_unique<ColourPickerComponent> ();
   _colourPicker->setAlwaysOnTop (true);
   _motionComponent->addChildComponent (*_colourPicker);
@@ -1599,6 +1611,13 @@ A3MotionUIComponent::resized ()
     _controller->setBounds (_motionComponent->getLocalBounds ());
   if (_skinEditor)
     _skinEditor->setBounds (_motionComponent->getLocalBounds ());
+  if (_skinPanel)
+    {
+      _skinPanel->setBounds (
+          skinPanelBounds (_motionComponent->getLocalBounds ()));
+      if (_skinPanelOpen && !_skinEditorOpen)
+        _motionComponent->setSphereLeftInset (_skinPanel->getRight ());
+    }
   if (_colourPicker)
     {
       // Only the lower part of the screen: the sphere above it is what the
@@ -1866,6 +1885,8 @@ A3MotionUIComponent::closeAllOverlays ()
     _skinEditor->cancelNaming ();
   if (_skinEditorOpen)
     closeSkinEditor ();
+  if (_skinPanelOpen)
+    closeSkinPanel ();
   if (_globalSettingsOpen)
     closeGlobalSettings ();
   showOverSphere (SphereOverlay::None);
@@ -1889,7 +1910,8 @@ A3MotionUIComponent::updateOverlayButtons ()
   // decides who receives a fifth of the window on each side, and while the
   // mixer stood in front of an open menu the menu was still receiving it.
   auto const openOverlayHasAList = sideStripsHaveAList (
-      _globalSettingsOpen, _skinEditorOpen, _colourPickerOpen, _overSphere);
+      menuListIsInFront (_globalSettingsOpen, _skinPanelOpen), _skinEditorOpen,
+      _colourPickerOpen, _overSphere);
 
   // The strips sit beside whichever page is showing, so they follow its
   // panel rather than a fixed width.
@@ -1953,6 +1975,8 @@ A3MotionUIComponent::toggleGlobalSettings ()
     _skinEditor->cancelNaming ();
   else if (_skinEditorOpen)
     closeSkinEditor ();
+  else if (_skinPanelOpen)
+    closeSkinPanel ();
   else if (_globalSettingsOpen && _globalSettings->isPickerOpen ())
     _globalSettings->cancelPicker ();
   else if (_globalSettingsOpen)
@@ -7151,7 +7175,7 @@ A3MotionUIComponent::applySkinNamed (juce::String const &name)
 void
 A3MotionUIComponent::openSkinEditor ()
 {
-  if (_skinEditorOpen)
+  if (_skinPanelOpen || _skinEditorOpen)
     return;
 
   auto const file = skinFile (getConfigFile ().getParentDirectory (),
@@ -7162,14 +7186,84 @@ A3MotionUIComponent::openSkinEditor ()
   // Through the rename, like every other read of a skin: a file still carrying
   // the old spellings would otherwise show them here while the app runs on the
   // new ones, and the first save would write a mixture.
-  _skinEditor->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
-                        file.getFileNameWithoutExtension ());
-  _skinEditorOpen = true;
+  _skinPanel->setSkin (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())),
+                       file.getFileNameWithoutExtension ());
+  _skinPanelOpen = true;
   _globalSettings->setVisible (false);
+  _skinPanel->setVisible (true);
+  _skinPanel->toFront (true);
+
+  // The sphere moves over into what the panel leaves (sphereRegion).
+  _motionComponent->setSphereLeftInset (_skinPanel->getRight ());
+
+  updateOverlayButtons ();
+}
+
+void
+A3MotionUIComponent::openFullSkinList ()
+{
+  if (!_skinPanelOpen || _skinEditorOpen)
+    return;
+
+  // The same document, handed over: the list edits what the panel holds, and
+  // hands back whatever it holds when it closes -- a reset or a rename there
+  // replaces the document outright.
+  _skinEditor->setSkin (_skinPanel->getSkin (), _skinPanel->getSkinName ());
+  _skinEditorOpen = true;
+  _skinPanel->setVisible (false);
   _skinEditor->setVisible (true);
   _skinEditor->toFront (true);
 
+  // The list covers the sphere's component as it always did.
+  _motionComponent->setSphereLeftInset (0);
+
   updateOverlayButtons ();
+}
+
+void
+A3MotionUIComponent::closeSkinPanel ()
+{
+  if (!_skinPanelOpen)
+    return;
+
+  closeColourPicker ();
+
+  // Written on the way out, like the list: a drag produces a value per
+  // mouse sample, and a file save per sample would wake the watcher all the
+  // way through it.
+  saveEditedSkin ();
+
+  showKeyboard (false);
+  _skinPanelOpen = false;
+  _skinPanel->setVisible (false);
+  _motionComponent->setSphereLeftInset (0);
+  _globalSettings->setVisible (true);
+  _globalSettings->toFront (true);
+
+  updateOverlayButtons ();
+}
+
+juce::var
+A3MotionUIComponent::editedSkin () const
+{
+  return _skinEditorOpen ? _skinEditor->getSkin () : _skinPanel->getSkin ();
+}
+
+juce::String
+A3MotionUIComponent::editedSkinName () const
+{
+  return _skinEditorOpen ? _skinEditor->getSkinName ()
+                         : _skinPanel->getSkinName ();
+}
+
+juce::Component *
+A3MotionUIComponent::skinPageInFront () const
+{
+  if (_skinEditorOpen)
+    return _skinEditor.get ();
+  if (_skinPanelOpen)
+    return _skinPanel.get ();
+  return nullptr;
 }
 
 void
@@ -7346,7 +7440,8 @@ A3MotionUIComponent::openColourPicker (juce::String const &path,
   _colourPath = path;
   _colourPicker->setColour (colour, path);
   _colourPickerOpen = true;
-  _skinEditor->setVisible (false);
+  if (auto *page = skinPageInFront ())
+    page->setVisible (false);
   _colourPicker->setVisible (true);
   _colourPicker->toFront (true);
 
@@ -7362,8 +7457,11 @@ A3MotionUIComponent::closeColourPicker ()
   _colourPickerOpen = false;
   _colourPath = {};
   _colourPicker->setVisible (false);
-  _skinEditor->setVisible (true);
-  _skinEditor->toFront (true);
+  if (auto *page = skinPageInFront ())
+    {
+      page->setVisible (true);
+      page->toFront (true);
+    }
 
   updateOverlayButtons ();
 }
@@ -7376,7 +7474,9 @@ A3MotionUIComponent::applyPickedColour ()
 
   // Back into the document as r/g/b: the file keeps saying what it always
   // said, and HSL is only how a person reaches the number.
-  auto document = _skinEditor->getSkin ();
+  // A copy of the var, not of the document: it shares the object the page
+  // holds, so the writes below land in what is being edited.
+  auto document = editedSkin ();
   auto const colour = _colourPicker->getColour ();
 
   setSkinValue (document, _colourPath + ".r", colour.getRed (), true);
@@ -7513,6 +7613,20 @@ A3MotionUIComponent::closeSkinEditor ()
   showKeyboard (false);
   _skinEditorOpen = false;
   _skinEditor->setVisible (false);
+
+  // Opened from the panel's footer: back to the panel, with whatever the
+  // list now holds -- a reset or a rename there replaced the document.
+  if (_skinPanelOpen)
+    {
+      _skinPanel->setSkin (_skinEditor->getSkin (),
+                           _skinEditor->getSkinName ());
+      _skinPanel->setVisible (true);
+      _skinPanel->toFront (true);
+      _motionComponent->setSphereLeftInset (_skinPanel->getRight ());
+      updateOverlayButtons ();
+      return;
+    }
+
   _globalSettings->setVisible (true);
   _globalSettings->toFront (true);
 
@@ -7530,7 +7644,7 @@ A3MotionUIComponent::applyEditedSkin ()
 
   // Straight to the theme, so the change is visible on the sphere behind the
   // editor while the encoder is still turning. The file follows on close.
-  auto const edited = _skinEditor->getSkin ();
+  auto const edited = editedSkin ();
 
   // Everything the sphere reads from a skin, handed over the way the file
   // watcher hands it over — corona, glow, speaker light, the energy net, blob
@@ -7560,7 +7674,7 @@ A3MotionUIComponent::applyEditedSkin ()
 void
 A3MotionUIComponent::saveEditedSkin ()
 {
-  auto const edited = _skinEditor->getSkinName ();
+  auto const edited = editedSkinName ();
   auto const target = skinNameToWriteTo (edited);
 
   auto const file
@@ -7568,8 +7682,7 @@ A3MotionUIComponent::saveEditedSkin ()
 
   // Rewritten whole, unlike config.json: a skin file is this editor's own
   // output, and its shape is generated rather than hand-arranged.
-  writeTextFile (file,
-                 juce::JSON::toString (_skinEditor->getSkin (), false) + "\n");
+  writeTextFile (file, juce::JSON::toString (editedSkin (), false) + "\n");
 
   // The edits branched off the default, so the skin they landed in is the one
   // that should now be in force -- otherwise they would be written and then

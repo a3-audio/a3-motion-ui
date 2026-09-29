@@ -94,6 +94,8 @@ target_sources("a3-motion-ui" PRIVATE
     components/LibraryList.cc
     theme/SkinGroups.cc
     theme/SkinGroups.hh
+    theme/SkinSections.cc
+    theme/SkinSections.hh
     theme/CleanSkin.cc
     theme/CleanSkin.hh
     theme/FunctionKeyColours.hh
@@ -141,6 +143,10 @@ target_sources("a3-motion-ui" PRIVATE
     components/ColourPickerComponent.hh
     components/SkinEditorComponent.cc
     components/SkinEditorComponent.hh
+    components/SkinPanelLayout.cc
+    components/SkinPanelLayout.hh
+    components/SkinPanelComponent.cc
+    components/SkinPanelComponent.hh
     components/GlobalSettingsComponent.hh
     components/ClipSettingsCaptions.cc
     components/PatternProgressBar.cc

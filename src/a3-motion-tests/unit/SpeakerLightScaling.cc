@@ -638,3 +638,18 @@ TEST (DanceFloor, ReachesPastTheTowers)
 {
   EXPECT_GT (floorReach, 1.f);
 }
+
+// How wide the picture is, in sphere radii: the towers where they stand
+// beyond the ball, the ball where they do not. The skin panel shrinks the
+// picture by it, so it has to be the same reach the icon fit is judged by.
+TEST (SpeakerLightScaling, TheScenesReachIsTheTowersOrTheBall)
+{
+  EXPECT_NEAR (speakerSceneReach (1.55f), 0.7071068f * (1.55f + speakerIconSize),
+               1e-5f);
+  EXPECT_FLOAT_EQ (speakerSceneReach (0.2f), 1.f);
+
+  for (auto const scale : { 0.5f, 0.7f, 0.77f, 0.8f, 0.9f })
+    EXPECT_EQ (speakerIconsFitOnScreen (scale, 1.55f),
+               scale * speakerSceneReach (1.55f) < 1.f)
+        << scale;
+}

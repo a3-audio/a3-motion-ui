@@ -180,6 +180,11 @@ struct Theme
   float blobBolt = 1.f;
   float blobTrail = 1.f;
 
+  /** How bright the ball's graticule is drawn -- the rings of equal height
+   *  and the spokes of equal bearing. One is what was compiled into the
+   *  shader until the skin editor's switches, zero is none. */
+  float sphereGrid = 1.f;
+
   // Sizes, as a share of the component's shorter side
   float sphereScale = 0.62f;
   float blobScale = 0.05f;

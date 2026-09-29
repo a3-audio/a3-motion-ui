@@ -83,6 +83,15 @@ sideStripsHaveAList (bool globalSettingsOpen, bool skinEditorOpen,
   return globalSettingsOpen || skinEditorOpen;
 }
 
+/** Whether the main menu's own list is the page in front. The skin panel is
+ *  a page of the menu and stands over it -- and it is not a list: its bars
+ *  are dragged sideways, the whole of a finger's travel is theirs. */
+constexpr bool
+menuListIsInFront (bool globalSettingsOpen, bool skinPanelOpen)
+{
+  return globalSettingsOpen && !skinPanelOpen;
+}
+
 /** Whether back and close stand in the top right. Only on the main menu and
  *  what it opens -- the skin editor, the colour picker -- and only while
  *  nothing over the sphere is in front of them. FILES, MIXER and PADS close

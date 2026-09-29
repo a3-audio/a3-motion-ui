@@ -20,6 +20,8 @@
 
 #include "Theme.hh"
 
+#include <a3-motion-ui/theme/SkinSections.hh>
+
 #include <regex>
 #include <a3-motion-engine/TextFile.hh>
 
@@ -264,8 +266,13 @@ deleteSkin (juce::File const &configDir, juce::String const &name)
 }
 
 Theme
-loadTheme (juce::var const &skin)
+loadTheme (juce::var const &fileSkin)
 {
+  // The skin editor's switches, applied here rather than by each of the four
+  // callers: a switched-off effect reads as its "off" wherever the theme is
+  // read. The file keeps its numbers (see SkinSections.hh).
+  auto const skin = withSkinSwitchesApplied (fileSkin);
+
   Theme theme; // defaults
 
   auto const colour = [&skin] (char const *name, ThemeColour &target) {
@@ -340,6 +347,7 @@ loadTheme (juce::var const &skin)
   theme.lineBolt = themeFloat (skin, "lineBolt", theme.lineBolt);
   theme.lineHeat = themeFloat (skin, "lineHeat", theme.lineHeat);
   theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
+  theme.sphereGrid = themeFloat (skin, "sphereGrid", theme.sphereGrid);
   theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
   theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
   theme.blobScale
@@ -462,6 +470,7 @@ themeDefaultsVar ()
   number ("lineBolt", defaults.lineBolt);
   number ("lineHeat", defaults.lineHeat);
   number ("blobSparkle", defaults.blobSparkle);
+  number ("sphereGrid", defaults.sphereGrid);
   number ("blobBolt", defaults.blobBolt);
   number ("blobTrail", defaults.blobTrail);
   number ("fontHeader", defaults.fontHeader);

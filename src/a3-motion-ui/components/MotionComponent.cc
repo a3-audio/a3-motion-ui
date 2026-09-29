@@ -46,8 +46,10 @@
 #include <a3-motion-ui/components/LineMapGeometry.hh>
 #include <a3-motion-ui/components/LineMapStrokes.hh>
 #include <a3-motion-ui/components/SphereMarks.hh>
+#include <a3-motion-ui/components/SkinPanelLayout.hh>
 #include <a3-motion-engine/SpaceTurn.hh>
 #include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/SkinSections.hh>
 
 namespace
 {
@@ -941,8 +943,12 @@ MotionComponent::newOpenGLContextCreated ()
 
 
 void
-MotionComponent::applyVisualConfig (juce::var const &config)
+MotionComponent::applyVisualConfig (juce::var const &skin)
 {
+  // What the file says, with every effect its switches turn off written over
+  // -- the renderers below read values that already mean "none" at zero.
+  auto const config = withSkinSwitchesApplied (skin);
+
   // Load glow / spotlight config from config
   {
     auto cfgF = [] (const juce::var &obj, const char *key,
@@ -983,6 +989,7 @@ MotionComponent::applyVisualConfig (juce::var const &config)
     sc.vuMax = cfgF (sl, "vuMax", 0.2f);
     sc.curve = cfgF (sl, "curve", 0.4f);
     sc.speakerRadius = cfgF (sl, "speakerRadius", 1.55f);
+    _speakerRadius = sc.speakerRadius;
     sc.edgeSoftness = cfgF (sl, "edgeSoftness", 0.7f);
     sc.beamIntensity = cfgF (sl, "beamIntensity", 0.8f);
     sc.apertureAngle = cfgF (sl, "apertureAngle", 6.f);
@@ -1510,6 +1517,12 @@ MotionComponent::setSphereScalePreview (float scale)
 }
 
 void
+MotionComponent::setSphereLeftInset (int pixels)
+{
+  _sphereLeftInset = juce::jmax (0, pixels);
+}
+
+void
 MotionComponent::updateBoundsAndTransform ()
 {
   {
@@ -1527,8 +1540,9 @@ MotionComponent::updateBoundsAndTransform ()
   // and pinch make the sphere bigger or smaller, and everything drawn on it
   // follows because everything is placed through this region.
   auto const scale = _sphereScale * _cameraZoom;
-  _boundsCenterRegion = _boundsRender.withSizeKeepingCentre (
-      shorterSideLength * scale, shorterSideLength * scale);
+  _boundsCenterRegion = sphereRegion (
+      _boundsRender, static_cast<int> (shorterSideLength * scale),
+      _sphereLeftInset.load (), speakerSceneReach (_speakerRadius.load ()));
 
   _transformNormalizedToLocal = juce::AffineTransform ( //
       _boundsCenterRegion.getWidth () / 2.f, 0.f,
