@@ -751,6 +751,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _controller->onSceneReleased = [this] (index_t slot, std::size_t row) {
     handleSceneRelease (slot, row);
   };
+  _controller->onKeyPressed = [this] (FunctionKey key) {
+    setFunctionKey (key, KeySource::Screen, true);
+  };
+  _controller->onKeyReleased = [this] (FunctionKey key) {
+    setFunctionKey (key, KeySource::Screen, false);
+  };
 
   // The ACTION page: what the ACT key does to the clip the bar is showing.
   // Like the pads page, it decides nothing -- a turn arrives here as (control,
@@ -1647,88 +1653,17 @@ A3MotionUIComponent::getMinimumHeight () const
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
-  if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::ClockMode)))
-    {
-      // Cycles, like the strip's clock key it stands beside — the panel and
-      // the screen are two places to reach one function, so they had better
-      // do the same thing when reached.
-      if (value.getValue ())
-        {
-          applyClockMode ((_clockMode + 1) % 3);
-          _clipSettings->setClockMode (_clockMode);
-          updateControlReadout ("-- CLOCKMODE");
-        }
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::RecMode)))
-    {
-      if (value.getValue ())
-        {
-          auto const count = static_cast<int> (recMenuModes.size ());
-          applyRecMode ((recMenuIndex (_recMode) + 1) % count);
-          updateControlReadout ("-- RECMODE");
-        }
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Menu)))
-    {
-      bool const pressed = static_cast<bool> (value.getValue ());
-      if (pressed)
-        {
-          toggleGlobalSettings ();
-        }
-      // release: ignored (toggle on press)
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Record)))
-    {
-      updateControlReadout (juce::String ("-- RECORD ")
-                            + (value.getValue () ? "ON" : "OFF"));
+  // The panel's six keys first: each goes into the one place that says
+  // what a function key does, the same place the PADS page's keys reach.
+  for (auto const key : functionKeyOrder)
+    if (value.refersToSameSourceAs (_ioAdapter->getButton (key)))
+      {
+        setFunctionKey (key, KeySource::Panel,
+                        static_cast<bool> (value.getValue ()));
+        return;
+      }
 
-      // Pressed while a take is running, this ends it. The finger no longer
-      // bounds a recording — that is what makes a jump recordable — so
-      // something else has to, and Record is the button that started it.
-      if (static_cast<bool> (value.getValue ()) && _engine.isRecording ())
-        {
-          endRecording ();
-        }
-      // Held down, the panel's key arms nothing on its own: recording starts
-      // when a slot's Play|Pause pad is pressed while it is held -- see
-      // handlePadPress(). It used to turn the Shape card over to show the
-      // take's settings; there is no second face any more, and the length is
-      // the shown clip's.
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Shift)))
-    {
-      // Pure modifier: level-checked via isButtonPressed(Button::Shift) when
-      // a slot's Action pad is pressed (preview-and-fire gesture).
-      //
-      // The panel's key and the strip's are one state, so the strip is told
-      // too: it lights the same in either case, and it is what the LEDs are
-      // written from.
-      bool const held = static_cast<bool> (value.getValue ());
-      if (_clipSettings)
-        _clipSettings->setShiftHeld (held);
-      updateFunctionKeyLEDs ();
-      updateControlReadout (juce::String ("-- SHIFT ")
-                            + (held ? "ON" : "OFF"));
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getButton (Button::Tap)))
-    {
-      if (value.getValue ())
-        {
-          // Button pressed - send /tap OSC immediately via DIRECT sender
-          // Bypasses async queue for zero latency - time-critical!
-          _clipSettings->flashTap ();
-          updateFunctionKeyLEDs ();
-          updateControlReadout ("-- TAP");
-
-          auto tapMsg = juce::OSCMessage (_oscAddresses.tap);
-          tapMsg.addInt32 (1);
-          _tapSender.send (tapMsg);  // Direct, synchronous send - no queue!
-        }
-      else
-        {
-        }
-    }
-  else if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
+  if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
       if (_clockMode == 0)
         handleTapAt (juce::int64 (value.getValue ()));
@@ -5401,12 +5336,95 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
     }
 }
 
+void
+A3MotionUIComponent::setFunctionKey (FunctionKey key, KeySource source,
+                                     bool down)
+{
+  // The panel and the PADS page are two places to hold one key: it goes down
+  // with the first and up with the last, and only then does it mean anything.
+  if (auto const changed = _functionKeys.set (key, source, down))
+    functionKeyChanged (key, *changed);
+}
+
+void
+A3MotionUIComponent::functionKeyChanged (FunctionKey key, bool down)
+{
+  switch (key)
+    {
+    case FunctionKey::ClockMode:
+      // Cycles, like the status bar's clock key -- the panel and the screen
+      // are places to reach one function, so they do the same thing.
+      if (down)
+        {
+          applyClockMode ((_clockMode + 1) % 3);
+          _clipSettings->setClockMode (_clockMode);
+          updateControlReadout ("-- CLOCKMODE");
+        }
+      return;
+
+    case FunctionKey::RecMode:
+      if (down)
+        {
+          auto const count = static_cast<int> (recMenuModes.size ());
+          applyRecMode ((recMenuIndex (_recMode) + 1) % count);
+          updateControlReadout ("-- RECMODE");
+        }
+      return;
+
+    case FunctionKey::Menu:
+      // Toggles on press; the release means nothing.
+      if (down)
+        toggleGlobalSettings ();
+      return;
+
+    case FunctionKey::Record:
+      updateControlReadout (juce::String ("-- RECORD ")
+                            + (down ? "ON" : "OFF"));
+
+      // Pressed while a take is running, this ends it. The finger no longer
+      // bounds a recording — that is what makes a jump recordable — so
+      // something else has to, and Record is the button that started it.
+      // Held down, it arms nothing on its own: recording starts when a
+      // channel's Play|Pause pad is pressed while it is held -- see
+      // handlePadPress().
+      if (down && _engine.isRecording ())
+        endRecording ();
+      return;
+
+    case FunctionKey::Shift:
+      // Pure modifier: read through isButtonPressed(Button::Shift) when a pad
+      // is pressed. The strip is told too, because it is what the LEDs and
+      // the PADS page's key are painted from.
+      if (_clipSettings)
+        _clipSettings->setShiftHeld (down);
+      updateFunctionKeyLEDs ();
+      updateControlReadout (juce::String ("-- SHIFT ") + (down ? "ON" : "OFF"));
+      return;
+
+    case FunctionKey::Tap:
+      if (down)
+        {
+          // Sent at once through the direct sender, not the async queue:
+          // a tap is only worth its timing.
+          _clipSettings->flashTap ();
+          updateFunctionKeyLEDs ();
+          updateControlReadout ("-- TAP");
+
+          auto tapMsg = juce::OSCMessage (_oscAddresses.tap);
+          tapMsg.addInt32 (1);
+          _tapSender.send (tapMsg);
+        }
+      return;
+    }
+}
+
 bool
 A3MotionUIComponent::isButtonPressed (Button button)
 {
-  // The panel's key only: the screen's SHIFT went on 2026-09-26, so the
-  // gestures that need the modifier need the panel.
-  return _ioAdapter->getButton (button).getValue ();
+  // The panel's key or the PADS page's: a gesture that needs the modifier
+  // does not care which hand is on it. Also safe in a build with no panel,
+  // where there is no adapter to ask.
+  return _functionKeys.isDown (button);
 }
 
 void
@@ -5849,13 +5867,18 @@ A3MotionUIComponent::refreshChannelValues ()
 void
 A3MotionUIComponent::updateFunctionKeyLEDs ()
 {
-  if (!_ioAdapter || !_clipSettings)
+  if (!_clipSettings)
     return;
 
-  // The panel's half of what theme/FunctionKeyColours.hh decides; the global
-  // strip paints the other half from the same look. A key that is coloured on
-  // the screen is coloured under the hand, and neither is worked out twice.
+  // The panel's LEDs and the PADS page's keys, from one look: a key that is
+  // coloured on the screen is coloured under the hand, and neither is worked
+  // out twice.
   auto const look = _clipSettings->functionKeyLook ();
+  if (_controller)
+    _controller->setFunctionKeyLook (look);
+
+  if (!_ioAdapter)
+    return;
 
   for (auto const key : functionKeyOrder)
     _ioAdapter->setButtonLED (key, functionKeyColour (key, look));

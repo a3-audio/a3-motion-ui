@@ -25,16 +25,51 @@ namespace a3
 
 namespace
 {
-/** The breathing room between two pads, and between the grid and the edges.
- *  Fixed rather than derived from the area, because the preferred height is
- *  worked out before there is an area to derive anything from. */
+/** The breathing room between two pads, and between the grid and the edges. */
 constexpr int padGap = 4;
 constexpr int minPadding = 4;
 
-int
-headerRowHeight (float headerSize)
+/** The panel as a grid of equal square cells (InputOutputAdapterV3.hh):
+ *  six rows, the pads in rows 2-5 between the key columns. Across: the scene
+ *  block (two columns, the screen's own), two per channel, and the right-hand
+ *  key column. The panel's rows 0-1 over the pads carry its pots, which the
+ *  screen has elsewhere, so that band stays empty here as it is on the
+ *  panel. */
+constexpr int panelRows = 6;
+constexpr int firstPadRow = 2;
+constexpr int sceneColumns = 2;
+constexpr int gridColumns
+    = sceneColumns + 2 * static_cast<int> (numChannelColumns) + 1;
+constexpr int rightKeyColumn = gridColumns - 1;
+constexpr int leftKeyColumn = 0;
+
+/** The one cell size, and where the grid starts: square cells, as large as
+ *  the area allows in whichever direction runs out first, the grid centred
+ *  in the rest. Stretching cells to fill both directions is what pulled the
+ *  pads tall. */
+struct PanelGrid
 {
-  return juce::jmax (18, static_cast<int> (headerSize * 1.4f));
+  juce::Point<int> origin;
+  int cell = 0;
+
+  juce::Rectangle<int>
+  at (int column, int row) const
+  {
+    return { origin.x + column * (cell + padGap),
+             origin.y + row * (cell + padGap), cell, cell };
+  }
+};
+
+PanelGrid
+fitPanelGrid (juce::Rectangle<int> area)
+{
+  auto const across = (area.getWidth () - (gridColumns - 1) * padGap) / gridColumns;
+  auto const down = (area.getHeight () - (panelRows - 1) * padGap) / panelRows;
+  auto const cell = juce::jmax (0, juce::jmin (across, down));
+
+  auto const width = gridColumns * cell + (gridColumns - 1) * padGap;
+  auto const height = panelRows * cell + (panelRows - 1) * padGap;
+  return { area.withSizeKeepingCentre (width, height).getPosition (), cell };
 }
 
 /** Where a pad sits inside its clip's box, as a column and a row.
@@ -57,80 +92,41 @@ padCellInBox (index_t pad)
 }
 }
 
-int
-controllerPreferredHeight (float headerSize, int)
-{
-  // Read straight back off layOutController's own arithmetic, bottom up:
-  // two pad rows and the gap between them make a box, two boxes and a gap
-  // make the grid, and above and below it sit the header, the modifier row
-  // and the paddings. Anything else here would be a second guess at the
-  // layout, and the two would drift.
-  // Four rows of pads and the gaps between them, one box per channel.
-  constexpr int padRows = 4;
-  auto const gridH = padRows * fingertipSize + (padRows - 1) * padGap;
-
-  return gridH + headerRowHeight (headerSize) + 2 * minPadding;
-}
-
 ControllerLayout
 layOutController (juce::Rectangle<int> contentArea, float, int)
 {
   ControllerLayout out;
-
-  // What comes in is the clip part's *content* — the bar has already taken
-  // its header row off (ClipSettingsLayout::clipContent). Working that height
-  // out again here put it eleven pixels wrong and drew the top row of pads
-  // under the tabs that switch to this page.
-  auto area = contentArea.reduced (minPadding, minPadding);
-
-  auto const gap = padGap;
-
-  // Clamped at zero rather than trusted: a bar too small for the page is a
-  // layout bug somewhere else, and it must arrive here as small rectangles,
-  // not as ones whose right edge is left of their left.
-  // Nine pad widths across: the scene column, then two per channel -- with a
-  // gap between every two of them. Solved for the pad, because the scene pad
-  // has to be exactly as wide as the pads it stands beside.
-  // Ten pad widths across since 2026-09-27: the scene block (two), then two
-  // per channel.
-  auto const columns = static_cast<int> (2 + 2 * numChannelColumns);
-  auto const padW
-      = juce::jmax (0, (area.getWidth () - (columns - 1) * gap) / columns);
-  auto const boxW = 2 * padW + gap;
-  auto const sceneX = area.getX ();
-  area.removeFromLeft (2 * padW + 2 * gap);
-  auto const slots = static_cast<int> (numPadSlots);
-  auto const boxH
-      = juce::jmax (0, (area.getHeight () - (slots - 1) * gap) / slots);
+  auto const grid = fitPanelGrid (contentArea.reduced (minPadding, minPadding));
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t slot = 0; slot < numPadSlots; ++slot)
-      out.clipBoxes[channel][slot] = juce::Rectangle<int> (
-          area.getX () + static_cast<int> (channel) * (boxW + gap),
-          area.getY () + static_cast<int> (slot) * (boxH + gap), boxW, boxH);
+    {
+      auto const firstColumn = sceneColumns + 2 * static_cast<int> (channel);
+      for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
+        {
+          auto const cell = padCellInBox (pad);
+          out.pads[channel][pad]
+              = grid.at (firstColumn + cell.x, firstPadRow + cell.y);
+        }
 
-  for (index_t channel = 0; channel < numChannelColumns; ++channel)
-    for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
-      {
-        auto const box = out.clipBoxes[channel][0];
-        auto const cell = padCellInBox (pad);
-
-        auto const padW = juce::jmax (0, (box.getWidth () - gap) / 2);
-        auto const padH = juce::jmax (0, (box.getHeight () - 3 * gap) / 4);
-
-        out.pads[channel][pad] = juce::Rectangle<int> (
-            box.getX () + cell.x * (padW + gap),
-            box.getY () + cell.y * (padH + gap), padW, padH);
-      }
+      out.clipBoxes[channel][0]
+          = grid.at (firstColumn, firstPadRow)
+                .getUnion (grid.at (firstColumn + 1, panelRows - 1));
+    }
 
   // The scene block, shaped like a channel: its pad `p` in the same cell as
-  // every channel's pad `p`, one column-and-a-gap apart.
+  // every channel's pad `p`.
   for (std::size_t pad = 0; pad < numSceneRows; ++pad)
     {
-      auto const level = out.pads[0][pad];
       auto const cell = padCellInBox (static_cast<index_t> (pad));
-      out.scenes[0][pad] = { sceneX + cell.x * (padW + gap), level.getY (),
-                             padW, level.getHeight () };
+      out.scenes[0][pad] = grid.at (cell.x, firstPadRow + cell.y);
+    }
+
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    {
+      auto const place = panelKeyPlaces[i];
+      out.keys[i] = grid.at (place.side == PanelSide::Left ? leftKeyColumn
+                                                           : rightKeyColumn,
+                             place.row);
     }
 
   return out;

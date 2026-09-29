@@ -995,15 +995,15 @@ ClipSettingsComponent::paint (juce::Graphics &g)
   // heaviest lines on the screen and boxed in what they only had to separate.
   auto const frameThickness = juce::jmax (1, getHeight () / 140);
 
-  // Two panels side by side, not one panel with an odd section on the end.
+  // Three panels -- the channel row over two side by side -- one frame rule.
   // The channel colour says "this is the shown clip's", so it must stop where
-  // the clip's settings stop: what is in the strip belongs to all four
-  // channels at once and cannot be framed as any one of them.
-  g.setColour (_channelColour);
-  g.drawRect (_layout.clipBounds, frameThickness);
-
-  g.setColour (toColour (theme ().textPrimary, theme ().alphaFillEmphasis));
-  g.drawRect (_layout.globalBounds, frameThickness);
+  // the clip's settings stop: the channel row and the strip belong to all
+  // four channels at once and cannot be framed as any one of them.
+  for (auto const &frame : panelFrames (_layout))
+    {
+      g.setColour (panelFrameColour (frame.ink));
+      g.drawRect (frame.bounds, frameThickness);
+    }
 
   // Not on the pages that show every slot at once -- the pads page and the
   // browser -- where choosing one of them says something untrue about what you
@@ -1463,6 +1463,19 @@ ClipSettingsComponent::setChannelFaces (
   repaint ();
 }
 
+juce::Colour
+ClipSettingsComponent::panelFrameColour (PanelFrameInk ink) const
+{
+  switch (ink)
+    {
+    case PanelFrameInk::ShownChannel: return _channelColour;
+    case PanelFrameInk::AllChannels:
+      return toColour (theme ().textPrimary, theme ().alphaFillEmphasis);
+    }
+
+  return _channelColour;
+}
+
 void
 ClipSettingsComponent::paintSetOffFrame (juce::Graphics &g,
                                          juce::Rectangle<int> bounds)
@@ -1653,7 +1666,8 @@ ClipSettingsComponent::paintGlobalSection (juce::Graphics &g,
   paintElevationGraphic (g, _layout.elevationGraphic, _cameraMode);
   paintCameraMark (g, _layout.elevationCameraMark);
 
-  paintSetOffFrame (g, _layout.channelFacesFrame);
+  // The channel row carries a panel frame of its own now (paint()), not a
+  // grey field: a field inside a frame would be two edges on one row.
   paintSetOffFrame (g, _layout.transportFrame);
   paintChannelFaces (g);
 
@@ -1752,8 +1766,7 @@ ClipSettingsComponent::setShiftHeld (bool held)
   if (_shiftHeld == held)
     return;
 
-  // The panel's SHIFT LED reads this; the screen has no SHIFT key since
-  // 2026-09-26.
+  // The panel's SHIFT LED and the PADS page's SHIFT key read this.
   _shiftHeld = held;
 }
 
@@ -1892,12 +1905,9 @@ ClipSettingsComponent::preferredHeight (int width) const
                                      theme ().fontSize (FontRole::Body),
                                      knobDiam);
 
-  // Both pages share this one area, so it has to satisfy the hungrier of
-  // them: on the controller page a pad that is under a fingertip is a fault,
-  // and it cannot be fixed by switching tabs.
-  auto const needed = juce::jmax (
-      wanted, controllerPreferredHeight (theme ().fontSize (FontRole::Header),
-                                         fingertipSize));
+  // The PADS page asked for room here while it lived in the bar; it stands
+  // over the sphere since 2026-09-27 and lays itself out there.
+  auto const needed = wanted;
 
   // The row of channel faces on top, unscaled: it is a row of keys, sized
   // like the bar's buttons, not a share of the bar.

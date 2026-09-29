@@ -92,4 +92,21 @@ functionKeyColour (FunctionKey key, FunctionKeyLook const &look)
   return {};
 }
 
+bool
+functionKeyLit (FunctionKey key, FunctionKeyLook const &look)
+{
+  switch (key)
+    {
+    case FunctionKey::Record:    return look.recording;
+    case FunctionKey::Shift:     return look.shiftHeld;
+    case FunctionKey::Tap:       return look.tapPressed || look.tapBeat;
+    case FunctionKey::Menu:      return look.menuOpen;
+    // A value, not a state: the word carries it in its colour.
+    case FunctionKey::ClockMode: return false;
+    case FunctionKey::RecMode:   return false;
+    }
+
+  return false;
+}
+
 }

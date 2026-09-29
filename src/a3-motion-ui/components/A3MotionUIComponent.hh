@@ -59,6 +59,7 @@
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/components/SkinPanelComponent.hh>
+#include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -483,6 +484,13 @@ private:
   void handleScenePress (index_t slot, std::size_t row);
   void handleSceneRelease (index_t slot, std::size_t row);
   bool isButtonPressed (Button button);
+  /** A function key went down or up at `source`. The panel's keys and the
+   *  PADS page's arrive here alike; functionKeyChanged() runs only when the
+   *  key's combined state changes. */
+  void setFunctionKey (FunctionKey key, KeySource source, bool down);
+  /** What a function key does -- the one place that says it. */
+  void functionKeyChanged (FunctionKey key, bool down);
+  FunctionKeyHold _functionKeys;
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();

@@ -20,6 +20,8 @@
 
 #include "ControllerComponent.hh"
 
+#include <a3-motion-engine/RecMode.hh>
+#include <a3-motion-ui/components/StatusBarLayout.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
@@ -55,6 +57,25 @@ padName (index_t pad)
     }
 
   return "";
+}
+
+/** What a function key says on its face: its name, or for the two keys that
+ *  carry a value, that value -- as the status bar and the REC page write it. */
+juce::String
+keyWord (FunctionKey key, FunctionKeyLook const &look)
+{
+  switch (key)
+    {
+    case FunctionKey::Tap:       return "TAP";
+    case FunctionKey::ClockMode: return clockModeName (look.clockMode);
+    case FunctionKey::Record:    return "REC";
+    case FunctionKey::RecMode:
+      return recModeName (static_cast<RecMode> (look.recMode));
+    case FunctionKey::Menu:      return "MENU";
+    case FunctionKey::Shift:     return "SHIFT";
+    }
+
+  return {};
 }
 }
 
@@ -126,6 +147,28 @@ ControllerComponent::ControllerComponent ()
         _sceneTouch[slot][row] = std::move (touch);
       }
 
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    {
+      auto touch = std::make_unique<TouchControl> ();
+      touch->setIdentity (static_cast<int> (i));
+      // Down on touch and up on release, never a tap: SHIFT and REC modify
+      // what another finger presses for as long as they are held.
+      touch->onPress = [this] (int index, int) {
+        auto const k = static_cast<std::size_t> (index);
+        setPressed (_keyPressed[k], true, _layout.keys[k]);
+        if (onKeyPressed)
+          onKeyPressed (panelKeyFunction (k));
+      };
+      touch->onRelease = [this] (int index, int) {
+        auto const k = static_cast<std::size_t> (index);
+        setPressed (_keyPressed[k], false, _layout.keys[k]);
+        if (onKeyReleased)
+          onKeyReleased (panelKeyFunction (k));
+      };
+      addAndMakeVisible (*touch);
+      _keyTouch[i] = std::move (touch);
+    }
+
 }
 
 ControllerComponent::~ControllerComponent () = default;
@@ -154,6 +197,14 @@ ControllerComponent::setPadPlaying (index_t channel, index_t pad,
 
   _padPlaying[channel][pad] = playing;
   repaint (_layout.pads[channel][pad]);
+}
+
+void
+ControllerComponent::setFunctionKeyLook (FunctionKeyLook const &look)
+{
+  _keyLook = look;
+  for (auto const &key : _layout.keys)
+    repaint (key);
 }
 
 void
@@ -189,6 +240,9 @@ ControllerComponent::resized ()
   for (index_t slot = 0; slot < numPadSlots; ++slot)
     for (std::size_t row = 0; row < numSceneRows; ++row)
       _sceneTouch[slot][row]->setBounds (_layout.scenes[slot][row]);
+
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    _keyTouch[i]->setBounds (_layout.keys[i]);
 }
 
 void
@@ -214,6 +268,8 @@ ControllerComponent::paint (juce::Graphics &g)
     for (std::size_t row = 0; row < numSceneRows; ++row)
       paintScene (g, slot, row);
 
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    paintKey (g, i);
 }
 
 void
@@ -309,5 +365,48 @@ ControllerComponent::paintScene (juce::Graphics &g, index_t slot,
                           : transportKeyForPad (function));
 }
 
+
+void
+ControllerComponent::paintKey (juce::Graphics &g, std::size_t index)
+{
+  auto const bounds = _layout.keys[index];
+  if (bounds.isEmpty ())
+    return;
+
+  // The scene pads' neutral face: on the panel these are the same kind of
+  // key as the pads beside them, and belong to no channel.
+  auto const key = panelKeyFunction (index);
+  auto const tint = functionKeyColour (key, _keyLook);
+  auto const neutral = toColour (theme ().surfaceRaised)
+                           .interpolatedWith (toColour (theme ().textPrimary),
+                                              sceneLift);
+
+  // The word carries the key's colour and the ground what it is doing, as
+  // in the bar: washed in that colour while it is lit -- SHIFT held, a take
+  // running, the menu open -- and lifted under a finger.
+  auto ground = neutral;
+  if (functionKeyLit (key, _keyLook) && !tint.isTransparent ())
+    ground = ground.interpolatedWith (tint, theme ().alphaFillEmphasis);
+  if (_keyPressed[index])
+    ground = ground.interpolatedWith (toColour (theme ().textPrimary),
+                                      pressedLift);
+
+  g.setColour (ground);
+  g.fillRoundedRectangle (bounds.toFloat (), padCorner);
+  g.setColour (toColour (theme ().textPrimary, edgeWash));
+  g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
+
+  auto const word = keyWord (key, _keyLook);
+  auto const inner = bounds.reduced (bounds.getWidth () / 10);
+  // The bar's header size, as the status bar's keys are written; a word that
+  // is wider than the key is squeezed by drawFittedText, not cut.
+  g.setFont (juce::Font (juce::FontOptions (
+                             juce::jmin (theme ().fontSize (FontRole::Header),
+                                         static_cast<float> (inner.getHeight ())))
+                             .withStyle ("Bold")));
+  g.setColour (tint.isTransparent () ? toColour (theme ().textPrimary)
+                                     : tint);
+  g.drawFittedText (word, inner, juce::Justification::centred, 1, 0.5f);
+}
 
 }

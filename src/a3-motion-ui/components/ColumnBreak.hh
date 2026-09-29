@@ -31,7 +31,7 @@ namespace a3
  *  **New here, and the mixer is the occasion.** This codebase has proportions
  *  (every rectangle a fraction of the one it is given), thresholds
  *  (fingertipSize, minimumChannelWidth) and grow-to-fit
- *  (controllerPreferredHeight). It has had no reflow at all: the two
+ *  (clipSettingsPreferredHeight). It has had no reflow at all: the two
  *  thresholds were used in exactly one place each, to declare how small the
  *  window may get.
  *

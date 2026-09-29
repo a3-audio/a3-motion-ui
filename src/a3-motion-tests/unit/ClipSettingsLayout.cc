@@ -23,6 +23,7 @@
 
 #include <cstdlib>
 #include <limits>
+#include <optional>
 
 #include <JuceHeader.h>
 
@@ -214,6 +215,47 @@ TEST (ClipSettingsLayout, ClipAndGlobalPanelsSplitTheBarWithoutOverlap)
   EXPECT_EQ (l.clipBounds.getWidth () + l.globalBounds.getWidth (),
              panelWidth);
 }
+// Asked for on 2026-09-28: the channel row needs a frame exactly like the
+// clip's settings and the global strip. Three panels, one hairline rule --
+// and the row's frame is grey like the strip's, because it too belongs to all
+// four channels at once and cannot be framed as any one of them.
+TEST (ClipSettingsLayout, TheChannelRowIsFramedLikeTheOtherTwoPanels)
+{
+  auto const l = defaultLayout ();
+  auto const frames = panelFrames (l);
+
+  auto const inkOf = [&frames] (juce::Rectangle<int> bounds) {
+    for (auto const &frame : frames)
+      if (frame.bounds == bounds && !bounds.isEmpty ())
+        return std::optional<PanelFrameInk> (frame.ink);
+    return std::optional<PanelFrameInk> ();
+  };
+
+  EXPECT_EQ (inkOf (l.channelFacesFrame), PanelFrameInk::AllChannels);
+  EXPECT_EQ (inkOf (l.clipBounds), PanelFrameInk::ShownChannel);
+  EXPECT_EQ (inkOf (l.globalBounds), PanelFrameInk::AllChannels);
+}
+
+// The frames tile the bar -- no hairline drawn across another panel -- and the
+// faces stand inside the row's frame, clear of its line.
+TEST (ClipSettingsLayout, ThePanelFramesDoNotOverlapAndTheFacesClearTheirLine)
+{
+  auto const l = defaultLayout ();
+  auto const frames = panelFrames (l);
+
+  for (std::size_t i = 0; i < frames.size (); ++i)
+    {
+      ASSERT_FALSE (frames[i].bounds.isEmpty ()) << i;
+      for (std::size_t j = i + 1; j < frames.size (); ++j)
+        EXPECT_FALSE (frames[i].bounds.intersects (frames[j].bounds))
+            << i << " and " << j;
+    }
+
+  for (auto const &face : l.channelFaces)
+    EXPECT_TRUE (l.channelFacesFrame.reduced (1).contains (face))
+        << face.toString ();
+}
+
 TEST (ClipSettingsLayout, OnlyFewValuedControlsAdvanceOnTap)
 {
   // Elevation is three continuous values -- the two clips and reach. The

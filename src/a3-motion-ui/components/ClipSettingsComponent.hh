@@ -570,6 +570,8 @@ private:
   /** A block of controls set off from the card it stands on -- the strip's
    *  knobs, its transport, the header's four faces. One painter rather than
    *  three, so a group anywhere in the bar reads as the same kind of group. */
+  /** A panel frame's colour: the shown channel's, or the neutral grey. */
+  juce::Colour panelFrameColour (PanelFrameInk ink) const;
   void paintSetOffFrame (juce::Graphics &g, juce::Rectangle<int> bounds);
   void paintSectionLabel (juce::Graphics &g, juce::Rectangle<int> labelArea,
                           juce::String const &text, bool isSelected);

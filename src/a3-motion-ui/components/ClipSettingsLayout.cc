@@ -631,6 +631,19 @@ progressFill (juce::Rectangle<int> bar, float fraction)
       static_cast<float> (bar.getWidth ()) * juce::jmin (1.f, fraction)));
 }
 
+std::array<PanelFrame, numPanelFrames>
+panelFrames (ClipSettingsLayout const &layout)
+{
+  // The channel row is a panel of its own since it left the global strip
+  // (2026-09-27), and it is framed like one. Grey, because it belongs to all
+  // four channels at once -- the same reason the strip's frame is grey.
+  return { {
+      { layout.channelFacesFrame, PanelFrameInk::AllChannels },
+      { layout.clipBounds, PanelFrameInk::ShownChannel },
+      { layout.globalBounds, PanelFrameInk::AllChannels },
+  } };
+}
+
 int
 channelRowHeight (int knobDiam, int barWidth)
 {

@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/io/FunctionKeys.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
@@ -47,6 +48,51 @@ namespace a3
  *  where a channel has Page. */
 constexpr std::size_t numSceneRows = numPadsPerChannel;
 
+/** Which end of the panel a function key stands at. */
+enum class PanelSide
+{
+  Left,
+  Right,
+};
+
+/** A function key's place on the PADS page, said in the panel's own terms:
+ *  which end column, and which row -- 0 at the top, the pads standing in rows
+ *  2-5 between the two columns (InputOutputAdapterV3.hh). What the key does
+ *  comes from its row through `functionKeyOrder`, the way the panel is wired.
+ */
+struct PanelKeyPlace
+{
+  PanelSide side;
+  int row;
+};
+
+/** Every function key the PADS page shows, and where (2026-09-28).
+ *
+ *  The right-hand column is the panel's col9, all six. On the left the scene
+ *  block -- the screen's own, the panel has none -- stands where col0's rows
+ *  2-5 would be, so only col0's top two rows, TAP and clock, stand over it.
+ *  Every key is reachable on the right; the left pair is the reach for the
+ *  left hand, as on the panel. The one table to change if that is wrong. */
+constexpr std::array<PanelKeyPlace, 8> panelKeyPlaces{ {
+    { PanelSide::Right, 0 },
+    { PanelSide::Right, 1 },
+    { PanelSide::Right, 2 },
+    { PanelSide::Right, 3 },
+    { PanelSide::Right, 4 },
+    { PanelSide::Right, 5 },
+    { PanelSide::Left, 0 },
+    { PanelSide::Left, 1 },
+} };
+
+constexpr std::size_t numPanelKeys = panelKeyPlaces.size ();
+
+/** What the key at `panelKeyPlaces[i]` is. */
+constexpr FunctionKey
+panelKeyFunction (std::size_t i)
+{
+  return functionKeyOrder[static_cast<std::size_t> (panelKeyPlaces[i].row)];
+}
+
 struct ControllerLayout
 {
   /** The box a channel's eight pads share. [channel][slot], one slot. */
@@ -63,6 +109,8 @@ struct ControllerLayout
    *  margin. */
   std::array<std::array<juce::Rectangle<int>, numSceneRows>, numPadSlots>
       scenes;
+  /** The function keys, `keys[i]` standing at `panelKeyPlaces[i]`. */
+  std::array<juce::Rectangle<int>, numPanelKeys> keys;
 };
 
 /** The smallest thing a hand can find without looking. Nothing hit in a hurry
@@ -82,24 +130,14 @@ constexpr float minimumRowHeight = 35.f;
 constexpr float minimumChannelWidth = 100.f;
 constexpr float minimumMotionHeight = 100.f;
 
-/** The height at which the pads first reach `fingertipSize`.
- *
- *  The bar is one area and both pages share it, so its height has to satisfy
- *  the hungrier of the two — see clipSettingsPreferredHeight(), which is the
- *  same idea for the clip settings.
- *
- *  `buttonHeight` is unused since the modifiers moved to the global strip;
- *  kept so the two preferred-height calls read alike at their call sites. */
-int controllerPreferredHeight (float headerSize, int buttonHeight);
-
 /** Every rectangle of the controller page, from one calculation — the same
  *  rule the clip settings bar follows, for the same reason.
  *
- *  `contentArea` is the clip part **under its header row**
- *  (ClipSettingsLayout::clipContent), not the whole of it. `headerSize` and
- *  `buttonHeight` are unused since the header became the bar's business and
- *  the modifiers moved to the global strip; kept so this reads like
- *  layOutClipSettings() at its call site. */
+ *  `contentArea` is the area over the sphere (2026-09-27). The page is the
+ *  panel on screen and keeps its proportions: square cells in six rows, the
+ *  pads in the bottom four, centred in whatever area it is given
+ *  (2026-09-28). `headerSize` and `buttonHeight` are unused; kept so this
+ *  reads like layOutClipSettings() at its call site. */
 ControllerLayout layOutController (juce::Rectangle<int> contentArea,
                                    float headerSize, int buttonHeight);
 
