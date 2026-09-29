@@ -2008,3 +2008,30 @@ TEST (ClipSettingsLayout, AnEncoderStepStaysInsideTheClipBand)
 {
   EXPECT_FLOAT_EQ (elevationBaseForEncoderStep (0.33f, 1, 0.33f, 0.f), 0.33f);
 }
+
+// ── Pot size and button size apart (2026-09-29) ─────────────────────────
+// "Pot size verändert alle bedienelemente nicht nur pots."
+
+TEST (ClipSettingsLayout, PotSizeLeavesTheButtonsAlone)
+{
+  juce::Rectangle<int> const bar{ 0, 0, panelWidth, 420 };
+  auto const small = layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                                         0.8f, 1.25f, BarPage::Clip);
+  auto const large = layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                                         1.8f, 1.25f, BarPage::Clip);
+  EXPECT_LT (small.metrics.knobDiam, large.metrics.knobDiam);
+  EXPECT_EQ (small.buttonHeight, large.buttonHeight);
+  EXPECT_EQ (small.channelFaces[0].getHeight (), large.channelFaces[0].getHeight ());
+}
+
+TEST (ClipSettingsLayout, ButtonSizeSizesTheButtons)
+{
+  juce::Rectangle<int> const bar{ 0, 0, panelWidth, 420 };
+  auto const small = layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                                         1.25f, 0.8f, BarPage::Clip);
+  auto const large = layOutClipSettings (bar, defaultHeaderSize, defaultBodySize,
+                                         1.25f, 1.8f, BarPage::Clip);
+  EXPECT_EQ (small.metrics.knobDiam, large.metrics.knobDiam);
+  EXPECT_LT (small.buttonHeight, large.buttonHeight);
+  EXPECT_LT (small.channelFaces[0].getHeight (), large.channelFaces[0].getHeight ());
+}

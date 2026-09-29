@@ -177,6 +177,7 @@ buildSections ()
         { { "fontHeader", "Header text", 9.4, 31.2, 20.3 },
           { "fontBody", "Body text", 7.8, 26.0, 16.9 },
           { "potSize", "Pot size", 0.5, 2.0, 1.25 },
+          { "buttonSize", "Button size", 0.5, 2.0, 1.25 },
           { "clipSettingsHeightScale", "Bar height", 0.5, 2.0, 1.25 } },
         {} });
 

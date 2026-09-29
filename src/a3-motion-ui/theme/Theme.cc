@@ -376,6 +376,9 @@ loadTheme (juce::var const &fileSkin)
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
   theme.potSize = themeFloat (skin, "potSize", theme.potSize);
+  // A skin from before the buttons had a size of their own keeps them where
+  // its potSize put them.
+  theme.buttonSize = themeFloat (skin, "buttonSize", theme.potSize);
   theme.clipSettingsHeightScale = themeFloat (
       skin, "clipSettingsHeightScale", theme.clipSettingsHeightScale);
   theme.touchDragPixelsPerStep = juce::roundToInt (
@@ -476,6 +479,7 @@ themeDefaultsVar ()
   number ("fontHeader", defaults.fontHeader);
   number ("fontBody", defaults.fontBody);
   number ("potSize", defaults.potSize);
+  number ("buttonSize", defaults.buttonSize);
   number ("clipSettingsHeightScale", defaults.clipSettingsHeightScale);
   object->setProperty ("touchDragPixelsPerStep",
                        defaults.touchDragPixelsPerStep);

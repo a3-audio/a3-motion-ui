@@ -97,3 +97,11 @@ TEST_F (FontScaleTest, SwitchingSkinMovesTheLabelsWithIt)
 }
 
 }
+
+// A skin written before buttons had a size of their own keeps the buttons
+// its potSize gave them; one that names buttonSize gets that.
+TEST (FontScale, ButtonSizeFallsBackToThePotSize)
+{
+  EXPECT_FLOAT_EQ (loadTheme (juce::JSON::parse (R"({"potSize": 1.6})")).buttonSize, 1.6f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::JSON::parse (R"({"potSize": 1.6, "buttonSize": 0.9})")).buttonSize, 0.9f);
+}

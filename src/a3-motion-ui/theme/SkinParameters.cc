@@ -429,7 +429,7 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
   if (path == "fontHeader")
     return juce::jlimit (9.4, 31.2, value);
 
-  if (path == "potSize")
+  if (path == "potSize" || path == "buttonSize")
     return juce::jlimit (0.5, 2.0, value);
 
   // A line thinner than this is gone on the panel at arm's length; thicker

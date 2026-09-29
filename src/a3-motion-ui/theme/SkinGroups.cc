@@ -67,7 +67,7 @@ constexpr Group groups[] = {
                     "braidSpin", "braidStrands", "lineGlow", "lineFilament",
                     "lineBolt", "lineHeat" } },
   { "Blob effects", { "blobAction", "blobSparkle", "blobBolt", "blobTrail" } },
-  { "Type and size", { "fontHeader", "fontBody", "potSize",
+  { "Type and size", { "fontHeader", "fontBody", "potSize", "buttonSize",
                        "clipSettingsHeightScale" } },
   { "Metrics", { "radius*", "padding*", "stroke*" } },
   { "Pads", { "padShade*" } },
