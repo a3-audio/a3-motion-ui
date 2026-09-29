@@ -201,7 +201,8 @@ uniform vec4  uBlobTrailD3;
  *  pink -- the flicker is the other half of the message. */
 uniform vec3  uActionColour;
 // How much of each of the blob's three effects there is: sparkle, bolt, wake.
-uniform vec3  uBlobEffects;
+uniform vec4  uBlobEffects;   // sparks, spikes, trail, rest glow
+uniform vec4  uBlobPunch;     // how hard each blob's channel just hit
 uniform float uSphereGrid;    // how bright the graticule is, 0 for none
 
 // Where each channel's trajectory is. See SphereShader::setLineTexture.
@@ -439,6 +440,14 @@ vec4 getBlobState (int i)
  *  From coronaScaleFactor() on the CPU rather than a ramp written in here:
  *  sizeMin and sizeMax are what a rig is tuned with, and a ramp in the shader
  *  is a ramp nobody can turn. */
+float getBlobPunch (int i)
+{
+    if (i == 0) return uBlobPunch.x;
+    if (i == 1) return uBlobPunch.y;
+    if (i == 2) return uBlobPunch.z;
+    return uBlobPunch.w;
+}
+
 float getBlobCorona (int i)
 {
     if (i == 0) return uBlobCorona0;
@@ -871,13 +880,16 @@ vec3 blobLight (vec2 uv, int i)
     // gone -- the sphere's own lightning does the same thing with the same
     // helper, so the two read as one weather.
     float bolt = 0.0;
-    if (vu > 0.25 && uBlobEffects.y > 0.001)
+    // On a hit, not on level (BlobPunch). They fired at random one moment in
+    // three whenever the level stood over 0.28, so a loud channel threw them
+    // all the time and none landed on the beat. Longer and brighter the
+    // harder the hit, and a second one on a hard hit.
+    float punch = clamp (getBlobPunch (i), 0.0, 1.0);
+    for (int k = 0; k < 2; ++k)
     {
-        float strikeId = floor (uTime * 11.0);
-        // Rare enough to be an event. At a threshold of 0.30 one was alight
-        // seven frames in ten, which is not lightning, it is a whisker.
-        float fires = step (0.66, hash13 (vec3 (seed, strikeId, 3.0))) * step (0.28, vu);
-        if (fires > 0.0)
+        if (punch < 0.03 + 0.5 * float (k) || uBlobEffects.y < 0.001)
+            break;
+        float strikeId = floor (uTime * 11.0) + float (k) * 17.0;
         {
             float ang = hash13 (vec3 (seed, strikeId, 7.0)) * 6.28318531;
             vec2 dir = vec2 (cos (ang), sin (ang));
@@ -892,12 +904,12 @@ vec3 blobLight (vec2 uv, int i)
             // little wire outlines rather than a bolt.
             float stray = (valueNoise (vec3 (along * 7.0, seed, uTime * 5.0)) - 0.5)
                         * r * 1.2;
-            float len = r * (2.5 + 7.0 * vu);
+            float len = r * (2.5 + 9.0 * punch);
             float within = step (0.0, along) * step (along, len);
             float taper = 1.0 - along / max (len, 0.001);
             bolt += within * boltAt (across - stray,
                                      blobFilamentWidth (r * 0.07 * taper))
-                  * taper * taper * uBlobEffects.y;
+                  * taper * taper * punch * uBlobEffects.y;
         }
     }
 
@@ -968,10 +980,14 @@ vec3 blobLight (vec2 uv, int i)
     // nothing at the very moment it matters.
     vec3 trailCol = mix (col, uActionColour, action * 0.85);
 
-    vec3 out3 = hot * core * 1.55
-              + mix (hot, uBoltCoreColour, 0.18) * pip * 1.40
-              + hot * rim * 0.85
-              + col * halo * (0.30 + 0.6 * vu)
+    // A silent blob keeps its middle at the rest glow and gains the rest with
+    // level: it used to be as bright there as a playing one, and four equally
+    // bright blobs did not say which one was sounding.
+    float lit = mix (uBlobEffects.w, 1.0, vu);
+    vec3 out3 = (hot * core * 1.55
+               + mix (hot, uBoltCoreColour, 0.18) * pip * 1.40
+               + hot * rim * 0.85) * lit
+              + col * halo * (0.30 * uBlobEffects.w + 0.6 * vu)
               + spark * sparks * sparkGain * 0.8
               + mix (col, uBoltCoreColour, 0.55) * bolt * (0.7 + vu)
               + uActionColour * ring * 1.3
@@ -2435,6 +2451,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uBlobTrailD[3] = glGetUniformLocation (pid, "uBlobTrailD3");
   _uActionColour  = glGetUniformLocation (pid, "uActionColour");
   _uBlobEffects   = glGetUniformLocation (pid, "uBlobEffects");
+  _uBlobPunch     = glGetUniformLocation (pid, "uBlobPunch");
   _uSphereGrid    = glGetUniformLocation (pid, "uSphereGrid");
   _uLineMap[0]    = glGetUniformLocation (pid, "uLineMap0");
   _uLineMap[1]    = glGetUniformLocation (pid, "uLineMap1");
@@ -2763,8 +2780,11 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
   if (_uSphereGrid >= 0)
     glUniform1f (_uSphereGrid, theme ().sphereGrid);
   if (_uBlobEffects >= 0)
-    glUniform3f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
-                 theme ().blobTrail);
+    glUniform4f (_uBlobEffects, theme ().blobSparkle, theme ().blobBolt,
+                 theme ().blobTrail, theme ().blobRest);
+  if (_uBlobPunch >= 0)
+    glUniform4f (_uBlobPunch, _blobs[0].punch, _blobs[1].punch,
+                 _blobs[2].punch, _blobs[3].punch);
 
   // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
   glEnable (GL_BLEND);

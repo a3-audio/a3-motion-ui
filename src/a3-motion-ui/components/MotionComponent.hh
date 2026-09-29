@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 #include <a3-motion-ui/FrameRate.hh>
+#include <a3-motion-ui/components/BlobPunch.hh>
 #include <a3-motion-ui/components/Listener.hh>
 #include <a3-motion-ui/components/UnderlayLook.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
@@ -306,6 +307,8 @@ private:
   float _smoothGlowPeak = 0.f, _smoothGlowRms = 0.f;
   float _smoothSpotPeak[4]{}, _smoothSpotRms[4]{};
   float _smoothBlobPeak[4]{}, _smoothBlobRms[4]{};
+  // How hard each channel just hit -- what the blob's spikes fire on.
+  std::array<BlobPunch, 4> _blobPunch{};
 
   /** The wake behind each blob, advanced once per rendered frame. Here rather
    *  than in the shader because it is the one part of the blob's effects that

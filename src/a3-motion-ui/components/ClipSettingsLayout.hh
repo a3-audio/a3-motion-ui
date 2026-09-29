@@ -637,6 +637,15 @@ ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
                                        float potSizeScale,
                                        BarPage page = BarPage::Clip);
 
+/** The same, with the buttons sized apart from the pots: the channel row and
+ *  the bar's buttons from `buttonSizeScale`, the knobs and their boxes from
+ *  `potSizeScale`. "Pot size" used to size half the bar (2026-09-29). The
+ *  form above keeps them together, as they always were. */
+ClipSettingsLayout layOutClipSettings (juce::Rectangle<int> bounds,
+                                       float headerSize, float bodySize,
+                                       float potSizeScale,
+                                       float buttonSizeScale, BarPage page);
+
 /** Where the "not saved" mark sits inside a key or a field.
  *
  *  One rule for both places. The slot key in the header and the field on the

@@ -655,7 +655,20 @@ ClipSettingsLayout
 layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
                     float bodySize, float potSizeScale, BarPage page)
 {
+  return layOutClipSettings (bounds, headerSize, bodySize, potSizeScale,
+                             potSizeScale, page);
+}
+
+ClipSettingsLayout
+layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
+                    float bodySize, float potSizeScale, float buttonSizeScale,
+                    BarPage page)
+{
   ClipSettingsLayout out;
+
+  // The keys' own measure: the channel faces and the bar's buttons scale
+  // with it, the knobs with potSizeScale.
+  auto const buttonDiam = knobDiameterForFont (bodySize, buttonSizeScale);
 
   // The channel faces first, across the whole bar and above everything in it:
   // between the settings and the sphere. As tall as their frame in the global
@@ -665,8 +678,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out,
       bounds.removeFromTop (juce::jmin (
           bounds.getHeight (),
-          channelRowHeight (knobDiameterForFont (bodySize, potSizeScale),
-                            bounds.getWidth ()))),
+          channelRowHeight (buttonDiam, bounds.getWidth ()))),
       channelRowInset (bounds.getWidth ()));
 
   // Two panels side by side, not one panel with an odd section on the end.
@@ -752,7 +764,7 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
   // stays: below it TAP could not be hit reliably, and that finding is about
   // fingers, not about how much room the picture would like.
   out.buttonHeight
-      = barButtonHeight (out.clipBounds.getHeight (), metrics.knobDiam);
+      = barButtonHeight (out.clipBounds.getHeight (), buttonDiam);
 
   // Three columns, and which card stands in them depends on the page
   // (2026-09-26). CLIP: Shape (picker, picture), then dir and end, then the

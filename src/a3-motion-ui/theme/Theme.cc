@@ -349,6 +349,7 @@ loadTheme (juce::var const &fileSkin)
   theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
   theme.sphereGrid = themeFloat (skin, "sphereGrid", theme.sphereGrid);
   theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
+  theme.blobRest = themeFloat (skin, "blobRest", theme.blobRest);
   theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
@@ -376,6 +377,9 @@ loadTheme (juce::var const &fileSkin)
   theme.fontHeader = themeFloat (skin, "fontHeader", theme.fontHeader);
   theme.fontBody = themeFloat (skin, "fontBody", theme.fontBody);
   theme.potSize = themeFloat (skin, "potSize", theme.potSize);
+  // A skin from before the buttons had a size of their own keeps them where
+  // its potSize put them.
+  theme.buttonSize = themeFloat (skin, "buttonSize", theme.potSize);
   theme.clipSettingsHeightScale = themeFloat (
       skin, "clipSettingsHeightScale", theme.clipSettingsHeightScale);
   theme.touchDragPixelsPerStep = juce::roundToInt (
@@ -472,10 +476,12 @@ themeDefaultsVar ()
   number ("blobSparkle", defaults.blobSparkle);
   number ("sphereGrid", defaults.sphereGrid);
   number ("blobBolt", defaults.blobBolt);
+  number ("blobRest", defaults.blobRest);
   number ("blobTrail", defaults.blobTrail);
   number ("fontHeader", defaults.fontHeader);
   number ("fontBody", defaults.fontBody);
   number ("potSize", defaults.potSize);
+  number ("buttonSize", defaults.buttonSize);
   number ("clipSettingsHeightScale", defaults.clipSettingsHeightScale);
   object->setProperty ("touchDragPixelsPerStep",
                        defaults.touchDragPixelsPerStep);

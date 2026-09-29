@@ -178,6 +178,9 @@ struct Theme
    *  can decline. */
   float blobSparkle = 1.f;
   float blobBolt = 1.f;
+  /** How bright a silent blob's middle stays, 0..1; 1 is as bright as a
+   *  playing one, which is what every blob was until 2026-09-29. */
+  float blobRest = 0.35f;
   float blobTrail = 1.f;
 
   /** How bright the ball's graticule is drawn -- the rings of equal height
@@ -289,6 +292,9 @@ struct Theme
   /** Knob and toggle size in the clip settings bar, relative to the built-in
    *  size. Part of the look, so it lives with the rest of it. */
   float potSize = 1.f;
+  /** The bar's buttons and the channel row, apart from the pots. A skin that
+   *  does not name it keeps its buttons where its potSize put them. */
+  float buttonSize = 1.f;
 
   /** How far a finger has to travel before a control steps once. Here and
    *  not a compile-time constant because what feels right is decided at

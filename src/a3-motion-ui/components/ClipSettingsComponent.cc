@@ -1437,7 +1437,7 @@ ClipSettingsComponent::updateLayout ()
   _layout = layOutClipSettings (getLocalBounds (),
                                 theme ().fontSize (FontRole::Header),
                                 theme ().fontSize (FontRole::Body),
-                                theme ().potSize, _page);
+                                theme ().potSize, theme ().buttonSize, _page);
 }
 
 void
@@ -1928,7 +1928,9 @@ ClipSettingsComponent::preferredHeight (int width) const
                                   * juce::jlimit (
                                       0.5f, 2.f,
                                       theme ().clipSettingsHeightScale)))
-         + channelRowHeight (knobDiam, width);
+         + channelRowHeight (knobDiameterForFont (theme ().fontSize (FontRole::Body),
+                                                  theme ().buttonSize),
+                             width);
 }
 
 

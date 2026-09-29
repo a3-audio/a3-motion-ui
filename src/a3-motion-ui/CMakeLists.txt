@@ -47,6 +47,7 @@ target_sources("a3-motion-ui" PRIVATE
     components/StatusBarLayout.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
+    components/BlobPunch.cc
     components/CoronaScaling.cc
     components/DragAccumulator.cc
     components/DragAccumulator.hh

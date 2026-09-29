@@ -215,4 +215,14 @@ float beamAbsorption (float pathLength, float coefficient);
  *  one sample per speaker suffices — no raymarching. */
 float sphereHalfChord (float distanceFromCentre);
 
+/** How far in a long bolt ends, as a share of the sphere's edge -- the
+ *  shader's `boltInner` -- from the panel's Bolt length, which runs the other
+ *  way: longer is further in, and 0 ends every bolt at the edge. A skin that
+ *  names only boltInner keeps it (MotionComponent). */
+constexpr float
+speakerBoltInner (float length)
+{
+  return 1.f - length;
+}
+
 }

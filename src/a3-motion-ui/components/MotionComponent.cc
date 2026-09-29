@@ -1036,7 +1036,11 @@ MotionComponent::applyVisualConfig (juce::var const &skin)
     sc.ballSize = cfgF (sl, "ballSize", 0.048f);
     sc.ballWander = cfgF (sl, "ballWander", 0.10f);
     sc.ballHeight = cfgF (sl, "ballHeight", 0.05f);
-    sc.boltInner = cfgF (sl, "boltInner", 0.45f);
+    // The panel's Bolt length when the skin has it; the shader's own value
+    // otherwise, so a skin written before it draws as it did.
+    sc.boltInner = sl.hasProperty ("boltLength")
+                       ? speakerBoltInner (cfgF (sl, "boltLength", 0.55f))
+                       : cfgF (sl, "boltInner", 0.45f);
     sc.boltEscape = cfgF (sl, "boltEscape", 0.55f);
     sc.boltBranches = cfgF (sl, "boltBranches", 2.f);
     sc.boltBranch = cfgF (sl, "boltBranch", 1.6f);
@@ -1245,6 +1249,9 @@ MotionComponent::renderOpenGL ()
       {
         smoothBlob (_smoothBlobPeak[ch], _uiStates[ch]->vuPeak.load ());
         smoothBlob (_smoothBlobRms[ch],  _uiStates[ch]->vuLevel.load ());
+        // From the raw peak: a hit is a change, and smoothing it first would
+        // take the change out.
+        _blobPunch[static_cast<size_t> (ch)].update (_uiStates[ch]->vuPeak.load (), dt);
       }
   }
 
@@ -1323,6 +1330,7 @@ MotionComponent::renderOpenGL ()
         // detail you have to be looking at it to catch.
         bd.corona = coronaScaleFactor (blobLevel, _coronaCfg);
         bd.vuRms = _smoothBlobRms[ch];
+        bd.punch = _blobPunch[static_cast<size_t> (ch)].value ();
         bd.grabbed = _uiStates[ch]->grabbed;
 
         // What the blob wears while an action runs. From the engine rather

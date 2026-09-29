@@ -93,6 +93,8 @@ public:
     float vuPeak = 0.f;
     float corona = 1.9f;  // how far the corona reaches, in blob radii
     float vuRms = 0.f;
+    /** How hard the channel just hit, 0..1 (BlobPunch): the spikes fire on it. */
+    float punch = 0.f;
     /** How far an action has this channel, 0..1. Not whether a finger is down:
      *  the engine puts a clip's settings back when the accent's envelope has
      *  finished falling, and that is when the blob stops wearing it. */
@@ -351,6 +353,7 @@ private:
   GLint _uBlobTrailD[kMaxBlobs] = {};   // vec4: t6.xy, t7.xy
   GLint _uActionColour = -1;
   GLint _uBlobEffects = -1;
+  GLint _uBlobPunch = -1;
   GLint _uSphereGrid = -1;
 
   GLint _uLineMap[kMaxBlobs] = {};
