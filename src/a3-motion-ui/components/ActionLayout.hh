@@ -132,6 +132,12 @@ ActionFieldParts actionFieldParts (juce::Rectangle<int> field);
  *  a list whose last entries cannot be reached at all. */
 int actionListVisibleRows (ActionLayout const &layout);
 
+/** Where each row the list shows stands, top to bottom: whole rows only, as
+ *  many as actionListVisibleRows says. The painter used to go on while a row
+ *  merely *started* inside the field, and drew the last one half below the
+ *  bar's frame (2026-09-29). */
+std::vector<juce::Rectangle<int> > actionListRows (ActionLayout const &layout);
+
 /** @param headerSize the theme's header size, which the control row is
  *                    measured against.
  *  @param bodySize   the theme's body size, which sets the knob and its
