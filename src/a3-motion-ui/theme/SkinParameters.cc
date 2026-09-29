@@ -443,8 +443,18 @@ clampSkinValue (juce::var const &skin, juce::String const &path, double value)
 
   // One is what the device ships with and zero is off; past two an effect
   // stops being a flourish on the blob and becomes the picture.
-  if (path == "blobSparkle" || path == "blobBolt" || path == "blobTrail")
+  if (path == "blobSparkle" || path == "blobTrail")
     return juce::jlimit (0.0, 2.0, value);
+
+  // The spikes may go further than the other effects: "die spikes sollen
+  // deutlicher ausschlagen" (2026-09-29).
+  if (path == "blobBolt")
+    return juce::jlimit (0.0, 3.0, value);
+
+  // Zero leaves a silent blob dark but for its spikes; one is as bright as a
+  // playing one, which is how every blob was drawn until 2026-09-29.
+  if (path == "blobRest")
+    return juce::jlimit (0.0, 1.0, value);
 
   // One is what the device ships with and zero is off; past two an effect
   // stops being what the line burns with and becomes the picture.

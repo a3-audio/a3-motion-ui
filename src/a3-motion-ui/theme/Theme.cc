@@ -349,6 +349,7 @@ loadTheme (juce::var const &fileSkin)
   theme.blobSparkle = themeFloat (skin, "blobSparkle", theme.blobSparkle);
   theme.sphereGrid = themeFloat (skin, "sphereGrid", theme.sphereGrid);
   theme.blobBolt = themeFloat (skin, "blobBolt", theme.blobBolt);
+  theme.blobRest = themeFloat (skin, "blobRest", theme.blobRest);
   theme.blobTrail = themeFloat (skin, "blobTrail", theme.blobTrail);
   theme.blobScale
       = themeFloat (skin["blob"], "scale", theme.blobScale);
@@ -475,6 +476,7 @@ themeDefaultsVar ()
   number ("blobSparkle", defaults.blobSparkle);
   number ("sphereGrid", defaults.sphereGrid);
   number ("blobBolt", defaults.blobBolt);
+  number ("blobRest", defaults.blobRest);
   number ("blobTrail", defaults.blobTrail);
   number ("fontHeader", defaults.fontHeader);
   number ("fontBody", defaults.fontBody);

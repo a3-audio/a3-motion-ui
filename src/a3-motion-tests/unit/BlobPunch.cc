@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <JuceHeader.h>
+
 #include <a3-motion-ui/components/BlobPunch.hh>
 
 using namespace a3;
@@ -87,4 +89,18 @@ TEST (BlobPunch, EveryBeatOfAGrooveIsAPunch)
       EXPECT_GT (punch.update (0.9f, frame), 0.5f) << "beat " << i;
       EXPECT_LT (hold (punch, 0.08f, beat - frame), 0.2f) << "after beat " << i;
     }
+}
+
+// The piece is only worth its tests while something calls it: three times in
+// one week a coupling came loose in a rebuild with every test green.
+TEST (BlobPunch, ItDrivesTheBlobsSpikes)
+{
+  juce::File const root (A3_UI_SOURCE_DIR);
+  auto const motion = root.getChildFile ("components/MotionComponent.cc").loadFileAsString ();
+  auto const shader = root.getChildFile ("components/SphereShader.cc").loadFileAsString ();
+
+  EXPECT_TRUE (motion.contains ("_blobPunch[")) << "nothing measures the hits";
+  EXPECT_TRUE (shader.contains ("getBlobPunch (i)")) << "the blob never reads them";
+  EXPECT_FALSE (shader.contains ("step (0.28, vu)"))
+      << "the spikes still fire on level at random";
 }

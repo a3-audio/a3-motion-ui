@@ -653,3 +653,13 @@ TEST (SpeakerLightScaling, TheScenesReachIsTheTowersOrTheBall)
                scale * speakerSceneReach (1.55f) < 1.f)
         << scale;
 }
+
+// Longer on the panel is further in for the shader, and the panel's default
+// has to be the shader's old one, or every skin changes.
+TEST (SpeakerLightScaling, BoltLengthRunsTheShadersWay)
+{
+  EXPECT_FLOAT_EQ (speakerBoltInner (0.55f), 0.45f);
+  EXPECT_LT (speakerBoltInner (0.9f), speakerBoltInner (0.55f))
+      << "a longer bolt must end further in";
+  EXPECT_FLOAT_EQ (speakerBoltInner (0.f), 1.f) << "0 is the sphere's edge";
+}

@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
 #include <a3-motion-ui/theme/SkinSections.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -98,7 +99,9 @@ TEST (SkinSections, ThePanelOffersFarFewerValuesThanTheSkinHas)
   auto const everything
       = skinParameters (juce::JSON::parse (shipped.loadFileAsString ())).size ();
 
-  EXPECT_LE (rows, 40u);
+  // 40 until 2026-09-29, when the maintainer asked for the blob's rest glow,
+  // the buttons' own size and the tops' bolt length.
+  EXPECT_LE (rows, 43u);
   EXPECT_LT (rows * 2, everything);
 }
 
@@ -414,4 +417,59 @@ TEST (SkinSections, AValueReadsTheWayTheFileWritesIt)
   EXPECT_EQ (skinTunableText (thickness, 0.0018), "0.0018");
   EXPECT_EQ (skinTunableText (glow, 1.33), "1.33");
   EXPECT_EQ (skinTunableText (glow, 0.0), "0");
+}
+
+// ── Round 2 (2026-09-29) ─────────────────────────────────────────────────
+
+namespace
+{
+SkinTunable const *
+valueOf (SkinSection section, juce::String const &key)
+{
+  for (auto const &value : skinSectionSpec (section).values)
+    if (juce::String (value.path) == key)
+      return &value;
+  return nullptr;
+}
+
+SkinEffect const *
+effectWith (SkinSection section, juce::String const &key)
+{
+  for (auto const &effect : skinSectionSpec (section).effects)
+    if (juce::String (effect.amount.path) == key)
+      return &effect;
+  return nullptr;
+}
+}
+
+// A silent blob used to shine as bright in its middle as a playing one.
+TEST (SkinSections, TheBlobHasARestGlow)
+{
+  auto const *rest = valueOf (SkinSection::Blob, "blobRest");
+  ASSERT_NE (rest, nullptr);
+  EXPECT_DOUBLE_EQ (rest->min, 0.0);
+  EXPECT_DOUBLE_EQ (rest->max, 1.0);
+  EXPECT_FLOAT_EQ (loadTheme (juce::var{}).blobRest, 0.35f);
+  EXPECT_FLOAT_EQ (loadTheme (juce::JSON::parse (R"({"blobRest": 0.8})")).blobRest, 0.8f);
+}
+
+// "die spikes sollen deutlicher ausschlagen": the bolts are the spikes, and
+// they may go further than before.
+TEST (SkinSections, TheBlobsBoltsAreItsSpikes)
+{
+  auto const *spikes = effectWith (SkinSection::Blob, "blobBolt");
+  ASSERT_NE (spikes, nullptr);
+  EXPECT_EQ (juce::String (spikes->amount.label), "Spikes");
+  EXPECT_DOUBLE_EQ (spikes->amount.max, 3.0);
+}
+
+// "speaker tops fehlt die länge der blitze sie sollen auch auf spherenrand
+// begrenzt werden können." One slider does both: its bottom is the edge.
+TEST (SkinSections, SpeakerTopBoltsHaveALengthThatReachesDownToTheEdge)
+{
+  auto const *length = valueOf (SkinSection::SpeakerTops, "speakerLight.boltLength");
+  ASSERT_NE (length, nullptr);
+  EXPECT_DOUBLE_EQ (length->min, 0.0);
+  EXPECT_FLOAT_EQ (speakerBoltInner (static_cast<float> (length->min)), 1.f)
+      << "at the bottom of the slider a long bolt still runs past the edge";
 }

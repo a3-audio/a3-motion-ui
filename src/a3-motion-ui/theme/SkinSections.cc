@@ -101,12 +101,11 @@ buildSections ()
                                       3.0, 1.0 }),
             zeroedWhenOff ("horns", { "speakerLight.topGlow", "Horn glow",
                                       0.0, 8.0, 2.0 }),
-            // The whole cabinet, every face -- the subs' as well. Here
-            // because it is what CLEAN relies on to show a top is playing.
-            zeroedWhenOff ("cabinets", { "speakerLight.boxGlow",
-                                         "Cabinet glow", 0.0, 2.0, 0.5 }),
         },
-        { { "speakerLight.boltCount", "Bolt count", 1.0, 12.0, 6.0, true } },
+        { { "speakerLight.boltCount", "Bolt count", 1.0, 12.0, 6.0, true },
+          // How far the long bolts run on into the ball past its edge; 0
+          // stops every bolt at the sphere's edge (speakerBoltInner).
+          { "speakerLight.boltLength", "Bolt length", 0.0, 0.95, 0.55 } },
         { { "speakerLight", "Light" }, { "boltCore", "Bolt core" } } });
 
   sections.push_back (
@@ -120,6 +119,12 @@ buildSections ()
                                               1.0 }),
             zeroedWhenOff ("ports", { "speakerLight.subGlow", "Port glow", 0.0,
                                       5.0, 1.0 }),
+            // The whole cabinet, every face -- the tops' as well, which is
+            // what CLEAN relies on to show a top is playing. Here since
+            // 2026-09-29: the tops' section had no row left on the rig's
+            // panel for their bolts' length.
+            zeroedWhenOff ("cabinets", { "speakerLight.boxGlow",
+                                         "Cabinet glow", 0.0, 2.0, 0.5 }),
         },
         { { "speakerLight.ballCount", "Balls", 0.0, 8.0, 3.0, true },
           { "speakerLight.ballSize", "Ball size", 0.01, 0.15, 0.05 } },
@@ -138,10 +143,13 @@ buildSections ()
               { { "blob.sizeMin", 1.0 }, { "blob.sizeMax", 1.0 } } },
             zeroedWhenOff ("sparks", { "blobSparkle", "Sparks", 0.0, 2.0,
                                        1.0 }),
-            zeroedWhenOff ("bolts", { "blobBolt", "Bolts", 0.0, 2.0, 1.0 }),
+            // The spikes: bolts thrown off on a hit (BlobPunch), not on level.
+            zeroedWhenOff ("bolts", { "blobBolt", "Spikes", 0.0, 3.0, 1.0 }),
             zeroedWhenOff ("trail", { "blobTrail", "Trail", 0.0, 2.0, 1.0 }),
         },
-        { { "blob.scale", "Size", 0.02, 0.12, 0.05 } },
+        { { "blob.scale", "Size", 0.02, 0.12, 0.05 },
+          // How bright a silent blob's middle stays; the glow comes with level.
+          { "blobRest", "Rest glow", 0.0, 1.0, 0.35 } },
         { { "blobAction", "Action" } } });
 
   sections.push_back (

@@ -178,6 +178,9 @@ struct Theme
    *  can decline. */
   float blobSparkle = 1.f;
   float blobBolt = 1.f;
+  /** How bright a silent blob's middle stays, 0..1; 1 is as bright as a
+   *  playing one, which is what every blob was until 2026-09-29. */
+  float blobRest = 0.35f;
   float blobTrail = 1.f;
 
   /** How bright the ball's graticule is drawn -- the rings of equal height
