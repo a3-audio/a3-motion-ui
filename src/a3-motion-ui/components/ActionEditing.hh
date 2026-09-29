@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <optional>
@@ -132,5 +133,12 @@ enum class CuePress
 
 CuePress cuePressFor (bool isCue, bool clipExists, bool recording,
                       bool takeWaiting);
+
+/** What a Cue puts on the channel: the clip it cues, with the script's own
+ *  lines over it -- the values ACTION shows for the button and writes into
+ *  its script. The clip's feel stays: a Cue has no accent, so its ceilings
+ *  and envelope lines say nothing about how the clip's ACT is played. */
+ClipSettings cuedClipSettings (juce::String const &source,
+                               ClipSettings const &clip, juce::int64 seed);
 
 }
