@@ -54,9 +54,9 @@ ClipSettingsLayout
 deviceBar (BarSizes s, int width = 768)
 {
   auto const knobDiam = knobDiameterForFont (s.body, s.pot);
-  auto const height = juce::jmax (
-      clipSettingsPreferredHeight (s.header, s.body, knobDiam),
-      controllerPreferredHeight (s.header, fingertipSize))
+  // As ClipSettingsComponent sizes the bar: the PADS page no longer asks
+  // for room in it, so the clip settings alone set its height.
+  auto const height = clipSettingsPreferredHeight (s.header, s.body, knobDiam)
                       + channelRowHeight (knobDiam, width);
   return layOutClipSettings ({ 0, 0, width, height }, s.header, s.body, s.pot,
                              BarPage::Clip);
