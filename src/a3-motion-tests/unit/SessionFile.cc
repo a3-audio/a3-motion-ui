@@ -470,90 +470,7 @@ TEST (SessionFile, NothingToMigrateIsNotAnError)
   root.deleteRecursively ();
 }
 
-/** A set names its takes rather than carrying them, so a shipped set is only
- *  as good as the names in it: rename a shape and every set pointing at it
- *  loads as an empty slot, silently, because a missing name is not an error
- *  here -- it is a slot nobody has filled. This is the one place that would
- *  notice. */
-TEST (SessionFile, EveryShippedSetNamesShapesThatExist)
-{
-  juce::File const dir (A3_PATTERN_SESSIONS_DIR);
-  ASSERT_TRUE (dir.isDirectory ()) << dir.getFullPathName ();
 
-  juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
-  juce::StringArray known;
-  for (auto const &file :
-       shapes.findChildFiles (juce::File::findFiles, false, "*.svg"))
-    known.add (PatternFile::peek (file).name);
-  ASSERT_FALSE (known.isEmpty ());
-
-  auto const files
-      = dir.findChildFiles (juce::File::findFiles, false, "*.json");
-  EXPECT_FALSE (files.isEmpty ()) << "no sets ship at all";
-
-  for (auto const &file : files)
-    {
-      auto const set = loadSession (file, 4, 1);
-      EXPECT_EQ (juce::String (set.name), file.getFileNameWithoutExtension ())
-          << "a set's name is what the browser lists it under";
-      ASSERT_EQ (set.channels.size (), 4u) << file.getFileName ();
-
-      for (auto const &channel : set.channels)
-        {
-          ASSERT_EQ (channel.slots.size (), 1u) << file.getFileName ();
-          for (auto const &slot : channel.slots)
-            EXPECT_TRUE (known.contains (juce::String (slot.patternName)))
-                << file.getFileName () << ": no shape called "
-                << slot.patternName;
-        }
-    }
-}
-
-/** Since one clip per channel (2026-09-28) a shipped set is a mood: each
- *  channel has one clip, named, whose own shape is the one the set names, and
- *  six actions that exist -- no button left empty, so a set loaded mid-night
- *  never leaves the previous set's actions under the fingers. And one slot
- *  in the file, so an older build reading it does not find a second clip the
- *  device would quietly drop. */
-TEST (SessionFile, EveryShippedSetIsOneClipAndSixActionsPerChannel)
-{
-  juce::File const dir (A3_PATTERN_SESSIONS_DIR);
-  juce::File const clips (A3_PATTERN_CLIPS_DIR);
-  juce::File const actions (A3_PATTERN_ACTIONS_DIR);
-
-  for (auto const &file :
-       dir.findChildFiles (juce::File::findFiles, false, "*.json"))
-    {
-      auto const parsed = juce::JSON::parse (file.loadFileAsString ());
-      auto const *channels = parsed["channels"].getArray ();
-      ASSERT_NE (channels, nullptr) << file.getFileName ();
-      for (auto const &entry : *channels)
-        EXPECT_EQ (entry["slots"].size (), 1) << file.getFileName ();
-
-      auto const set = loadSession (file, 4, 1);
-      for (auto const &channel : set.channels)
-        {
-          auto const &slot = channel.slots[0];
-          auto const clipFile = clips.getChildFile (
-              juce::String (slot.clipFile) + ".json");
-          ASSERT_TRUE (clipFile.existsAsFile ())
-              << file.getFileName () << ": no clip called " << slot.clipFile;
-          EXPECT_EQ (juce::JSON::parse (clipFile.loadFileAsString ())["svg"]
-                         .toString (),
-                     juce::String (slot.patternName))
-              << file.getFileName () << ": " << slot.clipFile
-              << " is not drawn with " << slot.patternName;
-
-          for (auto const &action : channel.actions)
-            EXPECT_TRUE (actions
-                             .getChildFile (juce::String (action.script)
-                                            + ".scd")
-                             .existsAsFile ())
-                << file.getFileName () << ": no action called '"
-                << action.script << "'";
-        }
-    }
-}
 
 // ── The speed keys travel with the set ────────────────────────────────────
 
@@ -602,41 +519,9 @@ TEST (SessionFile, AWrongNumberOfSpeedKeysIsIgnored)
 
 // ── One clip per channel, six actions (2026-09-27) ───────────────────────
 
-// Six action buttons per channel, each by the script's name (a set travels)
-// and with how it is played -- written only where that differs from the
-// defaults, like a slot's overrides.
-TEST (SessionFile, AChannelCarriesSixActionsWithTheirFeel)
-{
-  Session set;
-  set.channels.resize (1);
-  set.channels[0].slots.resize (1);
-  auto &actions = set.channels[0].actions;
-  actions[0].script = "Bloom";
-  ActionFeel feel;
-  feel.envelopeAttack = 5;
-  feel.actMode = ActMode::Hold;
-  actions[0].feel = feel;
-  actions[3].script = "Ground";
-
-  auto const file = tempSet ("a3-session-actions.json");
-  ASSERT_TRUE (saveSession (file, set));
-  auto const read = loadSession (file, 1, 1);
-
-  EXPECT_EQ (read.channels[0].actions[0].script, "Bloom");
-  ASSERT_TRUE (read.channels[0].actions[0].feel.has_value ());
-  EXPECT_EQ (*read.channels[0].actions[0].feel, feel);
-  EXPECT_EQ (read.channels[0].actions[3].script, "Ground");
-  EXPECT_FALSE (read.channels[0].actions[3].feel.has_value ());
-  EXPECT_TRUE (read.channels[0].actions[1].script.empty ());
-
-  // "slots" stays, so an older build still reads a new set.
-  EXPECT_TRUE (file.loadFileAsString ().contains ("\"slots\""));
-  file.deleteFile ();
-}
-
 // An old set had an action per slot, two per channel. Read by this build it
-// keeps the clip of slot 1 -- and both actions, as A1 and A2, with the
-// envelope each slot had been turned to.
+// keeps the clip of slot 1 -- and both actions, as A1 and A2. What a slot had
+// been turned to is not kept: the scripts say how they play (2026-09-29).
 TEST (SessionFile, AnOldSetsTwoSlotActionsBecomeA1AndA2)
 {
   auto const file = tempSet ("a3-session-two-slots.json");
@@ -651,11 +536,7 @@ TEST (SessionFile, AnOldSetsTwoSlotActionsBecomeA1AndA2)
 
   auto const &actions = read.channels[0].actions;
   EXPECT_EQ (actions[0].script, "Slam");
-  ASSERT_TRUE (actions[0].feel.has_value ());
-  EXPECT_EQ (actions[0].feel->envelopeAttack, 5);
-  EXPECT_EQ (actions[0].feel->actMode, ActMode::Hold);
   EXPECT_EQ (actions[1].script, "Bloom");
-  EXPECT_FALSE (actions[1].feel.has_value ()) << "nothing turned: the script's";
   file.deleteFile ();
 }
 
@@ -698,44 +579,58 @@ TEST (SessionFile, NoActionsWrittenLeavesTheSlotsActionsToBeRead)
   file.deleteFile ();
 }
 
-/** The library ships fifty shapes, fifty clips and fifty actions, and ten
- *  sets built from them (maintainer, 2026-09-28): enough to cover the mood
- *  meter's four corners several ways, few enough to learn. Each clip draws a
- *  shape that ships -- a clip naming a missing one loads as nothing. */
-TEST (SessionFile, TheLibraryShipsFiftyOfEachAndTenSets)
+
+// Library v2 (2026-09-28) deletes every old name. A set written before it must
+// still load: names that no longer ship are simply kept as written (they
+// resolve to nothing when applied), and nothing throws.
+TEST (SessionFile, ASetNamingThingsThatNoLongerShipStillLoads)
 {
-  juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
-  juce::File const clips (A3_PATTERN_CLIPS_DIR);
-  juce::File const actions (A3_PATTERN_ACTIONS_DIR);
-  juce::File const sets (A3_PATTERN_SESSIONS_DIR);
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-old-names.json");
+  file.replaceWithText (R"({ "name": "Old", "channels": [
+    { "slots": [ { "pattern": "Corner", "clip": "Flutter" } ],
+      "actions": [ { "script": "Bloom" }, {}, {}, {}, {}, {} ] } ] })");
+  auto const set = loadSession (file, 4, 1);
+  ASSERT_EQ (set.channels.size (), 4u);
+  EXPECT_EQ (set.channels[0].slots[0].patternName, "Corner");
+  EXPECT_EQ (set.channels[0].actions[0].script, "Bloom");
+}
 
-  auto const shapeFiles
-      = shapes.findChildFiles (juce::File::findFiles, false, "*.svg");
-  auto const clipFiles
-      = clips.findChildFiles (juce::File::findFiles, false, "*.json");
-  auto actionFiles
-      = actions.findChildFiles (juce::File::findFiles, false, "*.scd");
-  actionFiles.removeIf ([] (juce::File const &f) {
-    return f.getFileNameWithoutExtension () == "README";
-  });
+// ── What a button puts on the clip (2026-09-28) ──────────────────────────
 
-  EXPECT_EQ (shapeFiles.size (), 50);
-  EXPECT_EQ (clipFiles.size (), 50);
-  EXPECT_EQ (actionFiles.size (), 50);
-  EXPECT_EQ (sets.findChildFiles (juce::File::findFiles, false, "*.json")
-                 .size (),
-             10);
+// ACTION writes into the script since 2026-09-29: a set names each button's
+// script and nothing more.
+TEST (SessionFile, AChannelNamesItsSixScriptsAndNothingElse)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].actions[0].script = "Lift Up";
+  set.channels[0].actions[5].script = "Cue Peak Anthem";
 
-  juce::StringArray shapeNames;
-  for (auto const &file : shapeFiles)
-    shapeNames.add (PatternFile::peek (file).name);
-  for (auto const &file : clipFiles)
-    {
-      auto const svg = juce::JSON::parse (file.loadFileAsString ())["svg"];
-      if (svg.isVoid () || svg.toString ().isEmpty ())
-        continue; // Default: the fallback, deliberately shapeless
-      EXPECT_TRUE (shapeNames.contains (svg.toString ()))
-          << file.getFileName () << " draws " << svg.toString ()
-          << ", which does not ship";
-    }
+  auto const file = tempSet ("a3-session-scripts-only.json");
+  ASSERT_TRUE (saveSession (file, set));
+  auto const text = file.loadFileAsString ();
+  EXPECT_FALSE (text.contains ("\"feel\"")) << text;
+  EXPECT_FALSE (text.contains ("\"motion\"")) << text;
+  EXPECT_FALSE (text.contains ("\"after\"")) << text;
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].actions[0].script, "Lift Up");
+  EXPECT_EQ (read.channels[0].actions[5].script, "Cue Peak Anthem");
+  file.deleteFile ();
+}
+
+TEST (SessionFile, AnOlderSetWithTurnedValuesStillLoadsItsScripts)
+{
+  auto const file = tempSet ("a3-session-turned-values.json");
+  ASSERT_TRUE (file.replaceWithText (R"({ "channels": [ { "slots": [ {} ],
+      "actions": [ { "script": "Speed Halt", "motion": { "rotate": 0.1, "strX": 8 } },
+                   { "script": "Width Point", "after": "A1" },
+                   { "script": "Lift Up", "feel": { "envAttack": 5 } } ] } ] })"));
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].actions[0].script, "Speed Halt");
+  EXPECT_EQ (read.channels[0].actions[1].script, "Width Point");
+  EXPECT_EQ (read.channels[0].actions[2].script, "Lift Up");
+  file.deleteFile ();
 }

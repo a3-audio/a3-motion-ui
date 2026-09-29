@@ -124,3 +124,76 @@ TEST (ActionEditing, ABrokenSetOrSvgIsNotWritten)
   EXPECT_FALSE (errorsBlockSaving (wrong, bloom));
   EXPECT_FALSE (errorsBlockSaving ({}, juce::File ("/p/sessions/user/S.json")));
 }
+
+// -- Cue (library v2, 2026-09-28) ----------------------------------------------
+// A Cue button carries the clip its script names, resolved when the script is
+// put on the button -- never on the press.
+
+namespace
+{
+juce::File
+aClipsDirHolding (juce::StringArray const &names)
+{
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-cue-clips");
+  dir.deleteRecursively ();
+  dir.getChildFile ("system").createDirectory ();
+  for (auto const &n : names)
+    dir.getChildFile ("system").getChildFile (n + ".json").replaceWithText ("{}");
+  return dir;
+}
+}
+
+TEST (CueClip, NoClipLineIsNoCue)
+{
+  auto const t = cueClipFor (std::nullopt, aClipsDirHolding ({}));
+  EXPECT_FALSE (t.file.exists ());
+  EXPECT_TRUE (t.error.isEmpty ());
+}
+
+TEST (CueClip, AShippedClipIsFoundByName)
+{
+  auto const dir = aClipsDirHolding ({ "Peak Anthem" });
+  auto const t = cueClipFor (juce::String ("Peak Anthem"), dir);
+  EXPECT_EQ (t.file, dir.getChildFile ("system/Peak Anthem.json"));
+  EXPECT_TRUE (t.error.isEmpty ());
+}
+
+// Review focus 2: a clip renamed or deleted later leaves the button saying so
+// and doing nothing -- never a silent Default.
+TEST (CueClip, AMissingClipIsAnErrorAndNoCue)
+{
+  auto const t = cueClipFor (juce::String ("Peak Gone"), aClipsDirHolding ({}));
+  EXPECT_FALSE (t.file.exists ());
+  EXPECT_TRUE (t.error.contains ("Peak Gone")) << t.error;
+}
+
+// Library v2 review: what a press on a Cue button does. The Cue is decided
+// before anything else, so a Cue whose clip is gone does nothing -- it never
+// falls through to an ordinary accent (review #1) -- and a take waiting for
+// SAVE is never thrown away by one tap on stage (review #4).
+TEST (CuePress, AButtonThatIsNoCueGoesOnAsAnAction)
+{
+  EXPECT_EQ (cuePressFor (false, false, false, false), CuePress::NotACue);
+}
+
+TEST (CuePress, ACueWithItsClipLoadsIt)
+{
+  EXPECT_EQ (cuePressFor (true, true, false, false), CuePress::Load);
+}
+
+TEST (CuePress, ACueWhoseClipIsGoneDoesNothing)
+{
+  EXPECT_EQ (cuePressFor (true, false, false, false), CuePress::NoClip);
+}
+
+TEST (CuePress, ACueWaitsForATakeToBeSaved)
+{
+  EXPECT_EQ (cuePressFor (true, true, false, true), CuePress::TakeWaiting);
+}
+
+TEST (CuePress, ACueNeverGoesOverATakeGoingIn)
+{
+  EXPECT_EQ (cuePressFor (true, true, true, false), CuePress::Recording);
+  EXPECT_EQ (cuePressFor (true, true, true, true), CuePress::Recording);
+}

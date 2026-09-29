@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 // For numSpeedButtons, as in SettingsPersistence.hh.
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
@@ -119,10 +120,12 @@ struct Session
   /** One of a channel's six action buttons (2026-09-27): the script by name,
    *  as a clip is named, and how it is played where that was turned from the
    *  script's own -- empty means "as the script says". */
+  /** One of a channel's six buttons: the script it fires, by name. What the
+   *  script does is in the script -- ACTION writes there since 2026-09-29 --
+   *  so the set keeps nothing else per button. */
   struct ActionEntry
   {
     std::string script;
-    std::optional<ActionFeel> feel;
   };
 
   struct Channel

@@ -135,10 +135,13 @@ Konfiguration erfolgt über `config.json`/UserConfig (`oscReceiver`, `oscSender`
 
 ### 3.5 FILES and ACTION (2026-09-27)
 
-- **ACTION** (2026-09-28): the six fields A1–A6 (`onButtonHeld`: down → `chooseActionButton` +
-  `handlePadPress (padIndexForAction)`, up → `handlePadRelease`), the assignment list (a tap assigns
-  to the chosen button: `onActionChosen` → `setButtonAction`), EDIT, the mode, and the envelope
-  knobs of the chosen button. The first encoder is `EncoderTarget::Kind::ActionButton`.
+- **ACTION** (2026-09-28): the six fields A1–A6 only choose (`onButtonChosen` →
+  `chooseActionButton`), the assignment list (a tap assigns to the chosen button: `onActionChosen`
+  → `setButtonAction`), EDIT, the mode, *then* (`onAfterStepped`/`onAfterCleared` →
+  `setShownButtonAfter`), AUDIO/MOTION (`setTile`), and the chosen button's tile: the envelope
+  knobs, or its motion (`onMotionSet`/`onMotionUnset` → `setShownButtonMotion`). A pad push on the
+  panel or PADS → `handlePadPress`, then `showPushedAction`. Chains: `followActionChains` in
+  `tickCallback` → `fireChainedAction`. The first encoder is `EncoderTarget::Kind::ActionButton`.
 - **EDIT** (`ActionComponent::onEditPressed`) sets `_editOrigin`, opens FILES on ACTIONS; the panel
   follows the chosen row through `refreshBrowser` → `syncFilePanel`.
 - **FILES**, every tab: the chosen row's file in the panel (`showFileText`). Keys:

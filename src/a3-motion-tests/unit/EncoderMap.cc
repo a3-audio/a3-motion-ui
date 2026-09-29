@@ -156,26 +156,9 @@ TEST (EncoderMap, ShiftOrAPageWithoutFieldsTurnsTheColumnsFreqAndQ)
                    ChannelPot::Q);
       }
 
-  for (auto const page : { BarPage::Action })
-    {
-      EXPECT_EQ (turn (page, 2, top).kind,
-                 EncoderTarget::Kind::ColumnChannelPot);
-      EXPECT_EQ (turn (page, 2, top).pot, ChannelPot::Freq);
-      EXPECT_EQ (turn (page, 2, bottom).pot, ChannelPot::Q);
-    }
 }
 
-// ACTION (2026-09-28): the encoder under the six buttons steps through them;
-// the others keep the column's FREQ and Q.
-TEST (EncoderMap, OnActionTheFirstEncoderStepsThroughTheButtons)
-{
-  EXPECT_EQ (turn (BarPage::Action, 0, top).kind,
-             EncoderTarget::Kind::ActionButton);
-  EXPECT_EQ (turn (BarPage::Action, 0, bottom).kind,
-             EncoderTarget::Kind::ColumnChannelPot);
-  EXPECT_EQ (turn (BarPage::Action, 0, top, false, true).kind,
-             EncoderTarget::Kind::ColumnChannelPot);
-}
+// ACTION's own encoders are in ActionEncoders.cc.
 
 // A press on a length key's encoder chooses that length, as a tap does.
 TEST (EncoderMap, APressOnALengthChoosesIt)

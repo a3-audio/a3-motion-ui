@@ -22,6 +22,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <a3-motion-engine/ActionMotion.hh>
+
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
 #include <array>
@@ -52,6 +54,15 @@ struct ActionLayout
    *  editor that stood on this page moved on 2026-09-27. */
   juce::Rectangle<int> editButton;
 
+  /** What fires when this button's accent is over: "then A3", or nothing.
+   *  Under the mode (2026-09-28). */
+  juce::Rectangle<int> afterKey;
+
+  /** Which tile stands in the card (2026-09-28): the button's feel, or what
+   *  it puts on the clip. Tabs side by side along the card's top. */
+  juce::Rectangle<int> audioKey;
+  juce::Rectangle<int> motionKey;
+
 
   /** The list the chosen button is assigned from, open all the time between
    *  the buttons and the keys. Never over the knobs. */
@@ -64,9 +75,8 @@ struct ActionLayout
    *  controls in the bar does. */
   juce::Rectangle<int> card;
 
-  /** What the card is called. "Audio", because that is what the nine knobs
-   *  do -- the accent and the two filters -- and a card of nine unnamed knobs
-   *  beside a script is a card you have to work out. */
+  /** The band along the card's top that the two tabs share: what the card
+   *  shows is named by the tab that is lit. */
   juce::Rectangle<int> cardCaption;
 
   /** Three envelopes' worth of attack, decay and ceiling, in reading order --
@@ -74,6 +84,13 @@ struct ActionLayout
    *  because it is what ACT has always done, then the cutoff, then the
    *  resonance. */
   static constexpr int numRows = 3;
+
+  /** MOTION's eight fields two to a row, each field's pair side by side:
+   *  four across, in motionParamOrder -- which is also how the panel's lower
+   *  encoders turn a row of it. */
+  static constexpr int motionColumns = 4;
+  static constexpr int motionRows
+      = (numMotionParams + motionColumns - 1) / motionColumns;
   std::array<juce::Rectangle<int>, numRows * 3> controls;
 
   /** The bands the controls stand on, top to bottom. */
@@ -83,11 +100,28 @@ struct ActionLayout
    *  the same arrangement the global strip names its channel rows with. */
   std::array<juce::Rectangle<int>, numRows> rowLabels;
 
+  /** The MOTION tile, in the same card: a cell per MotionParam, indexed by
+   *  it, four across in motionParamOrder -- MOTION's eight fields two to a
+   *  row, then CLIP's speed, direction and end. */
+  std::array<juce::Rectangle<int>, numMotionParams> motionControls;
+
   /** Knob size and text sizes, worked out for these cells -- the same
    *  numbers the clip bar hands its own knobs, so the two pages draw one
    *  knob rather than two similar ones. */
   ControlMetrics metrics{ 0, 0.f, 0.f };
 };
+
+/** Where the parts of an action field stand: its number (A1) top left, the
+ *  1/H badge that says how it plays top right, its action's name under them
+ *  across the whole field. */
+struct ActionFieldParts
+{
+  juce::Rectangle<int> number;
+  juce::Rectangle<int> modeBadge;
+  juce::Rectangle<int> name;
+};
+
+ActionFieldParts actionFieldParts (juce::Rectangle<int> field);
 
 /** How many rows of the action list are on screen at once.
  *

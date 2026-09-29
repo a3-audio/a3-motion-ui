@@ -7,10 +7,16 @@
 // script too: every line of it is a comment, so firing it changes nothing.
 // It is here to be read in the editor in FILES > ACTIONS.
 //
-// Every shipped script carries a "Mood:" line under its title: "more" moves
-// the clip towards energy and openness, "less" towards calm and weight. The
-// shipped sets put "more" in the left column (A1 A3 A5) and "less" in the
-// right (A2 A4 A6), gentle at the top and extreme at the bottom.
+// The shipped actions are named by what they do:
+//   Move  Lift  Width  Speed  Dub  -- movement only; all three ceilings at 0,
+//                                      so they never touch 3d, freq or Q
+//   FX                             -- the only ones that change the sound
+//   Cue                            -- ~clip = "Name"; puts that clip on the
+//                                      channel and starts it on the downbeat
+// Every script carries a "Mood:" line: "more" moves the room towards energy
+// and openness, "less" towards calm and weight. The shipped sets put a gentle
+// more/less pair on A1/A2, a strong one on A3/A4, FX on A5 and the Cue into
+// the next phase of the night on A6.
 //
 //
 // ---- The shape of it ------------------------------------------------------
@@ -138,11 +144,11 @@
 //
 // ---- ACTION: the accent ---------------------------------------------------
 //
-// These nine and ~act are how the button plays the action -- its feel. They
-// are read from the script when it is put on a button, and from then on they
-// belong to that button: the ACTION page's knobs and mode key change them for
-// that button only, and the set remembers what was changed. A line left
-// commented out takes the clip's value at the moment the script is assigned.
+// These nine and ~act are how the button plays the action -- its feel. The
+// ACTION page writes them here (2026-09-29): a knob or the mode key changes
+// this file's line, in place, for every button that holds the script. What
+// the page shows is what the file says. A line left commented out takes the
+// clip's value at the moment the script is assigned.
 //
 //   ~attack          0..6    how long the accent takes to rise while ACT is
 //                            held: 1/16 of a bar, 1/8, 1/4, 1/2, 1, 2, 4.
@@ -159,6 +165,9 @@
 //   ~act                     \oneshot  \hold
 //                            whether ACT fires and lets go, or holds the clip
 //                            for as long as the finger is down.
+//   ~then            1..6    the button of the same channel that fires when
+//                            this action's accent is over; commented out,
+//                            nothing follows. ACTION's "then" key writes it.
 //
 //
 // ---- Writing one ----------------------------------------------------------

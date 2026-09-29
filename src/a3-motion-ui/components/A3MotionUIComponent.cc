@@ -45,6 +45,9 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-engine/ScriptLine.hh>
+#include <a3-motion-ui/components/ActionKnobs.hh>
+#include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/OscEndpoints.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -737,6 +740,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _controller = std::make_unique<ControllerComponent> ();
   _controller->onPadPressed = [this] (index_t channel, index_t pad) {
     handlePadPress (channel, pad);
+    showPushedAction (channel, pad, PadSource::PadsPage);
   };
   _controller->onPadReleased = [this] (index_t channel, index_t pad) {
     handlePadRelease (channel, pad);
@@ -764,6 +768,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _action->onControlDoubleTapped = [this] (int control) {
     resetActionControl (control);
   };
+  _action->onMotionSet = [this] (MotionParam param, float value) {
+    setShownButtonMotion (param, value);
+  };
+  _action->onMotionUnset = [this] (MotionParam param) {
+    setShownButtonMotion (param, std::nullopt);
+  };
   _action->onControlTapped = [this] (int control) {
     // Only the mode is a tap: the three knobs are turned, and a tap on one
     // would otherwise step it by nothing at all.
@@ -771,20 +781,14 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       applyActionControl (control, 1);
   };
 
-  // The six fields are the channel's action pads on the screen: down chooses
-  // the button (the list, the keys, the card and the screen's ACT act on it
-  // from then on) and fires it through the pad's own handler, so the two
-  // cannot come to mean different things.
-  _action->onButtonHeld = [this] (int button, bool held) {
-    auto const pad = padIndexForAction (button);
-    if (!held)
-      {
-        handlePadRelease (_clipSettingsChannel, pad);
-        return;
-      }
-    chooseActionButton (button);
-    handlePadPress (_clipSettingsChannel, pad);
+  // The six fields choose (2026-09-28): the list, the keys, the card and
+  // the screen's ACT act on the chosen button. Firing is the pads' job.
+  _action->onButtonChosen = [this] (int button) { chooseActionButton (button); };
+  _action->onAfterStepped = [this] (int increment) {
+    if (auto const *shown = shownActionButton ())
+      setShownButtonAfter (stepAfter (shown->after, increment));
   };
+  _action->onAfterCleared = [this] { setShownButtonAfter (std::nullopt); };
 
   _action->onActionChosen = [this] (juce::String const &name) {
     setButtonAction (_clipSettingsChannel,
@@ -1179,6 +1183,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
 A3MotionUIComponent::~A3MotionUIComponent ()
 {
+  flushScriptWrites ();
   juce::Desktop::getInstance ().removeGlobalMouseListener (this);
   stopTimer ();
   _oscReceiverEnergy.removeListener (this);
@@ -1802,7 +1807,10 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
                       _ioAdapter->getPad (channel, pad)))
                 {
                   if (value.getValue ())
-                    handlePadPress (channel, pad);
+                    {
+                      handlePadPress (channel, pad);
+                      showPushedAction (channel, pad, PadSource::Panel);
+                    }
                   else
                     handlePadRelease (channel, pad);
                   return;
@@ -2264,6 +2272,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
     {
     case PadFunction::PlayPause:
       {
+        // Play|Pause is a hand taking the channel back: a chain ends here.
+        if (channel < _actionChains.size ())
+          _actionChains[channel].broken ();
         if (!pattern)
           break;
 
@@ -2323,12 +2334,65 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       {
         // A button with nothing assigned does nothing (2026-09-27): six
         // plain accents that look assigned would be six ways to be misled.
+        // A Cue (library v2): the button's clip goes onto the channel and
+        // starts on the next downbeat -- Shift at once -- and stays there.
+        // No accent: a Cue changes what plays, not how it plays. Decided
+        // before anything else, so a Cue whose clip is gone never falls
+        // through to an ordinary accent.
+        {
+          auto const &cueButton
+              = _channelActions[channel][static_cast<size_t> (button)];
+          auto const press = cuePressFor (
+              cueButton.isCue, cueButton.cueClip.existsAsFile (),
+              _recordingSlot.has_value () && _recordingSlot->first == channel,
+              _pendingTakes.isPending (channel, slot));
+          switch (press)
+            {
+            case CuePress::NotACue:
+              break;
+            case CuePress::Recording:
+              return;
+            case CuePress::TakeWaiting:
+              updateControlReadout ("-- SAVE THE TAKE FIRST");
+              return;
+            case CuePress::NoClip:
+              updateControlReadout ("-- NO SUCH CLIP");
+              return;
+            case CuePress::Load:
+              {
+                if (!loadClipIntoChannel (channel, cueButton.cueClip, false))
+                  return;
+                if (auto const &loaded = _patterns[channel][slot])
+                  {
+                    auto const status = loaded->getStatus ();
+                    if (status != Pattern::Status::Playing
+                        && status != Pattern::Status::ScheduledForPlaying)
+                      {
+                        loaded->setPlaybackLength (
+                            getPlaybackLength (channel, slot));
+                        _engine.playPattern (
+                            loaded, isButtonPressed (Button::Shift)
+                                        ? _now
+                                        : TempoClock::nextDownBeat (_now));
+                      }
+                  }
+                refreshBrowser ();
+                updateClipSettingsDisplay ();
+                scheduleSetSave ();
+                return;
+              }
+            }
+        }
+
         auto const fired = firedActionOf (channel, button);
         if (!fired)
           break;
 
         if (channel < _actionSlot.size ())
           _actionSlot[channel] = button;
+        if (channel < _actionChains.size ())
+          _actionChains[channel].pressed (button,
+                                          _engine.accentEndCount (channel));
 
         // Shift+Action: preview-and-fire — play in preview mode (OSC
         // silenced) while the encoder can browse the library; releasing
@@ -2382,6 +2446,10 @@ void
 A3MotionUIComponent::stopChannel (index_t channel)
 {
   index_t const slot = 0;
+
+  // Stop is a way out, of a chain of actions too.
+  if (channel < _actionChains.size ())
+    _actionChains[channel].broken ();
 
   // Stop on the channel a take is going into ends the take, the same way REC
   // does. Stopped alone, the engine finished it with nobody to mark it
@@ -3044,14 +3112,17 @@ A3MotionUIComponent::putFigureInSlot (index_t channel, index_t slot, int index,
   scheduleSetSave ();
 }
 
-void
-A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+bool
+A3MotionUIComponent::loadClipIntoChannel (index_t channel,
+                                          juce::File const &clipFile,
+                                          bool stopTheOldOneNow)
 {
-  auto const entry = _patternLibrary->getEntry (index);
+  // One clip per channel: the slot is always the first.
+  index_t const slot = 0;
 
-  auto const clip = ClipFile::load (entry.clipFile);
+  auto const clip = ClipFile::load (clipFile);
   if (!clip.has_value ())
-    return;
+    return false;
 
   // The figure it names, if it names one. A clip is the whole playable thing
   // -- a figure and every value it is played with -- so choosing one fills
@@ -3071,8 +3142,11 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
       if (auto const &was = _patterns[channel][slot])
         {
           auto const status = was->getStatus ();
-          if (status == Pattern::Status::Playing
-              || status == Pattern::Status::Recording)
+          // Not for a Cue: the engine hands over on the new clip's start,
+          // and stopping now would leave the room still until the downbeat.
+          if (stopTheOldOneNow
+              && (status == Pattern::Status::Playing
+                  || status == Pattern::Status::Recording))
             _engine.stopPattern (was, _now);
           _motionComponent->unsetPreviewPattern (was);
           _motionComponent->removePatternDisplayData (was);
@@ -3087,7 +3161,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // no figure dropped on an empty slot leaves it plainly empty rather than
   // holding settings nothing can play.
   if (!pattern)
-    return;
+    return false;
 
   // Every value out of the clip. Sections could be held against this until
   // 2026-09-27; the locks are gone.
@@ -3097,7 +3171,7 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // Set after filling: fillSlotFromLibrary() points the slot at the shape's
   // own clip, and a shape has none any more -- the clip names the shape, not
   // the other way round.
-  setSlotClipFile (channel, slot, entry.clipFile);
+  setSlotClipFile (channel, slot, clipFile);
 
   // The bar follows what was just changed, the same as choosing a shape does.
   selectClip (channel, slot);
@@ -3106,6 +3180,17 @@ A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
   // write the strip's own direction and end action over the ones the preset
   // just brought.
   syncClipUIParamsFromPattern (channel, slot);
+  return true;
+}
+
+void
+A3MotionUIComponent::applyClip (index_t channel, index_t slot, int index)
+{
+  if (!loadClipIntoChannel (channel,
+                            _patternLibrary->getEntry (index).clipFile))
+    return;
+
+  auto const &pattern = _patterns[channel][slot];
 
   // It keeps running if it was running. You tap a preset to hear it on the
   // clip that is playing; restarting would drop you back at the top of a
@@ -3155,7 +3240,9 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.source = {};
   action.errors = {};
   action.feel = ActionFeel{};
-  action.scriptFeel = ActionFeel{};
+  action.after.reset ();
+  action.cueClip = juce::File{};
+  action.isCue = false;
 
   if (!file.existsAsFile ())
     {
@@ -3165,31 +3252,40 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
 
   action.source = file.loadFileAsString ();
 
-  // Seeded with the shown clip's settings, so a line the script leaves
-  // commented out means "as the clip is" -- for the feel too. The clip is
-  // slot 0's until the panel's switch collapses the slots.
-  auto const &pattern = _patterns[channel][0];
-  auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
-
   // A seed that is new every time a script is chosen, so a script with dice
   // in it throws them again on being picked -- picking it is the gesture that
   // says "give me another one of these".
   action.seed = juce::Time::getHighResolutionTicks ();
+  runButtonScript (channel, action);
+
+  if (!action.errors.isEmpty ())
+    updateControlReadout (action.errors[0]);
+
+  updateActionPage ();
+  updateClipSettingsDisplay ();
+}
+
+void
+A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)
+{
+  // Against the shown clip, so a line the script leaves commented out means
+  // "as the clip is" -- for the feel too.
+  auto const &pattern = _patterns[channel][0];
+  auto const current = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
   auto const result = runActionScript (action.source, current, action.seed);
 
   action.settings = result.settings;
   action.errors = result.errors;
-  // How it is played is the button's since 2026-09-27: taken from the
-  // script, and no longer written onto the clip -- with six buttons the last
-  // one assigned would otherwise decide how all six feel.
-  action.scriptFeel = actionFeelFrom (result.settings);
-  action.feel = action.scriptFeel;
+  // How it is played, and what follows it, are the script's (2026-09-29):
+  // ACTION writes both there, so the button keeps no values of its own.
+  action.feel = actionFeelFrom (result.settings);
+  action.after = result.then;
 
-  if (!result.errors.isEmpty ())
-    updateControlReadout (result.errors[0]);
-
-  updateActionPage ();
-  updateClipSettingsDisplay ();
+  auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
+  action.cueClip = cue.file;
+  action.isCue = result.clip.has_value ();
+  if (cue.error.isNotEmpty ())
+    action.errors.add (cue.error);
 }
 
 A3MotionUIComponent::ActionButton *
@@ -3238,6 +3334,7 @@ A3MotionUIComponent::showChosenFileText ()
 void
 A3MotionUIComponent::showFileText (juce::File const &file)
 {
+  flushScriptWrites ();
   auto &panel = _browser->scriptPanel ();
   _panelFile = file;
   panel.setLanguage (languageFor (file));
@@ -3335,6 +3432,10 @@ A3MotionUIComponent::fileTextIsFitToWrite (juce::StringArray const &errors,
 void
 A3MotionUIComponent::saveFileText ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   // The file the text came from, never the row that happens to be chosen:
   // the two can differ, and writing one file's text into another is the one
   // thing this key must never do.
@@ -3373,6 +3474,10 @@ A3MotionUIComponent::saveFileText ()
 void
 A3MotionUIComponent::saveFileTextAs ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   auto &panel = _browser->scriptPanel ();
   auto const text = panel.script ();
   auto const &list = currentList ();
@@ -4299,6 +4404,10 @@ A3MotionUIComponent::costOfRemovingLibraryEntry (int index) const
 void
 A3MotionUIComponent::renameChosenEntry (juce::String const &name)
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   if (_browser)
     currentList ().rename (_browser->getSelectedEntry (), name);
 }
@@ -4306,6 +4415,10 @@ A3MotionUIComponent::renameChosenEntry (juce::String const &name)
 void
 A3MotionUIComponent::deleteChosenEntry ()
 {
+  // A turn on ACTION may still be waiting to be written (2026-09-29): out
+  // first, or it lands after this and undoes it -- over a Save, or on a
+  // name that was renamed or deleted, bringing the old file back.
+  flushScriptWrites ();
   // Asked twice, whatever the folder. A file thrown away in front of a room
   // does not come back, and the second press is the only thing standing
   // between a fat finger and somebody's work. Not a dialogue: there is nothing
@@ -4744,6 +4857,219 @@ A3MotionUIComponent::updateActionPage ()
                                            : juce::String{};
     }
   _action->setActionButtons (names, _chosenActionButton[channel]);
+
+  std::array<bool, numActionButtons> holds{};
+  for (size_t button = 0; button < holds.size (); ++button)
+    holds[button] = _channelActions[channel][button].feel.actMode == ActMode::Hold;
+  _action->setActionButtonModes (holds);
+  _action->setAfter (shown ? shown->after : std::nullopt);
+
+  // What the shown button puts on the clip, against the clip as it stands
+  // before any accent -- the base a press is worked out against.
+  auto const &pattern = _patterns[channel][0];
+  auto const accentRuns = _accentBase[channel].has_value ()
+                          && _engine.isChannelAccentActive (channel);
+  auto const base = accentRuns ? *_accentBase[channel]
+                    : pattern  ? clipSettingsFrom (*pattern)
+                               : ClipSettings{};
+  auto const playable = shown != nullptr && shown->settings.has_value ();
+  _action->setMotionTile (
+      playable ? motionShownFor (shown->source, base, shown->seed, MotionOverrides{})
+               : std::array<MotionShown, numMotionParams>{},
+      playable, getPatternLengthBeats (channel, 0));
+}
+
+void
+A3MotionUIComponent::setShownButtonMotion (MotionParam param,
+                                           std::optional<float> value)
+{
+  auto *button = shownActionButton ();
+  if (button == nullptr || !button->settings)
+    return;
+  juce::String const name = motionParamScriptName (param);
+  MotionOverrides one;
+  if (value)
+    one.set (param, *value);
+  auto const written
+      = value ? writeShownScriptSetting (name, withMotion (*button->settings, one))
+              : editShownScript ([&name] (juce::String const &source) {
+                  return unsetScriptLine (source, name);
+                });
+  if (written)
+    updateControlReadout (juce::String (motionParamCaption (param))
+                        + (value ? " " + juce::String (*value, 2)
+                                 : juce::String (" from the clip")));
+}
+
+void
+A3MotionUIComponent::setShownButtonAfter (std::optional<int> after)
+{
+  auto const written = editShownScript ([&after] (juce::String const &source) {
+    return after ? setScriptLine (source, "then", juce::String (*after + 1))
+                 : unsetScriptLine (source, "then");
+  });
+  if (written)
+    updateControlReadout (
+      "A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
+      + " then " + afterName (after));
+}
+
+bool
+A3MotionUIComponent::editShownScript (
+    std::function<juce::String (juce::String const &)> const &edit)
+{
+  // ACTION writes into the script (2026-09-29), in place: every button on
+  // every channel holding this file takes the new text, the editor in FILES
+  // shows it, and the file is written once the hand stops.
+  // A button with no script has nowhere to write, and says so rather than
+  // showing a value nothing holds. A script whose file has gone meanwhile
+  // (git, rm, an upgrade) is still the button's text: the edit applies and
+  // the write puts the file back -- or says CANNOT WRITE.
+  auto *shown = shownActionButton ();
+  if (shown == nullptr || shown->file == juce::File{})
+    {
+      updateControlReadout (
+          "-- A" + juce::String (_chosenActionButton[_clipSettingsChannel] + 1)
+          + " HAS NO SCRIPT");
+      return false;
+    }
+
+  auto const file = shown->file;
+  auto const text = edit (shown->source);
+  if (text == shown->source)
+    return true;
+
+  std::vector<std::array<juce::File, numActionButtons> > files;
+  for (auto const &channel : _channelActions)
+    {
+      files.emplace_back ();
+      for (size_t b = 0; b < channel.size (); ++b)
+        files.back ()[b] = channel[b].file;
+    }
+  for (auto const &[channel, button] : buttonsHoldingFile (files, file))
+    {
+      auto &action = _channelActions[static_cast<size_t> (channel)]
+                                    [static_cast<size_t> (button)];
+      action.source = text;
+      runButtonScript (static_cast<index_t> (channel), action);
+    }
+
+  if (_browser != nullptr && _panelFile == file)
+    {
+      auto &panel = _browser->scriptPanel ();
+      panel.applyEdit (panel.hasUnsavedChanges () ? edit (panel.script ())
+                                                  : text);
+      panel.setErrors (shown->errors);
+    }
+
+  _scriptWrites.put (file, text);
+  scheduleScriptWrite ();
+  updateActionPage ();
+  updateClipSettingsDisplay ();
+  return true;
+}
+
+bool
+A3MotionUIComponent::writeShownScriptSetting (juce::String const &name,
+                                              ClipSettings const &settings)
+{
+  auto const written = writtenSettingFor (settings, name);
+  return editShownScript ([&name, &written] (juce::String const &source) {
+    return setScriptLine (source, name, written);
+  });
+}
+
+void
+A3MotionUIComponent::scheduleScriptWrite ()
+{
+  // The same debounce as the set's, shorter: a script is one file and the
+  // editor beside it should not lag the knob by more than a breath.
+  auto const generation = ++_scriptWriteGeneration;
+  juce::Timer::callAfterDelay (
+      300, [safeThis = juce::Component::SafePointer<A3MotionUIComponent> (this),
+            generation] {
+        if (safeThis == nullptr
+            || safeThis->_scriptWriteGeneration != generation)
+          return;
+        safeThis->flushScriptWrites ();
+      });
+}
+
+void
+A3MotionUIComponent::flushScriptWrites ()
+{
+  auto const failed = writeAll (_scriptWrites.take ());
+  if (!failed.isEmpty ())
+    updateControlReadout ("-- CANNOT WRITE " + failed[0].toUpperCase ());
+}
+
+void
+A3MotionUIComponent::followActionChains ()
+{
+  for (index_t channel = 0;
+       channel < _channelActions.size () && channel < _actionChains.size ();
+       ++channel)
+    {
+      AfterTable after;
+      for (size_t b = 0; b < after.size (); ++b)
+        after[b] = _channelActions[channel][b].after;
+
+      if (auto const next = _actionChains[channel].accentEnded (
+              _engine.accentEndCount (channel), after))
+        fireChainedAction (channel, *next);
+    }
+}
+
+void
+A3MotionUIComponent::fireChainedAction (index_t channel, int button)
+{
+  auto fired = firedActionOf (channel, button);
+  if (!fired)
+    return;
+
+  // Nobody holds a chained action, so a Hold button plays as a one-shot:
+  // held by no finger, it would fall the instant it rose.
+  fired->actMode = ActMode::OneShot;
+
+  _actionChains[channel].pressed (button, _engine.accentEndCount (channel));
+  if (channel < _actionSlot.size ())
+    _actionSlot[channel] = button;
+
+  // As if pressed and let go: the accent and what it throws the clip to,
+  // and a clip the last action stopped starts again, as a press starts it.
+  auto const &pattern = _patterns[channel][0];
+  _engine.setChannelAction (channel, fired);
+  _engine.setChannelAccentHeld (channel, true, pattern);
+  _engine.setChannelAccentHeld (channel, false, nullptr);
+  if (pattern && pattern->getStatus () == Pattern::Status::Idle)
+    {
+      pattern->setPlaybackLength (getPlaybackLength (channel, 0));
+      _engine.playPattern (pattern, _now);
+    }
+}
+
+void
+A3MotionUIComponent::showPushedAction (index_t channel, index_t pad,
+                                       PadSource source)
+{
+  if (padFunctionByPadIndex[pad] != PadFunction::Action)
+    return;
+  if (!actionPressShowsItsPage (source, isButtonPressed (Button::Shift)))
+    return;
+
+  // handlePadPress has already brought the channel up. A take being set up
+  // or running keeps its REC page: the page follows the hand, but not away
+  // from a recording.
+  if (channel != _clipSettingsChannel)
+    selectClip (channel, 0);
+  if (!_recArmedSlot && !takeIsUnderway ())
+    {
+      if (_overSphere != SphereOverlay::None)
+        showOverSphere (SphereOverlay::None);
+      if (_barPage != BarPage::Action)
+        showBarPage (BarPage::Action);
+    }
+  chooseActionButton (actionButtonForPad[pad]);
 }
 
 void
@@ -4814,10 +5140,9 @@ A3MotionUIComponent::applyActionControl (int control, int increment)
       return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 void
@@ -4848,10 +5173,9 @@ A3MotionUIComponent::setActionControl (int control, double value)
     default:                           return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 void
@@ -4901,10 +5225,9 @@ A3MotionUIComponent::resetActionControl (int control)
       return;
     }
 
-  button->feel = actionFeelFrom (clipSettingsFrom (*pattern));
-  scheduleSetSave ();
-  updateActionPage ();
-  updateControlReadout (actionReadoutFor (control, *pattern));
+  if (writeShownScriptSetting (actionControlScriptName (control),
+                               clipSettingsFrom (*pattern)))
+    updateControlReadout (actionReadoutFor (control, *pattern));
 }
 
 namespace
@@ -5095,6 +5418,10 @@ A3MotionUIComponent::tickCallback (Measure measure)
   // nowhere else.
   applyPendingBeatAddress ();
 
+  // A button's "then": decided here, on the message thread, from the
+  // engine's count of accents that have ended.
+  followActionChains ();
+
   // Send beat via OSC on every beat (only in INT mode to avoid feedback with external clock)
   // AsyncOSCSender enqueues to lock-free FIFO, safe to call from any thread
   if (_clockMode == 0 && measure.tick () == 0)
@@ -5227,6 +5554,7 @@ A3MotionUIComponent::applySet ()
 void
 A3MotionUIComponent::applySet (juce::File const &file)
 {
+  flushScriptWrites ();
   auto const numChannels = static_cast<int> (_patterns.size ());
   auto const set = loadSession (file, numChannels,
                             static_cast<int> (numClipSlots));
@@ -5246,8 +5574,8 @@ A3MotionUIComponent::applySet (juce::File const &file)
       auto const &channel = set.channels[static_cast<size_t> (ch)];
 
       // The six buttons first, as the slots' actions were: a button the set
-      // names gets it, one it leaves empty keeps what it had. The feel only
-      // where the set says it was turned.
+      // names gets it, one it leaves empty keeps what it had. What a button
+      // does is in its script (2026-09-29); the set only names it.
       for (int b = 0; b < numActionButtons; ++b)
         {
           auto const &entry = channel.actions[static_cast<size_t> (b)];
@@ -5256,8 +5584,6 @@ A3MotionUIComponent::applySet (juce::File const &file)
           setButtonAction (index, b,
                            namedFileIn (actionsDir (),
                                         juce::String (entry.script), ".scd"));
-          if (entry.feel)
-            _channelActions[index][static_cast<size_t> (b)].feel = *entry.feel;
         }
 
       // Where the channel was parked. Empty on a first run, which is zero,
@@ -5403,16 +5729,12 @@ A3MotionUIComponent::buildSession ()
       // that saved mid-accent would come back with the accent baked in.
       channel.threeD = _engine.getChannelPot3 (index);
 
-      // The six buttons, by script name, with their feel only where it was
-      // turned from the script's own -- a set keeps what somebody chose.
+      // The six buttons, by script name: what each does is in its script.
       for (int b = 0; b < numActionButtons; ++b)
         {
           auto const &button = _channelActions[index][static_cast<size_t> (b)];
-          auto &entry = channel.actions[static_cast<size_t> (b)];
-          entry.script
+          channel.actions[static_cast<size_t> (b)].script
               = button.file.getFileNameWithoutExtension ().toStdString ();
-          if (button.file.existsAsFile () && button.feel != button.scriptFeel)
-            entry.feel = button.feel;
         }
 
       channel.slots.resize (numClipSlots);
@@ -7878,9 +8200,10 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
             break;
           case 3:
             // elv, stepped the way the knob turns it: clockwise is higher.
-            pattern->setElevationBase (elevationBaseForKnob (
-                knobForElevationBase (pattern->getElevationBase ())
-                    + increment * 0.02f,
+            // A detent always moves it: the snap onto the poles and ear
+            // height is as wide as one step, and used to pull every step back.
+            pattern->setElevationBase (elevationBaseForEncoderStep (
+                pattern->getElevationBase (), increment,
                 pattern->getClipTop (), pattern->getClipBottom ()));
             refreshPatternDisplay (pattern);
             break;
@@ -8210,6 +8533,28 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
       // A key is pressed, not turned -- see handleEncoderPress().
       return;
 
+    case EncoderTarget::Kind::ActionList:
+      {
+        // A highlight, not an assignment: the press puts it on the button.
+        auto const name = _action->moveListCursor (increment);
+        updateControlReadout ("-- "
+                              + (name.isEmpty () ? juce::String ("NO ACTION")
+                                                 : name.toUpperCase ()));
+        return;
+      }
+
+    case EncoderTarget::Kind::ActionKey:
+      _action->moveKeyRing (increment);
+      return;
+
+    case EncoderTarget::Kind::ActionTile:
+      _action->switchTile ();
+      return;
+
+    case EncoderTarget::Kind::ActionValue:
+      _action->turnMarkedValue (target.sub, increment);
+      return;
+
     case EncoderTarget::Kind::ActionButton:
       chooseActionButton (_chosenActionButton[shown] + increment);
       updateControlReadout (
@@ -8257,6 +8602,16 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);
+  // ACTION (2026-09-28): enc 2 assigns what it walked to, enc 3 presses the
+  // ringed key, enc 4 switches the card, enc 5..8 mark the card's next row.
+  if (target.kind == EncoderTarget::Kind::ActionList)
+    _action->chooseListCursor ();
+  if (target.kind == EncoderTarget::Kind::ActionKey)
+    _action->pressKeyRing ();
+  if (target.kind == EncoderTarget::Kind::ActionTile)
+    _action->switchTile ();
+  if (target.kind == EncoderTarget::Kind::ActionValue)
+    _action->stepValueRow ();
   if (target.kind == EncoderTarget::Kind::MixerKey)
     {
       auto const channel = static_cast<int> (_clipSettingsChannel);

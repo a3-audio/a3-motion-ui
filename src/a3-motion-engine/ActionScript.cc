@@ -171,6 +171,21 @@ public:
                         !sawPoint);
   }
 
+  /** Text between double quotes -- a clip's name, the only text there is. */
+  juce::String
+  takeString ()
+  {
+    expect ('"');
+    auto const from = _at;
+    while (_at < _text.length () && _text[_at] != '"')
+      ++_at;
+    if (_at >= _text.length ())
+      fail ("the text has no closing \"");
+    auto const text = _text.substring (from, _at);
+    ++_at;
+    return text;
+  }
+
 private:
   juce::String _text;
   int _at = 0;
@@ -330,7 +345,9 @@ fields ()
       } },
     { "reach",
       [] (ClipSettings const &s) { return numberValue (s.reach, false); },
-      [] (ClipSettings &s, Value const &v) { s.reach = clampUnit (v.number); } },
+      // -1..1 like the clip's own: negative spreads towards the ceiling
+      // (#50 -- it was cut to 0..1).
+      [] (ClipSettings &s, Value const &v) { s.reach = clampBipolar (v.number); } },
     { "clipTop",
       [] (ClipSettings const &s) { return numberValue (s.clipTop, false); },
       [] (ClipSettings &s, Value const &v) {
@@ -588,6 +605,10 @@ private:
     if (juce::CharacterFunctions::isLetter (c))
       return word ();
 
+    if (c == '"')
+      fail ("text goes on ~clip only; everything else is a number or a "
+            "\\word");
+
     fail ("expected a value");
   }
 
@@ -706,6 +727,41 @@ runActionScript (juce::String const &source, ClipSettings const &current,
             fail ("a line sets a name, so it starts with ~");
 
           auto const name = reader.takeWord ();
+
+          // A Cue (library v2): the clip it puts on the channel, by name.
+          // Not a ClipSettings field -- it says which clip, not how one plays.
+          if (name == "clip")
+            {
+              reader.expect ('=');
+              if (reader.peek () != '"')
+                fail ("~clip takes a clip's name in quotes");
+              auto const clip = reader.takeString ();
+              reader.takeIf (';');
+              if (!reader.atEnd ())
+                fail ("more on the line than one assignment");
+              out.clip = clip;
+              continue;
+            }
+
+          // What fires when the accent is over (2026-09-29): a button of the
+          // channel by its number. Not a ClipSettings field -- it says what
+          // comes next, not how this one plays.
+          if (name == "then")
+            {
+              reader.expect ('=');
+              Evaluator evaluator (reader, out.settings, random);
+              auto const value = evaluator.expression ();
+              reader.takeIf (';');
+              if (!reader.atEnd ())
+                fail ("more on the line than one assignment");
+              if (value.kind != Value::Kind::Number || !value.whole
+                  || value.number < 1 || value.number > numActionButtons)
+                fail ("~then takes a button, 1..6");
+              out.then = static_cast<int> (value.number) - 1;
+              out.assigned.addIfNotAlreadyThere (name);
+              continue;
+            }
+
           auto const *field = findField (name);
           if (field == nullptr)
             fail ("no such name: ~" + name);
@@ -722,7 +778,14 @@ runActionScript (juce::String const &source, ClipSettings const &current,
           if (!reader.atEnd ())
             fail ("more on the line than one assignment");
 
+          auto const directionBefore = out.settings.direction;
           field->set (out.settings, value);
+
+          out.assigned.addIfNotAlreadyThere (name);
+          // An older script's \bounce or \random as the end sets the
+          // direction it meant, so that is set too.
+          if (out.settings.direction != directionBefore)
+            out.assigned.addIfNotAlreadyThere ("dir");
         }
       catch (ScriptError const &error)
         {
@@ -756,6 +819,8 @@ actionScriptNotes ()
   // then what ACT does to it. A performer learns the page and finds the same
   // order in the file.
   static std::vector<ActionScriptNote> const list{
+    { "clip", "Cue", "\"name\"",
+      "puts that clip on the channel, from the next downbeat" },
     { "speedLog2", "Shape", speedRange.c_str (),
       "how fast, as a power of two; -3 is the 1/8" },
 
@@ -798,6 +863,7 @@ actionScriptNotes ()
     { "qDecay", "Accent", "0..6", "" },
     { "qMax", "Accent", "0..1", "0 is off" },
     { "act", "Accent", "", "\\oneshot \\hold" },
+    { "then", "Accent", "1..6", "fires that button when the accent is over" },
   };
 
   return list;
@@ -853,18 +919,15 @@ fieldNamed (juce::String const &name)
 juce::String
 renderScript (ClipSettings const &settings, bool commented)
 {
-  // Wide enough for the longest assignment there is (//~flatElevation = 0.5;)
-  // and no wider: the annotation should stand off the values, not across the
-  // screen.
-  constexpr int annotationColumn = 25;
-
   juce::StringArray lines;
   juce::String heading;
 
   for (auto const &note : actionScriptNotes ())
     {
       auto const *field = fieldNamed (note.name);
-      if (field == nullptr)
+      auto const isClip = juce::String (note.name) == "clip";
+      auto const isThen = juce::String (note.name) == "then";
+      if (field == nullptr && !isClip && !isThen)
         continue;
 
       if (heading != note.heading)
@@ -877,20 +940,18 @@ renderScript (ClipSettings const &settings, bool commented)
                          "-", juce::jmax (1, 64 - heading.length ())));
         }
 
-      auto assignment = juce::String (commented ? "//~" : "~")
-                        + note.name + " = "
-                        + writtenValue (field->get (settings)) + ";";
+      // A clip line has no value in a ClipSettings to write: it is offered,
+      // commented out, as the line a Cue uncomments.
+      auto assignment
+          = isClip   ? juce::String ("//~clip = \"\";")
+            : isThen ? juce::String ("//~then = 1;")
+                     : juce::String (commented ? "//~" : "~") + note.name
+                           + " = " + writtenValue (field->get (settings)) + ";";
 
-      while (assignment.length () < annotationColumn)
+      while (assignment.length () < scriptAnnotationColumn)
         assignment += " ";
 
-      auto annotation = juce::String (note.range);
-      if (juce::String (note.hint).isNotEmpty ())
-        {
-          while (annotation.length () < 8)
-            annotation += " ";
-          annotation += note.hint;
-        }
+      auto const annotation = scriptAnnotation (note);
 
       lines.add ((assignment + "// " + annotation).trimEnd ());
     }
@@ -912,12 +973,34 @@ actionScriptFor (ClipSettings const &settings)
   return renderScript (settings, false);
 }
 
+juce::String
+scriptAnnotation (ActionScriptNote const &note)
+{
+  auto annotation = juce::String (note.range);
+  if (juce::String (note.hint).isNotEmpty ())
+    {
+      while (annotation.length () < 8)
+        annotation += " ";
+      annotation += note.hint;
+    }
+  return annotation;
+}
+
+juce::String
+writtenSettingFor (ClipSettings const &settings, juce::String const &name)
+{
+  auto const *field = fieldNamed (name);
+  return field == nullptr ? juce::String{} : writtenValue (field->get (settings));
+}
+
 juce::StringArray
 actionScriptNames ()
 {
   juce::StringArray names;
   for (auto const &field : fields ())
     names.add (field.name);
+  // Not a setting, but a line a script may write (2026-09-29).
+  names.add ("then");
 
   names.sort (false);
   return names;
@@ -928,6 +1011,16 @@ resolveActionAt (juce::String const &source, ClipSettings const &base,
                  juce::int64 seed, ActionFeel const &feel)
 {
   return withFeel (runActionScript (source, base, seed).settings, feel);
+}
+
+ClipSettings
+resolveActionAt (juce::String const &source, ClipSettings const &base,
+                 juce::int64 seed, MotionOverrides const &motion,
+                 ActionFeel const &feel)
+{
+  return withFeel (
+      withMotion (runActionScript (source, base, seed).settings, motion),
+      feel);
 }
 
 }

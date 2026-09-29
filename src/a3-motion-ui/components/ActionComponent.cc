@@ -27,9 +27,15 @@
 #include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/ListScroll.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
+#include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
+#include <a3-motion-ui/components/ActionMotionKnobs.hh>
+
+#include <cmath>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+
+#include <cmath>
 
 namespace a3
 {
@@ -110,18 +116,15 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_listTouch);
 
-  // The six buttons are the six action pads on the screen (2026-09-28):
-  // down chooses one and fires it, up lets a Hold action go.
+  // The six buttons choose (2026-09-28): what the rest of the page shows
+  // is the chosen one's. They fire nothing -- the pads do that, on the
+  // panel and the PADS page, and a push there brings this page up.
   for (size_t button = 0; button < _fieldTouch.size (); ++button)
     {
       auto touch = std::make_unique<TouchControl> ();
       touch->onPress = [this, button] (int, int) {
-        if (onButtonHeld)
-          onButtonHeld (static_cast<int> (button), true);
-      };
-      touch->onRelease = [this, button] (int, int) {
-        if (onButtonHeld)
-          onButtonHeld (static_cast<int> (button), false);
+        if (onButtonChosen)
+          onButtonChosen (static_cast<int> (button));
       };
       addAndMakeVisible (*touch);
       _fieldTouch[button] = std::move (touch);
@@ -135,7 +138,91 @@ ActionComponent::ActionComponent ()
   };
   addAndMakeVisible (*_editTouch);
 
+  // What comes after the accent: a tap steps --, A1 .. A6 and round, two
+  // taps put it back to nothing. Seven places are few enough to tap
+  // through, and a list over the page would cover what it is chosen for.
+  _afterTouch = std::make_unique<TouchControl> ();
+  _afterTouch->onTap = [this] (int, int) {
+    if (onAfterStepped)
+      onAfterStepped (1);
+  };
+  _afterTouch->onDoubleTap = [this] (int, int) {
+    if (onAfterCleared)
+      onAfterCleared ();
+  };
+  addAndMakeVisible (*_afterTouch);
 
+  // Which tile the card shows. A tap, not a toggle: each key names its tile.
+  _audioKeyTouch = std::make_unique<TouchControl> ();
+  _audioKeyTouch->onTap = [this] (int, int) { setTile (ActionTile::Audio); };
+  addAndMakeVisible (*_audioKeyTouch);
+  _motionKeyTouch = std::make_unique<TouchControl> ();
+  _motionKeyTouch->onTap = [this] (int, int) { setTile (ActionTile::Motion); };
+  addAndMakeVisible (*_motionKeyTouch);
+
+  buildMotionControls ();
+  showTheTile ();
+}
+
+void
+ActionComponent::buildMotionControls ()
+{
+  for (auto const param : motionParamOrder)
+    {
+      auto const at = static_cast<size_t> (param);
+
+      if (motionParamIsAField (param))
+        {
+          // As on CLIP: a drag steps the speed, a tap brings direction and
+          // end round. Two taps, on any of them, give it back to the script.
+          auto field = std::make_unique<TouchControl> ();
+          auto const step = [this, param] (int increment) {
+            if (onMotionSet)
+              onMotionSet (param,
+                           steppedMotionValue (
+                               param, _motionShown[static_cast<size_t> (param)].value,
+                               increment));
+          };
+          field->onDragIncrement = [step] (int, int, int increment) {
+            step (increment);
+          };
+          if (param != MotionParam::Speed)
+            field->onTap = [step] (int, int) { step (1); };
+          field->onDoubleTap = [this, param] (int, int) {
+            if (onMotionUnset)
+              onMotionUnset (param);
+          };
+          addChildComponent (*field);
+          _motionField[at] = std::move (field);
+          continue;
+        }
+
+      auto const spec = motionTileKnobSpec (param);
+      auto knob = std::make_unique<PotKnob> ();
+      knob->setLabel (spec.label);
+      knob->setRange (spec.min, spec.max, spec.interval);
+      knob->setFillsFromTheMiddle (spec.bipolar);
+      knob->setWraps (spec.wraps);
+
+      knob->onValueChange = [this, param, k = knob.get ()] {
+        if (!onMotionSet)
+          return;
+        auto const &top = _motionShown[static_cast<size_t> (MotionParam::ClipTop)];
+        auto const &bottom
+            = _motionShown[static_cast<size_t> (MotionParam::ClipBottom)];
+        onMotionSet (param, motionValueForKnob (param, k->getValue (),
+                                                top.value, bottom.value));
+      };
+      // Two taps are not the scale's middle here: they give the value back to
+      // the script, so the knob's own return value stays off.
+      knob->onDoubleTapped = [this, param] {
+        if (onMotionUnset)
+          onMotionUnset (param);
+      };
+
+      addChildComponent (*knob);
+      _motionKnob[at] = std::move (knob);
+    }
 }
 
 ActionComponent::~ActionComponent () = default;
@@ -172,12 +259,31 @@ ActionComponent::resized ()
     _listTouch->setBounds (_layout.actionListArea);
   if (_editTouch)
     _editTouch->setBounds (_layout.editButton);
+  if (_afterTouch)
+    _afterTouch->setBounds (_layout.afterKey);
+  if (_audioKeyTouch)
+    _audioKeyTouch->setBounds (_layout.audioKey);
+  if (_motionKeyTouch)
+    _motionKeyTouch->setBounds (_layout.motionKey);
+
+  for (auto const param : motionParamOrder)
+    {
+      auto const at = static_cast<size_t> (param);
+      auto const cell = _layout.motionControls[at];
+      if (_motionKnob[at])
+        _motionKnob[at]->setBounds (cell);
+      if (_motionField[at])
+        _motionField[at]->setBounds (cell);
+    }
 }
 
 void
 ActionComponent::putColourOnKnobs ()
 {
   for (auto &knob : _knob)
+    if (knob)
+      knob->setKnobColour (_channelColour);
+  for (auto &knob : _motionKnob)
     if (knob)
       knob->setKnobColour (_channelColour);
 }
@@ -276,6 +382,10 @@ ActionComponent::setActionName (juce::String const &name)
   if (name == _actionName)
     return;
 
+  // The highlight just assigned, or another button's script: the walk starts
+  // again from what the button holds. Not on every call -- the page is told
+  // the name on every update, and the walk would never get past one row.
+  _listCursor = -1;
   _actionName = name;
   // The chosen one in view, moved as little as possible: a list that jumps
   // to the top on every change makes you scroll back to where you were.
@@ -283,6 +393,154 @@ ActionComponent::setActionName (juce::String const &name)
                                actionListVisibleRows (_layout),
                                _choices.size ());
   repaint ();
+}
+
+juce::String
+ActionComponent::moveListCursor (int increment)
+{
+  if (_choices.isEmpty ())
+    return {};
+
+  auto const from = _listCursor >= 0
+                        ? _listCursor
+                        : juce::jmax (0, _choices.indexOf (_actionName));
+  _listCursor = juce::jlimit (0, _choices.size () - 1, from + increment);
+  _listTop = a3::scrollToShow (_listTop, _listCursor,
+                               actionListVisibleRows (_layout),
+                               _choices.size ());
+  repaint ();
+  return _choices[_listCursor];
+}
+
+void
+ActionComponent::chooseListCursor ()
+{
+  if (!juce::isPositiveAndBelow (_listCursor, _choices.size ())
+      || !onActionChosen)
+    return;
+  onActionChosen (_choices[_listCursor]);
+}
+
+ActionKey
+ActionComponent::moveKeyRing (int increment)
+{
+  constexpr int numKeys = 3;
+  auto const at = juce::jlimit (0, numKeys - 1,
+                                static_cast<int> (_keyRing) + increment);
+  _keyRing = static_cast<ActionKey> (at);
+  _keyRingShown = true;
+  repaint ();
+  return _keyRing;
+}
+
+void
+ActionComponent::pressKeyRing ()
+{
+  // The tap's own callbacks, so a press and a finger cannot mean two things.
+  switch (_keyRing)
+    {
+    case ActionKey::Edit:
+      if (onEditPressed)
+        onEditPressed ();
+      return;
+    case ActionKey::Mode:
+      if (onControlTapped)
+        onControlTapped (ActMode);
+      return;
+    case ActionKey::After:
+      if (onAfterStepped)
+        onAfterStepped (1);
+      return;
+    }
+}
+
+void
+ActionComponent::switchTile ()
+{
+  setTile (_tile == ActionTile::Audio ? ActionTile::Motion
+                                      : ActionTile::Audio);
+}
+
+int
+ActionComponent::valueRowsOfTile () const
+{
+  return _tile == ActionTile::Audio ? ActionLayout::numRows
+                                    : ActionLayout::motionRows;
+}
+
+int
+ActionComponent::markedValueRow () const
+{
+  return _valueRow;
+}
+
+void
+ActionComponent::stepValueRow ()
+{
+  _valueRow = (_valueRow + 1) % valueRowsOfTile ();
+  _valueRowShown = true;
+  repaint ();
+}
+
+void
+ActionComponent::turnMarkedValue (int column, int increment)
+{
+  _valueRowShown = true;
+  repaint ();
+  switch (_tile)
+    {
+    case ActionTile::Audio: turnAudioValue (column, increment); return;
+    case ActionTile::Motion: turnMotionValue (column, increment); return;
+    }
+}
+
+void
+ActionComponent::turnAudioValue (int column, int increment)
+{
+  // Attack, decay, ceiling across; the fourth encoder has no column here.
+  if (!juce::isPositiveAndBelow (column, 3) || !onControlDragged)
+    return;
+  onControlDragged (_valueRow * 3 + column, increment);
+}
+
+void
+ActionComponent::turnMotionValue (int column, int increment)
+{
+  auto const at = _valueRow * ActionLayout::motionColumns + column;
+  if (!_motionHasAction || !juce::isPositiveAndBelow (column, 4)
+      || !juce::isPositiveAndBelow (at, numMotionParams) || !onMotionSet)
+    return;
+
+  auto const param = motionParamOrder[static_cast<size_t> (at)];
+  auto const &shown = _motionShown[static_cast<size_t> (param)];
+
+  if (motionParamIsAField (param))
+    {
+      onMotionSet (param, steppedMotionValue (param, shown.value, increment));
+      return;
+    }
+
+  // A knob, stepped on its own scale: whole steps where it counts them,
+  // otherwise the fiftieth the panel's encoders take everywhere else.
+  auto const spec = motionTileKnobSpec (param);
+  auto const step
+      = spec.interval > 0.0 ? spec.interval : (spec.max - spec.min) / 50.0;
+  auto knob = motionKnobValue (param, shown.value) + increment * step;
+  if (spec.wraps)
+    {
+      auto const span = spec.max - spec.min;
+      knob = spec.min + std::fmod (std::fmod (knob - spec.min, span) + span, span);
+    }
+  else
+    {
+      knob = juce::jlimit (spec.min, spec.max, knob);
+    }
+
+  auto const &top = _motionShown[static_cast<size_t> (MotionParam::ClipTop)];
+  auto const &bottom
+      = _motionShown[static_cast<size_t> (MotionParam::ClipBottom)];
+  onMotionSet (param,
+               motionValueForKnob (param, knob, top.value, bottom.value));
 }
 
 void
@@ -302,6 +560,8 @@ ActionComponent::setActionButtons (std::array<juce::String, 6> const &names,
   if (names == _buttonNames && chosen == _chosenButton)
     return;
 
+  if (chosen != _chosenButton)
+    _listCursor = -1;
   _buttonNames = names;
   _chosenButton = chosen;
   repaint ();
@@ -315,6 +575,104 @@ ActionComponent::setRunningButton (int button)
 
   _runningButton = button;
   repaint ();
+}
+
+void
+ActionComponent::setTile (ActionTile tile)
+{
+  if (tile == _tile)
+    return;
+
+  _tile = tile;
+  // The other tile's rows are other rows: the lower encoders start again at
+  // its top.
+  _valueRow = 0;
+  showTheTile ();
+  repaint ();
+}
+
+void
+ActionComponent::showTheTile ()
+{
+  auto const audio = _tile == ActionTile::Audio;
+  for (int i = 0; i < ActMode; ++i)
+    _knob[static_cast<size_t> (i)]->setVisible (audio);
+
+  auto const motion = _tile == ActionTile::Motion && _motionHasAction;
+  for (auto &knob : _motionKnob)
+    if (knob)
+      knob->setVisible (motion);
+  for (auto &field : _motionField)
+    if (field)
+      field->setVisible (motion);
+}
+
+void
+ActionComponent::setMotionTile (
+    std::array<MotionShown, numMotionParams> const &shown, bool hasAction,
+    float patternLengthBeats)
+{
+  _motionShown = shown;
+  _motionHasAction = hasAction;
+  _patternLengthBeats = patternLengthBeats;
+
+  for (auto const param : motionParamOrder)
+    {
+      auto const &at = _motionShown[static_cast<size_t> (param)];
+      auto &knob = _motionKnob[static_cast<size_t> (param)];
+      if (!knob)
+        continue;
+
+      // Grey where the button leaves the value alone -- the clip's own is
+      // what it shows then -- the channel's colour where the script sets it,
+      // and on a wash where it was turned here and is the button's own.
+      knob->setSelected (at.source != MotionSource::Clip);
+      knob->setActive (at.source == MotionSource::Button);
+      // Not while a finger is on it: the page would argue with the hand.
+      if (!knob->isMouseButtonDown ())
+        knob->setValue (motionKnobValue (param, at.value),
+                        juce::dontSendNotification);
+    }
+
+  showTheTile ();
+  repaint ();
+}
+
+void
+ActionComponent::setAfter (std::optional<int> after)
+{
+  if (after == _after)
+    return;
+
+  _after = after;
+  repaint ();
+}
+
+void
+ActionComponent::setActionButtonModes (std::array<bool, 6> const &holds)
+{
+  if (holds == _buttonHolds)
+    return;
+
+  _buttonHolds = holds;
+  repaint ();
+}
+
+juce::Component *
+ActionComponent::audioKnob (int control)
+{
+  if (control < 0 || control >= ActMode)
+    return nullptr;
+  return _knob[static_cast<size_t> (control)].get ();
+}
+
+juce::Component *
+ActionComponent::motionControl (MotionParam param)
+{
+  auto const at = static_cast<size_t> (param);
+  if (_motionKnob[at])
+    return _motionKnob[at].get ();
+  return _motionField[at].get ();
 }
 
 void
@@ -360,8 +718,9 @@ ActionComponent::paintActionFields (juce::Graphics &g)
                     : named ? readableInk (_channelColour, ground, text)
                             : toColour (theme ().textMuted,
                                         theme ().alphaMuted);
-      auto inner = bounds.reduced (bounds.getHeight () / 8);
-      auto const numberRow = inner.removeFromTop (inner.getHeight () / 2);
+      auto const parts = actionFieldParts (bounds);
+      auto const numberRow = parts.number;
+      auto const inner = parts.name;
 
       // What the button's number (A1..A6) may cost.
       constexpr float buttonNumberCap = 20.f;
@@ -379,6 +738,19 @@ ActionComponent::paintActionFields (juce::Graphics &g)
       // Squeezed a little before it is cut: "Unwind" should read as Unwind.
       g.drawFittedText (named ? name : juce::String ("--"), inner,
                         juce::Justification::centredLeft, 1, 0.75f);
+
+      // How this button plays, its own mode rather than the chosen one's:
+      // 1 for a one-shot, H for a hold. Only on a button that plays at all.
+      if (named)
+        {
+          auto const badge = parts.modeBadge.toFloat ();
+          g.drawRoundedRectangle (badge.reduced (theme ().strokeThin * 0.5f),
+                                  theme ().radiusControl, theme ().strokeThin);
+          g.setFont (juce::Font (juce::FontOptions (
+              badge.getHeight () * 0.75f, juce::Font::bold)));
+          g.drawText (_buttonHolds[button] ? "H" : "1", parts.modeBadge,
+                      juce::Justification::centred);
+        }
     }
 }
 
@@ -404,6 +776,171 @@ ActionComponent::paintEditKey (juce::Graphics &g)
   g.setFont (juce::Font (juce::FontOptions (
       fittedFontHeight (at.getHeight () * 0.4f, editKeyCap))));
   g.drawText ("EDIT", at, juce::Justification::centred);
+}
+
+void
+ActionComponent::paintTileKeys (juce::Graphics &g)
+{
+  auto const ink = readableInk (_channelColour, toColour (theme ().background),
+                                toColour (theme ().textPrimary));
+
+  auto const paintKey = [&] (juce::Rectangle<int> at, char const *word,
+                             bool lit) {
+    if (at.isEmpty ())
+      return;
+
+    // Exactly one is lit: the tile standing in the card, in the channel's
+    // colour and with the chosen field's thick outline. The other rests like
+    // EDIT does.
+    g.setColour (lit ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
+                     : toColour (theme ().textPrimary, theme ().alphaFill));
+    g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+    g.setColour (lit ? _channelColour
+                     : toColour (theme ().textPrimary, theme ().alphaOutline));
+    g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                            lit ? theme ().strokeThick : theme ().strokeThin);
+
+    g.setColour (lit ? ink
+                     : toColour (theme ().textMuted, theme ().alphaTextStrong));
+    // What "AUDIO" and "MOTION" may cost.
+    constexpr float tileKeyCap = 18.f;
+    g.setFont (juce::Font (juce::FontOptions (
+        fittedFontHeight (at.getHeight () * 0.4f, tileKeyCap))));
+    g.drawFittedText (word, at.reduced (at.getHeight () / 8, 0),
+                      juce::Justification::centred, 1, 0.7f);
+  };
+
+  paintKey (_layout.audioKey, "AUDIO", _tile == ActionTile::Audio);
+  paintKey (_layout.motionKey, "MOTION", _tile == ActionTile::Motion);
+}
+
+void
+ActionComponent::paintAfterKey (juce::Graphics &g)
+{
+  auto const at = _layout.afterKey;
+  if (at.isEmpty ())
+    return;
+
+  // Lit like the mode beside it when something follows, resting like EDIT
+  // when nothing does -- a chain is worth seeing at a glance.
+  auto const set = _after.has_value ();
+  g.setColour (set ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
+                   : toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+  g.setColour (set ? _channelColour.withAlpha (theme ().alphaInactive)
+                   : toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
+
+  g.setColour (set ? readableInk (_channelColour,
+                                  toColour (theme ().background),
+                                  toColour (theme ().textPrimary))
+                   : toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What the after key's words ("then A3") may cost.
+  constexpr float afterKeyCap = 18.f;
+  g.setFont (juce::Font (juce::FontOptions (
+      fittedFontHeight (at.getHeight () * 0.4f, afterKeyCap))));
+  g.drawFittedText ("then " + afterName (_after),
+                    at.reduced (at.getHeight () / 8, 0),
+                    juce::Justification::centred, 1, 0.7f);
+}
+
+void
+ActionComponent::paintAudioRowNames (juce::Graphics &g)
+{
+  // Which row is which, said once each rather than on every knob.
+  // "3d", not "accent": what the row drives is the channel's 3d, and naming
+  // it after the thing it moves puts it in the same words as the global
+  // strip's rows -- which is where the eye has already learned them.
+  char const *const rowNames[] = { "3d", caption::frequency, "q" };
+  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+  // What a row's name ("3d", "freq", "q") may cost.
+  constexpr float rowNameCap = 14.f;
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
+  for (int row = 0; row < ActionLayout::numRows; ++row)
+    g.drawText (rowNames[row],
+                _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
+                    juce::roundToInt (theme ().paddingSmall)),
+                juce::Justification::centredRight);
+}
+
+void
+ActionComponent::paintMotionField (juce::Graphics &g, MotionParam param)
+{
+  auto const at = _layout.motionControls[static_cast<size_t> (param)];
+  if (at.isEmpty ())
+    return;
+
+  auto const &shown = _motionShown[static_cast<size_t> (param)];
+  auto const set = shown.source != MotionSource::Clip;
+  auto const own = shown.source == MotionSource::Button;
+
+  // The knobs' three looks, said as a key: grey where the button leaves the
+  // clip's value alone, the channel's colour where the script sets it, a
+  // stronger wash where it was turned here.
+  g.setColour (own   ? _channelColour.withAlpha (theme ().alphaInactive)
+               : set ? _channelColour.withAlpha (theme ().alphaFillEmphasis)
+                     : toColour (theme ().textPrimary, theme ().alphaFill));
+  g.fillRoundedRectangle (at.toFloat (), theme ().radiusControl);
+  g.setColour (set ? _channelColour
+                   : toColour (theme ().textPrimary, theme ().alphaOutline));
+  g.drawRoundedRectangle (at.toFloat (), theme ().radiusControl,
+                          theme ().strokeThin);
+
+  auto const whole = static_cast<int> (std::lround (shown.value));
+  auto const word
+      = param == MotionParam::Speed
+            ? speedKeyName (whole, _patternLengthBeats)
+        : param == MotionParam::Direction
+            ? juce::String (value::directionNames[juce::jlimit (
+                  0, value::numDirections - 1, whole)])
+            : juce::String (value::endActionNames[juce::jlimit (
+                  0, value::numEndActions - 1, whole)]);
+
+  auto inner = at.reduced (juce::roundToInt (theme ().paddingTight));
+  auto const captionRow = inner.removeFromBottom (inner.getHeight () / 3);
+
+  g.setColour (set ? readableInk (_channelColour,
+                                  toColour (theme ().background),
+                                  toColour (theme ().textPrimary))
+                   : toColour (theme ().textMuted, theme ().alphaMuted));
+  // What a field's value ("8", "Rev", "Loop") may cost.
+  constexpr float motionFieldValueCap = 16.f;
+  g.setFont (juce::Font (juce::FontOptions (
+      fittedFontHeight (inner.getHeight () * 0.6f, motionFieldValueCap))));
+  g.drawFittedText (word, inner, juce::Justification::centred, 1, 0.75f);
+
+  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+  g.setFont (juce::Font (juce::FontOptions (_layout.metrics.captionSize)));
+  g.drawFittedText (motionParamCaption (param), captionRow,
+                    juce::Justification::centred, 1, 0.75f);
+}
+
+void
+ActionComponent::paintMotionTile (juce::Graphics &g)
+{
+  if (!_motionHasAction)
+    {
+      // Nothing to put on a clip: said in the card, not as nineteen knobs
+      // that would change nothing.
+      auto area = _layout.card.withTrimmedTop (
+          _layout.cardCaption.getBottom () - _layout.card.getY ());
+      g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
+      // What the "no action" note in the card may cost.
+      constexpr float noActionCap = 16.f;
+      g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+          _layout.cardCaption.getHeight () * 0.7f, noActionCap))));
+      g.drawFittedText ("A" + juce::String (_chosenButton + 1)
+                            + " has no action\npick one from the list",
+                        area.reduced (area.getWidth () / 10),
+                        juce::Justification::centred, 3, 0.8f);
+      return;
+    }
+
+  for (auto const param : motionParamOrder)
+    if (motionParamIsAField (param))
+      paintMotionField (g, param);
 }
 
 void
@@ -435,12 +972,23 @@ ActionComponent::paintActionList (juce::Graphics &g)
       auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
       auto const name = _choices[index];
       auto const chosen = name == _actionName;
+      auto const highlighted = index == _listCursor && !chosen;
 
       if (chosen)
         {
           g.setColour (_channelColour.withAlpha (theme ().alphaDisabled));
           g.fillRect (at.reduced (juce::roundToInt (theme ().paddingTight),
                                   juce::roundToInt (theme ().paddingHair)));
+        }
+
+      // Where the encoder stands: outlined, not filled -- filled is what the
+      // button holds, and the two must not be mistaken mid-set.
+      if (highlighted)
+        {
+          g.setColour (_channelColour);
+          g.drawRect (at.reduced (juce::roundToInt (theme ().paddingTight),
+                                  juce::roundToInt (theme ().paddingHair)),
+                      juce::roundToInt (theme ().strokeThin));
         }
 
       g.setColour (chosen ? _channelColour
@@ -474,21 +1022,22 @@ ActionComponent::paint (juce::Graphics &g)
   // The nine knobs draw themselves (PotKnob); the page draws what stands
   // between them.
 
-  // Which row is which, said once each rather than on every knob.
-  // "3d", not "accent": what the row drives is the channel's 3d, and naming
-  // it after the thing it moves puts it in the same words as the global
-  // strip's rows -- which is where the eye has already learned them.
-  char const *const rowNames[] = { "3d", caption::frequency, "q" };
-  g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
-  // What a row's name ("3d", "freq", "q") may cost.
-  constexpr float rowNameCap = 14.f;
-  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
-      _layout.rowLabels[0].getHeight () * 0.4f, rowNameCap))));
-  for (int row = 0; row < ActionLayout::numRows; ++row)
-    g.drawText (rowNames[row],
-                _layout.rowLabels[static_cast<size_t> (row)].withTrimmedRight (
-                    juce::roundToInt (theme ().paddingSmall)),
-                juce::Justification::centredRight);
+  switch (_tile)
+    {
+    case ActionTile::Audio: paintAudioRowNames (g); break;
+    case ActionTile::Motion: paintMotionTile (g); break;
+    }
+  paintTileKeys (g);
+  paintAfterKey (g);
+
+  // The chosen button's action is running: the card says so in the white
+  // its field and its pad wear, so what the page shows reads as live.
+  if (_runningButton >= 0 && _runningButton == _chosenButton)
+    {
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawRoundedRectangle (_layout.card.toFloat (), theme ().radiusCard,
+                              theme ().strokeThick);
+    }
 
   // Not a knob: it is one of two words, and a knob that can only be at one of
   // two places is a knob that lies about what it can do. It stands under
@@ -512,22 +1061,51 @@ ActionComponent::paint (juce::Graphics &g)
               modeBounds, juce::Justification::centred);
 
 
-  // What the card of knobs is: the accent and the two filters, which is the
-  // channel's audio. Nine unnamed knobs beside a script is a card you have to
-  // work out.
-  if (!_layout.cardCaption.isEmpty ())
-    {
-      g.setColour (toColour (theme ().textMuted, theme ().alphaTextStrong));
-      // What the "Audio" caption over the knob card may cost.
-      constexpr float audioCaptionCap = 16.f;
-      g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
-          _layout.cardCaption.getHeight () * 0.7f, audioCaptionCap))));
-      g.drawText ("Audio", _layout.cardCaption,
-                  juce::Justification::centred);
-    }
+  paintEncoderMarks (g);
 
   // Last, so it covers what it opens over.
   paintActionList (g);
+}
+
+void
+ActionComponent::paintEncoderMarks (juce::Graphics &g)
+{
+  // Where the panel's encoders stand on this page: a ring on the key the
+  // third one would press, an outline round the row the lower four turn.
+  // Outlines in the channel's colour, the list's highlight's language.
+  g.setColour (_channelColour);
+  auto const stroke = theme ().strokeThick;
+
+  if (_keyRingShown)
+    {
+      auto const key = _keyRing == ActionKey::Edit   ? _layout.editButton
+                       : _keyRing == ActionKey::Mode ? _layout.actModeField
+                                                     : _layout.afterKey;
+      g.drawRoundedRectangle (key.toFloat ().expanded (stroke),
+                              theme ().radiusControl, stroke);
+    }
+
+  if (!_valueRowShown)
+    return;
+
+  juce::Rectangle<int> row;
+  if (_tile == ActionTile::Audio)
+    row = _layout.rows[static_cast<size_t> (
+        juce::jlimit (0, ActionLayout::numRows - 1, _valueRow))];
+  else
+    for (int column = 0; column < ActionLayout::motionColumns; ++column)
+      {
+        auto const at = _valueRow * ActionLayout::motionColumns + column;
+        if (!juce::isPositiveAndBelow (at, numMotionParams))
+          break;
+        auto const cell = _layout.motionControls[static_cast<size_t> (
+            motionParamOrder[static_cast<size_t> (at)])];
+        row = row.isEmpty () ? cell : row.getUnion (cell);
+      }
+
+  if (!row.isEmpty ())
+    g.drawRoundedRectangle (row.toFloat (), theme ().radiusControl,
+                            theme ().strokeThin);
 }
 
 }

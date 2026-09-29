@@ -55,6 +55,16 @@ public:
   createTrefoil (index_t lengthBeats, float radius, HeightMap const &heightMap);
   static std::unique_ptr<Pattern>
   createDrift (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createFourFloor (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createOffbeat (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createClave23 (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createShuffle (index_t lengthBeats, float radius, HeightMap const &heightMap);
+  static std::unique_ptr<Pattern>
+  createGallop (index_t lengthBeats, float radius, HeightMap const &heightMap);
 
   static std::unique_ptr<Pattern> createCircle (index_t lengthBeats,
                                                 float radius, float degrees,

@@ -1925,3 +1925,32 @@ TEST (ClipSettingsLayout, TiltAndRollStandOnMotion)
   EXPECT_EQ (std::string (motionKnobSpec (12).label), "roll");
   EXPECT_EQ (std::string (motionKnobSpec (13).label), "rswp");
 }
+
+// The elv encoder stuck at the poles and at ear height (maintainer,
+// 2026-09-28): one detent moved the base by exactly the snap's reach, and the
+// snap pulled it straight back. A detent must always move the line; the snap
+// may pull it onto a mark it comes near, never back onto the one it left.
+TEST (ClipSettingsLayout, AnEncoderStepAlwaysLeavesTheMarkItStandsOn)
+{
+  for (auto const mark : { 0.f, 0.5f, 1.f })
+    for (auto const increment : { -1, 1 })
+      {
+        auto const knob = knobForElevationBase (mark);
+        if ((knob == 0.f && increment < 0) || (knob == 1.f && increment > 0))
+          continue; // nothing further that way
+        auto const next = elevationBaseForEncoderStep (mark, increment, 0.f, 0.f);
+        EXPECT_NE (next, mark) << "stuck at " << mark << " turning " << increment;
+      }
+}
+
+TEST (ClipSettingsLayout, AnEncoderStepStillLandsOnAMarkItComesNear)
+{
+  // From 0.47 one detent towards ear height lands on 0.5, not on 0.49.
+  EXPECT_FLOAT_EQ (elevationBaseForEncoderStep (0.53f, 1, 0.f, 0.f), 0.5f);
+  EXPECT_FLOAT_EQ (elevationBaseForEncoderStep (0.47f, -1, 0.f, 0.f), 0.5f);
+}
+
+TEST (ClipSettingsLayout, AnEncoderStepStaysInsideTheClipBand)
+{
+  EXPECT_FLOAT_EQ (elevationBaseForEncoderStep (0.33f, 1, 0.33f, 0.f), 0.33f);
+}

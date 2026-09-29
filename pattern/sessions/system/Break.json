@@ -1,0 +1,133 @@
+{
+  "name": "Break",
+  "channels": [
+    {
+      "threeD": 0.26,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Orbit Arc",
+          "clip": "Break Standstill",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Width Point"
+        },
+        {
+          "script": "FX Sweep"
+        },
+        {
+          "script": "Cue Build Pulse"
+        }
+      ]
+    },
+    {
+      "threeD": 0.3,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Spiral Collapse",
+          "clip": "Break Collapse",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Width Point"
+        },
+        {
+          "script": "FX Sweep"
+        },
+        {
+          "script": "Cue Build Pulse"
+        }
+      ]
+    },
+    {
+      "threeD": 0.32,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Edge Diamond",
+          "clip": "Break Monolith",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Width Point"
+        },
+        {
+          "script": "FX Sweep"
+        },
+        {
+          "script": "Cue Build Pulse"
+        }
+      ]
+    },
+    {
+      "threeD": 0.34,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Loop Figure 8",
+          "clip": "Break Suspend",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Overhead"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "Width Breathe"
+        },
+        {
+          "script": "Width Point"
+        },
+        {
+          "script": "FX Sweep"
+        },
+        {
+          "script": "Cue Build Pulse"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "name": "Groove",
+  "channels": [
+    {
+      "threeD": 0.36,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Rhythm Four Floor",
+          "clip": "Groove Four Floor",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Speed Half"
+        },
+        {
+          "script": "Speed Double"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Punch"
+        },
+        {
+          "script": "Cue Build Riser"
+        }
+      ]
+    },
+    {
+      "threeD": 0.4,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Rhythm Tresillo",
+          "clip": "Groove Tresillo",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Speed Half"
+        },
+        {
+          "script": "Speed Double"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Punch"
+        },
+        {
+          "script": "Cue Build Riser"
+        }
+      ]
+    },
+    {
+      "threeD": 0.42,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Rhythm Clave 3-2",
+          "clip": "Groove Clave",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Speed Half"
+        },
+        {
+          "script": "Speed Double"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Punch"
+        },
+        {
+          "script": "Cue Build Riser"
+        }
+      ]
+    },
+    {
+      "threeD": 0.44,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Rhythm Offbeat",
+          "clip": "Groove Offbeat",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Speed Half"
+        },
+        {
+          "script": "Speed Double"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Punch"
+        },
+        {
+          "script": "Cue Build Riser"
+        }
+      ]
+    }
+  ]
+}

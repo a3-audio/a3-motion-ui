@@ -1,0 +1,133 @@
+{
+  "name": "Warmup",
+  "channels": [
+    {
+      "threeD": 0.26,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Orbit Circle",
+          "clip": "Warmup Halo",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Up"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Groove Four Floor"
+        }
+      ]
+    },
+    {
+      "threeD": 0.3,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Spiral Breath",
+          "clip": "Warmup Breath",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Up"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Groove Four Floor"
+        }
+      ]
+    },
+    {
+      "threeD": 0.32,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Flower Rose 7",
+          "clip": "Warmup Sunrise",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Up"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Groove Four Floor"
+        }
+      ]
+    },
+    {
+      "threeD": 0.34,
+      "freq": 0.45,
+      "q": 0.1,
+      "slots": [
+        {
+          "pattern": "Loop Infinity",
+          "clip": "Warmup Horizon",
+          "recordLengthLog2": 3
+        }
+      ],
+      "actions": [
+        {
+          "script": "Lift Up"
+        },
+        {
+          "script": "Width Close"
+        },
+        {
+          "script": "Move Spin"
+        },
+        {
+          "script": "Move Freeze"
+        },
+        {
+          "script": "FX Swell"
+        },
+        {
+          "script": "Cue Groove Four Floor"
+        }
+      ]
+    }
+  ]
+}

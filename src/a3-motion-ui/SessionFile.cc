@@ -25,6 +25,7 @@
 #include <a3-motion-engine/Playhead.hh>
 #include <a3-motion-engine/TextFile.hh>
 
+
 #include <iostream>
 
 namespace a3
@@ -239,8 +240,7 @@ readSpeedKeys (juce::var const &value)
 namespace
 {
 /** A channel's six actions, or -- in a set written before 2026-09-27, when a
- *  channel had two slots with an action each -- those two as A1 and A2, with
- *  the envelope each slot had been turned to. Read before fitToDevice cuts the
+ *  channel had two slots with an action each -- those two as A1 and A2. Read before fitToDevice cuts the
  *  second slot, or its action would be gone. */
 void
 readActions (Session::Channel &channel, juce::var const &value)
@@ -253,8 +253,6 @@ readActions (Session::Channel &channel, juce::var const &value)
           auto const &entry = entries->getReference (i);
           auto &action = channel.actions[static_cast<size_t> (i)];
           action.script = entry["script"].toString ().toStdString ();
-          if (auto const feel = readOverrides (entry["feel"]))
-            action.feel = actionFeelFrom (*feel);
         }
       return;
     }
@@ -266,10 +264,6 @@ readActions (Session::Channel &channel, juce::var const &value)
       auto const &slot = channel.slots[static_cast<size_t> (i)];
       auto &action = channel.actions[static_cast<size_t> (i)];
       action.script = slot.action;
-      // The feel only where the slot had been turned from the defaults --
-      // otherwise the script says how it is played, as it always did.
-      if (slot.overrides && actionFeelFrom (*slot.overrides) != ActionFeel{})
-        action.feel = actionFeelFrom (*slot.overrides);
     }
 }
 
@@ -282,10 +276,6 @@ writeActions (std::array<Session::ActionEntry, numActionButtons> const &actions)
       auto *entry = new juce::DynamicObject ();
       if (!action.script.empty ())
         entry->setProperty ("script", juce::String (action.script));
-      // Only what differs from the defaults, like a slot's overrides.
-      if (action.feel)
-        entry->setProperty ("feel",
-                            writeOverrides (withFeel (ClipSettings{}, *action.feel)));
       entries.add (juce::var (entry));
     }
   return entries;
@@ -387,7 +377,7 @@ saveSession (juce::File const &file, Session const &set)
       auto const anyAction = std::any_of (
           channel.actions.begin (), channel.actions.end (),
           [] (Session::ActionEntry const &a) {
-            return !a.script.empty () || a.feel.has_value ();
+            return !a.script.empty ();
           });
       if (anyAction)
         entry->setProperty ("actions", writeActions (channel.actions));

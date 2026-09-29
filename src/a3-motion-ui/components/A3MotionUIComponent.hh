@@ -35,6 +35,7 @@
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
+#include <a3-motion-ui/components/PendingScriptWrites.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <a3-motion-ui/SettingsPersistence.hh>
@@ -50,6 +51,7 @@
 #include <a3-motion-ui/components/LibraryKeys.hh>
 #include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/components/LibraryList.hh>
+#include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
@@ -353,6 +355,23 @@ private:
   /** Where a knob stands now -- the ACTION page's nine are sliders. */
   void setActionControl (int control, double value);
   void resetActionControl (int control);
+  /** A MOTION tile value turned on the shown button, or with nothing given
+   *  handed back to the script. */
+  void setShownButtonMotion (MotionParam param, std::optional<float> value);
+  /** What the shown button fires when its accent is over. */
+  void setShownButtonAfter (std::optional<int> after);
+
+  /** Each channel's chain of actions: which button's accent runs, and what
+   *  follows it (see ActionChain). Followed every tick. */
+  std::array<ActionChain, numChannelsInitial> _actionChains;
+  void followActionChains ();
+  /** A button fired by the chain, as if pressed and let go: nobody holds it,
+   *  so a Hold button plays as a one-shot here. */
+  void fireChainedAction (index_t channel, int button);
+  /** A push on an action pad of the panel or the PADS page: the ACTION page
+   *  of that channel, with the pushed button chosen -- after the press has
+   *  fired, so nothing about the firing waits for the page. */
+  void showPushedAction (index_t channel, index_t pad, PadSource source);
   static juce::String actionReadoutFor (int control,
                                         Pattern const &pattern);
 
@@ -371,6 +390,13 @@ private:
    *  carries. A clip written before a clip had to name a figure leaves the
    *  slot's own alone and lands only its values. */
   void applyClip (index_t channel, index_t slot, int index);
+  /** Puts a clip file on a channel -- its shape, settings, lanes and the
+   *  file it came from -- without starting it. The one route a clip takes
+   *  onto a channel: FILES Load (through applyClip) and a Cue press. False
+   *  when nothing landed: no such clip, or a clip without a figure on an
+   *  empty channel. */
+  bool loadClipIntoChannel (index_t channel, juce::File const &clipFile,
+                            bool stopTheOldOneNow = true);
   /** Read direction and end action back out of the pattern into the strip.
    *  Both live in two places, and the pattern is the one a clip writes. */
   void syncClipUIParamsFromPattern (index_t channel, index_t slot);
@@ -831,17 +857,41 @@ private:
     std::optional<ClipSettings> settings;
     /** What the script got wrong, line by line. */
     juce::StringArray errors;
-    /** How it is played -- the envelopes and the mode, the button's own
-     *  since the feel left the clip -- and what the script itself said, so a
-     *  set only keeps what was turned from it. */
+    /** How it is played -- the envelopes and the mode -- as its script says
+     *  (ACTION writes there since 2026-09-29, so the button keeps no feel of
+     *  its own). */
     ActionFeel feel;
-    ActionFeel scriptFeel;
+    /** The button of the same channel fired when this one's accent is over,
+     *  from the script's `~then`, or nothing. */
+    std::optional<int> after;
     /** The dice rolled when the button was assigned. The script is worked out
      *  again at every press, against the clip as it stands then, and this
      *  keeps a random action landing where it landed. */
     juce::int64 seed = 0;
+    /** The clip a Cue puts on the channel (library v2); empty for every
+     *  other action. Resolved when the script is put on the button. */
+    juce::File cueClip;
+    /** The script names a clip at all -- a Cue even when the clip is gone,
+     *  so the press does nothing rather than fall through to an accent. */
+    bool isCue = false;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
+  /** Works `action`'s source out against the channel's clip and puts what
+   *  it says on the button: settings, errors, feel, then, a Cue's clip. */
+  void runButtonScript (index_t channel, ActionButton &action);
+  /** ACTION's one route into a script (2026-09-29): `edit` applied to the
+   *  shown button's source, in place -- every button holding that file takes
+   *  it, the editor in FILES shows it, the file is written once the hand
+   *  stops. False when the button has no script to write into. */
+  bool editShownScript (
+      std::function<juce::String (juce::String const &)> const &edit);
+  /** `name`'s line set to its value in `settings`. */
+  bool writeShownScriptSetting (juce::String const &name,
+                                ClipSettings const &settings);
+  void scheduleScriptWrite ();
+  /** Everything waiting goes to disk now: before a set loads, before FILES
+   *  reads a file, and on quit. */
+  void flushScriptWrites ();
   /** Which of a channel's six buttons the ACTION page shows and edits, and
    *  the screen's ACT fires (2026-09-27). A1 until one is chosen. */
   std::array<int, numChannelsInitial> _chosenActionButton{};
@@ -913,6 +963,10 @@ private:
   /** Counts up on every scheduled save so a later one supersedes an earlier:
    *  a drag on the grid is dozens of changes and one arrangement. */
   int _setSaveGeneration = 0;
+  /** Scripts ACTION changed and has not written yet, and the debounce's
+   *  generation (2026-09-29). */
+  PendingScriptWrites _scriptWrites;
+  int _scriptWriteGeneration = 0;
 
   /** Which page the bar is on. Kept here as well as in the bar because a
    *  value's *meaning* can depend on it — Shape's knob is the rotation on one

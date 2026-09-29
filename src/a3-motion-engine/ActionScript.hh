@@ -20,10 +20,12 @@
 
 #pragma once
 
+#include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 
 #include <JuceHeader.h>
 
+#include <optional>
 #include <vector>
 
 namespace a3
@@ -69,6 +71,16 @@ struct ActionScriptResult
   ClipSettings settings;
   /** One line each, naming the line number and what was wrong with it. */
   juce::StringArray errors;
+  /** The clip a Cue action puts on the channel (`~clip = "Name";`), by name,
+   *  the way a set names its clips. Empty for every other action. */
+  std::optional<juce::String> clip;
+  /** The names the script set, each once, in the order first set -- a line
+   *  that went wrong sets nothing. What tells the ACTION page's MOTION tile
+   *  a value comes from the script rather than from the clip. */
+  juce::StringArray assigned;
+  /** The button, 0-based, a `~then = N;` line fires when this action's
+   *  accent is over (2026-09-29). Empty: nothing after. */
+  std::optional<int> then;
 };
 
 /** Read a script and work out what it makes of the settings it is given.
@@ -88,6 +100,16 @@ ActionScriptResult runActionScript (juce::String const &source,
  *  clip has it -- not as it was when the button was assigned. */
 ClipSettings resolveActionAt (juce::String const &source,
                               ClipSettings const &base, juce::int64 seed,
+                              ActionFeel const &feel);
+
+/** The same, with the values the button was turned to on the MOTION tile
+ *  (2026-09-28): the script first, against the clip; then the button's
+ *  motion over it; then its feel. The script does not see the turned values
+ *  -- a line reading `~spin` reads the clip's, as it would with nothing
+ *  turned. */
+ClipSettings resolveActionAt (juce::String const &source,
+                              ClipSettings const &base, juce::int64 seed,
+                              MotionOverrides const &motion,
                               ActionFeel const &feel);
 
 /** The other direction: settings written out as a script.
@@ -129,5 +151,18 @@ std::vector<ActionScriptNote> const &actionScriptNotes ();
  *  a line is uncommented, because a commented line assigns nothing, which is
  *  exactly "leave this as the hand left it". */
 juce::String actionScriptTemplate ();
+
+/** Where a line's annotation starts, in every script the app writes: wide
+ *  enough for the longest assignment there is (//~flatElevation = 0.5;) and
+ *  no wider, so the annotation stands off the values, not across the screen. */
+constexpr int scriptAnnotationColumn = 25;
+
+/** What stands after a parameter's `// `: its range, then its hint. */
+juce::String scriptAnnotation (ActionScriptNote const &note);
+
+/** `name`'s value in `settings`, written as a script writes it; empty for a
+ *  name that is not a setting (`then`, `clip`, nonsense). */
+juce::String writtenSettingFor (ClipSettings const &settings,
+                                juce::String const &name);
 
 }

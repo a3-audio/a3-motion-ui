@@ -50,8 +50,19 @@ struct EncoderTarget
     /** One of the shown channel's two keys, PFL or FX (CHMIX): a press
      *  flips it, a turn does nothing. */
     MixerKey,
+    /** ACTION: walks the list's highlight; a press assigns it. */
+    ActionList,
     /** ACTION: steps the chosen action button, A1..A6. */
     ActionButton,
+    /** ACTION: rings a key of the key column (EDIT, mode, then); a press
+     *  presses it. */
+    ActionKey,
+    /** ACTION: switches the card between AUDIO and MOTION, turned or
+     *  pressed. */
+    ActionTile,
+    /** ACTION, the lower row: value `sub` of the card's marked row; a press
+     *  marks the next row. */
+    ActionValue,
     /** FREQ or Q of the encoder's own column's channel. */
     ColumnChannelPot,
   };
