@@ -92,7 +92,10 @@ TEST (ActionMotionKnobs, FieldsStepLikeClipsKeys)
                    static_cast<float> (speedLog2Max));
   // Direction and end come round, as a tap on CLIP brings them round.
   EXPECT_FLOAT_EQ (steppedMotionValue (MotionParam::Direction, 3.f, 1), 0.f);
-  EXPECT_FLOAT_EQ (steppedMotionValue (MotionParam::EndAction, 0.f, -1), 2.f);
+  // Back from the first end action is the last one -- Clip since the end
+  // action Clip came in, the same cycle as the CLIP page's.
+  EXPECT_FLOAT_EQ (steppedMotionValue (MotionParam::EndAction, 0.f, -1),
+                   static_cast<float> (value::numEndActions - 1));
 }
 
 // ── The page ─────────────────────────────────────────────────────────────
