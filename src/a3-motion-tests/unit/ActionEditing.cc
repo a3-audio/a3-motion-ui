@@ -91,11 +91,29 @@ TEST (ActionEditing, AScriptSaysWhatIsWrongWithIt)
   EXPECT_FALSE (scriptErrorsOf ("~base = ;").isEmpty ());
 }
 
-// A copy is named after what it came from ("Bloom 2"), a new one "Action".
+// A copy is named after what it came from ("Bloom 2").
 TEST (ActionEditing, ACopyIsNamedAfterItsOrigin)
 {
-  EXPECT_EQ (copyBaseFor (bloom), "Bloom");
-  EXPECT_EQ (copyBaseFor (juce::File{}), "Action");
+  EXPECT_EQ (copyBaseFor (bloom, bloom.getParentDirectory ()), "Bloom");
+}
+
+// One with no origin is named after the list it lands in, not "Action"
+// whatever list is open (#52).
+TEST (ActionEditing, ACopyWithNoOriginIsNamedAfterItsList)
+{
+  juce::File const root ("/tmp/pattern");
+  EXPECT_EQ (copyBaseFor ({}, root.getChildFile ("sessions")), "Set");
+  EXPECT_EQ (copyBaseFor ({}, root.getChildFile ("clips")), "Clip");
+  EXPECT_EQ (copyBaseFor ({}, root.getChildFile ("actions")), "Action");
+}
+
+// The manual beside the scripts is not an action (#57).
+TEST (ActionEditing, TheReadmeIsNoAction)
+{
+  EXPECT_TRUE (isActionScript (bloom));
+  EXPECT_FALSE (isActionScript (juce::File ("/tmp/actions/system/README.scd")));
+  EXPECT_FALSE (isActionScript (juce::File ("/tmp/actions/readme.scd")));
+  EXPECT_FALSE (isActionScript (juce::File ("/tmp/actions/Bloom.json")));
 }
 
 // Every file in FILES is edited as text (2026-09-27): what is wrong with it

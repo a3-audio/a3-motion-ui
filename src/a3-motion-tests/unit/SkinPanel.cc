@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/SkinPanelComponent.hh>
 #include <a3-motion-ui/theme/SkinParameters.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 
 using namespace a3;
 
@@ -179,4 +180,43 @@ TEST (SkinPanel, LookingChangesNothing)
   panel.setBounds (0, 0, 307, 620);
 
   EXPECT_EQ (juce::JSON::toString (panel.getSkin (), true), before);
+}
+
+// ── Closing without a change (#53) ───────────────────────────────────────
+
+TEST (SkinUnchanged, TheSameSkinIsTheSameWhateverTheKeyOrder)
+{
+  EXPECT_TRUE (sameSkin (skinFrom (R"({ "a": 1, "b": { "c": 2 } })"),
+                         skinFrom (R"({ "b": { "c": 2 }, "a": 1 })")));
+}
+
+TEST (SkinUnchanged, AChangedValueOrAnAddedKeyIsAChange)
+{
+  auto const skin = skinFrom (R"({ "a": 1, "b": { "c": 2 } })");
+  EXPECT_FALSE (sameSkin (skin, skinFrom (R"({ "a": 1, "b": { "c": 3 } })")));
+  EXPECT_FALSE (sameSkin (skin, skinFrom (R"({ "a": 1, "b": { "c": 2 }, "d": 0 })")));
+  EXPECT_FALSE (sameSkin (skinFrom (R"({ "a": 1, "b": { "c": 2 }, "d": 0 })"), skin));
+}
+
+// Opened and closed with nothing touched: the panel hands back what it got.
+TEST (SkinUnchanged, APanelLookedAtIsUnchanged)
+{
+  auto const skin = skinFrom (R"({ "lineGlow": 0.5, "sphereGrid": 1 })");
+  auto const opened = copyOfSkin (skin);
+  SkinPanelComponent panel;
+  panel.setSkin (skin, "test");
+  EXPECT_TRUE (sameSkin (opened, panel.getSkin ()));
+}
+
+// A switch flipped on the panel is a change, even though the panel edits the
+// very object it was given -- which is why the opened skin is a copy.
+TEST (SkinUnchanged, APanelEditIsAChangeAgainstTheCopy)
+{
+  auto const skin = skinFrom (R"({ "lineGlow": 0.5 })");
+  auto const opened = copyOfSkin (skin);
+  SkinPanelComponent panel;
+  panel.setSkin (skin, "test");
+  panel.setEffectSwitch (SkinSection::Trajectory,
+                         effectIndex (SkinSection::Trajectory, "glow"), false);
+  EXPECT_FALSE (sameSkin (opened, panel.getSkin ()));
 }

@@ -91,8 +91,15 @@ bool errorsBlockSaving (juce::StringArray const &errors,
                         juce::File const &file);
 
 /** What a copy is named after: the file it came from ("Bloom" gives
- *  "Bloom 2" through freeFileIn), or "Action" for one with no origin. */
-juce::String copyBaseFor (juce::File const &from);
+ *  "Bloom 2" through freeFileIn), or, for one with no origin, what the list
+ *  it lands in holds -- "Set" in sessions/, "Clip" in clips/, "Action" in
+ *  actions/. The fallback used to be "Action" whatever list was open. */
+juce::String copyBaseFor (juce::File const &from, juce::File const &folder);
+
+/** Whether a file is an action a button can fire. The language manual,
+ *  README.scd, sits beside the scripts with the same extension: readable in
+ *  FILES, never an action. */
+bool isActionScript (juce::File const &file);
 
 /** Where a Cue button's clip lives. `file` is empty for a script without a
  *  `~clip` line, and for one naming a clip that does not exist -- then `error`
