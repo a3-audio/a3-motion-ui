@@ -102,6 +102,10 @@ Unit tests use GoogleTest via `src/a3-motion-tests` (built when `TESTS_ENABLED=O
 ./test.sh -d                          # the Debug build
 ```
 
+**One build at a time:** `build.sh` (and so `test.sh`) takes a machine-wide lock
+(`$XDG_RUNTIME_DIR/a3-motion-ui-build.lock`); a second build in another worktree waits and says
+for whom. Two `-j4` builds on four cores take as long as both in a row.
+
 **Use `test.sh`, not `ctest` on its own.** `ctest` *runs* a binary; it does not *build* one, and
 `build.sh` builds only the app unless given `-t`. So `./build.sh && ctest` runs whatever test
 runner was built last — on 2026-09-13 that was the evening before, and two runs were reported as

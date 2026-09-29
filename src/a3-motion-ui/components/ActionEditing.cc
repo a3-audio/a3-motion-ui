@@ -158,4 +158,11 @@ cuePressFor (bool isCue, bool clipExists, bool recording, bool takeWaiting)
   return CuePress::Load;
 }
 
+ClipSettings
+cuedClipSettings (juce::String const &source, ClipSettings const &clip,
+                  juce::int64 seed)
+{
+  return resolveActionAt (source, clip, seed, actionFeelFrom (clip));
+}
+
 }
