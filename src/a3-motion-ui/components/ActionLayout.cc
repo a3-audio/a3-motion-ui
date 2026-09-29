@@ -217,6 +217,17 @@ actionFieldParts (juce::Rectangle<int> field)
   return out;
 }
 
+std::vector<juce::Rectangle<int> >
+actionListRows (ActionLayout const &layout)
+{
+  auto const area = layout.actionListArea;
+  auto const rowH = juce::jmax (1, layout.actionListRowHeight);
+  std::vector<juce::Rectangle<int> > rows;
+  for (int row = 0; row < actionListVisibleRows (layout); ++row)
+    rows.push_back (area.withY (area.getY () + row * rowH).withHeight (rowH));
+  return rows;
+}
+
 int
 actionListVisibleRows (ActionLayout const &layout)
 {

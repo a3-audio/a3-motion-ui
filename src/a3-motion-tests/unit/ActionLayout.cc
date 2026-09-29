@@ -575,3 +575,22 @@ TEST (ActionLayout, TheAfterKeyStandsUnderTheMode)
       EXPECT_GE (l.afterKey.getY (), l.actModeField.getBottom ());
     }
 }
+
+// "in ACTION die liste läuft aus dem rahmen unten": the last row was drawn
+// half below the bar. Over every bar height the rig's skins can give it.
+TEST (ActionLayout, EveryListRowStaysInsideTheListsFrame)
+{
+  for (int height = 180; height <= 420; height += 3)
+    {
+      auto const layout
+          = layOutActionPage ({ 0, 0, 576, height }, headerSize, 14.f, 1.f, {});
+      auto const rows = actionListRows (layout);
+      EXPECT_EQ (static_cast<int> (rows.size ()), actionListVisibleRows (layout))
+          << "height " << height;
+      for (auto const &row : rows)
+        EXPECT_TRUE (layout.actionListArea.contains (row))
+            << "height " << height << ": a row at y " << row.getY ()
+            << ".." << row.getBottom () << " leaves the list, which ends at "
+            << layout.actionListArea.getBottom ();
+    }
+}

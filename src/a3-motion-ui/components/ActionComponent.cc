@@ -963,13 +963,14 @@ ActionComponent::paintActionList (juce::Graphics &g)
   g.setFont (juce::Font (juce::FontOptions (
       fittedFontHeight (rowH * 0.45f, actionListRowCap))));
 
-  for (int row = 0; row * rowH < area.getHeight (); ++row)
+  auto const rows = actionListRows (_layout);
+  for (int row = 0; row < static_cast<int> (rows.size ()); ++row)
     {
       auto const index = _listTop + row;
       if (index >= _choices.size ())
         break;
 
-      auto const at = area.withY (area.getY () + row * rowH).withHeight (rowH);
+      auto const at = rows[static_cast<size_t> (row)];
       auto const name = _choices[index];
       auto const chosen = name == _actionName;
       auto const highlighted = index == _listCursor && !chosen;
