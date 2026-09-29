@@ -12,7 +12,7 @@
 
 // ---- Elevation -------------------------------------------------------
 //~base = 0;             // 0..1    where the middle sits; 0 north, 1 south
-//~reach = 0.5;          // -1..1   how far it spreads, sign says down or up
+~reach = 0.82;           // -1..1   how far it spreads, sign says down or up
 //~clipTop = 0;          // 0..1    cut this much off the north side
 //~clipBottom = 0;       // 0..1    the same from the south side
 //~flat = false;         // bool    hold one elevation, ignore the reach
