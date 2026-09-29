@@ -685,6 +685,14 @@ exactly through the origin and always have. Azimuth is undefined at r = 0, but s
 of a sound directly overhead — `HeightMapSphere::mapTo3D()` takes r → 0 to the north pole
 continuously, so the crossing rises over the listener and comes down the other side.
 
+**A held blob pushes the others aside on the screen only** (#56, maintainer 2026-09-29). An
+untouched blob within reach of a held one is drawn pushed out onto that circle so the held one
+stays reachable, and slides back along its edge when it is clear (`BlobPush`: `nextPushOffset`,
+`easedPushOffset` once nothing is held). The push is `ChannelUIState::pushOffset`, in the height
+map's 2D pixels; `drawnChannelPosition()` is what the shader draws and what a finger aims at.
+The engine is never written by the push — before #56 it was, so dragging one blob carried the
+other channels' sound and left it where it was pushed.
+
 **Off the pole it is a real singularity, and the drawing has to know.** With a base of 0.5 the
 disc's origin is drawn out at the rim, not in the middle, so a path passing *near* it swings the
 azimuth through most of a revolution in almost no 2D distance — and `drawPathOnSphere()` (today
