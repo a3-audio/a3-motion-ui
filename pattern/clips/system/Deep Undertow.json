@@ -21,7 +21,9 @@
   "qDecay": 3,
   "qMax": 0.0,
   "reach": 0.4,
+  "roll": 0.0,
   "rotate": 0.0,
+  "rswp": 4,
   "speed": 0,
   "spin": -1,
   "sqzX": 0.0,
@@ -30,5 +32,7 @@
   "strY": 0,
   "svg": "Spiral Collapse",
   "sway": 0,
-  "swell": 0
+  "swell": 0,
+  "tilt": 0.0,
+  "tswp": 3
 }

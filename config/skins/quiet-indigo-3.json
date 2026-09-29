@@ -2,7 +2,7 @@
   "blob": {
     "vuMax": 0.25,
     "sizeMin": 0.95,
-    "sizeMax": 1.8,
+    "sizeMax": 3.5,
     "sizeGrabbed": 1.2,
     "alphaMin": 0.0,
     "alphaMax": 0.75,
@@ -13,12 +13,12 @@
   },
   "backgroundGlow": {
     "vuMax": 0.03,
-    "r": 70,
-    "g": 130,
-    "b": 250,
-    "alphaMax": 0.7,
+    "r": 77,
+    "g": 82,
+    "b": 203,
+    "alphaMax": 0.2,
     "curve": 1.2,
-    "intensity": 2.4,
+    "intensity": 0.0,
     "netFlow": -0.18,
     "reach": 2.6,
     "rise": 0.25,
@@ -33,12 +33,12 @@
   },
   "speakerLight": {
     "vuMax": 0.2,
-    "r": 70,
-    "g": 130,
-    "b": 250,
+    "r": 77,
+    "g": 82,
+    "b": 203,
     "curve": 1.2,
     "speakerRadius": 1.4,
-    "beamIntensity": 1.3,
+    "beamIntensity": 0.0,
     "attack": 0.08,
     "decay": 0.25,
     "edgeSoftness": 0.7,
@@ -62,18 +62,18 @@
     "boltRate": 1.4,
     "boltDuty": 0.3,
     "boltCoreExp": 5,
-    "boltCore": 1.6,
+    "boltCore": 0.0,
     "boltCount": 7,
     "boltFewest": 2,
     "boltDim": 0.45,
-    "floorLevel": 1.0,
+    "floorLevel": 0.0,
     "floorThrough": 0.32,
     "floorDark": 0.16,
-    "floorBeams": 1.4,
+    "floorBeams": 0.0,
     "floorBeamInner": 0.02,
     "boxOcclude": 0.85,
     "floorGrain": 14,
-    "ballLevel": 1.0,
+    "ballLevel": 0.0,
     "ballCount": 3,
     "ballRate": 0.32,
     "ballReach": 0.72,
@@ -83,7 +83,10 @@
     "boltInner": 0.45,
     "boltEscape": 0.55,
     "boltBranches": 2,
-    "boltBranch": 1.6
+    "boltBranch": 1.6,
+    "topGlow": 2.0,
+    "subGlow": 0.8,
+    "boxGlow": 0.35
   },
   "energy": {
     "vuMax": 0.06,
@@ -93,12 +96,12 @@
     "r": 150,
     "g": 220,
     "b": 255,
-    "intensity": 0.35,
-    "netIntensity": 2.6,
+    "intensity": 0.0,
+    "netIntensity": 0.0,
     "netScale": 9,
     "netSharpness": 6,
     "netFlow": 0.18,
-    "netBeamIntensity": 2.5,
+    "netBeamIntensity": 0.0,
     "netTwist": 9,
     "netOctaves": 3,
     "netLacunarity": 2.0,
@@ -137,5 +140,84 @@
   "fontBody": 13.75,
   "clipSettingsHeightScale": 1.0,
   "potSize": 0.9,
-  "touchDragPixelsPerStep": 12
+  "touchDragPixelsPerStep": 12,
+  "lineGlow": 0.0,
+  "lineFilament": 0.0,
+  "lineBolt": 0.0,
+  "lineHeat": 0.0,
+  "blobSparkle": 0.0,
+  "blobBolt": 0.0,
+  "blobTrail": 0.0,
+  "braidStrands": 1.0,
+  "braidRadius": 0.0,
+  "background": {
+    "r": 12,
+    "g": 12,
+    "b": 16
+  },
+  "surface": {
+    "r": 17,
+    "g": 17,
+    "b": 24
+  },
+  "surfaceRaised": {
+    "r": 27,
+    "g": 27,
+    "b": 37
+  },
+  "textPrimary": {
+    "r": 228,
+    "g": 228,
+    "b": 231
+  },
+  "textMuted": {
+    "r": 150,
+    "g": 151,
+    "b": 166
+  },
+  "textOnAccent": {
+    "r": 10,
+    "g": 10,
+    "b": 15
+  },
+  "accent": {
+    "r": 136,
+    "g": 140,
+    "b": 221
+  },
+  "notice": {
+    "r": 105,
+    "g": 173,
+    "b": 211
+  },
+  "warning": {
+    "r": 237,
+    "g": 166,
+    "b": 29
+  },
+  "danger": {
+    "r": 226,
+    "g": 75,
+    "b": 54
+  },
+  "sphereSurface": {
+    "r": 14,
+    "g": 14,
+    "b": 19
+  },
+  "sphereRim": {
+    "r": 65,
+    "g": 67,
+    "b": 108
+  },
+  "sphereEnvironment": {
+    "r": 7,
+    "g": 7,
+    "b": 10
+  },
+  "boltCore": {
+    "r": 222,
+    "g": 222,
+    "b": 237
+  }
 }

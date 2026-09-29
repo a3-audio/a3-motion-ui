@@ -36,8 +36,8 @@
 //~end = \loop;          //         \loop \stop \pause \bounce \random
 
 // ---- Accent ----------------------------------------------------------
-~attack = 1;             // 0..6    rise while ACT is held, in bar fractions
-~decay = 3;              // 0..6    fall once ACT is let go
+~attack = 0;             // 0..6    rise while ACT is held, in bar fractions
+~decay = 1;              // 0..6    fall once ACT is let go
 ~envelopeMax = 1;        // 0..1    the 3d it rises to
 //~freqAttack = 2;       // 0..6    the same for the filter's cutoff
 //~freqDecay = 3;        // 0..6

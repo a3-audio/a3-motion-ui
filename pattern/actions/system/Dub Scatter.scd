@@ -19,18 +19,18 @@
 //~flatElevation = 0.5;  // 0..1    the elevation it is held at
 
 // ---- Motion ----------------------------------------------------------
-~rotate = rrand(0.0, 1.0);// 0..1    standing angle in revolutions; it wraps
+~rotate = 0.142;         // 0..1    standing angle in revolutions; it wraps
 //~sqzX = 0;             // -1..1   squeeze front-back; 0 as recorded
 //~sqzY = 0;             // -1..1   the same left-right
 //~strX = 0;             // -8..8   ~sqzX's own sweep, out and back
 //~strY = 0;             // -8..8   the same for ~sqzY
 //~tilt = 0;             // -2..2   the figure's plane leant forward (+) or back
-//~roll = 0;             // -2..2   the figure's plane leant to the left (+) or right
+~roll = 0.912;           // -2..2   the figure's plane leant to the left (+) or right
 //~tswp = 0;             // -8..8   turns ~tilt round, like spin
 //~rswp = 0;             // -8..8   turns ~roll round, like spin
 ~spin = rrand(-8, 8);    // -8..8   bars per revolution, sign = direction
 //~swell = 0;            // -8..8   sweeps ~reach out of where it sits and back
-//~sway = 0;             // -8..8   sweeps ~base towards the pole the sign says
+~sway = 2;               // -8..8   sweeps ~base towards the pole the sign says
 //~fade = 0;             // 0..1    how much of the take the joins take over
 //~bias = 0;             // -4..4   where a drawn-through gap leads
 //~dir = \forward;       //         \forward \reverse
