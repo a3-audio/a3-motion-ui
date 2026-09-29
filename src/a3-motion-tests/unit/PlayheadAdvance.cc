@@ -402,8 +402,30 @@ TEST (PlayheadAdvance, TheNamesRoundTrip)
     EXPECT_EQ (playDirectionFromName (playDirectionToName (direction)),
                direction);
 
-  for (auto const end : { EndAction::Loop, EndAction::Stop, EndAction::Pause })
+  for (auto const end : { EndAction::Loop, EndAction::Stop, EndAction::Pause,
+                          EndAction::Clip })
     EXPECT_EQ (endActionFromName (endActionToName (end)), end);
+
+  EXPECT_EQ (endActionToName (EndAction::Clip), "clip");
+}
+
+// Clip hands the channel to another clip when the pass is over. The pass
+// itself ends the way Stop ends it -- back at the take's start, out of
+// playback -- because that is what is left when no follow is there to take
+// over: an unknown or missing follow clip is a stop, not a loop.
+TEST (PlayheadAdvance, ClipEndsThePassTheWayStopDoes)
+{
+  auto const stepped = advancePlayhead ({ 0.99f, 1.f, false }, 0.02f,
+                                        PlayDirection::Forward,
+                                        EndAction::Clip, 0.f);
+
+  EXPECT_TRUE (stepped.stopped);
+  EXPECT_FLOAT_EQ (stepped.position, 0.f);
+
+  auto const inside = advancePlayhead ({ 0.5f, 1.f, false }, 0.02f,
+                                       PlayDirection::Forward,
+                                       EndAction::Clip, 0.f);
+  EXPECT_FALSE (inside.stopped);
 }
 
 // A clip written when Bounce and Random were end actions keeps playing the
@@ -450,6 +472,7 @@ TEST (PlayheadAdvance, OnlyALoopRunningStraightTravelsTheWrap)
   EXPECT_FALSE (travelsTheWrap (PlayDirection::Random, EndAction::Loop));
   EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Stop));
   EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Pause));
+  EXPECT_FALSE (travelsTheWrap (PlayDirection::Forward, EndAction::Clip));
 }
 
 // The channel row's bar is time through the clip's length, not where the

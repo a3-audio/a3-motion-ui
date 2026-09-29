@@ -355,11 +355,11 @@ pageTabIsLit (BarPage tab, BarPage shown, SphereOverlay overSphere)
   return overSphere == SphereOverlay::None && tab == shown;
 }
 
-/** Whether a tap on this control flips it. True for the two-state ones —
- *  pole and flat. They used to be stepped like the rest, but stepping is
- *  tied to a direction (an encoder turned right meant South) and a tap has
- *  none: it always said +1, so the value could be switched on and never
- *  back off. Mutually exclusive with tapAdvancesValue. */
+/** Whether a tap on this control is its own gesture rather than a drag's
+ *  step: it reaches the page as a toggle, not as +1. Made for the two-state
+ *  controls (pole and flat, gone since), whose tap had no direction; now
+ *  only END, whose drag walks the follow clip while its tap steps the end
+ *  action. Mutually exclusive with tapAdvancesValue. */
 bool tapTogglesValue (int sectionIndex, int subIndex);
 
 /** Every rectangle in the bar, from one calculation. paint() draws into

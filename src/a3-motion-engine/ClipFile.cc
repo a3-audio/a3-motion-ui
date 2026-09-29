@@ -173,6 +173,9 @@ ClipFile::save (Clip const &clip, juce::File const &file)
 
   object->setProperty ("direction", playDirectionToName (s.direction));
   object->setProperty ("endAction", endActionToName (s.endAction));
+  // Only when there is one: every clip written before stays what it was.
+  if (!clip.endClip.empty ())
+    object->setProperty ("endClip", juce::String (clip.endClip));
 
   object->setProperty ("freqAttack", s.freqAttack);
   object->setProperty ("freqDecay", s.freqDecay);
@@ -282,6 +285,7 @@ ClipFile::load (juce::File const &file)
   s.bridgeBias = readInt (parsed, "bridgeBias", defaults.bridgeBias);
 
   clip.lanes = lanesFromVar (parsed.getProperty ("lanes", {}));
+  clip.endClip = readString (parsed, "endClip", {}).toStdString ();
 
   return clip;
 }
@@ -327,6 +331,8 @@ saveClipSettings (Pattern const &pattern, juce::File const &clipFile)
   clip->settings = clipSettingsFrom (pattern);
   // And the knobs it plays: a lane cleared on the slot is cleared in the file.
   clip->lanes = pattern.getLanes ();
+  // And the clip that follows it: chosen on the slot, kept in the clip.
+  clip->endClip = pattern.getEndClip ();
 
   return ClipFile::save (*clip, clipFile);
 }
@@ -341,6 +347,9 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
   if (clipSettingsFrom (pattern) != clip->settings)
     return true;
 
+  if (pattern.getEndClip () != clip->endClip)
+    return true;
+
   // Which knobs play a lane, not what they play: a lane can only be cleared
   // on a slot, never written -- a take is a clip of its own.
   for (int k = 0; k < numKnobs; ++k)
@@ -353,6 +362,14 @@ clipHasDrifted (Pattern const &pattern, juce::File const &clipFile)
   return false;
 }
 
+
+void
+applyClipValues (Pattern &pattern, Clip const &clip)
+{
+  applyClipSettings (pattern, clip.settings);
+  applyLanes (pattern, clip);
+  pattern.setEndClip (clip.endClip);
+}
 
 void
 applyLanes (Pattern &pattern, Clip const &clip)

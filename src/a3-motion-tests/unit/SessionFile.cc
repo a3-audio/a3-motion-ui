@@ -255,6 +255,33 @@ TEST (SessionFile, ASlotCarriesItsClipAndItsAction)
   file.deleteFile ();
 }
 
+// A slot playing a clip whose end is Clip carries the clip it hands over to,
+// by name, like the clip it came from: a follow chosen on the CLIP page and
+// not yet saved into the clip survives the set. None is written when there
+// is none, so every set written before stays what it was.
+TEST (SessionFile, ASlotCarriesTheClipThatFollows)
+{
+  Session set;
+  set.channels.resize (1);
+  set.channels[0].slots.resize (1);
+  set.channels[0].slots[0].patternName = "Wave";
+  set.channels[0].slots[0].clipFile = "Build";
+  set.channels[0].slots[0].endClip = "Peak";
+
+  auto const file = tempSession ("a3-session-follow.json");
+  ASSERT_TRUE (saveSession (file, set));
+  EXPECT_TRUE (file.loadFileAsString ().contains ("\"endClip\": \"Peak\""));
+
+  auto const read = loadSession (file, 1, 1);
+  EXPECT_EQ (read.channels[0].slots[0].endClip, "Peak");
+
+  set.channels[0].slots[0].endClip.clear ();
+  ASSERT_TRUE (saveSession (file, set));
+  EXPECT_FALSE (file.loadFileAsString ().contains ("endClip"));
+
+  file.deleteFile ();
+}
+
 // Whether a slot was running comes back with it, so loading a set means the
 // room sounds the way it did rather than silent until eight pads are pressed.
 TEST (SessionFile, ASlotRemembersWhetherItWasRunning)

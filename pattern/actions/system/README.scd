@@ -144,10 +144,13 @@
 //                            point in time, negative the nearest other run,
 //                            positive a random one; the magnitude mixes.
 //   ~dir                     \forward  \reverse
-//   ~end                     \loop  \stop  \pause  \bounce  \random
+//   ~end                     \loop  \stop  \pause  \clip  \bounce  \random
 //                            what happens when the pass runs out. \stop goes
 //                            back to the beginning, \pause stands still where
-//                            it is.
+//                            it is, \clip hands the channel to the clip that
+//                            follows -- the one the clip names on its CLIP
+//                            page (END: "-> name"); with none it stops. A
+//                            script cannot name the follow itself yet.
 //
 //
 // ---- ACTION: the accent ---------------------------------------------------

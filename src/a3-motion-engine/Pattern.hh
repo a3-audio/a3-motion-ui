@@ -140,6 +140,17 @@ public:
   EndAction getEndAction () const;
   void setEndAction (EndAction action);
 
+  /** The clip that takes over when this one's end action is Clip, by the
+   *  name its file has, without a path. Empty is none.
+   *
+   *  **Message thread only.** The engine never reads it: the follow is
+   *  loaded on the message thread and handed over ready to play (see
+   *  MotionEngine::armFollowPattern()), which is also why it is not a field
+   *  of ClipSettings -- those are copied on the clock thread when an action
+   *  fires, and a string copy there is an allocation there. */
+  std::string const &getEndClip () const;
+  void setEndClip (std::string name);
+
   /** Whether the Action key fires this clip or holds it. Per clip, like the
    *  end action beside it: one slot can be a stab and its neighbour a cue. */
   ActMode getActMode () const;
@@ -443,6 +454,7 @@ private:
   std::atomic<index_t> _channel;
 
   std::string _name;
+  std::string _endClip;
 
   index_t _lastUpdatedTick{ 0 };
   std::vector<Pos> _ticks;

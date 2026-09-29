@@ -409,3 +409,61 @@ TEST (PatternLibraryClips, ASavedTakeKeepsTheKnobsItTurned)
                        .value_or (-1.f),
                    0.7f);
 }
+
+// ── A clip as something to play ──────────────────────────────────────────
+
+// A clip loaded as a whole: the figure it names, every value it carries and
+// the clip that follows it -- ready to be handed to the engine without a slot
+// in between. This is what lets a follow clip be prepared before the pass it
+// follows has ended.
+TEST (PatternLibraryClips, AClipLoadsAsAPatternReadyToPlay)
+{
+  auto const root = aRootHolding ("a3-library-loadclip", "16_Wave.svg");
+
+  Clip clip;
+  clip.name = "Build";
+  clip.svg = "Wave";
+  clip.settings.spin = 3;
+  clip.settings.endAction = EndAction::Clip;
+  clip.endClip = "Peak";
+  ASSERT_TRUE (
+      ClipFile::save (clip, root.getChildFile ("clips/user/Build.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  auto const file = library.clipFileNamed ("Build");
+  ASSERT_TRUE (file.existsAsFile ()) << "the clip is not found by its name";
+
+  auto const pattern = library.loadClip (file);
+  ASSERT_NE (pattern, nullptr);
+  EXPECT_EQ (pattern->getName (), "Wave");
+  EXPECT_GT (pattern->getNumTicks (), 0u);
+  EXPECT_EQ (pattern->getSpin (), 3);
+  EXPECT_EQ (pattern->getEndAction (), EndAction::Clip);
+  EXPECT_EQ (pattern->getEndClip (), "Peak");
+
+  root.deleteRecursively ();
+}
+
+// Nothing to play is nothing, not an empty pattern: a name nobody has, and a
+// clip whose figure is not in the library. Their end is then a stop.
+TEST (PatternLibraryClips, AClipWithNothingToPlayLoadsAsNothing)
+{
+  auto const root = aRootHolding ("a3-library-loadnothing", "16_Wave.svg");
+
+  Clip clip;
+  clip.name = "Lost";
+  clip.svg = "NoSuchShape";
+  ASSERT_TRUE (
+      ClipFile::save (clip, root.getChildFile ("clips/user/Lost.json")));
+
+  PatternLibrary library (root);
+  library.refresh ();
+
+  EXPECT_FALSE (library.clipFileNamed ("Nobody").existsAsFile ());
+  EXPECT_EQ (library.loadClip (library.clipFileNamed ("Nobody")), nullptr);
+  EXPECT_EQ (library.loadClip (library.clipFileNamed ("Lost")), nullptr);
+
+  root.deleteRecursively ();
+}

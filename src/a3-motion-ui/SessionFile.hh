@@ -91,6 +91,12 @@ struct Session
      *  reasoning as `clipFile`, and empty means ACT does the plain accent. */
     std::string action;
 
+    /** The clip that follows this slot's when its end action is Clip, by
+     *  name like `clipFile`. The slot's rather than only the clip file's: a
+     *  follow chosen on the CLIP page and not yet saved into the clip is part
+     *  of how the arrangement stands. Empty leaves the clip's own. */
+    std::string endClip;
+
     /** Whether this slot was running when the set was written.
      *
      *  Whether, and nothing more: not how far through. Coming back mid-figure

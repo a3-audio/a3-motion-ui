@@ -726,9 +726,11 @@ ClipSettingsComponent::setMotionDirection (int direction)
 }
 
 void
-ClipSettingsComponent::setMotionEndAction (int endAction)
+ClipSettingsComponent::setMotionEndAction (int endAction,
+                                           juce::String const &follow)
 {
   _motionEndAction = shownEndAction (endAction);
+  _motionEndFollow = follow;
   repaint ();
 }
 
@@ -1607,7 +1609,7 @@ ClipSettingsComponent::paintPlaySection (juce::Graphics &g)
                   value::directionNames[_motionDirection], {},
                   _trajectorySubIndex == 2 && isSelected, false);
   paintBarButton (g, _layout.endActionButton,
-                  value::endActionNames[_motionEndAction], {},
+                  endActionFieldText (_motionEndAction, _motionEndFollow), {},
                   _trajectorySubIndex == 3 && isSelected, false);
 }
 

@@ -52,7 +52,7 @@ aCircle (juce::String const &name)
 TEST (MotionModePersistence, EveryEndActionSurvives)
 {
   for (auto const action : { EndAction::Loop, EndAction::Stop,
-                             EndAction::Pause })
+                             EndAction::Pause, EndAction::Clip })
     EXPECT_EQ (endActionFromName (endActionToName (action)), action);
 
   for (auto const direction : { PlayDirection::Forward, PlayDirection::Reverse,

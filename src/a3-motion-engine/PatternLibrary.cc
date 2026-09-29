@@ -248,11 +248,35 @@ PatternLibrary::loadPattern (int index) const
   if (pattern != nullptr && entry.clipFile.existsAsFile ())
     if (auto const clip = ClipFile::load (entry.clipFile))
       {
-        applyClipSettings (*pattern, clip->settings);
-        applyLanes (*pattern, *clip);
+        applyClipValues (*pattern, *clip);
       }
 
   return pattern;
+}
+
+std::shared_ptr<Pattern>
+PatternLibrary::loadClip (juce::File const &clipFile) const
+{
+  auto const clip = ClipFile::load (clipFile);
+  if (!clip || clip->svg.empty ())
+    return nullptr;
+
+  // The figure by the name the clip carries, the way applyClip() finds it.
+  auto const shape = indexForName (clip->svg);
+  auto pattern = shape > 0 ? loadPattern (shape) : nullptr;
+  if (!pattern)
+    return nullptr;
+
+  // Over whatever the shape's own clip put on it: this clip is the one
+  // being loaded.
+  applyClipValues (*pattern, *clip);
+  return pattern;
+}
+
+juce::File
+PatternLibrary::clipFileNamed (juce::String const &name) const
+{
+  return namedFileIn (getClipDir (), name, ".json");
 }
 
 int

@@ -362,6 +362,24 @@ TEST (ClipSettingsCaptions, EveryDirectionIsShownByItsOwnName)
 
   for (int end = 0; end < value::numEndActions; ++end)
     EXPECT_EQ (shownEndAction (end), end);
-  EXPECT_EQ (shownEndAction (3), value::numEndActions - 1)
-      << "three names, so no fourth index into them";
+  EXPECT_EQ (shownEndAction (4), value::numEndActions - 1)
+      << "four names, so no fifth index into them";
+}
+
+// The fourth end hands over to another clip, and the field says which: the
+// word would say only that something follows. With nothing to follow -- none
+// chosen, or a name the library does not have -- the field says what happens
+// instead, which is a stop.
+TEST (ClipSettingsCaptions, TheClipEndNamesTheClipThatFollows)
+{
+  auto const clip = static_cast<int> (EndAction::Clip);
+  auto const arrow = juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92 "));
+
+  EXPECT_STREQ (value::endActionNames[shownEndAction (clip)], "Clip");
+  EXPECT_EQ (endActionFieldText (clip, "Peak"), arrow + "Peak");
+  EXPECT_EQ (endActionFieldText (clip, {}), arrow + "Stop");
+  EXPECT_EQ (endActionFieldText (static_cast<int> (EndAction::Loop), "Peak"),
+             "Loop");
+  EXPECT_EQ (endActionFieldText (static_cast<int> (EndAction::Pause), {}),
+             "Paus");
 }

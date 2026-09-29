@@ -193,11 +193,11 @@ bool
 tapAdvancesValue (int sectionIndex, int subIndex)
 {
   if (sectionIndex == 0)
-    // direction and end action, under Shape's speeds. They step on a tap:
-    // both are short enough that a finger can walk them, and a list would
-    // cover the picture they belong to. They came from Motion with the rest
-    // of what a take does when it runs out.
-    return subIndex == 2 || subIndex == 3;
+    // direction, under Shape's speeds. It steps on a tap: short enough that
+    // a finger can walk it, and a list would cover the picture it belongs to.
+    // The end action beside it steps on a tap too, but through
+    // tapTogglesValue(): its drag has a second job.
+    return subIndex == 2;
   if (sectionIndex == 3)
     return subIndex == 0; // rec mode
 
@@ -284,10 +284,12 @@ snapElevationBase (float base)
 bool
 tapTogglesValue (int sectionIndex, int subIndex)
 {
-  // Nothing toggles any more: pole and flat were the last two, and the
-  // elevation base replaced what they decided.
-  juce::ignoreUnused (sectionIndex, subIndex);
-  return false;
+  // END alone (2026-09-28). Its tap steps the end action; its drag, while
+  // the end is Clip, walks the clip that follows. Arriving as a drag's first
+  // step, the tap could not be told from that walk -- so it comes the way a
+  // tap without a direction comes. Pole and flat, the two-state controls
+  // this was made for, are gone.
+  return sectionIndex == 0 && subIndex == 3;
 }
 
 juce::Rectangle<int>

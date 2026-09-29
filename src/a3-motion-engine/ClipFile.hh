@@ -70,6 +70,11 @@ struct Clip
    *  the take rather than of its settings: a settings save leaves them as
    *  they are, and a clip that has none writes none. */
   KnobLanes lanes;
+
+  /** The clip that follows this one when its end action is Clip, by file
+   *  name without a path or extension, the way a set names its clips. Empty
+   *  is none, and none is written: every clip from before stays as it was. */
+  std::string endClip;
 };
 
 namespace ClipFile
@@ -100,6 +105,11 @@ bool clipHasDrifted (Pattern const &pattern, juce::File const &clipFile);
  *  length -- a clip can be played on a shape other than its own. A clip with
  *  none takes the pattern's away. */
 void applyLanes (Pattern &pattern, Clip const &clip);
+
+/** Everything a clip puts on the pattern it is played on: its settings, its
+ *  lanes and the clip that follows it. The one call for "this pattern now
+ *  plays that clip", so none of the three can be forgotten at a call site. */
+void applyClipValues (Pattern &pattern, Clip const &clip);
 void applyLanes (Pattern &pattern, KnobLanes const &lanes);
 
 /** Whether Save may write back over the clip a slot came from.

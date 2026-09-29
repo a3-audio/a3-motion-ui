@@ -238,7 +238,9 @@ public:
    *  (0..2), shown as toggles with their state name. */
   void setMotionSpeed (float normalizedFrac, juce::String const &label);
   void setMotionDirection (int direction);
-  void setMotionEndAction (int endAction);
+  /** `follow` is the clip an end action Clip hands over to, or empty when
+   *  there is none to hand over to -- the field then says the clip stops. */
+  void setMotionEndAction (int endAction, juce::String const &follow = {});
   void setMotionActMode (int mode);
 
   /** The four faces: what colour each channel is, the name of its clip, and
@@ -687,6 +689,7 @@ private:
   int _motionDirection = 0;
   int _motionActMode = 0;
   int _motionEndAction = 0;
+  juce::String _motionEndFollow;
   int _motionSubIndex = 0;
   float _motionFadeReach = 0.25f;
   int _motionBridgeBias = 0;

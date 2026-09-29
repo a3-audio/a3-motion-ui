@@ -1335,7 +1335,7 @@ correctly named. The end-action list's length lives in one place (`numEndActions
 written as a literal `4` in three.
 
 **Direction and end are two axes** (2026-09-26). `PlayDirection` is how a clip travels — **Fwd,
-Rev, Bnce, Rnd** — and `EndAction` what it does when that travel is over — **Loop, Stop, Paus** —
+Rev, Bnce, Rnd** — and `EndAction` what it does when that travel is over — **Loop, Stop, Paus, Clip** —
 and any direction combines with any end. Bounce and Random were end actions before, which made them
 exclusive with stopping. A bounce's travel is its whole round: the far end only turns it, and the
 end action, and a Play press asking it to finish (`stopAtEnd`), apply when it is home. A random lap
@@ -1344,6 +1344,37 @@ Only Fwd/Rev with Loop travel the step from the last tick to the first (`travels
 decides whether the fade joins it. Files, sessions and scripts that named bounce or random as the
 end are read as that direction, looping (`playbackModeFromNames`, and the script's `~end` setter),
 which is how they played. The bar's index for both is the enum itself, in the captions' order.
+
+**`Clip` hands the channel to another clip** (2026-09-28) — Ableton's follow action, for chains
+like a Build clip giving way to its Peak after sixteen bars. A clip whose end is Clip names its
+follow by file name (`"endAction": "clip", "endClip": "Peak"`; a set slot may carry its own
+`endClip`, and none is written when there is none). The name lives on the `Pattern` and in `Clip`,
+**not in `ClipSettings`**: those are copied on the clock thread when an action fires, and a string
+copy there is an allocation there. `applyClipValues()` is the one call that puts a clip's settings,
+lanes and follow on a pattern.
+
+The hand-over is **on the tick the pass ends**, the tick a looping clip would go back to its top on
+— not the next downbeat after it. That is only possible because nothing is loaded then: the message
+thread keeps each channel's follow built and armed (`armFollowClips()`, every frame, cheap when
+nothing changed — an action's `~end = \clip` reaches the clip on the clock thread, where nobody
+could have told the UI), and `MotionEngine::armFollowPattern()` hands it over for *that* clip alone.
+On the end tick `performPlayback()` starts the follow through the same `beginPass()` a start uses and
+writes its first position in the same tick, then posts `Playing`; the UI answers with
+`putPatternInChannel()`, so the channel row, the set and the CLIP page follow. The follow's own
+follow is armed on the next frame, which is what makes a chain.
+
+What does not follow: no follow armed, or an unknown name (armed as nothing) — the pass ends as
+**Stop** ends it, and the END field says `→ Stop`; a Play press asking the clip to finish
+(`stopAtEnd`); a stop or a take scheduled on the channel; a take ending (end actions are playback's,
+and a channel holding an unsaved take arms nothing, since the follow would replace it). The
+**accent** running out leaves Clip running like Loop: the chain belongs to the bar grid the pass
+ends on, and an accent ends wherever a finger let go.
+
+On the CLIP page END steps Loop → Stop → Paus → Clip on a **tap**; a **drag** on it while it says
+Clip walks the follow through the clips, the same walk the clip field makes. The tap therefore
+arrives through `tapTogglesValue()` rather than as a drag's first step. `loadClipIntoChannel()` is
+the one route by which a clip file becomes what a channel plays — FILES' Load goes through it via
+`applyClip()`, and the Cue actions are meant to.
 
 **When a pad takes effect** is a set, not four separate decisions:
 

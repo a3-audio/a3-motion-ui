@@ -864,3 +864,86 @@ TEST (ClipFile, SavingWritesTheLanesBack)
 
   file.deleteFile ();
 }
+
+// ── The follow clip (end action Clip) ────────────────────────────────────
+
+// A clip whose end is Clip names the clip that follows it, by name and
+// without a path, like everything else that travels between sticks.
+TEST (ClipFile, AFollowClipSurvivesTheFile)
+{
+  Clip clip;
+  clip.name = "Build";
+  clip.svg = "16_Wave";
+  clip.settings.endAction = EndAction::Clip;
+  clip.endClip = "Peak";
+
+  auto const file = tempClip ("a3-clip-follow.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  auto const text = file.loadFileAsString ();
+  EXPECT_TRUE (text.contains ("\"endAction\": \"clip\"")) << text;
+  EXPECT_TRUE (text.contains ("\"endClip\": \"Peak\"")) << text;
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->settings.endAction, EndAction::Clip);
+  EXPECT_EQ (read->endClip, "Peak");
+
+  file.deleteFile ();
+}
+
+// Every clip written before the follow existed names none, and writes none
+// when it is saved again: the files stay what they were.
+TEST (ClipFile, AClipWithoutAFollowWritesNone)
+{
+  auto const file = tempClip ("a3-clip-nofollow.json");
+  file.replaceWithText (
+      R"({ "name": "Old", "svg": "16_Circle", "endAction": "stop" })");
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_TRUE (read->endClip.empty ());
+  EXPECT_EQ (read->settings.endAction, EndAction::Stop);
+
+  ASSERT_TRUE (ClipFile::save (*read, file));
+  EXPECT_FALSE (file.loadFileAsString ().contains ("endClip"));
+
+  file.deleteFile ();
+}
+
+// The follow is the clip's, so applying a clip puts it on the pattern with
+// the values and the lanes.
+TEST (ClipFile, ApplyingAClipBringsItsFollow)
+{
+  Clip clip;
+  clip.settings.endAction = EndAction::Clip;
+  clip.settings.spin = 3;
+  clip.endClip = "Peak";
+
+  Pattern pattern;
+  applyClipValues (pattern, clip);
+
+  EXPECT_EQ (pattern.getEndAction (), EndAction::Clip);
+  EXPECT_EQ (pattern.getSpin (), 3);
+  EXPECT_EQ (pattern.getEndClip (), "Peak");
+}
+
+// Choosing another follow is a change like turning a knob: the slot shows it
+// unsaved, and Save writes it back.
+TEST (ClipFile, AnotherFollowIsDriftAndSavesBack)
+{
+  Pattern pattern;
+  auto const file = aClipOnDisk ("a3-drift-follow", clipSettingsFrom (pattern));
+  ASSERT_FALSE (clipHasDrifted (pattern, file));
+
+  pattern.setEndClip ("Peak");
+  EXPECT_TRUE (clipHasDrifted (pattern, file));
+
+  ASSERT_TRUE (saveClipSettings (pattern, file));
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->endClip, "Peak");
+  EXPECT_FALSE (clipHasDrifted (pattern, file));
+
+  file.deleteFile ();
+}

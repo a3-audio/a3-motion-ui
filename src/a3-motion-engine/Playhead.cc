@@ -89,6 +89,7 @@ endActionToName (EndAction action)
     case EndAction::Loop: return "loop";
     case EndAction::Stop: return "stop";
     case EndAction::Pause: return "pause";
+    case EndAction::Clip: return "clip";
     }
   return "loop";
 }
@@ -100,6 +101,8 @@ endActionFromName (juce::String const &name)
     return EndAction::Stop;
   if (name == "pause")
     return EndAction::Pause;
+  if (name == "clip")
+    return EndAction::Clip;
   // "bounce" and "random" are directions now -- see playbackModeFromNames,
   // which is what a file is read through.
   return EndAction::Loop;
@@ -116,7 +119,10 @@ Playhead
 endTheTravel (Playhead current, float sign, EndAction endAction,
               bool stopAtEnd, OnLoop onLoop)
 {
-  if (stopAtEnd || endAction == EndAction::Stop)
+  // Clip ends the pass the way Stop does: what takes over is the engine's to
+  // start (see MotionEngine::performPlayback()), and with nothing to take
+  // over a stop is what is left.
+  if (stopAtEnd || endAction == EndAction::Stop || endAction == EndAction::Clip)
     // Back to the beginning of the take, whichever way it was running: the
     // next start is a start. Outwards, since that is how every direction
     // but Reverse sets off, and Reverse sets its own sign when it starts.
