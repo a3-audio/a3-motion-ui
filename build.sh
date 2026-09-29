@@ -84,6 +84,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# One build at a time on this machine, across every worktree. Two -j4 builds
+# on four cores each take as long as both in a row, with the load at 11 and
+# the live UI and REAPER starved beside them (2026-09-29). A second build
+# waits here and says for whom; the lock goes when this script ends.
+BUILD_LOCK="${XDG_RUNTIME_DIR:-/tmp}/a3-motion-ui-build.lock"
+exec 9>>"$BUILD_LOCK"
+if ! flock -n 9; then
+    echo "=== Waiting for the build in $(cat "$BUILD_LOCK.who" 2>/dev/null || echo "another checkout") ==="
+    flock 9
+fi
+echo "$SCRIPT_DIR" > "$BUILD_LOCK.who"
+
 mkdir -p "$BUILD_DIR"
 
 # Clean if requested
