@@ -80,6 +80,8 @@
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
+#include <a3-motion-ui/components/WorkspaceList.hh>
+#include <a3-motion-ui/io/Workspaces.hh>
 
 #include <a3-motion-ui/tests/TempoEstimatorTest.hh>
 
@@ -486,6 +488,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   };
 
   _motionComponent->addChildComponent (*_globalSettings);
+
+  _workspaceList = std::make_unique<WorkspaceList> ();
+  _workspaceList->setAlwaysOnTop (true);
+  _workspaceList->onChosen = [] (int number) { workspaces::goTo (number); };
+  _motionComponent->addChildComponent (*_workspaceList);
 
   // The editor is a page of that menu and lives in the same place, for the
   // same reason: what it changes is mostly the sphere behind it.
@@ -1373,6 +1380,23 @@ A3MotionUIComponent::getPlaybackLength (index_t channel, index_t slot) const
 }
 
 void
+A3MotionUIComponent::toggleWorkspaceList ()
+{
+  if (_workspaceList->isVisible ())
+    {
+      _workspaceList->setVisible (false);
+      return;
+    }
+
+  // The bar keys it hangs from, in the sphere's coordinates: the list is
+  // the sphere's child, the keys are the bar's.
+  _workspaceList->show (
+      workspaces::list (),
+      _motionComponent->getLocalArea (_statusBar.get (),
+                                      _statusBar->workspacesAnchor ()));
+}
+
+void
 A3MotionUIComponent::createMainUI ()
 {
   // Seeded before the bar reads it: the value was only ever written on a tap
@@ -1385,6 +1409,8 @@ A3MotionUIComponent::createMainUI ()
   _statusBar->onCleanIconTapped = [this] { toggleClean (); };
   _statusBar->onClockKeyTapped = [this] { stepClockMode (); };
   _statusBar->onMenuKeyTapped = [this] { toggleGlobalSettings (); };
+  _statusBar->onDeckKeyTapped = [] { workspaces::goTo (workspaces::stemDeck); };
+  _statusBar->onWorkspacesKeyTapped = [this] { toggleWorkspaceList (); };
   _statusBar->onTickTapped = [this] { handleScreenTap (); };
   addChildComponent (*_statusBar);
   _statusBar->setVisible (true);
@@ -1643,6 +1669,8 @@ A3MotionUIComponent::resized ()
 
   if (_globalSettings)
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
+  if (_workspaceList)
+    _workspaceList->setBounds (_motionComponent->getLocalBounds ());
   if (_mixer)
     _mixer->setBounds (_motionComponent->getLocalBounds ());
   if (_browser)

@@ -118,6 +118,10 @@ target_sources("a3-motion-ui" PRIVATE
     io/LedCache.cc
     io/OnScreenKeyboard.cc
     io/OnScreenKeyboard.hh
+    io/Workspaces.cc
+    io/Workspaces.hh
+    components/WorkspaceList.cc
+    components/WorkspaceList.hh
     theme/Theme.cc
     theme/ThemeColours.cc
     theme/ThemedComponent.cc
