@@ -455,32 +455,44 @@ button sets BPM, `/beat` sent via OSC) or follows an externally received `/beat`
 
 #### OSC addresses
 
-Every address this device speaks is a config value, not a literal: the
-`oscAddresses` block in `config/config.json`, read by
-`a3-motion-engine/OscAddresses.{hh,cc}`. Defaults are what the system has
-always used, so a config without the block behaves as before. `{ch}` stands
-for the channel number and is substituted by `withChannel()`.
+Every address, port and IP this device speaks comes from the **one truth**,
+a3-core's `/usr/share/a3/a3-osc.json` (decided 2026-09-30; `$A3_OSC_TRUTH`
+points elsewhere). `a3-motion-engine/OscTruth.{hh,cc}` reads it — the C++
+counterpart of a3-core's `a3_osc.py` — and three functions turn it into what
+the device needs: `oscAddressesFrom()` (the addresses, by the truth's keys),
+`oscEndpointsFrom()` (where Core and the beat-analyzer listen, and Motion's own
+three sockets) and `vuRoutingFrom()` (which `/vu/N` feeds which meter, looked
+up by the meter's **name** in the channel map — `in1_pre`, `main_sub`,
+`main_top1` — never by its number). `config.json`'s `oscSender`,
+`oscReceiver` and `oscAddresses` blocks are no longer read.
 
-Two things are not obvious:
+Three things are not obvious:
 
-- **A bad address is refused, not sent.** `juce::OSCMessage` throws
-  `OSCFormatError` on an address pattern it will not take, and these are typed
-  on the device — so `loadOscAddresses()` validates each one (JUCE's own rule:
-  non-empty, leading slash, every `/`-separated token printable ASCII without
-  a space or `#`) and keeps the default when it fails. That validation is the
-  reason this is a unit of its own rather than a few `getProperty` calls.
-- **Changes apply live, and cross two thread boundaries to do it.** The
-  message thread reads the new config (`A3MotionUIComponent::applyOscAddresses`,
-  called from `MotionComponent::onAppConfigReloaded`). From there:
-  `OscMessageHandler` takes them directly — it receives through
-  `OSCReceiver::MessageLoopCallback`, so it is on that same thread. The send
-  backend does not: `SpatBackend::setAddresses()` stores them under a lock and
-  `applyPendingAddresses()`, called once per drain by `AsyncCommandQueue`,
-  rebuilds the cached per-channel patterns on the sending thread. The beat
-  address needs the same care for the same reason — `tickCallback()` runs on
-  the tempo-clock thread, so it keeps its own copy handed over the same way.
-  Reading a `juce::String` on one thread while another replaces it is a race,
-  refcount and all.
+- **Nothing has a default.** A key the truth lacks becomes
+  `/a3-osc-missing/<key>`: JUCE takes it, so nothing throws (`juce::OSCMessage`
+  throws `OSCFormatError` on an address it will not take), and on the wire it
+  names what is missing; start-up prints every missing key. A listener the
+  truth lacks is port -1: its socket does not open, and the log says so.
+- **Channels count from 1 on the wire, from 0 in here.** `withChannelIndex()`
+  is the one crossing, and says so in its name.
+- **One meter may feed two places.** The main sub is the sphere's glow *and*
+  the first meter of the master column, the first four tops light the towers
+  and fill the column too — so `OscMessageHandler::routeMeter` asks every
+  table, not an else-chain, and the column has its own listener call
+  (`onOutputVU`).
+
+The addresses are applied once, at start-up (`applyOscAddresses`) — the truth
+only changes with a package install. They still cross a thread on the way:
+the send backend stores them under a lock (`SpatBackend::setAddresses()`) and
+rebuilds its cached per-channel patterns on the sending thread, and the beat
+address has its own copy for `tickCallback()` on the tempo-clock thread.
+Reading a `juce::String` on one thread while another replaces it is a race,
+refcount and all.
+
+The tests build their messages from a made-up truth (`MadeUpOscTruth.hh`), so
+they test the mechanics, not a copy of the vocabulary; `OscTruthContract`
+holds Motion against the real file, which `test.sh` finds (installed, or the
+a3-core checkout beside this one) and names.
 
 The bar's **global section** takes its right quarter and holds three things: the elevation picture,
 the four channel faces and the transport two by two. A **Filter section** used to sit among
@@ -1010,30 +1022,22 @@ stays in `functionKeyLook()`, because the panel's LEDs still show it.
 
 MENU is exactly the key (`toggleGlobalSettings`), closing one level at a time.
 
-The block is **grouped**: `oscAddresses.out` (to Core and IEM, plus `beat`, `tap` and `clockMode`)
-and `oscAddresses.in` (VU, energy, and `beat` again). **`beat` appears in both** and is read into
-two fields, `beatOut` and `beatIn`: INT mode sends the first, EXT and PIO follow the second. They
-default to the same address and usually stay that way — but the file says so in both places, which
-is where a reader looks, and nothing here can check that they still agree with the other end.
-`loadOscAddresses()` reads the flat shape first and lets the groups override it,
-so a `config.json` written before the grouping still works: a file on a device
-does not rewrite itself.
-
-Editing happens on the Menu's **Network** page, which slices `oscSender`,
-`oscReceiver` and `oscAddresses` out of `config.json` and derives its rows from
-the JSON — a key added to the block shows up there without anyone registering
-it. `SkinEditorComponent` draws a **heading** wherever a row's group changes, and the group comes from
+The menu's config pages (Button LEDs, Pattern Folder) slice their keys out of
+`config.json` and derive their rows from the JSON — a key added to the block
+shows up there without anyone registering it. There was a **Network** page for
+the OSC blocks until 2026-09-30; the addresses and ports live in the one truth
+since, and a page of values nobody reads would have been a lie. `SkinEditorComponent` draws a **heading** wherever a row's group changes, and the group comes from
 `theme/SkinGroups.hh` rather than from the path; row labels then show only their last segment, since
 the heading has already said the rest.
 
 It used to be the parent path, which meant the file's own nesting grouped the list. That works for
-the Network page, whose keys *are* shaped like what they mean, and badly for a skin: eighty-five
+a config page, whose keys *are* shaped like what they mean, and badly for a skin: eighty-five
 keys in alphabetical order put `background` and `surface` forty rows apart with the speaker light's
 thirty-four in between, and scattered the twenty-one values that design a skin among the blocks that
 tune a shader. Grouped by what a value *is* now — surfaces, text, states, channels, sphere, type,
 touch, then the effects, each split small enough that a heading still means something. A path that
-matches nothing keeps the old behaviour and is grouped by its parent, which is why the Network page
-is untouched; the search walks *up* the path, so a group stated once for `accent` also holds for
+matches nothing keeps the old behaviour and is grouped by its parent, which is why the config pages
+are untouched; the search walks *up* the path, so a group stated once for `accent` also holds for
 `accent.r`. Headings are
 rows in the display list (`_rows`) but not landing places: `browseRow()` and
 `navigate()` step over them and they carry no hit areas. That display list is
@@ -1304,7 +1308,9 @@ channel's colour (`vuFaderHandle()` / `paintVuFaderHandle()`): a cap with a groo
 so the bands do not shine through, at least half a fingertip thick because it is grasped rather
 than aimed at. It stands at the travel, linear, not on the meter's dB scale.
 
-**The master is laid out like a channel**: the room's output meters -- sub and speakers -- stand in
+**The master is laid out like a channel**: the room's output meters -- since 2026-09-30 ten, the
+main sub and main tops 1-9 as the channel map sends them (`numOutputMeters`, held equal to
+`VuRouting`'s `numMasterColumnMeters`) -- stand in
 the column on its left, running its whole height, and BTH, MIX, PHN and RET stand beside them in
 the bottom four rows, on the channels' own lines (`masterFaceOrder`, `rowForMasterPot`). The whole column is the master's
 fader: a groove down it with the handle on it in `textPrimary`, dragged one to one like a channel's,

@@ -186,49 +186,13 @@ touchscreen that seems dead but is only 90 degrees out.
 
 # OSC Communication Protocol
 
-The motion controller communicates via OSC (Open Sound Control) with external applications.
-
-## Configuration (config.json)
-
-```json
-{
-  "oscSender": {
-    "host": "192.168.43.57",
-    "port": 9000,
-    "beatclockPort": 9001
-  },
-  "oscReceiver": {
-    "host": "0.0.0.0",
-    "port": 7771
-  }
-}
-```
-
-## OSC Messages Sent (Output)
-
-### Motion Data (sent to `oscSender.host:oscSender.port`)
-
-| Address | Arguments | Description |
-|---------|-----------|-------------|
-| `/channel/<n>/azimuth` | `f` (float) | Azimuth angle for channel n (1-4) |
-| `/channel/<n>/elevation` | `f` (float) | Elevation angle for channel n (1-4) |
-| `/channel/<n>/pot_1` | `f` (float 0-1) | Pot 1 value for channel n |
-| `/channel/<n>/pot_2` | `f` (float 0-1) | Pot 2 value for channel n |
-
-### Clock Data (sent to `oscSender.host:oscSender.beatclockPort`)
-
-| Address | Arguments | Description |
-|---------|-----------|-------------|
-| `/beat` | `i i i` (beat, bar, bpm) | Internal clock beat (1-4), bar (1-indexed), current BPM (rounded) |
-| `/tap` | `i` (1) | Sent when beat 1 is detected (first tap in INT mode, tap press in EXT mode) |
-| `/clockmode` | `i` (0 or 1) | Clock mode status: 0=internal, 1=external |
-
-## OSC Messages Received (Input on `oscReceiver.port`)
-
-| Address | Arguments | Description |
-|---------|-----------|-------------|
-| `/vu/<n>` | `f f` (peak, rms) | VU meter data for channel n (1-4). Used for corona visualization around channel blobs. |
-| `/beat` | `i i i` (beat, bar, bpm) | External beat clock. Beat (1-4), bar (1-indexed), BPM. Displayed in status bar (EXT mode). |
+The motion controller talks to A³ Core, the beat-analyzer and the IEM plug-ins
+over OSC. **Every address, port and IP comes from the one truth**, a3-core's
+`/usr/share/a3/a3-osc.json` (or the file `$A3_OSC_TRUTH` names) — not from
+`config.json`, and not from this page. The tables of what is sent and heard
+are rendered from that file into the A³ documentation's OSC reference
+(<https://a3-audio.github.io/a3-doc/ressources/osc.html>); a copy here would be
+a second truth, which is what the file exists to end.
 
 ## Clock Mode Behavior
 
