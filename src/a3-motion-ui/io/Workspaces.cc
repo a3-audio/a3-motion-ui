@@ -74,6 +74,16 @@ parse (juce::String const &i3Reply)
   return out;
 }
 
+SwitcherGeometry
+switcherGeometry (int windowWidth)
+{
+  auto const share = [windowWidth] (int atRigWidth) {
+    return juce::roundToInt (atRigWidth * windowWidth / 768.0);
+  };
+  return { share (6),   share (30),  share (2),  share (80),
+           share (40),  share (170), share (40), share (4) };
+}
+
 std::vector<Workspace>
 list ()
 {

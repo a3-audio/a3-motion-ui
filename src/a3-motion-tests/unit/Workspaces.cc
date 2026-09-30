@@ -83,7 +83,7 @@ struct ShownList
     list.setBounds (0, 0, 768, 1024);
     list.onChosen = [this] (int number) { chosen.push_back (number); };
     // The two bar keys it opens from, as the device lays them out.
-    list.show (workspaces::parse (rigWorkspaces), { 543, 5, 75, 25 });
+    list.show (workspaces::parse (rigWorkspaces));
   }
 
   void tapAt (juce::Point<int> at)
@@ -101,21 +101,32 @@ struct ShownList
 // One key per workspace, a column under the keys it opened from, inside the
 // window: a juce::PopupMenu is a window of its own and came up black on the
 // rig (i3, no compositor; StemDeck, 2026-09-30).
-TEST (WorkspaceList, OneKeyPerWorkspaceUnderTheBarKeys)
+TEST (WorkspaceList, OneKeyPerWorkspaceWhereStemDeckHasIt)
 {
   ShownList s;
 
   ASSERT_TRUE (s.list.isVisible ());
   ASSERT_EQ (s.list.keyCount (), 3);
-  for (int i = 0; i < 3; ++i)
-    {
-      auto const key = s.list.keyArea (i);
-      EXPECT_GE (key.getY (), 5 + 25) << i;
-      EXPECT_LE (key.getRight (), 543 + 75) << i;
-      EXPECT_GE (key.getHeight (), 25) << "a key a finger can hit";
-      EXPECT_TRUE (s.list.getLocalBounds ().contains (key)) << i;
-    }
-  EXPECT_LE (s.list.keyArea (0).getBottom (), s.list.keyArea (1).getY ());
+
+  // StemDeck's column at 768 px: 170 wide, its right edge 6 from the
+  // window's, from y 40; keys 40 tall, 4 around and between them.
+  EXPECT_EQ (s.list.columnArea (), juce::Rectangle<int> (592, 40, 170, 3 * 44 + 4));
+  EXPECT_EQ (s.list.keyArea (0), juce::Rectangle<int> (596, 44, 162, 40));
+  EXPECT_EQ (s.list.keyArea (1).getY (), 88);
+}
+
+// A child of the sphere, below the bar: placed in the window's coordinates
+// all the same, so it stands where StemDeck's does.
+TEST (WorkspaceList, ItStandsInTheWindowsCoordinates)
+{
+  juce::Component window;
+  window.setBounds (0, 0, 768, 1024);
+  WorkspaceList list;
+  window.addAndMakeVisible (list);
+  list.setBounds (0, 35, 768, 700);
+  list.show (workspaces::parse (rigWorkspaces));
+
+  EXPECT_EQ (list.columnArea ().getY (), 40 - 35);
 }
 
 TEST (WorkspaceList, AKeyGoesToItsWorkspaceAndCloses)
@@ -144,7 +155,7 @@ TEST (WorkspaceList, NoWorkspacesShowNothing)
 {
   WorkspaceList list;
   list.setBounds (0, 0, 768, 1024);
-  list.show ({}, { 543, 5, 75, 25 });
+  list.show ({});
 
   EXPECT_FALSE (list.isVisible ());
 }
@@ -206,4 +217,27 @@ TEST (StatusBarWorkspaceKeys, TheBarPaintsWithThem)
   Bar b;
   auto const image = b.bar.createComponentSnapshot (b.bar.getLocalBounds ());
   EXPECT_EQ (image.getWidth (), 768);
+}
+
+// The same numbers as StemDeck's Source/Workspaces.h: both apps fill the one
+// screen, so the key under the finger stays put when the workspace changes.
+TEST (Workspaces, TheSwitchIsWhereStemDeckHasIt)
+{
+  auto const s = workspaces::switcherGeometry (768);
+  EXPECT_EQ (s.margin, 6);
+  EXPECT_EQ (s.arrowWidth, 30);
+  EXPECT_EQ (s.gap, 2);
+  EXPECT_EQ (s.appKeyWidth, 80);
+  EXPECT_EQ (s.listTop, 40);
+  EXPECT_EQ (s.listWidth, 170);
+  EXPECT_EQ (s.listKeyHeight, 40);
+  EXPECT_EQ (s.listGap, 4);
+}
+
+TEST (Workspaces, TheSwitchScalesWithTheWindow)
+{
+  auto const s = workspaces::switcherGeometry (1536);
+  EXPECT_EQ (s.arrowWidth, 60);
+  EXPECT_EQ (s.appKeyWidth, 160);
+  EXPECT_EQ (s.listWidth, 340);
 }

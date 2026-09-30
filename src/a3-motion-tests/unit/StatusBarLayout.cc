@@ -121,12 +121,12 @@ TEST (StatusBarLayout, TheClockKeyLeadsTheRow)
 
 // CLEAN, the on-screen keyboard and MENU close the row, one size and one look,
 // MENU at the very end.
-TEST (StatusBarLayout, TheThreeKeysCloseTheRowInOneSize)
+TEST (StatusBarLayout, TheThreeKeysStandBeforeTheSwitchInOneSize)
 {
   auto const row = rowOf (deviceWidth, barHeight);
   auto const l = deviceLayout ();
 
-  EXPECT_EQ (l.menuKey.getRight (), row.getRight ());
+  EXPECT_LE (l.menuKey.getRight (), l.deckKey.getX ());
   EXPECT_LE (l.keyboardKey.getRight (), l.menuKey.getX ());
   EXPECT_LE (l.cleanKey.getRight (), l.keyboardKey.getX ());
 
@@ -138,17 +138,19 @@ TEST (StatusBarLayout, TheThreeKeysCloseTheRowInOneSize)
   EXPECT_EQ (l.menuKey.getHeight (), row.getHeight ());
 }
 
-// DECK and the workspace list's arrow stand before CLEAN (asked for on
-// 2026-09-30): over to StemDeck in one tap, anywhere else in two. DECK is a
-// key like CLEAN; the arrow only opens a list, so it takes half.
-TEST (StatusBarLayout, TheWorkspaceKeysStandBeforeClean)
+// The workspace switch closes the row, where StemDeck has it (asked for on
+// 2026-09-30: "das irritiert sonst wenn man workspace switcht und der button
+// springt"): STEMDECK, then the arrow, at the very right. The same numbers as
+// StemDeck's top bar -- at 768 px, the arrow 30 wide and 6 from the edge,
+// the app key 80 wide and 2 left of it.
+TEST (StatusBarLayout, TheSwitchClosesTheRowWhereStemDeckHasIt)
 {
   auto const l = deviceLayout ();
 
-  EXPECT_LE (l.deckKey.getRight (), l.workspacesKey.getX ());
-  EXPECT_EQ (l.workspacesKey.getRight (), l.cleanKey.getX ());
-  EXPECT_EQ (l.deckKey.getWidth (), l.menuKey.getWidth ());
-  EXPECT_EQ (l.workspacesKey.getWidth (), l.menuKey.getWidth () / 2);
+  EXPECT_EQ (l.workspacesKey.getRight (), deviceWidth - 6);
+  EXPECT_EQ (l.workspacesKey.getWidth (), 30);
+  EXPECT_EQ (l.deckKey.getRight (), l.workspacesKey.getX () - 2);
+  EXPECT_EQ (l.deckKey.getWidth (), 80);
   EXPECT_EQ (l.workspacesKey.getHeight (), l.menuKey.getHeight ());
 }
 
@@ -161,7 +163,7 @@ TEST (StatusBarLayout, TheBeatDisplayNeverRunsUnderAKey)
     {
       auto const l = statusBarLayout (rowOf (width, barHeight), width, padding);
 
-      EXPECT_LE (l.tick.getRight (), l.deckKey.getX ()) << width;
+      EXPECT_LE (l.tick.getRight (), l.cleanKey.getX ()) << width;
       EXPECT_EQ (l.tick.getCentreX (), width / 2) << width;
       EXPECT_FALSE (l.tick.isEmpty ()) << width;
     }

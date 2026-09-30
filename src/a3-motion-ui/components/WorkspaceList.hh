@@ -29,6 +29,21 @@
 
 namespace a3
 {
+/** How the switch looks: StemDeck's keys, in both apps (asked for on
+ *  2026-09-30: "das stemdeck design gefällt mir gut"). The switch belongs
+ *  to the rig rather than to a skin, so it wears the same colours whichever
+ *  skin is up -- StemDeck's Theme.h and its juce LookAndFeel_V4 buttons,
+ *  drawn the way that look draws them. */
+namespace switcherLook
+{
+/** A key: the app key and the arrow on the bar, and each key in the list.
+ *  `current` is the workspace on the screen now. */
+void paintKey (juce::Graphics &g, juce::Rectangle<int> area,
+               juce::String const &label, bool current);
+/** What the list's keys stand on. */
+void paintPanel (juce::Graphics &g, juce::Rectangle<int> area);
+}
+
 /** The rig's workspaces as a column of keys, opened from the bar's arrow.
  *
  *  Drawn inside the window rather than as a juce::PopupMenu: a menu is a
@@ -40,15 +55,17 @@ class WorkspaceList : public juce::Component
 public:
   WorkspaceList ();
 
-  /** `anchor`: the bar keys it opens from, in this component's
-   *  coordinates. Shows nothing when there is nothing to offer. */
-  void show (std::vector<workspaces::Workspace> entries,
-             juce::Rectangle<int> anchor);
+  /** Shows nothing when there is nothing to offer. The column stands
+   *  where StemDeck's does, in the window's coordinates -- see
+   *  workspaces::switcherGeometry(). */
+  void show (std::vector<workspaces::Workspace> entries);
 
   /** A key was tapped: go to that workspace. The list has closed. */
   std::function<void (int number)> onChosen;
 
   int keyCount () const;
+  /** The panel the keys stand on. */
+  juce::Rectangle<int> columnArea () const;
   juce::Rectangle<int> keyArea (int index) const;
 
   void paint (juce::Graphics &g) override;
@@ -56,6 +73,5 @@ public:
 
 private:
   std::vector<workspaces::Workspace> _entries;
-  juce::Rectangle<int> _anchor;
 };
 }

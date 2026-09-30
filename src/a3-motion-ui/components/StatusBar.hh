@@ -74,12 +74,11 @@ public:
 
   /** The clock key, left of the tempo: step to the next clock mode. */
   std::function<void ()> onClockKeyTapped;
-  /** DECK, before CLEAN: over to StemDeck's workspace. */
+  /** STEMDECK, at the right end: over to StemDeck's workspace. */
   std::function<void ()> onDeckKeyTapped;
   /** The arrow beside it: list the rig's workspaces. */
   std::function<void ()> onWorkspacesKeyTapped;
-  /** Where the list hangs from: DECK and the arrow, in this bar's
-   *  coordinates. */
+  /** STEMDECK and the arrow, in this bar's coordinates. */
   juce::Rectangle<int> workspacesAnchor () const;
 
   /** MENU, at the right end: open or close the menu. */

@@ -47,6 +47,29 @@ struct Workspace
 /** StemDeck's workspace, where DECK goes. */
 constexpr int stemDeck = 2;
 
+/** Where the switch sits: at the far right of the window, the key for the
+ *  other app, then the arrow for the list. The same numbers stand in
+ *  StemDeck's Source/Workspaces.h -- both apps fill the one screen, so the
+ *  key under the finger stays put when the workspace changes. Shares of the
+ *  window's width; at the rig's 768 px they are StemDeck's first sizes. */
+struct SwitcherGeometry
+{
+  /** From the window's right and top edges. */
+  int margin = 0;
+  int arrowWidth = 0;
+  /** Between the app key and the arrow. */
+  int gap = 0;
+  int appKeyWidth = 0;
+  /** The list's top, from the window's top. */
+  int listTop = 0;
+  int listWidth = 0;
+  int listKeyHeight = 0;
+  /** Around and between the list's keys. */
+  int listGap = 0;
+};
+
+SwitcherGeometry switcherGeometry (int windowWidth);
+
 /** What `i3-msg -t get_workspaces` printed, as the list offers it:
  *  workspaces without a number are left out, and anything but a list is
  *  no workspaces. */

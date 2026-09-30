@@ -1388,12 +1388,7 @@ A3MotionUIComponent::toggleWorkspaceList ()
       return;
     }
 
-  // The bar keys it hangs from, in the sphere's coordinates: the list is
-  // the sphere's child, the keys are the bar's.
-  _workspaceList->show (
-      workspaces::list (),
-      _motionComponent->getLocalArea (_statusBar.get (),
-                                      _statusBar->workspacesAnchor ()));
+  _workspaceList->show (workspaces::list ());
 }
 
 void

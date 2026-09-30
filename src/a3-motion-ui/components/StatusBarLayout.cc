@@ -20,6 +20,8 @@
 
 #include "StatusBarLayout.hh"
 
+#include <a3-motion-ui/io/Workspaces.hh>
+
 namespace a3
 {
 
@@ -50,23 +52,30 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
                                   * statusTickHeightOfRow))
             .withCentre ({ barWidth / 2, row.getCentreY () });
 
-  // The keys at the ends, one size: wide enough for a word, as tall as the
+  // The workspace switch closes the row, where StemDeck has it -- the same
+  // numbers in both apps, so the key under the finger stays put when the
+  // workspace changes.
+  auto const switcher = workspaces::switcherGeometry (barWidth);
+  out.workspacesKey = row.withX (barWidth - switcher.margin - switcher.arrowWidth)
+                          .withWidth (switcher.arrowWidth);
+  out.deckKey = row.withX (out.workspacesKey.getX () - switcher.gap
+                           - switcher.appKeyWidth)
+                    .withWidth (switcher.appKeyWidth);
+
+  // The bar's own keys, one size: wide enough for a word, as tall as the
   // row. CLOCK leads it, left of the tempo it decides; CLEAN, the on-screen
-  // keyboard and MENU close it, MENU at the very edge where a thumb finds it.
-  auto rest = row;
+  // keyboard and MENU stand before the switch.
+  auto rest = row.withRight (out.deckKey.getX () - switcher.margin);
   auto const keyW = juce::jmin (rowHeight * statusKeyWidthOfHeight,
                                 row.getWidth () / 8);
   out.menuKey = rest.removeFromRight (keyW);
   out.keyboardKey = rest.removeFromRight (keyW);
   out.cleanKey = rest.removeFromRight (keyW);
-  // Before CLEAN: over to StemDeck, and the arrow listing every workspace.
-  out.workspacesKey = rest.removeFromRight (keyW / 2);
-  out.deckKey = rest.removeFromRight (keyW);
   out.clockKey = rest.removeFromLeft (keyW);
 
   // Still centred, but never under a key: on a narrow bar the display gives
   // way rather than the keys.
-  auto const tickRoom = 2 * (out.deckKey.getX () - barWidth / 2);
+  auto const tickRoom = 2 * (out.cleanKey.getX () - barWidth / 2);
   if (out.tick.getWidth () > tickRoom)
     out.tick = out.tick.withSizeKeepingCentre (juce::jmax (0, tickRoom),
                                                out.tick.getHeight ());
