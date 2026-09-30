@@ -115,6 +115,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscEndpoints.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscTruth.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscTruthContract.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MasterColumnPaint.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ThemedComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinSelection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinParameters.cc"

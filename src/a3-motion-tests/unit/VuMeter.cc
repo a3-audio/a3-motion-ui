@@ -27,6 +27,7 @@
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerLayout.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
+#include <a3-motion-ui/osc/VuRouting.hh>
 
 using namespace a3;
 
@@ -339,9 +340,16 @@ TEST (VuMeter, NoTwoChannelMetersOverlap)
           << i << " over " << j;
 }
 
-// The five output meters sit in the master column, under its own five, in
-// the two rows Task 10 left for them.
-TEST (VuMeter, TheFiveOutputMetersSitInTheMasterColumn)
+// The master column shows every meter the routing feeds it -- the main sub
+// and the nine main tops since 2026-09-30. The two counts live in different
+// headers (the drawing and the wire); this is where they are held together.
+TEST (VuMeter, TheMasterColumnHasAPlaceForEveryMeterItIsFed)
+{
+  EXPECT_EQ (numOutputMeters, numMasterColumnMeters);
+}
+
+// The output meters sit in the master column, left of its pots.
+TEST (VuMeter, TheOutputMetersSitInTheMasterColumn)
 {
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
@@ -430,10 +438,16 @@ TEST (VuMeter, TheOutputBarsSitInTheFootOfTheMastersColumn)
       block = block.getUnion (bar);
     }
 
-  // A quarter of the column at its foot: the rest of it is the master's own
-  // fader track, and five bars filling the whole column were a wall.
-  EXPECT_NEAR (block.getHeight (), layout.masterMeter.getHeight () / 4,
-               layout.outputMeters[0].getHeight ());
+  // A quarter of the column above its caption, at its foot: the rest of it is
+  // the master's own fader track, and bars filling the whole column were a
+  // wall. Within one cell -- whole cells, so the block rounds down. (Held to
+  // the column itself this measured the caption's quarter too, and hid it
+  // only while the bars were twice as thick.)
+  auto const caption = outputMeterBlock (layout.masterMeter, metrics).caption;
+  auto const cell = layout.outputMeters[0].getY () - layout.outputMeters[1].getY ();
+  EXPECT_NEAR (block.getHeight (),
+               (layout.masterMeter.getHeight () - caption.getHeight ()) / 4,
+               cell);
   EXPECT_GT (block.getY (), layout.masterMeter.getCentreY ());
   EXPECT_LE (block.getBottom (), layout.masterMeter.getBottom ());
 }
