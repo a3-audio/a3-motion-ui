@@ -43,10 +43,12 @@ namespace a3
  *  the same tables the hardware is read with, so the screen cannot quietly
  *  come to mean something else.
  */
-/** The scene block is shaped like a channel (2026-09-27): one scene pad per
- *  pad, `scenes[0][pad]`, firing that pad across every channel -- Stop all
- *  where a channel has Page. */
-constexpr std::size_t numSceneRows = numPadsPerChannel;
+/** The scene column is the panel's left column (2026-09-30), the left half
+ *  of a channel: `scenes[0][pad]` for pads 0..3 -- Play all, then A1, A3, A5
+ *  across every channel. It was a block of two until then; the second
+ *  column (Stop all, A2, A4, A6) went, so the page is the panel key for
+ *  key. */
+constexpr std::size_t numSceneRows = numPadsPerChannel / 2;
 
 /** Which end of the panel a function key stands at. */
 enum class PanelSide
@@ -69,8 +71,8 @@ struct PanelKeyPlace
 /** Every function key the PADS page shows, and where (2026-09-28).
  *
  *  The right-hand column is the panel's col9, all six. On the left the scene
- *  block -- the screen's own, the panel has none -- stands where col0's rows
- *  2-5 would be, so only col0's top two rows, TAP and clock, stand over it.
+ *  column stands in col0's rows 2-5, so only col0's top two rows, TAP and
+ *  clock, are keys there.
  *  Every key is reachable on the right; the left pair is the reach for the
  *  left hand, as on the panel. The one table to change if that is wrong. */
 constexpr std::array<PanelKeyPlace, 8> panelKeyPlaces{ {

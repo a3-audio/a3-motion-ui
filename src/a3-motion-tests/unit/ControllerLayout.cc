@@ -232,19 +232,42 @@ TEST (ControllerLayout, ThePadsStandAsThePanelDoes)
     }
 }
 
-// The scene block is shaped like a channel, left of the four: a pad in it
-// fires the same pad on every channel (Stop all where a channel has Page).
-TEST (ControllerLayout, TheScenesAreAChannelOfTheirOwn)
+// The scene column is the panel's left column (2026-09-30: "in PADS muss die
+// zweite reihe von links weg"): one column, the left half of a channel -- Play
+// all and A1, A3, A5 across every channel -- where the panel's col0 stands,
+// under TAP and the clock key.
+TEST (ControllerLayout, TheScenesAreThePanelsLeftColumn)
 {
   auto const l = defaultLayout ();
+  auto const left = keysAt (l, PanelSide::Left);
+  ASSERT_FALSE (left.empty ());
+
+  ASSERT_EQ (numSceneRows, 4u);
   for (std::size_t pad = 0; pad < numSceneRows; ++pad)
     {
       auto const scene = l.scenes[0][pad];
       ASSERT_FALSE (scene.isEmpty ()) << pad;
-      EXPECT_LT (scene.getRight (), l.clipBoxes[0][0].getX () + 1) << pad;
+      EXPECT_EQ (scene.getX (), left.front ().second.getX ()) << pad;
       EXPECT_EQ (scene.getY (), l.pads[0][pad].getY ()) << pad;
-      EXPECT_EQ (scene.getWidth (), l.pads[0][pad].getWidth ()) << pad;
+      // The pad it fires is in a channel's left column.
+      EXPECT_EQ (l.pads[0][pad].getX (), l.clipBoxes[0][0].getX ()) << pad;
     }
+}
+
+// The page is the panel, key for key: 44 targets, ten columns across -- the
+// scene column, four channels of two, the right-hand keys -- so a key on the
+// screen stands where its key on the panel does.
+TEST (ControllerLayout, ThePageHoldsThePanelsFortyFourKeys)
+{
+  auto const l = defaultLayout ();
+  EXPECT_EQ (everyTarget (l).size (), 44u);
+
+  auto const cell = l.pads[0][0].getWidth ();
+  auto const step = l.pads[0][4].getX () - l.pads[0][0].getX ();
+  auto const right = keysAt (l, PanelSide::Right);
+  ASSERT_FALSE (right.empty ());
+  EXPECT_EQ (right.front ().second.getX () - l.scenes[0][0].getX (), 9 * step);
+  EXPECT_GT (step, cell);
 }
 
 // Breaks if any of it grows past the area it was handed — which on this bar
