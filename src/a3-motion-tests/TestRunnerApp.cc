@@ -39,7 +39,13 @@ public:
   ~ScopedMessageThread ()
   {
     juce::MessageManager::getInstance ()->stopDispatchLoop ();
-    stopThread (10);
+    // Time to leave the loop and tear down the GUI initialiser. It had 10 ms,
+    // and under load (ctest -j4) that ran out: JUCE killed the thread, the
+    // forced unwind aborted the process, and a test that had passed was
+    // reported as failed (#60). Bounded all the same, so a loop that never
+    // stops still ends the run.
+    constexpr int messageThreadExitMs = 10000;
+    stopThread (messageThreadExitMs);
   }
 
 private:
