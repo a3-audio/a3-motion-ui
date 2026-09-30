@@ -7535,6 +7535,7 @@ A3MotionUIComponent::openConfigPage (juce::String const &title,
     }
 
   _configPageKeys = keys;
+  _configPageTitle = title;
   _skinEditor->setDocument (juce::var (slice), title, false,
                             SkinEditorComponent::Numbers::Typed);
   _skinEditorOpen = true;
@@ -7575,10 +7576,10 @@ A3MotionUIComponent::saveConfigPage ()
                  juce::JSON::toString (config, false) + "\n");
   _configPageKeys.clear ();
 
-  // Ports and hosts are read when a socket opens, so they take effect at the
-  // next start rather than here. Saying so beats a setting that looks live
-  // and is not.
-  updateControlReadout ("network saved - restart to apply");
+  // Which page, by its own name. This said "network saved - restart to
+  // apply" for every page until 2026-09-30, a leftover of the Network page;
+  // the pages left (Button LEDs, Pattern Folder) apply without a restart.
+  updateControlReadout (_configPageTitle.toLowerCase () + " saved");
 }
 
 ShippedClips

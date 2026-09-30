@@ -863,6 +863,7 @@ private:
   bool _skinEditorOpen = false;
   /** Empty while a skin is being edited; the keys of the slice otherwise. */
   juce::StringArray _configPageKeys;
+  juce::String _configPageTitle;
   juce::StringArray _skinNames;
   int _skinIndex = 0;
   /** The sphere's share of the shorter side. 0.62 is what the tuned look
