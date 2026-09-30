@@ -18,387 +18,141 @@
 
 */
 
-
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/OscAddresses.hh>
+#include <a3-motion-engine/OscTruth.hh>
 
 #include <a3-motion-ui/components/MixerControls.hh>
 
+#include <MadeUpOscTruth.hh>
+
 using namespace a3;
 
-TEST (OscAddresses, DefaultsAreWhatTheSystemHasAlwaysUsed)
-{
-  auto const a = loadOscAddresses (juce::var{});
 
-  EXPECT_EQ (a.channelAzimuth, "/channel/{ch}/azimuth");
-  EXPECT_EQ (a.channelElevation, "/channel/{ch}/elevation");
-  EXPECT_EQ (a.channelPot1, "/channel/{ch}/pot_1");
-  EXPECT_EQ (a.channelPot2, "/channel/{ch}/pot_2");
-  EXPECT_EQ (a.channelThreeD, "/channel/{ch}/3d");
+TEST (OscAddresses, EveryAddressOfOursComesFromTheTruth)
+{
+  auto const a = oscAddressesFrom (madeUpOscTruth ());
+
+  EXPECT_EQ (a.channelAzimuth, "/t/channel.azimuth/{ch}");
+  EXPECT_EQ (a.channelElevation, "/t/channel.elevation/{ch}");
+  EXPECT_EQ (a.channelFilterFrequency, "/t/channel.filter.frequency/{ch}");
+  EXPECT_EQ (a.channelFilterQ, "/t/channel.filter.q/{ch}");
+  EXPECT_EQ (a.channelThreeD, "/t/channel.3d/{ch}");
+  EXPECT_EQ (a.stateRecall, "/t/state.recall");
+  EXPECT_EQ (a.beatOut, "/t/beat");
+  EXPECT_EQ (a.beatIn, "/t/beat");
+  EXPECT_EQ (a.tap, "/t/tap");
+  EXPECT_EQ (a.clockMode, "/t/clockmode");
+}
+
+TEST (OscAddresses, TheMixerTablesComeFromTheTruthInControlOrder)
+{
+  auto const a = oscAddressesFrom (madeUpOscTruth ());
+  auto const channel = [&a] (MixerControl control) {
+    return a.mixerChannel[static_cast<std::size_t> (controlSlot (control))];
+  };
+  auto const master = [&a] (MasterControl control) {
+    return a.mixerMaster[static_cast<std::size_t> (controlSlot (control))];
+  };
+  auto const filter = [&a] (FilterControl control) {
+    return a.mixerFilter[static_cast<std::size_t> (controlSlot (control))];
+  };
+
+  EXPECT_EQ (channel (MixerControl::Gain), "/t/channel.gain/{ch}");
+  EXPECT_EQ (channel (MixerControl::EqHigh), "/t/channel.eq.high/{ch}");
+  EXPECT_EQ (channel (MixerControl::EqMid), "/t/channel.eq.mid/{ch}");
+  EXPECT_EQ (channel (MixerControl::EqLow), "/t/channel.eq.low/{ch}");
+  EXPECT_EQ (channel (MixerControl::Volume), "/t/channel.volume/{ch}");
+  EXPECT_EQ (channel (MixerControl::FxSend), "/t/channel.fx-send/{ch}");
+  EXPECT_EQ (channel (MixerControl::Pfl), "/t/channel.pfl/{ch}");
+  EXPECT_EQ (channel (MixerControl::Fx), "/t/channel.filter/{ch}");
+
+  EXPECT_EQ (master (MasterControl::Volume), "/t/master.volume");
+  EXPECT_EQ (master (MasterControl::Booth), "/t/master.booth");
+  EXPECT_EQ (master (MasterControl::PhonesMix), "/t/master.phones-mix");
+  EXPECT_EQ (master (MasterControl::PhonesVolume), "/t/master.phones-volume");
+  EXPECT_EQ (master (MasterControl::Return), "/t/master.fx-return");
+
+  EXPECT_EQ (filter (FilterControl::Mode), "/t/filter.mode");
+  EXPECT_EQ (filter (FilterControl::Frequency), "/t/filter.frequency");
+  EXPECT_EQ (filter (FilterControl::Resonance), "/t/filter.resonance");
+}
+
+// The meters arrive as /vu/<n>; the handler matches the part before the
+// number and reads the number off what follows.
+TEST (OscAddresses, TheVuPrefixIsThePatternUpToItsNumber)
+{
+  EXPECT_EQ (oscAddressesFrom (madeUpOscTruth ()).vuPrefix, "/t/vu/");
+}
+
+// The IEM plug-ins' words are theirs, not ours: the truth lists them under
+// `external` and they stay what the plug-ins speak.
+TEST (OscAddresses, ThePluginsKeepTheirOwnWords)
+{
+  auto const a = oscAddressesFrom (madeUpOscTruth ());
   EXPECT_EQ (a.iemAzimuth, "/StereoEncoder/azimuth");
   EXPECT_EQ (a.iemElevation, "/StereoEncoder/elevation");
-  EXPECT_EQ (a.beatOut, "/beat");
-  EXPECT_EQ (a.beatIn, "/beat");
-  EXPECT_EQ (a.tap, "/tap");
-  EXPECT_EQ (a.clockMode, "/clockmode");
-  EXPECT_EQ (a.vuPrefix, "/vu/");
   EXPECT_EQ (a.energyRms, "/EnergyVisualizer/RMS");
-  EXPECT_EQ (a.stateRecall, "/state/recall");
 }
 
-TEST (OscAddresses, TheRecallRequestCanBePointedElsewhere)
+// Nothing is invented for a key the truth lacks -- but nothing may crash
+// either: JUCE throws on an address it will not take. The mark is sendable,
+// and on the wire it names what is missing.
+TEST (OscAddresses, AKeyTheTruthLacksIsMarkedNotInvented)
 {
-  // The one address this device sends in order to be *told* something. It
-  // has to match what A3 Core listens for (a3-core.py's
-  // OSC_ADDRESS_RECALL); nothing here can check that, which is why it is
-  // configurable at all.
-  auto const config = juce::JSON::parse (
-      R"({"oscAddresses": {"out": {"stateRecall": "/state/again"}}})");
+  auto const truth = madeUpOscTruth ({ "channel.volume", "tap" });
+  auto const a = oscAddressesFrom (truth);
 
-  EXPECT_EQ (loadOscAddresses (config).stateRecall, "/state/again");
+  auto const volume = a.mixerChannel[static_cast<std::size_t> (
+      controlSlot (MixerControl::Volume))];
+  EXPECT_EQ (volume, "/a3-osc-missing/channel.volume");
+  EXPECT_TRUE (isSendableOscAddress (volume));
+  EXPECT_EQ (a.tap, "/a3-osc-missing/tap");
+
+  auto const missing = missingOscKeys (truth);
+  EXPECT_TRUE (missing.contains ("channel.volume"));
+  EXPECT_TRUE (missing.contains ("tap"));
+  EXPECT_EQ (missing.size (), 2);
 }
 
-TEST (OscAddresses, AnEntryOnlyReplacesItsOwn)
+TEST (OscAddresses, AnInvalidTruthLacksEverything)
 {
-  auto const config
-      = juce::JSON::parse (R"({"oscAddresses": {"tap": "/foot/tap"}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.tap, "/foot/tap");
-  EXPECT_EQ (a.beatOut, "/beat");
-  EXPECT_EQ (a.beatIn, "/beat");
-  EXPECT_EQ (a.channelAzimuth, "/channel/{ch}/azimuth");
+  auto const truth = parseOscTruth ("{ not json");
+  EXPECT_EQ (missingOscKeys (truth).size (), oscAddressKeys ().size ());
+  EXPECT_TRUE (isSendableOscAddress (oscAddressesFrom (truth).beatOut));
 }
 
-// Guards against a field being added to the struct and forgotten in
-// loadOscAddresses(): every key below is given a value no default uses, and
-// none of them may still read as its default afterwards.
-//
-// That included the mixer's fifteen the moment the struct grew by fifteen,
-// which is exactly the case this test claims to cover -- three tables read in
-// three loops, each of which could have been left out with every other test
-// here still passing.
-TEST (OscAddresses, EveryFieldIsActuallyRead)
+// Channels count from 1 on the wire since 2026-09-30, and from 0 everywhere
+// in here. The one function that crosses says so in its name.
+TEST (OscAddresses, AChannelIndexGoesOutAsItsNumber)
 {
-  auto const config = juce::JSON::parse (R"({"oscAddresses": {
-      "channelAzimuth":   "/a/{ch}/x",
-      "channelElevation": "/a/{ch}/y",
-      "channelPot1":      "/a/{ch}/p",
-      "channelPot2":      "/a/{ch}/q",
-      "channelThreeD":      "/a/{ch}/r",
-      "iemAzimuth":       "/b/x",
-      "iemElevation":     "/b/y",
-      "beatOut":          "/c/beat",
-      "beatIn":           "/c/in",
-      "tap":              "/c/tap",
-      "clockMode":        "/c/mode",
-      "vuPrefix":         "/d/",
-      "energyRms":        "/e/rms",
-      "mixerGain":          "/f/{ch}/1",
-      "mixerEqHigh":        "/f/{ch}/2",
-      "mixerEqMid":         "/f/{ch}/3",
-      "mixerEqLow":         "/f/{ch}/4",
-      "mixerVolume":        "/f/{ch}/5",
-      "mixerFxSend":        "/f/{ch}/5b",
-      "mixerPfl":           "/f/{ch}/6",
-      "mixerFx":            "/f/{ch}/7",
-      "masterVolume":       "/g/1",
-      "masterBooth":        "/g/2",
-      "masterPhonesMix":    "/g/3",
-      "masterPhonesVolume": "/g/4",
-      "masterReturn":       "/g/5",
-      "filterMode":         "/h/1",
-      "filterFrequency":    "/h/2",
-      "filterResonance":    "/h/3"}})");
-  auto const a = loadOscAddresses (config);
-  auto const d = OscAddresses{};
-
-  EXPECT_NE (a.channelAzimuth, d.channelAzimuth);
-  EXPECT_NE (a.channelElevation, d.channelElevation);
-  EXPECT_NE (a.channelPot1, d.channelPot1);
-  EXPECT_NE (a.channelPot2, d.channelPot2);
-  EXPECT_NE (a.channelThreeD, d.channelThreeD);
-  EXPECT_NE (a.iemAzimuth, d.iemAzimuth);
-  EXPECT_NE (a.iemElevation, d.iemElevation);
-  EXPECT_NE (a.beatOut, d.beatOut);
-  EXPECT_NE (a.beatIn, d.beatIn);
-  EXPECT_NE (a.tap, d.tap);
-  EXPECT_NE (a.clockMode, d.clockMode);
-  EXPECT_NE (a.vuPrefix, d.vuPrefix);
-  EXPECT_NE (a.energyRms, d.energyRms);
-
-  for (auto i = 0u; i < static_cast<std::size_t> (numMixerAddresses); ++i)
-    EXPECT_NE (a.mixerChannel[i], d.mixerChannel[i]) << i;
-
-  for (auto i = 0u; i < static_cast<std::size_t> (numMasterAddresses); ++i)
-    EXPECT_NE (a.mixerMaster[i], d.mixerMaster[i]) << i;
-
-  for (auto i = 0u; i < static_cast<std::size_t> (numFilterAddresses); ++i)
-    EXPECT_NE (a.mixerFilter[i], d.mixerFilter[i]) << i;
-}
-
-// The whole reason this is a unit of its own: juce::OSCMessage throws
-// OSCFormatError on an address it will not accept. Somebody typing a path on
-// the device must not be able to bring the app down, so a bad one is refused
-// here and the default stands instead.
-TEST (OscAddresses, AnAddressJuceWouldRejectFallsBackToTheDefault)
-{
-  for (auto const *bad : { "beat/without/leading/slash", "", "/with space",
-                           "/with#hash" })
-    {
-      juce::DynamicObject::Ptr addresses{ new juce::DynamicObject{} };
-      addresses->setProperty ("tap", juce::String (bad));
-      juce::DynamicObject::Ptr root{ new juce::DynamicObject{} };
-      root->setProperty ("oscAddresses", addresses.get ());
-
-      auto const a = loadOscAddresses (juce::var{ root.get () });
-      EXPECT_EQ (a.tap, "/tap") << "accepted: '" << bad << "'";
-    }
-}
-
-// The placeholder is part of the template, and JUCE would reject a bare '{'
-// in an address — so validity is judged on the substituted address, not on
-// the template.
-TEST (OscAddresses, AChannelTemplateIsJudgedAfterSubstitution)
-{
-  auto const config = juce::JSON::parse (
-      R"({"oscAddresses": {"channelAzimuth": "/src/{ch}/az"}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.channelAzimuth, "/src/{ch}/az");
-}
-
-TEST (OscAddresses, WithChannelSubstitutesThePlaceholder)
-{
-  EXPECT_EQ (withChannel ("/channel/{ch}/azimuth", 2), "/channel/2/azimuth");
-  EXPECT_EQ (withChannel ("/src/{ch}/{ch}", 7), "/src/7/7");
+  EXPECT_EQ (withChannelIndex ("/channel/{ch}/azimuth", 0),
+             "/channel/1/azimuth");
+  EXPECT_EQ (withChannelIndex ("/channel/{ch}/azimuth", 3),
+             "/channel/4/azimuth");
+  EXPECT_EQ (withChannelIndex ("/src/{ch}/{ch}", 6), "/src/7/7");
 }
 
 TEST (OscAddresses, APatternWithoutThePlaceholderIsLeftAlone)
 {
-  EXPECT_EQ (withChannel ("/StereoEncoder/azimuth", 3),
+  EXPECT_EQ (withChannelIndex ("/StereoEncoder/azimuth", 3),
              "/StereoEncoder/azimuth");
 }
 
-TEST (OscAddresses, JuceAcceptsEverySubstitutedDefault)
+TEST (OscAddresses, JuceAcceptsEveryAddressFromTheTruth)
 {
-  auto const a = loadOscAddresses (juce::var{});
+  auto const a = oscAddressesFrom (madeUpOscTruth ());
 
-  for (auto const &pattern : { a.channelAzimuth, a.channelElevation,
-                               a.channelPot1, a.channelPot2,
-                               a.channelThreeD, a.iemAzimuth,
-                               a.iemElevation, a.beatOut, a.beatIn, a.tap,
-                               a.clockMode })
-    for (int ch = 0; ch < 4; ++ch)
-      EXPECT_TRUE (isSendableOscAddress (withChannel (pattern, ch)))
+  for (auto const &pattern :
+       { a.channelAzimuth, a.channelElevation, a.channelFilterFrequency,
+         a.channelFilterQ, a.channelThreeD, a.iemAzimuth, a.iemElevation,
+         a.beatOut, a.beatIn, a.tap, a.clockMode, a.stateRecall })
+    for (int index = 0; index < 4; ++index)
+      EXPECT_TRUE (isSendableOscAddress (withChannelIndex (pattern, index)))
           << pattern;
-}
-
-// A prefix is compared with startsWith rather than sent, so it need not be a
-// whole valid address — but an empty one would match every message there is.
-TEST (OscAddresses, AnEmptyPrefixIsRefused)
-{
-  auto const config
-      = juce::JSON::parse (R"({"oscAddresses": {"vuPrefix": ""}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.vuPrefix, "/vu/");
-}
-
-
-// `3d` is Core's continuous crossfade now; its old boolean toggle moved to
-// `4d`. The name is free again, and it is the one that says what the value
-// does.
-TEST (OscAddresses, TheThirdValueGoesToCoresThreeDee)
-{
-  auto const a = loadOscAddresses (juce::var{});
-
-  EXPECT_EQ (withChannel (a.channelThreeD, 2), "/channel/2/3d");
-}
-
-// A config written while it was still called pot_3 keeps working.
-TEST (OscAddresses, TheOldPotThreeNameIsStillRead)
-{
-  auto const config = juce::JSON::parse (
-      R"({"oscAddresses": {"out": {"channelPot3": "/old/{ch}/name"}}})");
-
-  EXPECT_EQ (loadOscAddresses (config).channelThreeD, "/old/{ch}/name");
-}
-
-
-// The addresses are grouped in the file so the Network page can show them
-// under headings: what goes out, what comes in, and the beat clock — which
-// is neither, because `beat` is sent in INT mode and received in EXT.
-TEST (OscAddresses, GroupedBlocksAreRead)
-{
-  auto const config = juce::JSON::parse (R"({"oscAddresses": {
-      "out": { "channelAzimuth": "/o/{ch}/az", "iemAzimuth": "/o/iem" },
-      "in":  { "vuPrefix": "/i/", "energyRms": "/i/rms" },
-      "beatclock": { "beat": "/b/beat", "tap": "/b/tap",
-                     "clockMode": "/b/mode" }}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.channelAzimuth, "/o/{ch}/az");
-  EXPECT_EQ (a.iemAzimuth, "/o/iem");
-  EXPECT_EQ (a.vuPrefix, "/i/");
-  EXPECT_EQ (a.energyRms, "/i/rms");
-  EXPECT_EQ (a.beatOut, "/b/beat");
-  EXPECT_EQ (a.tap, "/b/tap");
-  EXPECT_EQ (a.clockMode, "/b/mode");
-
-  // Untouched keys keep their defaults.
-  EXPECT_EQ (a.channelPot1, "/channel/{ch}/pot_1");
-}
-
-// A config written before the grouping still works — the block was flat when
-// it first shipped, and a file on a device does not rewrite itself.
-TEST (OscAddresses, AFlatBlockIsStillRead)
-{
-  auto const config = juce::JSON::parse (
-      R"({"oscAddresses": {"tap": "/flat/tap", "vuPrefix": "/flat/"}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.tap, "/flat/tap");
-  EXPECT_EQ (a.vuPrefix, "/flat/");
-}
-
-// Grouped wins: if both are present the newer shape is the one meant.
-TEST (OscAddresses, AGroupedEntryOverridesAFlatOne)
-{
-  auto const config = juce::JSON::parse (R"({"oscAddresses": {
-      "tap": "/flat/tap",
-      "beatclock": { "tap": "/grouped/tap" }}})");
-
-  EXPECT_EQ (loadOscAddresses (config).tap, "/grouped/tap");
-}
-
-
-// The beat has one key that means two things, depending on which group it
-// sits in: `out.beat` is what INT mode sends, `in.beat` is what EXT follows.
-// They default to the same address and usually stay that way — but the file
-// can now say so in both places, which is where a reader looks.
-TEST (OscAddresses, BeatIsReadPerDirection)
-{
-  auto const config = juce::JSON::parse (R"({"oscAddresses": {
-      "out": { "beat": "/sent/beat" },
-      "in":  { "beat": "/heard/beat" }}})");
-  auto const a = loadOscAddresses (config);
-
-  EXPECT_EQ (a.beatOut, "/sent/beat");
-  EXPECT_EQ (a.beatIn, "/heard/beat");
-}
-
-TEST (OscAddresses, BothBeatsDefaultToTheSameAddress)
-{
-  auto const a = loadOscAddresses (juce::var{});
-  EXPECT_EQ (a.beatOut, a.beatIn);
-  EXPECT_EQ (a.beatOut, "/beat");
-}
-
-// The mixer's addresses are a table over mixerControlOrder rather than
-// fifteen named fields: fifteen fields are fifteen readAddress lines and
-// fifteen JSON keys kept in step by hand, and the authority on what a strip
-// has already exists.
-TEST (OscAddresses, EveryMixerControlHasADefaultAddress)
-{
-  OscAddresses addresses;
-
-  for (std::size_t i = 0; i < static_cast<std::size_t> (numMixerControls);
-       ++i)
-    {
-      EXPECT_TRUE (addresses.mixerChannel[i].isNotEmpty ())
-          << mixerControlLabel (mixerControlOrder[i]);
-      EXPECT_TRUE (isSendableOscAddress (addresses.mixerChannel[i]))
-          << addresses.mixerChannel[i];
-      EXPECT_TRUE (addresses.mixerChannel[i].contains ("{ch}"))
-          << addresses.mixerChannel[i] << " is per channel";
-    }
-
-  for (auto const &address : addresses.mixerMaster)
-    {
-      EXPECT_TRUE (address.isNotEmpty ());
-      EXPECT_TRUE (isSendableOscAddress (address)) << address;
-    }
-
-  for (auto const &address : addresses.mixerFilter)
-    {
-      EXPECT_TRUE (address.isNotEmpty ());
-      EXPECT_TRUE (isSendableOscAddress (address)) << address;
-    }
-}
-
-// The defaults are what A3 Core has always listened for. A typo here does not
-// fail loudly: the message is sent correctly, to an address nobody is
-// subscribed to. The reference is web/a3-doc/src/ressources/osc.md.
-TEST (OscAddresses, TheMixerDefaultsAreWhatCoreListensFor)
-{
-  OscAddresses addresses;
-  // controlSlot, not a fourth hand-written search over the same table. The
-  // address array is indexed by the control table's order -- that is the
-  // invariant TheAddressTableIsAsLongAsTheControlTable exists to hold -- so
-  // asking the table where a control sits is exactly the right question.
-  //
-  // Every control of all three tables, not one of each: the lengths agreeing
-  // is what the test below checks, and a reorder within a table keeps every
-  // length. Reorder masterControlOrder for a layout reason and mixerMaster[0]
-  // is still /master/volume while the four addresses behind it have all
-  // moved -- you pull the master down, the room stays loud, and the booth
-  // monitor dies because /master/booth is receiving the master volume.
-  auto const channelAddress = [&addresses] (MixerControl control) {
-    return addresses.mixerChannel[static_cast<std::size_t> (
-        controlSlot (control))];
-  };
-  auto const masterAddress = [&addresses] (MasterControl control) {
-    return addresses.mixerMaster[static_cast<std::size_t> (
-        controlSlot (control))];
-  };
-  auto const filterAddress = [&addresses] (FilterControl control) {
-    return addresses.mixerFilter[static_cast<std::size_t> (
-        controlSlot (control))];
-  };
-
-  EXPECT_EQ (channelAddress (MixerControl::Gain), "/channel/{ch}/gain");
-  EXPECT_EQ (channelAddress (MixerControl::EqHigh), "/channel/{ch}/eq/high");
-  EXPECT_EQ (channelAddress (MixerControl::EqMid), "/channel/{ch}/eq/mid");
-  EXPECT_EQ (channelAddress (MixerControl::EqLow), "/channel/{ch}/eq/low");
-  EXPECT_EQ (channelAddress (MixerControl::Volume), "/channel/{ch}/volume");
-  EXPECT_EQ (channelAddress (MixerControl::Pfl), "/channel/{ch}/pfl");
-  EXPECT_EQ (channelAddress (MixerControl::Fx), "/channel/{ch}/fx");
-
-  EXPECT_EQ (masterAddress (MasterControl::Volume), "/master/volume");
-  EXPECT_EQ (masterAddress (MasterControl::Booth), "/master/booth");
-  EXPECT_EQ (masterAddress (MasterControl::PhonesMix), "/master/phones_mix");
-  EXPECT_EQ (masterAddress (MasterControl::PhonesVolume),
-             "/master/phones_volume");
-  EXPECT_EQ (masterAddress (MasterControl::Return), "/master/return");
-
-  EXPECT_EQ (filterAddress (FilterControl::Mode), "/fx/mode");
-  EXPECT_EQ (filterAddress (FilterControl::Frequency), "/fx/frequency");
-  EXPECT_EQ (filterAddress (FilterControl::Resonance), "/fx/resonance");
-}
-
-// A config file on a device does not rewrite itself, so a file without the
-// block keeps the defaults -- the same rule every other address here follows.
-TEST (OscAddresses, AConfigWithoutTheMixerBlockKeepsTheDefaults)
-{
-  auto const config = juce::JSON::parse (R"({ "oscAddresses": {} })");
-  auto const addresses = loadOscAddresses (config);
-
-  EXPECT_EQ (addresses.mixerChannel[0], OscAddresses{}.mixerChannel[0]);
-}
-
-// And one that names a control overrides just that one.
-TEST (OscAddresses, AConfigMayRenameOneMixerAddress)
-{
-  auto const config = juce::JSON::parse (R"({
-    "oscAddresses": { "out": { "mixerGain": "/ch/{ch}/g" } } })");
-  auto const addresses = loadOscAddresses (config);
-
-  EXPECT_EQ (addresses.mixerChannel[0], "/ch/{ch}/g");
-  EXPECT_EQ (addresses.mixerChannel[1], OscAddresses{}.mixerChannel[1]);
 }
 
 // The engine holds the addresses and the ui holds the order they are in, and

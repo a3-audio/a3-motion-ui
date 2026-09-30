@@ -24,80 +24,51 @@
 
 #include <a3-motion-engine/OscEndpoints.hh>
 
+#include <MadeUpOscTruth.hh>
+
 using namespace a3;
 
-namespace
+// Where Core listens is where the spatial position and the mixer both go.
+// They went to two different places once: the mixer's fifteen messages spent
+// a branch going to the beat-analyzer, and UDP never answered to say so.
+TEST (OscEndpoints, CoreIsWhereTheTruthSaysCoreListens)
 {
-juce::var
-shippedConfig ()
-{
-  return juce::JSON::parse (
-      juce::File (A3_CONFIG_JSON_PATH).loadFileAsString ());
-}
-}
+  auto const endpoints = oscEndpointsFrom (madeUpOscTruth ());
 
-// The one that matters. The mixer's fifteen messages spent a branch's worth
-// of commits going to the beat-analyzer, because the sender they were handed
-// was the beat clock's -- and UDP never answered, so nothing said so. Core is
-// where `oscSender.port` points, and it is where the spatial data has always
-// gone; this is the claim that the mixer goes to the same place.
-TEST (OscEndpoints, CoreIsWhereTheSpatialDataAlreadyGoes)
-{
-  auto const config = shippedConfig ();
-  ASSERT_TRUE (config["oscSender"].isObject ())
-      << "the shipped config has no oscSender block to point anywhere";
-
-  auto const endpoints = loadOscEndpoints (config);
-
-  EXPECT_EQ (endpoints.host, config["oscSender"]["host"].toString ());
-  EXPECT_EQ (endpoints.corePort,
-             static_cast<int> (config["oscSender"]["port"]))
-      << "the mixer and MotionEngine's SpatBackendA3 have to agree on where "
-         "Core is, and SpatBackendA3 reads oscSender.port";
+  EXPECT_EQ (endpoints.core.host, "10.9.9.10");
+  EXPECT_EQ (endpoints.core.port, 19000);
 }
 
-// And the other half of it: the beat clock is a different process on the same
-// machine, so the two ports being equal would mean one of the two is wrong.
-TEST (OscEndpoints, TheShippedBeatClockGoesSomewhereElse)
+// The beat clock is a different process: the beat, the tap and the clock mode
+// go to the beat-analyzer and nowhere else.
+TEST (OscEndpoints, TheBeatClockGoesToTheAnalyzer)
 {
-  auto const endpoints = loadOscEndpoints (shippedConfig ());
+  auto const endpoints = oscEndpointsFrom (madeUpOscTruth ());
 
-  EXPECT_NE (endpoints.corePort, endpoints.beatclockPort)
-      << "the shipped config points the beat clock at the beat-analyzer; if "
-         "these are equal, one of the two senders is aimed at the wrong "
-         "process";
+  EXPECT_EQ (endpoints.beatclock.host, "127.0.0.9");
+  EXPECT_EQ (endpoints.beatclock.port, 17775);
 }
 
-TEST (OscEndpoints, ABeatclockPortMovesOnlyTheBeatClock)
+TEST (OscEndpoints, MotionListensWhereTheTruthSays)
 {
-  auto const config = juce::JSON::parse (R"({
-    "oscSender": { "host": "10.0.0.7", "port": 9000, "beatclockPort": 7775 }
-  })");
-  auto const endpoints = loadOscEndpoints (config);
+  auto const endpoints = oscEndpointsFrom (madeUpOscTruth ());
 
-  EXPECT_EQ (endpoints.host, "10.0.0.7");
-  EXPECT_EQ (endpoints.corePort, 9000);
-  EXPECT_EQ (endpoints.beatclockPort, 7775);
+  EXPECT_EQ (endpoints.receivePort, 17771);
+  EXPECT_EQ (endpoints.vuPort, 17772);
+  EXPECT_EQ (endpoints.energyPort, 17777);
 }
 
-// A config written before the beat clock had a port of its own still has to
-// work, and the only reading of it that can be right is that everything goes
-// to the one port it names.
-TEST (OscEndpoints, WithoutABeatclockPortTheClockGoesWithEverythingElse)
+// Nothing is made up: without the truth there is no port, and a socket asked
+// to open on none does not open -- which the log says -- rather than opening
+// on a number somebody once typed into the code.
+TEST (OscEndpoints, WithoutTheTruthThereIsNowhere)
 {
-  auto const config = juce::JSON::parse (
-      R"({ "oscSender": { "host": "127.0.0.1", "port": 9001 } })");
-  auto const endpoints = loadOscEndpoints (config);
+  auto const endpoints = oscEndpointsFrom (parseOscTruth ("{ not json"));
 
-  EXPECT_EQ (endpoints.corePort, 9001);
-  EXPECT_EQ (endpoints.beatclockPort, 9001);
-}
-
-TEST (OscEndpoints, AConfigWithoutAnOscSenderBlockKeepsTheDefaults)
-{
-  auto const endpoints = loadOscEndpoints (juce::var{});
-
-  EXPECT_EQ (endpoints.host, OscEndpoints{}.host);
-  EXPECT_EQ (endpoints.corePort, OscEndpoints{}.corePort);
-  EXPECT_EQ (endpoints.beatclockPort, OscEndpoints{}.beatclockPort);
+  EXPECT_EQ (endpoints.core.port, -1);
+  EXPECT_TRUE (endpoints.core.host.isEmpty ());
+  EXPECT_EQ (endpoints.beatclock.port, -1);
+  EXPECT_EQ (endpoints.receivePort, -1);
+  EXPECT_EQ (endpoints.vuPort, -1);
+  EXPECT_EQ (endpoints.energyPort, -1);
 }

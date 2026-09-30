@@ -61,7 +61,7 @@ constexpr float faderHandleOfTrack = 1.f / 8.f;
  *
  *  An eighth of a bar's own cell. REAPER separates the bars of a
  *  multi-channel meter by a hairline; a share rather than a count of pixels
- *  so five bars still read as five however wide the master's column comes
+ *  so the bars still read as bars however wide the master's column comes
  *  out. */
 /** How much of the master's column its meters take, at the foot. */
 constexpr float outputBarsOfBlock = 1.f / 4.f;
@@ -387,7 +387,7 @@ outputMeterBlock (juce::Rectangle<int> block, ControlMetrics metrics)
                         * outputCaptionOfBlock)));
 
   // Only the foot of the column: the rest is the master's fader track, and
-  // five bars filling the whole of it read as a wall rather than as meters.
+  // bars filling the whole of it read as a wall rather than as meters.
   bars = bars.removeFromBottom (juce::roundToInt (
       static_cast<float> (bars.getHeight ()) * outputBarsOfBlock));
 

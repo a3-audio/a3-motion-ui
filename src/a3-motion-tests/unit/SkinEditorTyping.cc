@@ -30,8 +30,10 @@ using namespace a3;
 
 namespace
 {
-// The Network page as A3MotionUIComponent::openConfigPage builds it: a slice
-// of config.json with no skin actions on top.
+// A config page as A3MotionUIComponent::openConfigPage builds it: a slice
+// of config.json with no skin actions on top. This one was the Network page's
+// until 2026-09-30, when the addresses and ports moved into a3-osc.json; the
+// editor types numbers into any slice the same way.
 juce::var
 networkSlice ()
 {

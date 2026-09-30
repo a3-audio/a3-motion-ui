@@ -46,11 +46,11 @@ SpatBackendA3::addressesChanged (OscAddresses const &addresses)
   // Pre-cache OSC address patterns to avoid heap allocation per send
   for (int ch = 0; ch < kMaxChannels; ++ch)
     {
-      _azimuthPatterns[ch] = withChannel (addresses.channelAzimuth, ch);
-      _elevationPatterns[ch] = withChannel (addresses.channelElevation, ch);
-      _pot1Patterns[ch] = withChannel (addresses.channelPot1, ch);
-      _pot2Patterns[ch] = withChannel (addresses.channelPot2, ch);
-      _pot3Patterns[ch] = withChannel (addresses.channelThreeD, ch);
+      _azimuthPatterns[ch] = withChannelIndex (addresses.channelAzimuth, ch);
+      _elevationPatterns[ch] = withChannelIndex (addresses.channelElevation, ch);
+      _pot1Patterns[ch] = withChannelIndex (addresses.channelFilterFrequency, ch);
+      _pot2Patterns[ch] = withChannelIndex (addresses.channelFilterQ, ch);
+      _pot3Patterns[ch] = withChannelIndex (addresses.channelThreeD, ch);
     }
 }
 

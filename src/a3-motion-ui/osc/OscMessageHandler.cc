@@ -28,14 +28,48 @@ namespace a3
 {
 
 OscMessageHandler::OscMessageHandler (MotionEngine &engine, Listener &listener)
-    : _engine (engine), _listener (listener)
+    : _addresses (oscAddressesFrom (installedOscTruth ())),
+      _vuRouting (vuRoutingFrom (installedOscTruth ())), _engine (engine),
+      _listener (listener)
 {
+}
+
+void
+OscMessageHandler::setVuRouting (VuRouting const &routing)
+{
+  _vuRouting = routing;
 }
 
 void
 OscMessageHandler::setAddresses (OscAddresses const &addresses)
 {
   _addresses = addresses;
+}
+
+void
+OscMessageHandler::routeMeter (int number, float peak, float rms)
+{
+  // A meter the truth lacks is routed as 0; no message may reach it.
+  if (number <= 0)
+    return;
+
+  // Not an else-chain: one meter may feed more than one place.
+  auto const &r = _vuRouting;
+
+  for (std::size_t i = 0; i < r.channelInputs.size (); ++i)
+    if (number == r.channelInputs[i])
+      _listener.onChannelVU (static_cast<int> (i), peak, rms);
+
+  if (number == r.glow)
+    _listener.onSubwooferVU (peak, rms);
+
+  for (std::size_t i = 0; i < r.towers.size (); ++i)
+    if (number == r.towers[i])
+      _listener.onSpeakerVU (static_cast<int> (i), peak, rms);
+
+  for (std::size_t i = 0; i < r.masterColumn.size (); ++i)
+    if (number == r.masterColumn[i])
+      _listener.onOutputVU (static_cast<int> (i), peak, rms);
 }
 
 void
@@ -46,8 +80,8 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
 
   if (address.startsWith (_addresses.vuPrefix))
     {
-      auto const channelStr = address.substring (_addresses.vuPrefix.length ());
-      auto const channel = channelStr.getIntValue ();
+      auto const number
+          = address.substring (_addresses.vuPrefix.length ()).getIntValue ();
 
       if (message.size () < 2)
         return;
@@ -55,13 +89,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       float const peak = message[0].getFloat32 ();
       float const rms = message[1].getFloat32 ();
 
-      if (channel >= 0 && channel <= 3)
-        _listener.onChannelVU (channel, peak, rms);
-      else if (channel == 4)
-        _listener.onSubwooferVU (peak, rms);
-      else if (channel >= 5 && channel <= 8)
-        _listener.onSpeakerVU (channel - 5, peak, rms);
-
+      routeMeter (number, peak, rms);
       return;
     }
 
@@ -141,8 +169,8 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       std::array<std::pair<juce::String const *, Value>, 5> const carried{ {
           { &_addresses.channelAzimuth, Value::Azimuth },
           { &_addresses.channelElevation, Value::Elevation },
-          { &_addresses.channelPot1, Value::Pot1 },
-          { &_addresses.channelPot2, Value::Pot2 },
+          { &_addresses.channelFilterFrequency, Value::Pot1 },
+          { &_addresses.channelFilterQ, Value::Pot2 },
           { &_addresses.channelThreeD, Value::ThreeD },
       } };
 
@@ -153,7 +181,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
           auto const number = static_cast<int> (channel);
 
           for (auto const &[pattern, which] : carried)
-            if (address == withChannel (*pattern, number))
+            if (address == withChannelIndex (*pattern, number))
               {
                 _listener.onChannelValue (number, which, value);
                 return;
@@ -177,7 +205,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
           for (std::size_t slot = 0; slot < _addresses.mixerChannel.size ();
                ++slot)
             if (address
-                == withChannel (_addresses.mixerChannel[slot], number))
+                == withChannelIndex (_addresses.mixerChannel[slot], number))
               {
                 _listener.onMixerChannelValue (number,
                                                static_cast<int> (slot), value);

@@ -118,6 +118,7 @@ public:
   void onSubwooferVU (float peak, float rms) override;
   void onEnergyGrid (float const *values, int count) override;
   void onSpeakerVU (int speakerIndex, float peak, float rms) override;
+  void onOutputVU (int meter, float peak, float rms) override;
   void onExternalBeatClock (int beat, int bar, float bpm) override;
   void onExternalBeatSync (int beat, int beatsPerBar) override;
   void onChannelValue (int channel,
@@ -578,11 +579,11 @@ private:
                             index_t channel, index_t slot);
 
   // OSC Receiver for beat clock (port 7771)
-  /** The addresses this device speaks, read from config.json. Pushed on to
-   *  the engine and the message handler whenever the config is reloaded —
+  /** The addresses this device speaks, from the one truth (a3-osc.json).
+   *  Pushed on to the engine and the message handler once, at start-up --
    *  see applyOscAddresses(). */
   OscAddresses _oscAddresses;
-  void applyOscAddresses (juce::var const &config);
+  void applyOscAddresses ();
 
   /** The beat address again, for the tempo-clock thread.
    *
@@ -591,7 +592,7 @@ private:
    *  the struct is a race. Handed over the same way the send backend gets
    *  its addresses: stored under the lock, picked up at the top of the tick
    *  where the flag costs one atomic load. */
-  juce::String _beatAddress{ "/beat" };
+  juce::String _beatAddress{ "/a3-osc-missing/beat" };
   std::mutex _beatAddressMutex;
   juce::String _pendingBeatAddress;
   std::atomic<bool> _beatAddressPending{ false };
@@ -617,7 +618,7 @@ private:
 
   private:
     std::mutex _addressMutex;
-    juce::String _address{ "/beat" };
+    juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
   /** The engine's own beats, stamped on the clock's thread. */
@@ -829,7 +830,6 @@ private:
   {
     Skin,
     SkinEditor,
-    Network,
     ButtonLeds,
     PatternFolder,
     SphereInMenu,
@@ -863,6 +863,7 @@ private:
   bool _skinEditorOpen = false;
   /** Empty while a skin is being edited; the keys of the slice otherwise. */
   juce::StringArray _configPageKeys;
+  juce::String _configPageTitle;
   juce::StringArray _skinNames;
   int _skinIndex = 0;
   /** The sphere's share of the shorter side. 0.62 is what the tuned look

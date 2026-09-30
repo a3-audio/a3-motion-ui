@@ -26,6 +26,7 @@
 
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/OscAddresses.hh>
+#include <a3-motion-ui/osc/VuRouting.hh>
 
 namespace a3
 {
@@ -45,12 +46,16 @@ public:
   {
     virtual ~Listener () = default;
 
-    // Channels 0-3: per-channel blob corona level.
+    // Which meter feeds which of these is VuRouting's business. One meter
+    // may feed two: the main sub is the glow and the first master meter.
+    // Channels 0-3: per-channel blob corona level (the input meters).
     virtual void onChannelVU (int channel, float peak, float rms) = 0;
-    // Channel 4: subwoofer -> sphere glow.
+    // The main sub -> sphere glow.
     virtual void onSubwooferVU (float peak, float rms) = 0;
-    // Channels 5-8: speaker spotlights (speakerIndex = channel - 5).
+    // Main tops 1-4 -> the towers' lights (speakerIndex 0-3).
     virtual void onSpeakerVU (int speakerIndex, float peak, float rms) = 0;
+    // The mixer's master column, meter 0 (sub) to numMasterColumnMeters - 1.
+    virtual void onOutputVU (int meter, float peak, float rms) = 0;
 
     // /EnergyVisualizer/RMS: one value per grid point of the IEM plugin's
     // 426-point sphere, in the plugin's own order. The pointer is only valid
@@ -129,19 +134,24 @@ public:
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
 
-  /** New addresses, e.g. after config.json was edited on the device.
-   *  Messages arrive through OSCReceiver::MessageLoopCallback, so this and
-   *  handleMessage() are both on the message thread — no handover needed. */
+  /** The addresses and the meter routing, both from the one truth by
+   *  default; set here by tests with a made-up one. Messages arrive through
+   *  OSCReceiver::MessageLoopCallback, so these and handleMessage() are all
+   *  on the message thread — no handover needed. */
   void setAddresses (OscAddresses const &addresses);
+  void setVuRouting (VuRouting const &routing);
 
   void handleMessage (juce::OSCMessage const &message, int clockMode);
 
 private:
+  void routeMeter (int number, float peak, float rms);
+
   /** The tempo the engine runs at in EXT and PIO, followed from the one each
    *  /beat reports. Only this handler's thread touches it. */
   ExternalTempoFollower _externalTempo;
 
   OscAddresses _addresses;
+  VuRouting _vuRouting;
   MotionEngine &_engine;
   Listener &_listener;
 };

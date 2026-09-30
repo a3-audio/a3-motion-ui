@@ -131,7 +131,7 @@ Bestätigung:
 - OSC-Out Beatclock: Async-Sender
 - OSC-Out Tap: direkter Sender für minimale Latenz
 
-Konfiguration erfolgt über `config.json`/UserConfig (`oscReceiver`, `oscSender`).
+Addresses and ports come from the one truth, a3-core's `/usr/share/a3/a3-osc.json` (since 2026-09-30), not from `config.json`.
 
 ### 3.5 FILES and ACTION (2026-09-27)
 

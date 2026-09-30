@@ -25,27 +25,17 @@ namespace a3
 {
 
 OscEndpoints
-loadOscEndpoints (juce::var const &config)
+oscEndpointsFrom (OscTruth const &truth)
 {
+  auto const nowhere = OscTruth::Endpoint{};
+
   OscEndpoints endpoints;
-
-  auto const block = config["oscSender"];
-  if (!block.isObject ())
-    return endpoints;
-
-  auto const host = block["host"].toString ();
-  if (host.isNotEmpty ())
-    endpoints.host = host;
-
-  if (block.hasProperty ("port"))
-    endpoints.corePort = static_cast<int> (block["port"]);
-
-  // The clock's own port is optional, and its absence means the file predates
-  // the split rather than that the clock goes nowhere.
-  endpoints.beatclockPort = block.hasProperty ("beatclockPort")
-                                ? static_cast<int> (block["beatclockPort"])
-                                : endpoints.corePort;
-
+  endpoints.core = truth.endpoint ("core", "osc").value_or (nowhere);
+  endpoints.beatclock
+      = truth.endpoint ("beat-analyzer", "clock").value_or (nowhere);
+  endpoints.receivePort = truth.port ("motion", "osc");
+  endpoints.vuPort = truth.port ("motion", "vu");
+  endpoints.energyPort = truth.port ("motion", "energy");
   return endpoints;
 }
 

@@ -39,6 +39,39 @@ isPrintableAscii (juce::juce_wchar c)
 /** The placeholder a channel address carries. Substituted before anything
  *  is validated or sent, so it never reaches JUCE. */
 constexpr char const *channelPlaceholder = "{ch}";
+
+/** The truth's keys for each mixer table, in the same order as
+ *  OscAddresses::mixerChannel/mixerMaster/mixerFilter -- that is, the ui's
+ *  mixerControlOrder/masterControlOrder/filterControlOrder. */
+constexpr std::array<char const *, numMixerAddresses> mixerChannelKeys{
+  "channel.gain",   "channel.eq.high", "channel.eq.mid", "channel.eq.low",
+  "channel.volume", "channel.fx-send", "channel.pfl",    "channel.filter",
+};
+
+constexpr std::array<char const *, numMasterAddresses> mixerMasterKeys{
+  "master.volume",        "master.booth",     "master.phones-mix",
+  "master.phones-volume", "master.fx-return",
+};
+
+constexpr std::array<char const *, numFilterAddresses> mixerFilterKeys{
+  "filter.mode",
+  "filter.frequency",
+  "filter.resonance",
+};
+
+/** The rest, one address each. */
+constexpr std::array<char const *, 10> singleKeys{
+  "channel.azimuth",
+  "channel.elevation",
+  "channel.filter.frequency",
+  "channel.filter.q",
+  "channel.3d",
+  "state.recall",
+  "beat",
+  "tap",
+  "clockmode",
+  "vu",
+};
 }
 
 bool
@@ -64,148 +97,84 @@ isSendableOscAddress (juce::String const &address)
 }
 
 juce::String
-withChannel (juce::String const &pattern, int channel)
+withChannelIndex (juce::String const &pattern, int index)
 {
-  return pattern.replace (channelPlaceholder, juce::String (channel));
+  return pattern.replace (channelPlaceholder, juce::String (index + 1));
+}
+
+juce::StringArray
+oscAddressKeys ()
+{
+  juce::StringArray keys;
+  for (auto const *key : singleKeys)
+    keys.add (key);
+  for (auto const *key : mixerChannelKeys)
+    keys.add (key);
+  for (auto const *key : mixerMasterKeys)
+    keys.add (key);
+  for (auto const *key : mixerFilterKeys)
+    keys.add (key);
+  return keys;
 }
 
 namespace
 {
-/** One entry. Absent, not a string, or one JUCE would refuse leaves the
- *  default standing — a bad address must cost a default, never a crash.
- *  Validity is judged on the substituted address: the template carries
- *  `{ch}`, which JUCE reads as a wildcard rather than a path. */
+/** The truth's pattern for `key`, or the mark that names it missing. */
+juce::String
+addressFor (OscTruth const &truth, juce::String const &key)
+{
+  auto const pattern = truth.pattern (key);
+  return pattern.isNotEmpty () ? pattern : "/a3-osc-missing/" + key;
+}
+
+template <std::size_t N>
 void
-readAddress (juce::var const &block, char const *key, juce::String &into)
+fillTable (OscTruth const &truth, std::array<char const *, N> const &keys,
+           std::array<juce::String, N> &into)
 {
-  if (!block.hasProperty (key))
-    return;
-
-  auto const value = block[key];
-  if (!value.isString ())
-    return;
-
-  auto const address = value.toString ();
-  if (!isSendableOscAddress (withChannel (address, 0)))
-    return;
-
-  into = address;
+  for (std::size_t i = 0; i < N; ++i)
+    into[i] = addressFor (truth, keys[i]);
 }
 
-/** A prefix is matched with startsWith rather than sent, so it need not be
- *  a whole address — but an empty one would match every message there is. */
-void
-readPrefix (juce::var const &block, char const *key, juce::String &into)
+/** "/vu/{n}" -> "/vu/": the handler matches what comes before the number. */
+juce::String
+prefixBeforeNumber (juce::String const &pattern)
 {
-  if (!block.hasProperty (key))
-    return;
-
-  auto const value = block[key];
-  if (!value.isString ())
-    return;
-
-  auto const prefix = value.toString ();
-  if (prefix.isEmpty () || !prefix.startsWithChar ('/'))
-    return;
-
-  into = prefix;
-}
-}
-
-namespace
-{
-/** What each mixer address is called in config.json, in the same order as
- *  OscAddresses::mixerChannel/mixerMaster/mixerFilter.
- *
- *  Kept here rather than in the ui's MixerControls.hh: a key in a file
- *  somebody has already edited and the default behind it are one piece of
- *  vocabulary, and keeping them together is what lets this engine stay free
- *  of any `a3-motion-ui` include — reading a config file is the engine's
- *  job, not the ui's, and a table of seven words is not a reason to change
- *  that. Named per control, so a config file reads as words rather than as
- *  an index into a table: "mixerGain", not "mixer0". */
-constexpr std::array<char const *, numMixerAddresses> mixerAddressKeys{
-  "mixerGain", "mixerEqHigh", "mixerEqMid", "mixerEqLow",
-  "mixerVolume", "mixerFxSend", "mixerPfl", "mixerFx",
-};
-
-constexpr std::array<char const *, numMasterAddresses> masterAddressKeys{
-  "masterVolume", "masterBooth", "masterPhonesMix",
-  "masterPhonesVolume", "masterReturn",
-};
-
-constexpr std::array<char const *, numFilterAddresses> filterAddressKeys{
-  "filterMode", "filterFrequency", "filterResonance",
-};
-}
-
-namespace
-{
-/** Every key, against whichever block it is being read from. Called once
- *  for the flat block and once per group, so a file written before the
- *  grouping still reads and a grouped one wins over it. */
-void
-readAll (juce::var const &block, OscAddresses &into)
-{
-  if (!block.isObject ())
-    return;
-
-  readAddress (block, "channelAzimuth", into.channelAzimuth);
-  readAddress (block, "channelElevation", into.channelElevation);
-  readAddress (block, "channelPot1", into.channelPot1);
-  readAddress (block, "channelPot2", into.channelPot2);
-  readAddress (block, "channelThreeD", into.channelThreeD);
-  // The name it shipped under for a day, while `3d` was still Core's toggle.
-  readAddress (block, "channelPot3", into.channelThreeD);
-  readAddress (block, "iemAzimuth", into.iemAzimuth);
-  readAddress (block, "iemElevation", into.iemElevation);
-  readAddress (block, "stateRecall", into.stateRecall);
-  readAddress (block, "beat", into.beatOut);
-  readAddress (block, "beatOut", into.beatOut);
-  readAddress (block, "beatIn", into.beatIn);
-  readAddress (block, "tap", into.tap);
-  readAddress (block, "clockMode", into.clockMode);
-  readPrefix (block, "vuPrefix", into.vuPrefix);
-  readAddress (block, "energyRms", into.energyRms);
-
-  // The mixer's keys, tables over the same three orders as the defaults --
-  // see mixerAddressKeys/masterAddressKeys/filterAddressKeys above for why
-  // they live here rather than in the ui's control table.
-  for (std::size_t i = 0; i < numMixerAddresses; ++i)
-    readAddress (block, mixerAddressKeys[i], into.mixerChannel[i]);
-
-  for (std::size_t i = 0; i < numMasterAddresses; ++i)
-    readAddress (block, masterAddressKeys[i], into.mixerMaster[i]);
-
-  for (std::size_t i = 0; i < numFilterAddresses; ++i)
-    readAddress (block, filterAddressKeys[i], into.mixerFilter[i]);
+  auto const placeholder = pattern.indexOf ("{n}");
+  return placeholder < 0 ? pattern : pattern.substring (0, placeholder);
 }
 }
 
 OscAddresses
-loadOscAddresses (juce::var const &config)
+oscAddressesFrom (OscTruth const &truth)
 {
-  OscAddresses addresses;
+  OscAddresses a;
+  a.channelAzimuth = addressFor (truth, "channel.azimuth");
+  a.channelElevation = addressFor (truth, "channel.elevation");
+  a.channelFilterFrequency = addressFor (truth, "channel.filter.frequency");
+  a.channelFilterQ = addressFor (truth, "channel.filter.q");
+  a.channelThreeD = addressFor (truth, "channel.3d");
+  a.stateRecall = addressFor (truth, "state.recall");
+  a.beatOut = addressFor (truth, "beat");
+  a.beatIn = a.beatOut;
+  a.tap = addressFor (truth, "tap");
+  a.clockMode = addressFor (truth, "clockmode");
+  a.vuPrefix = prefixBeforeNumber (addressFor (truth, "vu"));
 
-  auto const block = config["oscAddresses"];
-  if (!block.isObject ())
-    return addresses;
+  fillTable (truth, mixerChannelKeys, a.mixerChannel);
+  fillTable (truth, mixerMasterKeys, a.mixerMaster);
+  fillTable (truth, mixerFilterKeys, a.mixerFilter);
+  return a;
+}
 
-  // The flat shape first: that is how the block shipped, and a config file
-  // on a device does not rewrite itself. The groups then override it — the
-  // Network page shows them under headings, and `beat` is in neither `out`
-  // nor `in` because it is both, depending on the clock mode.
-  readAll (block, addresses);
-  readAll (block["beatclock"], addresses); // the shape before out/in carried it
-  readAll (block["out"], addresses);
-  readAll (block["in"], addresses);
-
-  // `beat` under a group means that group's direction, so the same key can
-  // sit in both and mean the right thing in each.
-  readAddress (block["out"], "beat", addresses.beatOut);
-  readAddress (block["in"], "beat", addresses.beatIn);
-
-  return addresses;
+juce::StringArray
+missingOscKeys (OscTruth const &truth)
+{
+  juce::StringArray missing;
+  for (auto const &key : oscAddressKeys ())
+    if (truth.pattern (key).isEmpty ())
+      missing.add (key);
+  return missing;
 }
 
 }

@@ -41,21 +41,14 @@ struct Theme;
 
 /** How many meters the output section carries.
  *
- *  One subwoofer and four speakers — the maintainer's "1.4 ch output VU", and
- *  exactly what arrives: `/vu/4` is the sub and `/vu/5..8` are the speakers.
- *  A separate count from the channels' because it answers a different
- *  question: how many ways the room is driven, not how many decks are on the
- *  device. */
-constexpr int numOutputMeters = 5;
-
-/** Where each kind of output meter sits in that block.
- *
- *  The subwoofer first, then the four speakers — the order they arrive in
- *  (`/vu/4`, then `/vu/5..8`) and the order "1.4" is said in. Named rather
- *  than written as 0 and 1 at the two call sites, because the two callbacks
- *  that fill this block are in a different file from the one that draws it. */
-constexpr int subwooferMeterIndex = 0;
-constexpr int firstSpeakerMeterIndex = 1;
+ *  The main sub and the nine main tops, bottom to top (decided 2026-09-30,
+ *  with the channel map's forty meters): how the room is driven. Which
+ *  /vu number feeds which of them is VuRouting's, from the one truth; the
+ *  two counts are held equal by
+ *  VuMeter.TheMasterColumnHasAPlaceForEveryMeterItIsFed. A separate count
+ *  from the channels' because it answers a different question: how many
+ *  ways the room is driven, not how many decks are on the device. */
+constexpr int numOutputMeters = 10;
 
 /** How often a *page* carrying meters redraws them -- the mixer overlay and
  *  the bar's MIX tab, each of which starts and stops a timer of its own as it
@@ -340,10 +333,10 @@ constexpr float meterWidthOfStrip = 2.f / 5.f;
 
 StripColumns splitStripForMeter (juce::Rectangle<int> strip);
 
-/** The five output meters across one block, and the word under them.
+/** The output meters in one block, and the word under them.
  *
  *  Thin bars side by side in one block, which is how REAPER draws a
- *  multi-channel meter — five separate widgets would read as five outputs to
+ *  multi-channel meter — separate widgets would read as outputs to
  *  compare one at a time, where what this says is one thing: how the room is
  *  being driven. */
 struct OutputMeterBlock
