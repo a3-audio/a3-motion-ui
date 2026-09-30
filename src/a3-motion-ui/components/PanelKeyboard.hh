@@ -46,4 +46,13 @@ KeyDef panelKeyAt (KeyboardPage page, PanelCell cell);
  *  PADS grid, except the four space cells, which are one bar. */
 std::vector<KeyCap> layOutPanelKeyboard (juce::Rectangle<int> area,
                                          KeyboardPage page);
+
+/** A key's LED while the keyboard owns the panel: letters and other
+ *  characters in \`letter\`, every other key in \`accent\`, no key unlit. */
+juce::Colour keyboardLedColour (KeyDef const &key, juce::Colour accent,
+                                juce::Colour letter);
+
+/** How bright a letter's LED is: enough to read as "a key" in a dark booth,
+ *  little enough that the accent is what the eye looks for. */
+constexpr float keyboardLetterLedBrightness = 0.22f;
 }

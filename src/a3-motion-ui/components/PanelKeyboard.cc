@@ -69,6 +69,25 @@ bottomRowKey (int col)
 }
 }
 
+juce::Colour
+keyboardLedColour (KeyDef const &key, juce::Colour accent, juce::Colour letter)
+{
+  switch (key.action)
+    {
+    case KeyAction::None: return juce::Colours::transparentBlack;
+    case KeyAction::Character: return letter;
+    case KeyAction::Backspace:
+    case KeyAction::Enter:
+    case KeyAction::Shift:
+    case KeyAction::Page:
+    case KeyAction::Left:
+    case KeyAction::Right:
+    case KeyAction::Escape:
+    case KeyAction::Hide: return accent;
+    }
+  __builtin_unreachable ();
+}
+
 std::vector<KeyCap>
 layOutPanelKeyboard (juce::Rectangle<int> area, KeyboardPage page)
 {

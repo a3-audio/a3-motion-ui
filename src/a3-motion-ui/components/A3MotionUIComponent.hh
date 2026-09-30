@@ -805,6 +805,8 @@ private:
    *  up and SHIFT is not held (BarKeyboardModel.hh has the table). */
   /** The in-app keyboard is up -- and with it, owns the panel. */
   bool keyboardShown () const;
+  /** A letter's LED while the keyboard owns the panel. */
+  juce::Colour keyboardLetterLed () const;
   /** A key press to whatever holds the focus, as a plugged-in keyboard's. */
   void typeKey (juce::KeyPress const &key);
   /** The keyboard onto the bar's clip content and its fields. */

@@ -120,6 +120,10 @@ target_sources("a3-motion-ui" PRIVATE
     io/OnScreenKeyboard.hh
     io/PanelGrid.cc
     io/PanelGrid.hh
+    io/PanelButtonCells.cc
+    io/PanelButtonCells.hh
+    io/PanelOwnership.cc
+    io/PanelOwnership.hh
     components/PanelKeyboard.cc
     components/PanelKeyboard.hh
     io/Workspaces.cc

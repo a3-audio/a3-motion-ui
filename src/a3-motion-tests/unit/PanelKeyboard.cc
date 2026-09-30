@@ -228,3 +228,28 @@ TEST (PanelKeyboard, TheKeyboardPaintsBothPages)
   auto const symbols = keyboard.createComponentSnapshot (barArea);
   EXPECT_EQ (symbols.getWidth (), barArea.getWidth ());
 }
+
+// The panel shows it is a keyboard: letters dim, what is not a letter in the
+// accent, so ESC, HIDE and the rest are found by their light.
+TEST (PanelKeyboard, TheLedsShowTheKeyboard)
+{
+  auto const accent = juce::Colours::orange;
+  auto const dim = juce::Colours::white.withBrightness (
+      keyboardLetterLedBrightness);
+  EXPECT_EQ (keyboardLedColour (panelKeyAt (KeyboardPage::Letters, { 2, 1 }),
+                                accent, dim),
+             dim);
+  EXPECT_GT (keyboardLetterLedBrightness, 0.f) << "dim, not off";
+  EXPECT_LT (keyboardLetterLedBrightness, 0.5f);
+
+  for (auto const cell : { PanelCell{ 0, 0 }, PanelCell{ 1, 9 },
+                           PanelCell{ 5, 0 }, PanelCell{ 5, 9 } })
+    EXPECT_EQ (keyboardLedColour (panelKeyAt (KeyboardPage::Letters, cell),
+                                  accent, dim),
+               accent)
+        << cell.row << "," << cell.col;
+
+  EXPECT_EQ (
+      keyboardLedColour ({ KeyAction::None, 0, 1 }, accent, dim).getAlpha (),
+      0);
+}
