@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <juce_graphics/juce_graphics.h>
+
 namespace a3
 {
 
@@ -32,5 +34,14 @@ namespace a3
  *  The floor is not decoration: juce throws on a font of zero, and a box can be
  *  empty for a frame while a layout settles. */
 float fittedFontHeight (float wanted, float cap);
+
+/** The height at which `text` in `font` fits `width` -- the font's own
+ *  height while it fits, smaller once it would not. Never below 1.
+ *
+ *  For a label whose height is fitted to its box but whose width is not:
+ *  juce's drawText cuts a word that is too wide to "...", which reads as
+ *  nothing at all. */
+float heightToFitWidth (juce::Font const &font, juce::String const &text,
+                        float width);
 
 }
