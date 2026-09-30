@@ -31,4 +31,18 @@ fittedFontHeight (float wanted, float cap)
   return juce::jmax (1.f, juce::jmin (cap, wanted));
 }
 
+float
+heightToFitWidth (juce::Font const &font, juce::String const &text,
+                  float width)
+{
+  auto const needed = juce::GlyphArrangement::getStringWidth (font, text);
+  if (needed <= width)
+    return font.getHeight ();
+
+  // Glyph widths grow with the height, near enough in proportion; a hair
+  // under the share keeps rounding from tipping it back over.
+  constexpr float roundingMargin = 0.98f;
+  return juce::jmax (1.f, font.getHeight () * width / needed * roundingMargin);
+}
+
 }

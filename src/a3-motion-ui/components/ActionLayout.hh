@@ -123,6 +123,10 @@ struct ActionFieldParts
 
 ActionFieldParts actionFieldParts (juce::Rectangle<int> field);
 
+/** The font a field's number (A1..A6) is written in: as tall as its row
+ *  allows, up to a cap, and never wider than the row. */
+juce::Font actionFieldNumberFont (juce::Rectangle<int> number);
+
 /** How many rows of the action list are on screen at once.
  *
  *  A fingertip-high row in a field a few rows tall shows far fewer entries

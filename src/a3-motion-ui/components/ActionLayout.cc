@@ -22,6 +22,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsCaptions.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
@@ -233,6 +234,26 @@ actionListVisibleRows (ActionLayout const &layout)
 {
   auto const rowH = juce::jmax (1, layout.actionListRowHeight);
   return juce::jmax (1, layout.actionListArea.getHeight () / rowH);
+}
+
+}
+
+namespace a3
+{
+
+juce::Font
+actionFieldNumberFont (juce::Rectangle<int> number)
+{
+  // What the button's number may cost.
+  constexpr float buttonNumberCap = 20.f;
+  juce::Font const tallest{ juce::FontOptions (
+      fittedFontHeight (static_cast<float> (number.getHeight ()) * 0.8f,
+                        buttonNumberCap),
+      juce::Font::bold) };
+  // A6 is as wide as any of them; one size for all six, so the numbers do
+  // not step in size from key to key.
+  return tallest.withHeight (heightToFitWidth (
+      tallest, "A6", static_cast<float> (number.getWidth ())));
 }
 
 }

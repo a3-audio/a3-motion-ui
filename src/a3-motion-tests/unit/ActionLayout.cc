@@ -546,6 +546,35 @@ TEST (ActionLayout, EachFieldHasABadgeClearOfItsNumberAndName)
       }
 }
 
+// The number reads whole: "A6" fits its row at every page width, rather than
+// being cut to "..." -- which it was in quiet-indigo-2 (2026-09-30).
+TEST (ActionLayout, TheNumberFitsItsField)
+{
+  // quiet-indigo-2's sizes on the rig's page, where it was cut, and the
+  // test's own sizes at a few heights.
+  struct Case
+  {
+    juce::Rectangle<int> page;
+    float header, body, pot;
+  };
+  for (auto const &c : { Case{ { 0, 0, 576, 262 }, 14.06f, 13.75f, 0.9f },
+                         Case{ { 0, 0, 576, 240 }, 14.06f, 13.75f, 0.9f },
+                         Case{ { 0, 0, 576, 300 }, headerSize, 14.f, 1.f },
+                         Case{ { 0, 0, 640, 268 }, headerSize, 14.f, 1.f } })
+    {
+      auto const l = layOutActionPage (c.page, c.header, c.body, c.pot, {});
+      for (auto const &field : l.actionFields)
+        {
+          auto const number = actionFieldParts (field).number;
+          ASSERT_GT (number.getWidth (), 0) << c.page.toString ();
+          auto const font = actionFieldNumberFont (number);
+          EXPECT_LE (juce::GlyphArrangement::getStringWidth (font, "A6"),
+                     static_cast<float> (number.getWidth ()))
+              << c.page.toString ();
+        }
+    }
+}
+
 // Big enough to read a letter in at a glance, however small the field.
 TEST (ActionLayout, TheBadgeIsReadable)
 {

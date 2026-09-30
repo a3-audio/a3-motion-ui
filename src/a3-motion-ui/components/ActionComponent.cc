@@ -722,12 +722,8 @@ ActionComponent::paintActionFields (juce::Graphics &g)
       auto const numberRow = parts.number;
       auto const inner = parts.name;
 
-      // What the button's number (A1..A6) may cost.
-      constexpr float buttonNumberCap = 20.f;
       g.setColour (ink);
-      g.setFont (juce::Font (juce::FontOptions (
-          fittedFontHeight (numberRow.getHeight () * 0.8f, buttonNumberCap),
-          juce::Font::bold)));
+      g.setFont (actionFieldNumberFont (numberRow));
       g.drawText ("A" + juce::String (button + 1), numberRow,
                   juce::Justification::centredLeft);
 

@@ -48,4 +48,30 @@ TEST (FittedFont, AnEmptyBoxStillGivesAUsableFont)
   EXPECT_GE (fittedFontHeight (0.f, 24.f), 1.f);
 }
 
+// A word has a width as well as a height. The ACTION page's "A1" was fitted
+// to its row's height only, and where the field is narrow -- quiet-indigo-2,
+// 2026-09-30 -- juce cut it to "..." (drawText's ellipsis).
+TEST (FittedFont, AWordThatFitsKeepsItsHeight)
+{
+  juce::Font const font{ juce::FontOptions (12.f, juce::Font::bold) };
+  EXPECT_FLOAT_EQ (heightToFitWidth (font, "A1", 1000.f), 12.f);
+}
+
+TEST (FittedFont, AWordTooWideShrinksUntilItFits)
+{
+  juce::Font const font{ juce::FontOptions (40.f, juce::Font::bold) };
+  auto const height = heightToFitWidth (font, "A6", 20.f);
+
+  EXPECT_LT (height, 40.f);
+  EXPECT_LE (juce::GlyphArrangement::getStringWidth (font.withHeight (height),
+                                                     "A6"),
+             20.f);
+}
+
+TEST (FittedFont, NoRoomStillGivesAUsableFont)
+{
+  juce::Font const font{ juce::FontOptions (12.f) };
+  EXPECT_GE (heightToFitWidth (font, "A1", 0.f), 1.f);
+}
+
 }
