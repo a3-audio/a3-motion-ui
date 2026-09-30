@@ -178,6 +178,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/SessionFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/PendingTakes.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/OscMessageHandler.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/osc/VuRouting.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BlobPunch.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/CoronaScaling.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/RecordingLength.cc"

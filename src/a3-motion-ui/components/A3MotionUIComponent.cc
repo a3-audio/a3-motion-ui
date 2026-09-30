@@ -6837,7 +6837,12 @@ void
 A3MotionUIComponent::onSubwooferVU (float peak, float rms)
 {
   _motionComponent->setSphereGlow (peak, rms);
-  _vuLevels.setOutput (subwooferMeterIndex, { peak, rms }, vuNowMs ());
+}
+
+void
+A3MotionUIComponent::onOutputVU (int meter, float peak, float rms)
+{
+  _vuLevels.setOutput (meter, { peak, rms }, vuNowMs ());
 }
 
 void
@@ -6850,8 +6855,6 @@ void
 A3MotionUIComponent::onSpeakerVU (int speakerIndex, float peak, float rms)
 {
   _motionComponent->setSpeakerLight (speakerIndex, peak, rms);
-  _vuLevels.setOutput (firstSpeakerMeterIndex + speakerIndex, { peak, rms },
-                       vuNowMs ());
 }
 
 void

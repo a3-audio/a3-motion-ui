@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-engine/OscTruth.hh>
+#include <a3-motion-ui/osc/VuRouting.hh>
 
 using namespace a3;
 
@@ -59,4 +60,16 @@ TEST (OscTruthContract, TheTruthSaysWhereMotionSendsAndListens)
   EXPECT_TRUE (truth.endpoint ("beat-analyzer", "clock").has_value ());
   for (auto const *role : { "osc", "vu", "energy" })
     EXPECT_GT (truth.port ("motion", role), 0) << role;
+}
+
+TEST (OscTruthContract, TheChannelMapHasEveryMeterMotionShows)
+{
+  auto const truth = realTruth ();
+  ASSERT_TRUE (truth.isValid ()) << truth.error ();
+
+  juce::StringArray missing;
+  for (auto const &name : vuMeterNames ())
+    if (truth.vuNumber (name) == 0)
+      missing.add (name);
+  EXPECT_EQ (missing.joinIntoString (", "), "");
 }

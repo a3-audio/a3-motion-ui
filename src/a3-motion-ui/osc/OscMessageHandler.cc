@@ -28,15 +28,48 @@ namespace a3
 {
 
 OscMessageHandler::OscMessageHandler (MotionEngine &engine, Listener &listener)
-    : _addresses (oscAddressesFrom (installedOscTruth ())), _engine (engine),
+    : _addresses (oscAddressesFrom (installedOscTruth ())),
+      _vuRouting (vuRoutingFrom (installedOscTruth ())), _engine (engine),
       _listener (listener)
 {
+}
+
+void
+OscMessageHandler::setVuRouting (VuRouting const &routing)
+{
+  _vuRouting = routing;
 }
 
 void
 OscMessageHandler::setAddresses (OscAddresses const &addresses)
 {
   _addresses = addresses;
+}
+
+void
+OscMessageHandler::routeMeter (int number, float peak, float rms)
+{
+  // A meter the truth lacks is routed as 0; no message may reach it.
+  if (number <= 0)
+    return;
+
+  // Not an else-chain: one meter may feed more than one place.
+  auto const &r = _vuRouting;
+
+  for (std::size_t i = 0; i < r.channelInputs.size (); ++i)
+    if (number == r.channelInputs[i])
+      _listener.onChannelVU (static_cast<int> (i), peak, rms);
+
+  if (number == r.glow)
+    _listener.onSubwooferVU (peak, rms);
+
+  for (std::size_t i = 0; i < r.towers.size (); ++i)
+    if (number == r.towers[i])
+      _listener.onSpeakerVU (static_cast<int> (i), peak, rms);
+
+  for (std::size_t i = 0; i < r.masterColumn.size (); ++i)
+    if (number == r.masterColumn[i])
+      _listener.onOutputVU (static_cast<int> (i), peak, rms);
 }
 
 void
@@ -47,8 +80,8 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
 
   if (address.startsWith (_addresses.vuPrefix))
     {
-      auto const channelStr = address.substring (_addresses.vuPrefix.length ());
-      auto const channel = channelStr.getIntValue ();
+      auto const number
+          = address.substring (_addresses.vuPrefix.length ()).getIntValue ();
 
       if (message.size () < 2)
         return;
@@ -56,13 +89,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       float const peak = message[0].getFloat32 ();
       float const rms = message[1].getFloat32 ();
 
-      if (channel >= 0 && channel <= 3)
-        _listener.onChannelVU (channel, peak, rms);
-      else if (channel == 4)
-        _listener.onSubwooferVU (peak, rms);
-      else if (channel >= 5 && channel <= 8)
-        _listener.onSpeakerVU (channel - 5, peak, rms);
-
+      routeMeter (number, peak, rms);
       return;
     }
 

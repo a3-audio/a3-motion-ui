@@ -27,6 +27,7 @@
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
+#include <a3-motion-ui/osc/VuRouting.hh>
 
 using namespace a3;
 
@@ -138,6 +139,16 @@ struct RecordingListener : public OscMessageHandler::Listener
     lastSpeakerIndex = speakerIndex;
   }
 
+  int outputVUCalls = 0;
+  int lastOutputMeter = -1;
+
+  void
+  onOutputVU (int meter, float, float) override
+  {
+    ++outputVUCalls;
+    lastOutputMeter = meter;
+  }
+
   void
   onExternalBeatClock (int beat, int bar, float bpm) override
   {
@@ -186,62 +197,127 @@ madeUpAddresses ()
 }
 }
 
-TEST (OscMessageHandler, RoutesChannelVUToListener)
+// The meters arrive by their number in the channel map; Motion shows them by
+// what they measure. In madeUpOscTruth the map is scrambled: in2_pre is 6,
+// main_sub 5, main_top2 7, main_top9 15, and 1 is a meter Motion never shows.
+namespace
+{
+juce::OSCMessage
+meter (int number, float peak = 0.5f, float rms = 0.25f)
+{
+  juce::OSCMessage message (madeUpAddresses ().vuPrefix + juce::String (number));
+  message.addFloat32 (peak);
+  message.addFloat32 (rms);
+  return message;
+}
+}
+
+TEST (OscMessageHandler, AnInputMeterGoesToItsChannel)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "2");
-  message.addFloat32 (0.5f);
-  message.addFloat32 (0.25f);
-
-  handler.handleMessage (message, /*clockMode=*/0);
+  handler.handleMessage (meter (6), /*clockMode=*/0); // in2_pre
 
   EXPECT_EQ (listener.channelVUCalls, 1);
-  EXPECT_EQ (listener.lastChannel, 2);
+  EXPECT_EQ (listener.lastChannel, 1);
   EXPECT_FLOAT_EQ (listener.lastPeak, 0.5f);
   EXPECT_FLOAT_EQ (listener.lastRms, 0.25f);
   EXPECT_EQ (listener.subwooferVUCalls, 0);
   EXPECT_EQ (listener.speakerVUCalls, 0);
+  EXPECT_EQ (listener.outputVUCalls, 0);
 }
 
-TEST (OscMessageHandler, RoutesSubwooferVUToListener)
+// The main sub is two things at once: the sphere's glow, and the first meter
+// of the master column.
+TEST (OscMessageHandler, TheSubGlowsAndFillsTheFirstMasterMeter)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "4");
-  message.addFloat32 (0.9f);
-  message.addFloat32 (0.8f);
-
-  handler.handleMessage (message, /*clockMode=*/0);
+  handler.handleMessage (meter (5), /*clockMode=*/0); // main_sub
 
   EXPECT_EQ (listener.subwooferVUCalls, 1);
+  EXPECT_EQ (listener.outputVUCalls, 1);
+  EXPECT_EQ (listener.lastOutputMeter, 0);
   EXPECT_EQ (listener.channelVUCalls, 0);
 }
 
-TEST (OscMessageHandler, RoutesSpeakerVUToListenerWithZeroBasedIndex)
+// The first four tops light the towers, and all nine are in the column.
+TEST (OscMessageHandler, ATopLightsItsTowerAndFillsItsMasterMeter)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "6"); // speaker index 6 - 5 = 1
-  message.addFloat32 (0.1f);
-  message.addFloat32 (0.2f);
-
-  handler.handleMessage (message, /*clockMode=*/0);
+  handler.handleMessage (meter (7), /*clockMode=*/0); // main_top2
 
   EXPECT_EQ (listener.speakerVUCalls, 1);
   EXPECT_EQ (listener.lastSpeakerIndex, 1);
+  EXPECT_EQ (listener.outputVUCalls, 1);
+  EXPECT_EQ (listener.lastOutputMeter, 2);
+}
+
+TEST (OscMessageHandler, AnUpperTopOnlyFillsTheMasterColumn)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
+
+  handler.handleMessage (meter (15), /*clockMode=*/0); // main_top9
+
+  EXPECT_EQ (listener.outputVUCalls, 1);
+  EXPECT_EQ (listener.lastOutputMeter, 9);
+  EXPECT_EQ (listener.speakerVUCalls, 0);
+}
+
+TEST (OscMessageHandler, AMeterMotionDoesNotShowIsLeftAlone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
+
+  handler.handleMessage (meter (1), /*clockMode=*/0); // "free"
+  handler.handleMessage (meter (40), /*clockMode=*/0); // not in the map
+
+  EXPECT_EQ (listener.channelVUCalls + listener.subwooferVUCalls
+                 + listener.speakerVUCalls + listener.outputVUCalls,
+             0);
+}
+
+// A meter the truth does not have is routed as 0 -- and a /vu/0 must not
+// light every one of them.
+TEST (OscMessageHandler, MetersTheTruthLacksAreNotAllFedByZero)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (parseOscTruth ("{}")));
+
+  handler.handleMessage (meter (0), /*clockMode=*/0);
+
+  EXPECT_EQ (listener.channelVUCalls + listener.subwooferVUCalls
+                 + listener.speakerVUCalls + listener.outputVUCalls,
+             0);
 }
 
 TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
@@ -449,11 +525,9 @@ TEST (OscMessageHandler, AVuMessageIsStillNotAPosition)
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "2");
-  message.addFloat32 (0.5f);
-  message.addFloat32 (0.25f);
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  handler.handleMessage (message, /*clockMode=*/0);
+  handler.handleMessage (meter (4), /*clockMode=*/0); // in1_pre
 
   EXPECT_EQ (listener.channelVUCalls, 1);
   EXPECT_EQ (listener.azimuthCalls, 0);

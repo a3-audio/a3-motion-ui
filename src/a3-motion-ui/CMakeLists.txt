@@ -37,6 +37,8 @@ target_sources("a3-motion-ui" PRIVATE
     io/InputOutputAdapter.hh
     osc/OscMessageHandler.cc
     osc/OscMessageHandler.hh
+    osc/VuRouting.cc
+    osc/VuRouting.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
     components/LookAndFeel.cc

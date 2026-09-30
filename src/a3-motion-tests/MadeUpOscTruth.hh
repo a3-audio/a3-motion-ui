@@ -81,6 +81,16 @@ madeUpOscTruth (juce::StringArray const &leaveOut = {})
   root->setProperty ("addresses", juce::var (addresses));
   root->setProperty ("hosts", juce::var (hosts));
   root->setProperty ("listeners", listeners);
+
+  // The meters Motion shows, out of the channel map's order and among one it
+  // does not, so a meter found in the right place was found by its name.
+  juce::Array<juce::var> meters;
+  for (auto const *name :
+       { "free", "in3_pre", "main_top1", "in1_pre", "main_sub", "in2_pre",
+         "main_top2", "main_top3", "main_top4", "in4_pre", "main_top5",
+         "main_top6", "main_top7", "main_top8", "main_top9" })
+    meters.add (name);
+  root->setProperty ("vu_meters", meters);
   return parseOscTruth (juce::JSON::toString (juce::var (root)));
 }
 

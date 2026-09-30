@@ -118,6 +118,7 @@ public:
   void onSubwooferVU (float peak, float rms) override;
   void onEnergyGrid (float const *values, int count) override;
   void onSpeakerVU (int speakerIndex, float peak, float rms) override;
+  void onOutputVU (int meter, float peak, float rms) override;
   void onExternalBeatClock (int beat, int bar, float bpm) override;
   void onExternalBeatSync (int beat, int beatsPerBar) override;
   void onChannelValue (int channel,
