@@ -20,6 +20,7 @@
 
 #include "InputOutputAdapterV3.hh"
 
+#include <a3-motion-ui/io/PanelButtonCells.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/io/ButtonLedColours.hh>
 
@@ -487,6 +488,15 @@ InputOutputAdapterV3::isRightHandColumn (int hwIndex)
 void
 InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
 {
+  // While the keyboard is up the button types, press and release alike --
+  // decided here, in the order the buttons arrive, so a key that puts the
+  // keyboard away (ESC stands on TAP) cannot land its release on TAP.
+  if (_panelOwnership.route (idx, pressed) == PanelRoute::Keyboard)
+    {
+      inputPanelKey (panelCellOfButton (idx), pressed);
+      return;
+    }
+
   const auto &m = buttonMap[idx];
 
   switch (m.role)

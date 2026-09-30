@@ -163,20 +163,17 @@ TEST (BarKeyboardModel, OnlyTheCursorAndBackspaceRepeatWhileHeld)
   EXPECT_FALSE (keyRepeatsWhileHeld (KeyAction::Hide));
 }
 
-TEST (BarKeyboardModel, EncodersTypeOnlyWhileTheKeyboardIsUpAndShiftIsNot)
+// Encoder 1 moves the text cursor while the keyboard is up (2026-09-30):
+// with 44 real keys the encoders no longer walk keys; the others keep their
+// own jobs.
+TEST (BarKeyboardModel, EncoderOneMovesTheCursorWhileTyping)
 {
-  EXPECT_TRUE (encodersDriveKeyboard (true, false));
-  // Shift keeps FREQ and Q under the hand even while typing.
-  EXPECT_FALSE (encodersDriveKeyboard (true, true));
-  EXPECT_FALSE (encodersDriveKeyboard (false, false));
-}
-
-TEST (BarKeyboardModel, AnEncoderWalksItsFieldAndWraps)
-{
-  EXPECT_EQ (steppedKeyInBlock (6, 0, 1), 1);
-  EXPECT_EQ (steppedKeyInBlock (6, 5, 1), 0);
-  EXPECT_EQ (steppedKeyInBlock (6, 0, -1), 5);
-  EXPECT_EQ (steppedKeyInBlock (6, 2, 3), 5);
-  EXPECT_EQ (steppedKeyInBlock (4, 1, -6), 3);
-  EXPECT_EQ (steppedKeyInBlock (0, 0, 1), 0);
+  EXPECT_EQ (cursorKeyOfEncoder (true, 0, 0, 1),
+             juce::KeyPress (juce::KeyPress::rightKey));
+  EXPECT_EQ (cursorKeyOfEncoder (true, 0, 0, -2),
+             juce::KeyPress (juce::KeyPress::leftKey));
+  EXPECT_FALSE (cursorKeyOfEncoder (true, 1, 0, 1).has_value ());
+  EXPECT_FALSE (cursorKeyOfEncoder (true, 0, 1, 1).has_value ());
+  EXPECT_FALSE (cursorKeyOfEncoder (false, 0, 0, 1).has_value ());
+  EXPECT_FALSE (cursorKeyOfEncoder (true, 0, 0, 0).has_value ());
 }

@@ -24,20 +24,23 @@
 
 #include <a3-motion-ui/components/BarKeyboardLayout.hh>
 #include <a3-motion-ui/components/BarKeyboardModel.hh>
+#include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
-#include <array>
 #include <functional>
 #include <map>
+#include <optional>
+#include <set>
 
 namespace a3
 {
 
 /** The in-app keyboard, in the bar's clip content (2026-09-28).
  *
- *  Replaces Onboard: asked for as "ein keyboard welches nur den bereich vom
- *  clipsettingeditor ausfüllt und auf unser hardware controller layout
- *  passt". Where the keys stand is BarKeyboardLayout's, what a press means
+ *  Replaces Onboard. Since 2026-09-30 it is the panel: its 44 keys stand on
+ *  the PADS grid, and while it is up the panel's 44 keys type
+ *  (`pressPanelCell`) -- "den hardware controller komplett übernehmen".
+ *  Which key is where is PanelKeyboard's, what a press means
  *  BarKeyboardModel's; this only draws them and counts fingers.
  *
  *  **It never takes the keyboard focus** -- the field being typed into
@@ -53,55 +56,55 @@ class BarKeyboardComponent : public juce::Component,
 public:
   BarKeyboardComponent ();
 
-  /** The encoders' eight fields in this component's coordinates, and the
-   *  bar's type sizes the keys are lettered in. */
-  void setFields (std::array<juce::Rectangle<int>, 8> const &fields,
-                  ControlMetrics metrics);
+  /** The bar's type sizes the keys are lettered in; the keys stand on the
+   *  panel's grid in this component's bounds. */
+  void setMetrics (ControlMetrics metrics);
 
-  /** The panel: an encoder walks the keys of the field it stands under,
-   *  its press types the one it stands on. `row` 0 is the upper encoder. */
-  void turnEncoder (int column, int row, int increment);
-  void pressEncoder (int column, int row);
+  /** A panel key went down or came up while the keyboard owns the panel.
+   *  Characters type on the press -- a key on the panel is a moment, as on
+   *  a desk keyboard; Backspace and the cursor go on while held. */
+  void pressPanelCell (PanelCell cell, bool down);
 
   std::function<void (juce::KeyPress const &)> onKey;
   std::function<void ()> onHide;
-  /** SHIFT held -- the panel's or the screen's. */
+  /** SHIFT held -- the screen's. */
   std::function<bool ()> isShiftHeld;
 
   void paint (juce::Graphics &g) override;
+  void resized () override;
   void mouseDown (juce::MouseEvent const &e) override;
   void mouseDrag (juce::MouseEvent const &e) override;
   void mouseUp (juce::MouseEvent const &e) override;
   void visibilityChanged () override;
 
   /** Asked on a skin change, after the bar has laid itself out again: the
-   *  fields and the type sizes follow the skin's fonts and Pot Size, and
-   *  the bar's bounds do not always change with them. */
+   *  type sizes follow the skin's fonts and Pot Size, and the bar's bounds
+   *  do not always change with them. */
   std::function<void ()> onPlacementStale;
   void applyTheme () override;
 
 private:
   void timerCallback () override;
   void relayout ();
-  void fire (int keyIndex);
+  void fire (KeyDef const &def);
+  void startRepeating (KeyDef const &def);
+  void stopRepeating ();
   bool keyIsLit (int keyIndex) const;
-  int panelKeyOfBlock (int block) const;
   void paintKey (juce::Graphics &g, int keyIndex) const;
 
-  std::array<juce::Rectangle<int>, 8> _fields{};
   ControlMetrics _metrics{ 0, 0.f, 0.f };
   KeyboardState _state;
   std::vector<KeyCap> _keys;
-
   /** Which key each finger is on, by touch source; -1 once it slid off. */
   std::map<int, int> _pressed;
-  int _repeatingKey = -1;
-  int _repeatingSource = -1;
+  /** The panel keys held down, lit on the screen while they are. */
+  std::set<std::pair<int, int>> _panelHeld;
 
-  /** Per field, the key its encoder stands on, and whether it has been
-   *  turned since the keyboard came up -- only then is it marked. */
-  std::array<int, 8> _panelKey{};
-  std::array<bool, 8> _panelShown{};
+  /** What repeats while held, and who holds it: a finger (its source) or a
+   *  panel key (its cell). */
+  std::optional<KeyDef> _repeating;
+  int _repeatingSource = -1;
+  std::optional<PanelCell> _repeatingCell;
 };
 
 }

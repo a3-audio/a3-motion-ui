@@ -80,6 +80,7 @@ pressKey (KeyboardState &state, KeyDef const &key, bool shiftHeld)
 {
   switch (key.action)
     {
+    case KeyAction::None: return {};
     case KeyAction::Character:
       return typeCharacter (state, key.character, shiftHeld);
     case KeyAction::Backspace: return deliver (juce::KeyPress::backspaceKey);
@@ -107,6 +108,7 @@ keyRepeatsWhileHeld (KeyAction action)
     case KeyAction::Backspace:
     case KeyAction::Left:
     case KeyAction::Right: return true;
+    case KeyAction::None:
     case KeyAction::Character:
     case KeyAction::Enter:
     case KeyAction::Shift:
@@ -117,19 +119,16 @@ keyRepeatsWhileHeld (KeyAction action)
   __builtin_unreachable ();
 }
 
-bool
-encodersDriveKeyboard (bool keyboardShown, bool shiftHeld)
+std::optional<juce::KeyPress>
+cursorKeyOfEncoder (bool keyboardShown, int column, int row, int increment)
 {
-  return keyboardShown && !shiftHeld;
+  if (!keyboardShown || column != 0 || row != 0 || increment == 0)
+    return std::nullopt;
+
+  return juce::KeyPress (increment > 0 ? juce::KeyPress::rightKey
+                                       : juce::KeyPress::leftKey);
 }
 
-int
-steppedKeyInBlock (int count, int current, int increment)
-{
-  if (count <= 0)
-    return 0;
-  auto const stepped = (current + increment) % count;
-  return stepped < 0 ? stepped + count : stepped;
-}
+
 
 }

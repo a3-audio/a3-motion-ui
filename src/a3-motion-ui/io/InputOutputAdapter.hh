@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-ui/io/PanelGrid.hh>
+#include <a3-motion-ui/io/PanelOwnership.hh>
 #include <optional>
 
 #include <JuceHeader.h>
@@ -101,6 +103,14 @@ public:
   index_t getNumEncodersPerChannel ();
   index_t getNumButtons ();
 
+  /** While the in-app keyboard is up, the panel's buttons type: a button
+   *  pressed then goes to \`onPanelKey\` as its place on the panel, and so
+   *  does its release -- not to the pads and keys (PanelOwnership.hh). */
+  void setKeyboardOwnsPanel (bool owned);
+  /** A button that belongs to the keyboard went down or came up. On the
+   *  message thread. */
+  std::function<void (PanelCell cell, bool down)> onPanelKey;
+
 protected:
   /** Set by whichever adapter has managed to reach a panel. */
   bool _hardwareAvailable = false;
@@ -133,6 +143,7 @@ protected:
       Encoder,
       Pot,
       Tap,
+      PanelKey,
     };
 
     Type type;
@@ -201,6 +212,17 @@ protected:
     float value;
   };
 
+  struct InputMessagePanelKey : public InputMessage
+  {
+    InputMessagePanelKey ()
+    {
+      type = Type::PanelKey;
+    }
+
+    PanelCell cell;
+    bool down = false;
+  };
+
   struct InputMessageTap : public InputMessage
   {
     InputMessageTap ()
@@ -260,6 +282,11 @@ protected:
   void inputEncoderEvent (index_t channel, index_t encoderIndex, InputMessageEncoder::Event event);
   void inputPotValue (index_t channel, index_t pot, float value);
   void inputTapTime (juce::int64 timeMicros);
+  /** A button that types (see setKeyboardOwnsPanel), by its panel cell. */
+  void inputPanelKey (PanelCell cell, bool down);
+
+  /** Who the buttons belong to; asked on the adapter's thread. */
+  PanelOwnership _panelOwnership;
 
   /** A key's LED takes a colour, the way a pad's does: what a key looks like
    *  is one rule (theme/FunctionKeyColours.hh) and this is one of its two
@@ -275,6 +302,7 @@ private:
   void handleEncoder (InputMessageEncoder const &message);
   void handlePot (InputMessagePot const &message);
   void handleTap (InputMessageTap const &message);
+  void handlePanelKey (InputMessagePanelKey const &message);
 
   void submitOutputMessage (std::unique_ptr<OutputMessage> message);
   void processOutput ();

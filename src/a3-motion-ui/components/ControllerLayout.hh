@@ -24,6 +24,7 @@
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 #include <a3-motion-ui/io/FunctionKeys.hh>
+#include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
@@ -140,6 +141,11 @@ constexpr float minimumMotionHeight = 100.f;
  *  pads in the bottom four, centred in whatever area it is given
  *  (2026-09-28). `headerSize` and `buttonHeight` are unused; kept so this
  *  reads like layOutClipSettings() at its call site. */
+/** Where panel cell `cell` stands on the page laid out in `contentArea` --
+ *  the one grid PADS and the keyboard share. */
+juce::Rectangle<int> panelCellBounds (juce::Rectangle<int> contentArea,
+                                      PanelCell cell);
+
 ControllerLayout layOutController (juce::Rectangle<int> contentArea,
                                    float headerSize, int buttonHeight);
 

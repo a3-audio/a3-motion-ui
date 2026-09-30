@@ -66,25 +66,27 @@ KeyOutcome pressKey (KeyboardState &state, KeyDef const &key, bool shiftHeld);
 /** Backspace and the cursor go on while held; nothing else does. */
 bool keyRepeatsWhileHeld (KeyAction action);
 
-/** The panel while the keyboard is up (one table, 2026-09-28):
+/** The panel while the keyboard is up (since 2026-09-30):
  *
  *  | Panel                    | While typing                                  |
  *  |--------------------------|-----------------------------------------------|
- *  | encoder, turned          | walks the six keys of the field it stands     |
- *  |                          | under (upper: key rows 1-2, lower: 3-4)       |
- *  | encoder, pressed         | types the key it stands on                    |
- *  | SHIFT + encoder          | FREQ / Q of its channel, as always            |
- *  | SHIFT held + a key       | capital letter                                |
- *  | pads, pots, TAP, clock,  | unchanged -- the set goes on while a name is  |
- *  | REC, recmode, MENU       | typed; MENU still goes back one level         |
+ *  | the 44 keys              | the keyboard's keys (PanelKeyboard.hh); no    |
+ *  |                          | clip fires, TAP/REC/MENU/SHIFT do nothing     |
+ *  |                          | else. HIDE or ESC gives the panel back.       |
+ *  | encoder 1, turned        | the text cursor, left or right                |
+ *  | the other encoders, pots | unchanged -- the mix stays under the hands    |
  *
- *  Why no pad is Enter or Backspace: the pads play the set, and the keyboard
- *  is opened mid-set. A pad that types instead of firing, for as long as a
- *  mask happens to be open, is a clip that did not start. */
-bool encodersDriveKeyboard (bool keyboardShown, bool shiftHeld);
+ *  Until then the pads kept playing while a name was typed, on purpose ("a
+ *  pad that types instead of firing ... is a clip that did not start"). The
+ *  maintainer asked for the opposite: "den hardware controller komplett
+ *  übernehmen wenn aktiviert" -- running clips go on, new ones wait. */
 
-/** An encoder's walk through the `count` keys of its field: wraps both
- *  ways, so no key is more than half a field's turn away. */
-int steppedKeyInBlock (int count, int current, int increment);
+/** While the keyboard is up, encoder 1 (column 0, the upper row) moves the
+ *  text cursor, one key press per detent in the turn's direction -- the
+ *  other encoders keep their own jobs. Nothing for any other encoder, or
+ *  with the keyboard down. */
+std::optional<juce::KeyPress> cursorKeyOfEncoder (bool keyboardShown,
+                                                  int column, int row,
+                                                  int increment);
 
 }

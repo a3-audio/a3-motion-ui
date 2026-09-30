@@ -80,6 +80,8 @@
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
 #include <a3-motion-ui/components/ClipSettingsComponent.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
+#include <a3-motion-ui/io/PanelButtonCells.hh>
+#include <a3-motion-ui/components/PanelKeyboard.hh>
 #include <a3-motion-ui/components/WorkspaceList.hh>
 #include <a3-motion-ui/io/Workspaces.hh>
 
@@ -1021,10 +1023,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // -- the same way a plugged-in keyboard's do -- to whatever holds the focus.
   _barKeyboard = std::make_unique<BarKeyboardComponent> ();
   _barKeyboard->setAlwaysOnTop (true);
-  _barKeyboard->onKey = [this] (juce::KeyPress const &key) {
-    if (auto *peer = getPeer ())
-      peer->handleKeyPress (key);
-  };
+  _barKeyboard->onKey = [this] (juce::KeyPress const &key) { typeKey (key); };
   _barKeyboard->onHide = [this] { showKeyboard (false); };
   _barKeyboard->onPlacementStale = [this] { placeKeyboard (); };
   _barKeyboard->isShiftHeld
@@ -1483,6 +1482,11 @@ A3MotionUIComponent::createHardwareInterface ()
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
+  // While the keyboard is up, the panel's buttons are its keys.
+  _ioAdapter->onPanelKey = [this] (PanelCell cell, bool down) {
+    if (_barKeyboard)
+      _barKeyboard->pressPanelCell (cell, down);
+  };
   _ioAdapter->getButton (Button::ClockMode).addListener (this);
   _ioAdapter->getButton (Button::Menu).addListener (this);
   _ioAdapter->getButton (Button::Record).addListener (this);
@@ -6106,8 +6110,17 @@ A3MotionUIComponent::updateFunctionKeyLEDs ()
   if (!_ioAdapter)
     return;
 
+  // While the keyboard owns the panel, a key's LED says which key it types.
+  // Both end columns share one LED per row, and in every row both ends are
+  // the same kind of key (PanelKeyboard.hh), so the left one speaks for both.
   for (auto const key : functionKeyOrder)
-    _ioAdapter->setButtonLED (key, functionKeyColour (key, look));
+    _ioAdapter->setButtonLED (
+        key, keyboardShown ()
+                 ? keyboardLedColour (
+                     panelKeyAt (KeyboardPage::Letters,
+                                 { functionKeyPosition (key), 0 }),
+                     toColour (theme ().accent), keyboardLetterLed ())
+                 : functionKeyColour (key, look));
 }
 
 void
@@ -6186,8 +6199,18 @@ A3MotionUIComponent::padLEDCallback (int step)
 
           auto const colour = channelColourForPadStatus (
               base, status, statusLast, step);
+          // Under the hand, the keyboard while it is up; the screen's PADS
+          // page keeps showing the set.
+          auto const led
+              = keyboardShown ()
+                    ? keyboardLedColour (
+                        panelKeyAt (KeyboardPage::Letters,
+                                    panelCellOfPad (static_cast<int> (channel),
+                                                    static_cast<int> (pad))),
+                        toColour (theme ().accent), keyboardLetterLed ())
+                    : colour;
           _ioAdapter->getPadLED (channel, pad)
-              = juce::VariantConverter<juce::Colour>::toVar (colour);
+              = juce::VariantConverter<juce::Colour>::toVar (led);
 
           // The same colour to the screen. One place works out what empty,
           // idle, armed and running look like; two places show it.
@@ -7749,6 +7772,11 @@ A3MotionUIComponent::showKeyboard (bool shown)
     return;
 
   _barKeyboard->setVisible (shown);
+  // Up, it owns the panel: every button types until HIDE or ESC, and the
+  // keys' LEDs say so at once (the pads follow on their next frame).
+  if (_ioAdapter)
+    _ioAdapter->setKeyboardOwnsPanel (shown);
+  updateFunctionKeyLEDs ();
   // Above ACTION and CHMIX, which share its area -- without taking the
   // focus from the field it types into.
   if (shown)
@@ -7778,15 +7806,27 @@ A3MotionUIComponent::placeKeyboard ()
     return;
 
   _barKeyboard->setBounds (_clipSettings->clipContentBounds ());
-  _barKeyboard->setFields (_clipSettings->keyboardFields (),
-                           _clipSettings->barMetrics ());
+  _barKeyboard->setMetrics (_clipSettings->barMetrics ());
+}
+
+void
+A3MotionUIComponent::typeKey (juce::KeyPress const &key)
+{
+  if (auto *peer = getPeer ())
+    peer->handleKeyPress (key);
+}
+
+juce::Colour
+A3MotionUIComponent::keyboardLetterLed () const
+{
+  return toColour (theme ().textPrimary)
+      .withBrightness (keyboardLetterLedBrightness);
 }
 
 bool
-A3MotionUIComponent::keyboardTakesEncoders ()
+A3MotionUIComponent::keyboardShown () const
 {
-  return encodersDriveKeyboard (_barKeyboard && _barKeyboard->isVisible (),
-                                isButtonPressed (Button::Shift));
+  return _barKeyboard && _barKeyboard->isVisible ();
 }
 
 void
@@ -8788,9 +8828,11 @@ A3MotionUIComponent::encoderTargetAt (int column, int row)
 void
 A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
 {
-  if (keyboardTakesEncoders ())
+  if (auto const cursor = cursorKeyOfEncoder (keyboardShown (), column, row,
+                                               increment))
     {
-      _barKeyboard->turnEncoder (column, row, increment);
+      for (int step = 0; step < std::abs (increment); ++step)
+        typeKey (*cursor);
       return;
     }
 
@@ -8887,12 +8929,6 @@ void
 A3MotionUIComponent::handleEncoderPress (int column, int row)
 {
   disarmOnOtherInput ();
-
-  if (keyboardTakesEncoders ())
-    {
-      _barKeyboard->pressEncoder (column, row);
-      return;
-    }
 
   // A click switches what the encoder turns, where there are two things
   // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.

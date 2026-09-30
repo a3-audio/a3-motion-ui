@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
+#include <a3-motion-ui/io/PanelGrid.hh>
 
 #include <array>
 #include <vector>
@@ -30,23 +31,11 @@
 namespace a3
 {
 
-/** The in-app keyboard's geometry and its keys (2026-09-28).
+/** The in-app keyboard's keys (2026-09-28): what a key is and what it says.
  *
- *  It stands in the bar's clip content -- the rectangle CLIP, MOTION, ACTION,
- *  CHMIX and REC use -- so the sphere, the channel row, the header and the
- *  global strip stay in view, and with them every field a text is typed
- *  into (the menu's masks and the FILES editor both lie over the sphere).
- *
- *  **It is laid out on the encoders' four by two**: the eight fields CLIP
- *  and REC are made of (`ClipSettingsLayout::pageFields`). Each field holds
- *  two rows of three keys, so the keyboard is four rows of twelve and every
- *  key stands under exactly one encoder -- the one that walks it (see
- *  BarKeyboardModel.hh). A wide key (space, hide) spans whole slots and
- *  crosses a field edge only where two fields meet.
- *
- *  QWERTZ, because the maintainer types German and a hand that knows a
- *  German keyboard finds Z, Y and the umlauts where it expects them. */
-
+ *  Where they stand is the panel's since 2026-09-30 -- see PanelKeyboard.hh:
+ *  the keyboard is the panel's 44 keys, QWERTY. Until then it was four rows
+ *  of twelve on the encoders' fields, QWERTZ, walked by the encoders. */
 enum class KeyboardPage
 {
   Letters,
@@ -56,6 +45,8 @@ enum class KeyboardPage
 
 enum class KeyAction
 {
+  /** No key: a place the panel has none. */
+  None,
   Character,
   Backspace,
   Enter,
@@ -78,37 +69,19 @@ struct KeyDef
   int span = 1;
 };
 
-constexpr int keyboardRows = 4;
-constexpr int keyboardSlotsPerColumn = 3;
-constexpr int keyboardSlotsPerRow = keyboardSlotsPerColumn * 4;
 
-/** A page's row, left to right. */
-std::vector<KeyDef> const &keyboardRow (KeyboardPage page, int row);
 
-/** A key where it stands. `row` 0..3 from the top, `firstSlot` 0..11. */
+/** A key where it stands on the screen. */
 struct KeyCap
 {
   KeyDef def;
   juce::Rectangle<int> bounds;
-  int row = 0;
-  int firstSlot = 0;
+  /** The panel key it is (the first, for the space bar). */
+  PanelCell cell{};
 };
 
-/** The eight fields the keyboard is laid into: the bar's page fields,
- *  whichever page is shown -- ACTION and CHMIX lay out none of their own. */
-std::array<juce::Rectangle<int>, 8>
-keyboardFieldsOf (ClipSettingsLayout const &bar);
 
-/** Every key of a page, in reading order. The gap between keys is the gap
- *  between the fields, so the keyboard keeps the bar's rhythm. */
-std::vector<KeyCap>
-layOutBarKeyboard (std::array<juce::Rectangle<int>, 8> const &fields,
-                   KeyboardPage page);
 
-/** Which keys stand in field `block` (row * 4 + column, as the encoders are
- *  numbered), as indices into `keys`, in reading order. A wide key belongs
- *  to every field it reaches into. */
-std::vector<size_t> keysOfBlock (std::vector<KeyCap> const &keys, int block);
 
 /** The key under `point`, or -1. */
 int keyAt (std::vector<KeyCap> const &keys, juce::Point<int> point);

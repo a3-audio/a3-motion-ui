@@ -235,6 +235,28 @@ InputOutputAdapter::inputTapTime (juce::int64 timeMicros)
 }
 
 void
+InputOutputAdapter::inputPanelKey (PanelCell cell, bool down)
+{
+  auto message = std::make_unique<InputMessagePanelKey> ();
+  message->cell = cell;
+  message->down = down;
+  submitInputMessage (std::move (message));
+}
+
+void
+InputOutputAdapter::setKeyboardOwnsPanel (bool owned)
+{
+  _panelOwnership.setOwnedByKeyboard (owned);
+}
+
+void
+InputOutputAdapter::handlePanelKey (InputMessagePanelKey const &message)
+{
+  if (onPanelKey)
+    onPanelKey (message.cell, message.down);
+}
+
+void
 InputOutputAdapter::submitInputMessage (std::unique_ptr<InputMessage> message)
 {
   jassert (_fifoAbstractInput.getFreeSpace () > 0);
@@ -319,6 +341,14 @@ InputOutputAdapter::handleInputMessage (std::unique_ptr<InputMessage> message)
         auto messageTap = dynamic_cast<InputMessageTap *> (message.get ());
         jassert (messageTap != nullptr);
         handleTap (*messageTap);
+        break;
+      }
+    case InputMessage::Type::PanelKey:
+      {
+        auto messageKey
+            = dynamic_cast<InputMessagePanelKey *> (message.get ());
+        jassert (messageKey != nullptr);
+        handlePanelKey (*messageKey);
         break;
       }
     }
