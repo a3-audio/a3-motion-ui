@@ -64,10 +64,10 @@ struct StatusBarLayout
   /** The clock mode's key, leading the row. */
   juce::Rectangle<int> clockKey;
   /** Over to StemDeck's workspace, and the arrow that lists all of the
-   *  rig's workspaces -- before CLEAN, DECK a key like it, the arrow half. */
+   *  rig's workspaces -- at the right end, where StemDeck has its switch. */
   juce::Rectangle<int> deckKey;
   juce::Rectangle<int> workspacesKey;
-  /** The three keys closing the row, one size: CLEAN, the on-screen
+  /** The three keys before the switch, one size: CLEAN, the on-screen
    *  keyboard, MENU. */
   juce::Rectangle<int> cleanKey;
   juce::Rectangle<int> keyboardKey;

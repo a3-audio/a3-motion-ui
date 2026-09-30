@@ -20,33 +20,91 @@
 
 #include "WorkspaceList.hh"
 
-#include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
 {
 
+namespace switcherLook
+{
 namespace
 {
-// A list key against the bar keys it opens from: twice as wide, so the
-// longest name fits at the header size, and taller, since it is aimed at
-// with a finger over the sphere.
-constexpr float keyWidthOfAnchor = 2.f;
-constexpr float keyHeightOfAnchor = 1.6f;
-constexpr float gapOfAnchorHeight = 0.2f;
+// StemDeck's Theme.h.
+juce::Colour const keyFace{ 0xff26282c };
+juce::Colour const currentFace{ 0xff58595c };
+juce::Colour const outline{ 0xff34363b };
+juce::Colour const text{ 0xffdcdcdc };
+juce::Colour const currentText{ 0xff000000 };
+juce::Colour const panel{ 0xff1c1d20 };
+// LookAndFeel_V4's, not the skin's: the switch looks the same in both apps.
+constexpr float cornerSize = 6.f;
+constexpr float outlineWidth = 1.f;
+constexpr float halfPixel = 0.5f;
 }
+
+void
+paintKey (juce::Graphics &g, juce::Rectangle<int> area,
+          juce::String const &label, bool current)
+{
+  // LookAndFeel_V4's drawButtonBackground and drawButtonText, which is what
+  // StemDeck's keys are.
+  auto const face = area.toFloat ().reduced (halfPixel);
+  g.setColour (current ? currentFace : keyFace);
+  g.fillRoundedRectangle (face, cornerSize);
+  g.setColour (outline);
+  g.drawRoundedRectangle (face, cornerSize, outlineWidth);
+
+  auto const font = juce::Font (juce::FontOptions (
+      juce::jmin (16.f, static_cast<float> (area.getHeight ()) * 0.6f)));
+  auto const yIndent = juce::jmin (4, juce::roundToInt (static_cast<float> (area.getHeight ()) * 0.3f));
+  auto const indent = juce::jmin (
+      juce::roundToInt (font.getHeight () * 0.6f),
+      2 + juce::jmin (area.getWidth (), area.getHeight ()) / 4);
+
+  g.setFont (font);
+  g.setColour (current ? currentText : text);
+  g.drawFittedText (label, area.reduced (indent, yIndent),
+                    juce::Justification::centred, 2);
+}
+
+void
+paintPanel (juce::Graphics &g, juce::Rectangle<int> area)
+{
+  auto const face = area.toFloat ();
+  g.setColour (panel);
+  g.fillRoundedRectangle (face, cornerSize);
+  g.setColour (outline);
+  g.drawRoundedRectangle (face, cornerSize, outlineWidth);
+}
+}
+
 
 WorkspaceList::WorkspaceList () { setVisible (false); }
 
 void
-WorkspaceList::show (std::vector<workspaces::Workspace> entries,
-                     juce::Rectangle<int> anchor)
+WorkspaceList::show (std::vector<workspaces::Workspace> entries)
 {
   _entries = std::move (entries);
-  _anchor = anchor;
   setVisible (!_entries.empty ());
   if (isVisible ())
     toFront (false);
   repaint ();
+}
+
+juce::Rectangle<int>
+WorkspaceList::columnArea () const
+{
+  // Placed in the window's coordinates, where StemDeck's column stands,
+  // though this list is the sphere's child and starts below the bar.
+  auto const *window = getTopLevelComponent ();
+  auto const switcher = workspaces::switcherGeometry (window->getWidth ());
+  auto const height
+      = keyCount () * (switcher.listKeyHeight + switcher.listGap)
+        + switcher.listGap;
+  auto const inWindow = juce::Rectangle<int> (
+      window->getWidth () - switcher.margin - switcher.listWidth,
+      switcher.listTop, switcher.listWidth, height);
+
+  return getLocalArea (window, inWindow).constrainedWithin (getLocalBounds ());
 }
 
 int
@@ -58,50 +116,24 @@ WorkspaceList::keyCount () const
 juce::Rectangle<int>
 WorkspaceList::keyArea (int index) const
 {
-  auto const anchorHeight = static_cast<float> (_anchor.getHeight ());
-  auto const width
-      = juce::roundToInt (static_cast<float> (_anchor.getWidth ())
-                          * keyWidthOfAnchor);
-  auto const height = juce::roundToInt (anchorHeight * keyHeightOfAnchor);
-  auto const gap = juce::roundToInt (anchorHeight * gapOfAnchorHeight);
+  auto const switcher = workspaces::switcherGeometry (
+      getTopLevelComponent ()->getWidth ());
+  auto const step = switcher.listKeyHeight + switcher.listGap;
 
-  auto const column
-      = juce::Rectangle<int> (_anchor.getRight () - width,
-                              _anchor.getBottom () + gap, width,
-                              keyCount () * (height + gap))
-            .constrainedWithin (getLocalBounds ());
-
-  return column.withY (column.getY () + index * (height + gap))
-      .withHeight (height);
+  return columnArea ()
+      .reduced (switcher.listGap)
+      .withTrimmedTop (index * step)
+      .withHeight (switcher.listKeyHeight);
 }
 
 void
 WorkspaceList::paint (juce::Graphics &g)
 {
-  g.setFont (juce::Font (
-      juce::FontOptions (theme ().fontSize (FontRole::Header))));
-
+  switcherLook::paintPanel (g, columnArea ());
   for (int i = 0; i < keyCount (); ++i)
     {
       auto const &entry = _entries[static_cast<size_t> (i)];
-      auto const face = keyArea (i).toFloat ();
-
-      // Solid, not washed: the sphere moves behind it.
-      g.setColour (toColour (theme ().surfaceRaised));
-      g.fillRoundedRectangle (face, theme ().radiusControl);
-      if (entry.current)
-        {
-          g.setColour (toColour (theme ().accent, theme ().alphaFillEmphasis));
-          g.fillRoundedRectangle (face, theme ().radiusControl);
-        }
-      g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
-      g.drawRoundedRectangle (face, theme ().radiusControl,
-                              theme ().strokeThin);
-
-      g.setColour (entry.current ? toColour (theme ().accent)
-                                 : toColour (theme ().textPrimary));
-      g.drawFittedText (entry.label, keyArea (i), juce::Justification::centred,
-                        1);
+      switcherLook::paintKey (g, keyArea (i), entry.label, entry.current);
     }
 }
 

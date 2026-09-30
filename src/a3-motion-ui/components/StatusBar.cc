@@ -22,6 +22,7 @@
 
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/WorkspaceList.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <algorithm>
@@ -441,9 +442,11 @@ StatusBar::paint (juce::Graphics &g)
                         juce::Justification::centred, 1);
     }
 
-  paintWordKey (g, _layout.deckKey, "DECK", true, false);
-  paintWordKey (g, _layout.workspacesKey,
-                juce::String::fromUTF8 ("\xe2\x96\xbe"), true, false);
+  // The switch in StemDeck's look, not the skin's: it is the same key in
+  // both apps, named after the app it goes to.
+  switcherLook::paintKey (g, _layout.deckKey, "STEMDECK", false);
+  switcherLook::paintKey (g, _layout.workspacesKey,
+                          juce::String::fromUTF8 ("\xe2\x96\xbe"), false);
   paintWordKey (g, _layout.cleanKey, "CLEAN", _cleanAvailable, _cleanActive);
   paintKeyboardKey (g);
   paintWordKey (g, _layout.menuKey, "MENU", true, _menuOpen);
