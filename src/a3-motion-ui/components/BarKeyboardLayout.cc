@@ -225,6 +225,7 @@ keyLabel (KeyDef const &key, KeyboardPage page, bool upper)
 {
   switch (key.action)
     {
+    case KeyAction::None: return {};
     case KeyAction::Character:
       if (key.character == ' ')
         return "SPACE";

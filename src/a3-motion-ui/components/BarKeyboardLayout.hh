@@ -56,6 +56,8 @@ enum class KeyboardPage
 
 enum class KeyAction
 {
+  /** No key: a place the panel has none. */
+  None,
   Character,
   Backspace,
   Enter,

@@ -80,6 +80,7 @@ pressKey (KeyboardState &state, KeyDef const &key, bool shiftHeld)
 {
   switch (key.action)
     {
+    case KeyAction::None: return {};
     case KeyAction::Character:
       return typeCharacter (state, key.character, shiftHeld);
     case KeyAction::Backspace: return deliver (juce::KeyPress::backspaceKey);
@@ -107,6 +108,7 @@ keyRepeatsWhileHeld (KeyAction action)
     case KeyAction::Backspace:
     case KeyAction::Left:
     case KeyAction::Right: return true;
+    case KeyAction::None:
     case KeyAction::Character:
     case KeyAction::Enter:
     case KeyAction::Shift:
