@@ -78,6 +78,7 @@ class PadRowDisplay;
 class StatusBar;
 class ChannelStrip;
 class GlobalSettingsComponent;
+class WorkspaceList;
 class ClipSettingsComponent;
 class ChannelUIState;
 class Pattern;
@@ -209,6 +210,8 @@ private:
   std::array<int, numSpeedButtons> _speedButtonLog2
       = AppSettings{}.speedButtonLog2;
 
+  /** The bar's arrow: open the workspace list, or close it again. */
+  void toggleWorkspaceList ();
   void createMainUI ();
   std::unique_ptr<MotionComponent> _motionComponent;
   std::unique_ptr<StatusBar> _statusBar;
@@ -668,6 +671,10 @@ private:
   // (Button::Menu). Shares the bottom-quarter settings area with
   // ClipSettingsComponent.
   std::unique_ptr<GlobalSettingsComponent> _globalSettings;
+  /** The rig's workspaces, opened from the bar's arrow. Over the sphere
+   *  like the menu, and for the same reason: the sphere's GL image covers
+   *  anything that is not its child. */
+  std::unique_ptr<WorkspaceList> _workspaceList;
   std::unique_ptr<OverlayButtons> _overlayButtons;
   std::unique_ptr<OverlaySideStrips> _overlayStrips;
 

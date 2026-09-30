@@ -316,6 +316,12 @@ StatusBar::setMenuOpen (bool open)
   repaint (_layout.menuKey);
 }
 
+juce::Rectangle<int>
+StatusBar::workspacesAnchor () const
+{
+  return _layout.deckKey.getUnion (_layout.workspacesKey);
+}
+
 void
 StatusBar::mouseDown (juce::MouseEvent const &event)
 {
@@ -332,6 +338,20 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
     {
       if (_cleanAvailable && onCleanIconTapped)
         onCleanIconTapped ();
+      return;
+    }
+
+  if (_layout.deckKey.contains (at))
+    {
+      if (onDeckKeyTapped)
+        onDeckKeyTapped ();
+      return;
+    }
+
+  if (_layout.workspacesKey.contains (at))
+    {
+      if (onWorkspacesKeyTapped)
+        onWorkspacesKeyTapped ();
       return;
     }
 
@@ -421,6 +441,9 @@ StatusBar::paint (juce::Graphics &g)
                         juce::Justification::centred, 1);
     }
 
+  paintWordKey (g, _layout.deckKey, "DECK", true, false);
+  paintWordKey (g, _layout.workspacesKey,
+                juce::String::fromUTF8 ("\xe2\x96\xbe"), true, false);
   paintWordKey (g, _layout.cleanKey, "CLEAN", _cleanAvailable, _cleanActive);
   paintKeyboardKey (g);
   paintWordKey (g, _layout.menuKey, "MENU", true, _menuOpen);

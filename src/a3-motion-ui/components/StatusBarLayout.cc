@@ -59,7 +59,17 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   out.menuKey = rest.removeFromRight (keyW);
   out.keyboardKey = rest.removeFromRight (keyW);
   out.cleanKey = rest.removeFromRight (keyW);
+  // Before CLEAN: over to StemDeck, and the arrow listing every workspace.
+  out.workspacesKey = rest.removeFromRight (keyW / 2);
+  out.deckKey = rest.removeFromRight (keyW);
   out.clockKey = rest.removeFromLeft (keyW);
+
+  // Still centred, but never under a key: on a narrow bar the display gives
+  // way rather than the keys.
+  auto const tickRoom = 2 * (out.deckKey.getX () - barWidth / 2);
+  if (out.tick.getWidth () > tickRoom)
+    out.tick = out.tick.withSizeKeepingCentre (juce::jmax (0, tickRoom),
+                                               out.tick.getHeight ());
 
   // What is left of the display's left edge carries the two readings: the
   // tempo, then what was last done, standing against the display so the

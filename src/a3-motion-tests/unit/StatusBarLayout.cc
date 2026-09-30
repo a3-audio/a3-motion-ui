@@ -76,7 +76,8 @@ TEST (StatusBarLayout, AShortBarStillKeepsItsReadings)
   EXPECT_FALSE (l.tick.isEmpty ());
   EXPECT_FALSE (l.bpm.isEmpty ());
   EXPECT_FALSE (l.readout.isEmpty ());
-  for (auto const &key : { l.clockKey, l.cleanKey, l.keyboardKey, l.menuKey })
+  for (auto const &key : { l.clockKey, l.deckKey, l.workspacesKey, l.cleanKey,
+                           l.keyboardKey, l.menuKey })
     EXPECT_FALSE (key.isEmpty ());
 }
 
@@ -128,7 +129,6 @@ TEST (StatusBarLayout, TheThreeKeysCloseTheRowInOneSize)
   EXPECT_EQ (l.menuKey.getRight (), row.getRight ());
   EXPECT_LE (l.keyboardKey.getRight (), l.menuKey.getX ());
   EXPECT_LE (l.cleanKey.getRight (), l.keyboardKey.getX ());
-  EXPECT_LE (l.tick.getRight (), l.cleanKey.getX ());
 
   for (auto const &key : { l.cleanKey, l.keyboardKey })
     EXPECT_EQ (key.getWidth (), l.menuKey.getWidth ());
@@ -136,6 +136,35 @@ TEST (StatusBarLayout, TheThreeKeysCloseTheRowInOneSize)
   // Wide enough for a word, and never under the row's height.
   EXPECT_GE (l.menuKey.getWidth (), row.getHeight ());
   EXPECT_EQ (l.menuKey.getHeight (), row.getHeight ());
+}
+
+// DECK and the workspace list's arrow stand before CLEAN (asked for on
+// 2026-09-30): over to StemDeck in one tap, anywhere else in two. DECK is a
+// key like CLEAN; the arrow only opens a list, so it takes half.
+TEST (StatusBarLayout, TheWorkspaceKeysStandBeforeClean)
+{
+  auto const l = deviceLayout ();
+
+  EXPECT_LE (l.deckKey.getRight (), l.workspacesKey.getX ());
+  EXPECT_EQ (l.workspacesKey.getRight (), l.cleanKey.getX ());
+  EXPECT_EQ (l.deckKey.getWidth (), l.menuKey.getWidth ());
+  EXPECT_EQ (l.workspacesKey.getWidth (), l.menuKey.getWidth () / 2);
+  EXPECT_EQ (l.workspacesKey.getHeight (), l.menuKey.getHeight ());
+}
+
+// The beat display stays centred and gives way rather than running under a
+// key -- on the device and on a narrower screen, where the keys reach further
+// in.
+TEST (StatusBarLayout, TheBeatDisplayNeverRunsUnderAKey)
+{
+  for (auto const width : { deviceWidth, 600 })
+    {
+      auto const l = statusBarLayout (rowOf (width, barHeight), width, padding);
+
+      EXPECT_LE (l.tick.getRight (), l.deckKey.getX ()) << width;
+      EXPECT_EQ (l.tick.getCentreX (), width / 2) << width;
+      EXPECT_FALSE (l.tick.isEmpty ()) << width;
+    }
 }
 
 // Nothing at all is not a layout. An empty row has to come back empty rather
