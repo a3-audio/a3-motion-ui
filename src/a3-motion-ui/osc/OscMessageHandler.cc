@@ -28,7 +28,8 @@ namespace a3
 {
 
 OscMessageHandler::OscMessageHandler (MotionEngine &engine, Listener &listener)
-    : _engine (engine), _listener (listener)
+    : _addresses (oscAddressesFrom (installedOscTruth ())), _engine (engine),
+      _listener (listener)
 {
 }
 
@@ -141,8 +142,8 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       std::array<std::pair<juce::String const *, Value>, 5> const carried{ {
           { &_addresses.channelAzimuth, Value::Azimuth },
           { &_addresses.channelElevation, Value::Elevation },
-          { &_addresses.channelPot1, Value::Pot1 },
-          { &_addresses.channelPot2, Value::Pot2 },
+          { &_addresses.channelFilterFrequency, Value::Pot1 },
+          { &_addresses.channelFilterQ, Value::Pot2 },
           { &_addresses.channelThreeD, Value::ThreeD },
       } };
 
@@ -153,7 +154,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
           auto const number = static_cast<int> (channel);
 
           for (auto const &[pattern, which] : carried)
-            if (address == withChannel (*pattern, number))
+            if (address == withChannelIndex (*pattern, number))
               {
                 _listener.onChannelValue (number, which, value);
                 return;
@@ -177,7 +178,7 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
           for (std::size_t slot = 0; slot < _addresses.mixerChannel.size ();
                ++slot)
             if (address
-                == withChannel (_addresses.mixerChannel[slot], number))
+                == withChannelIndex (_addresses.mixerChannel[slot], number))
               {
                 _listener.onMixerChannelValue (number,
                                                static_cast<int> (slot), value);

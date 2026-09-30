@@ -578,11 +578,11 @@ private:
                             index_t channel, index_t slot);
 
   // OSC Receiver for beat clock (port 7771)
-  /** The addresses this device speaks, read from config.json. Pushed on to
-   *  the engine and the message handler whenever the config is reloaded —
+  /** The addresses this device speaks, from the one truth (a3-osc.json).
+   *  Pushed on to the engine and the message handler once, at start-up --
    *  see applyOscAddresses(). */
   OscAddresses _oscAddresses;
-  void applyOscAddresses (juce::var const &config);
+  void applyOscAddresses ();
 
   /** The beat address again, for the tempo-clock thread.
    *
@@ -591,7 +591,7 @@ private:
    *  the struct is a race. Handed over the same way the send backend gets
    *  its addresses: stored under the lock, picked up at the top of the tick
    *  where the flag costs one atomic load. */
-  juce::String _beatAddress{ "/beat" };
+  juce::String _beatAddress{ "/a3-osc-missing/beat" };
   std::mutex _beatAddressMutex;
   juce::String _pendingBeatAddress;
   std::atomic<bool> _beatAddressPending{ false };

@@ -185,7 +185,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
                                    + recallGraceMillis);
 
   _oscMessageHandler = std::make_unique<OscMessageHandler> (_engine, *this);
-  applyOscAddresses (userConfig);
+  applyOscAddresses ();
 
   if (runsOnHardware ())
     {
@@ -238,11 +238,6 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // rendered image. That is the only way anything can sit on top of the
   // sphere — and the only way the menu can be see-through and still show
   // the skin it is editing behind it.
-  // Editing an address in the menu writes config.json; the watcher picks
-  // that up and this puts it in force without a restart.
-  _motionComponent->onAppConfigReloaded
-      = [this] (juce::var const &config) { applyOscAddresses (config); };
-
   // Back and close, over whatever is open. A child of MotionComponent like
   // the overlays themselves, so it composites above the GL context.
   _overlayButtons = std::make_unique<OverlayButtons> ();
@@ -423,7 +418,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // where a control sits in it, and it is the same one MixerState indexes
   // with.
   _mixerState.channelAddress = [this] (int channel, MixerControl control) {
-    return withChannel (
+    return withChannelIndex (
         _oscAddresses.mixerChannel[static_cast<std::size_t> (
             controlSlot (control))],
         channel);
@@ -7323,9 +7318,13 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
 }
 
 void
-A3MotionUIComponent::applyOscAddresses (juce::var const &config)
+A3MotionUIComponent::applyOscAddresses ()
 {
-  _oscAddresses = loadOscAddresses (config);
+  _oscAddresses = oscAddressesFrom (installedOscTruth ());
+  for (auto const &key : missingOscKeys (installedOscTruth ()))
+    std::cerr << "ERROR: a3-osc.json has no address '" << key
+              << "' -- sending /a3-osc-missing/" << key << " instead"
+              << std::endl;
 
   // The engine's backend sends on its own thread and picks these up there;
   // the message handler receives on this one and can take them directly.

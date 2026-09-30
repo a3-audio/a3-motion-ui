@@ -76,7 +76,7 @@ coreBackend ()
 {
   auto const endpoints = loadOscEndpoints (userConfig);
   return std::make_unique<SpatBackendA3> (endpoints.host, endpoints.corePort,
-                                          loadOscAddresses (userConfig));
+                                          oscAddressesFrom (installedOscTruth ()));
 }
 
 /** Passes the backend through, asserting it exists. Checked here, on the way

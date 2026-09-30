@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <MadeUpOscTruth.hh>
+
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/MotionEngine.hh>
@@ -174,14 +176,25 @@ struct RecordingListener : public OscMessageHandler::Listener
   }
 };
 
+
+namespace
+{
+OscAddresses
+madeUpAddresses ()
+{
+  return oscAddressesFrom (madeUpOscTruth ());
+}
+}
+
 TEST (OscMessageHandler, RoutesChannelVUToListener)
 {
   HeightMapSphere heightMap;
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/vu/2");
+  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "2");
   message.addFloat32 (0.5f);
   message.addFloat32 (0.25f);
 
@@ -201,8 +214,9 @@ TEST (OscMessageHandler, RoutesSubwooferVUToListener)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/vu/4");
+  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "4");
   message.addFloat32 (0.9f);
   message.addFloat32 (0.8f);
 
@@ -218,8 +232,9 @@ TEST (OscMessageHandler, RoutesSpeakerVUToListenerWithZeroBasedIndex)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/vu/6"); // speaker index 6 - 5 = 1
+  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "6"); // speaker index 6 - 5 = 1
   message.addFloat32 (0.1f);
   message.addFloat32 (0.2f);
 
@@ -235,13 +250,14 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   // Seed a known, non-zero tempo. Zero would make TempoClock's live clock
   // thread divide by zero when computing nanoseconds-per-tick, so never feed
   // 0 BPM to a running engine.
   engine.setTempoBPM (60.f);
 
-  juce::OSCMessage message ("/beat");
+  juce::OSCMessage message (madeUpAddresses ().beatIn);
   message.addInt32 (2);   // beat
   message.addInt32 (5);   // bar
   message.addInt32 (128); // bpm
@@ -273,9 +289,10 @@ TEST (OscMessageHandler, TheTempoArrivesWithItsFraction)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
   engine.setTempoBPM (60.f);
 
-  juce::OSCMessage message ("/beat");
+  juce::OSCMessage message (madeUpAddresses ().beatIn);
   message.addInt32 (1);
   message.addInt32 (3);
   message.addFloat32 (117.454f);
@@ -294,6 +311,7 @@ TEST (OscMessageHandler, EnergyGridIsForwardedInOrder)
   MotionEngine engine{ 4, heightMap };
   RecordingListener listener;
   OscMessageHandler handler{ engine, listener };
+  handler.setAddresses (madeUpAddresses ());
 
   juce::OSCMessage message{ juce::OSCAddressPattern ("/EnergyVisualizer/RMS") };
   for (int i = 0; i < 426; ++i)
@@ -315,6 +333,7 @@ TEST (OscMessageHandler, EnergyGridOfTheWrongLengthIsRejected)
   MotionEngine engine{ 4, heightMap };
   RecordingListener listener;
   OscMessageHandler handler{ engine, listener };
+  handler.setAddresses (madeUpAddresses ());
 
   juce::OSCMessage message{ juce::OSCAddressPattern ("/EnergyVisualizer/RMS") };
   for (int i = 0; i < 12; ++i)
@@ -340,8 +359,9 @@ TEST (OscMessageHandler, RoutesChannelAzimuthToListener)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/1/azimuth");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelAzimuth, 1));
   message.addFloat32 (45.f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -358,12 +378,13 @@ TEST (OscMessageHandler, RoutesChannelElevationToListener)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   // Degrees, and negative ones at that: Core clamps elevation to -90..90 and
   // the OSC reference's "[0-1]" for this address is wrong. A handler that
   // assumed a normalised value would put every sound below the horizon on
   // the horizon.
-  juce::OSCMessage message ("/channel/3/elevation");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelElevation, 3));
   message.addFloat32 (-63.f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -380,8 +401,9 @@ TEST (OscMessageHandler, IgnoresAPositionWithNoValue)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  handler.handleMessage (juce::OSCMessage ("/channel/1/azimuth"),
+  handler.handleMessage (juce::OSCMessage (withChannelIndex (madeUpAddresses ().channelAzimuth, 1)),
                          /*clockMode=*/0);
 
   EXPECT_EQ (listener.azimuthCalls, 0);
@@ -393,8 +415,9 @@ TEST (OscMessageHandler, IgnoresAPositionThatIsNotANumber)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/1/azimuth");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelAzimuth, 1));
   message.addString ("nach vorne");
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -408,8 +431,9 @@ TEST (OscMessageHandler, IgnoresAChannelThisRigDoesNotHave)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/9/azimuth");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelAzimuth, 9));
   message.addFloat32 (45.f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -423,8 +447,9 @@ TEST (OscMessageHandler, AVuMessageIsStillNotAPosition)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/vu/2");
+  juce::OSCMessage message (madeUpAddresses ().vuPrefix + "2");
   message.addFloat32 (0.5f);
   message.addFloat32 (0.25f);
 
@@ -444,22 +469,25 @@ TEST (OscMessageHandler, FollowsAReconfiguredPositionAddress)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  OscAddresses addresses;
+  auto addresses = madeUpAddresses ();
+  auto const before = addresses.channelAzimuth;
   addresses.channelAzimuth = "/a3/{ch}/az";
   handler.setAddresses (addresses);
 
+  // Channel 2 on the wire is the second channel, index 1.
   juce::OSCMessage message ("/a3/2/az");
   message.addFloat32 (-12.f);
 
   handler.handleMessage (message, /*clockMode=*/0);
 
   EXPECT_EQ (listener.azimuthCalls, 1);
-  EXPECT_EQ (listener.lastPositionChannel, 2);
+  EXPECT_EQ (listener.lastPositionChannel, 1);
   EXPECT_FLOAT_EQ (listener.lastAzimuth, -12.f);
 
   // And the old address is no longer one.
-  juce::OSCMessage stale ("/channel/2/azimuth");
+  juce::OSCMessage stale (withChannelIndex (before, 1));
   stale.addFloat32 (99.f);
   handler.handleMessage (stale, /*clockMode=*/0);
 
@@ -479,8 +507,9 @@ TEST (OscMessageHandler, RoutesTheEncoderPotsToListener)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage first ("/channel/2/pot_1");
+  juce::OSCMessage first (withChannelIndex (madeUpAddresses ().channelFilterFrequency, 2));
   first.addFloat32 (0.4f);
   handler.handleMessage (first, /*clockMode=*/0);
 
@@ -489,7 +518,7 @@ TEST (OscMessageHandler, RoutesTheEncoderPotsToListener)
   EXPECT_EQ (listener.lastWhich, Value::Pot1);
   EXPECT_FLOAT_EQ (listener.lastValue, 0.4f);
 
-  juce::OSCMessage second ("/channel/2/pot_2");
+  juce::OSCMessage second (withChannelIndex (madeUpAddresses ().channelFilterQ, 2));
   second.addFloat32 (0.5f);
   handler.handleMessage (second, /*clockMode=*/0);
 
@@ -506,8 +535,9 @@ TEST (OscMessageHandler, RoutesTheCrossfadeToListener)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/1/3d");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelThreeD, 1));
   message.addFloat32 (0.62f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -528,13 +558,14 @@ TEST (OscMessageHandler, TheFiveValuesAreToldApart)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   std::vector<std::pair<juce::String, Value> > const expected{
-    { "/channel/0/azimuth", Value::Azimuth },
-    { "/channel/0/elevation", Value::Elevation },
-    { "/channel/0/pot_1", Value::Pot1 },
-    { "/channel/0/pot_2", Value::Pot2 },
-    { "/channel/0/3d", Value::ThreeD },
+    { withChannelIndex (madeUpAddresses ().channelAzimuth, 0), Value::Azimuth },
+    { withChannelIndex (madeUpAddresses ().channelElevation, 0), Value::Elevation },
+    { withChannelIndex (madeUpAddresses ().channelFilterFrequency, 0), Value::Pot1 },
+    { withChannelIndex (madeUpAddresses ().channelFilterQ, 0), Value::Pot2 },
+    { withChannelIndex (madeUpAddresses ().channelThreeD, 0), Value::ThreeD },
   };
 
   for (auto const &[address, which] : expected)
@@ -559,8 +590,9 @@ TEST (OscMessageHandler, RoutesAMixerChannelValueToItsSlot)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/2/gain");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().mixerChannel[0], 2));
   message.addFloat32 (0.4f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -584,12 +616,13 @@ TEST (OscMessageHandler, EveryStripAddressFindsItsOwnSlot)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   std::vector<juce::String> const addresses{
-    "/channel/0/gain",   "/channel/0/eq/high",
-    "/channel/0/eq/mid", "/channel/0/eq/low",
-    "/channel/0/volume", "/channel/0/fx-send",
-    "/channel/0/pfl",    "/channel/0/fx",
+    withChannelIndex (madeUpAddresses ().mixerChannel[0], 0),   withChannelIndex (madeUpAddresses ().mixerChannel[1], 0),
+    withChannelIndex (madeUpAddresses ().mixerChannel[2], 0), withChannelIndex (madeUpAddresses ().mixerChannel[3], 0),
+    withChannelIndex (madeUpAddresses ().mixerChannel[4], 0), withChannelIndex (madeUpAddresses ().mixerChannel[5], 0),
+    withChannelIndex (madeUpAddresses ().mixerChannel[6], 0),    withChannelIndex (madeUpAddresses ().mixerChannel[7], 0),
   };
 
   for (std::size_t slot = 0; slot < addresses.size (); ++slot)
@@ -616,8 +649,9 @@ TEST (OscMessageHandler, TheStripDoesNotSwallowThePots)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/3/pot_1");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().channelFilterFrequency, 3));
   message.addFloat32 (0.3f);
 
   handler.handleMessage (message, /*clockMode=*/0);
@@ -638,10 +672,11 @@ TEST (OscMessageHandler, EveryMasterAddressFindsItsOwnSlot)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   std::vector<juce::String> const addresses{
-    "/master/volume",        "/master/booth", "/master/phones_mix",
-    "/master/phones_volume", "/master/return",
+    madeUpAddresses ().mixerMaster[0],        madeUpAddresses ().mixerMaster[1], madeUpAddresses ().mixerMaster[2],
+    madeUpAddresses ().mixerMaster[3], madeUpAddresses ().mixerMaster[4],
   };
 
   for (std::size_t slot = 0; slot < addresses.size (); ++slot)
@@ -664,14 +699,15 @@ TEST (OscMessageHandler, EveryFilterAddressFindsItsOwnSlot)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
   // /fx/mode arrives as a number, not as the word the desk's LEDs get: 1 is
   // high pass. That is the spelling this device already *sends* on the same
   // address, which is the whole reason Core answers on it.
   std::vector<juce::String> const addresses{
-    "/fx/mode",
-    "/fx/frequency",
-    "/fx/resonance",
+    madeUpAddresses ().mixerFilter[0],
+    madeUpAddresses ().mixerFilter[1],
+    madeUpAddresses ().mixerFilter[2],
   };
 
   for (std::size_t slot = 0; slot < addresses.size (); ++slot)
@@ -696,8 +732,9 @@ TEST (OscMessageHandler, AChannelAddressIsNotAMasterOne)
   MotionEngine engine (4, heightMap);
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
 
-  juce::OSCMessage message ("/channel/0/volume");
+  juce::OSCMessage message (withChannelIndex (madeUpAddresses ().mixerChannel[4], 0));
   message.addFloat32 (0.8f);
   handler.handleMessage (message, /*clockMode=*/0);
 

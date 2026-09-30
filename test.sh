@@ -85,8 +85,19 @@ mkdir -p "$COMMITTED_DIR"
 git -C "$SCRIPT_DIR" archive HEAD config pattern | tar -x -C "$COMMITTED_DIR"
 COMMITTED_AT="$(git -C "$SCRIPT_DIR" log -1 --format='%h')"
 
+# The one truth for OSC is a3-core's file, not this repository's. Installed it
+# is /usr/share/a3/a3-osc.json; on a machine without the package, the a3-core
+# checkout beside this one. OscTruthContract fails without either -- and the
+# line below says which one the run held Motion against.
+if [ -z "$A3_OSC_TRUTH" ] && [ ! -f /usr/share/a3/a3-osc.json ]; then
+    BESIDE="$SCRIPT_DIR/../a3-core/platform-config/debian-x86_64/a3-core/usr/share/a3/a3-osc.json"
+    [ -f "$BESIDE" ] && export A3_OSC_TRUTH="$(realpath "$BESIDE")"
+fi
+OSC_TRUTH_USED="${A3_OSC_TRUTH:-/usr/share/a3/a3-osc.json}"
+
 echo ""
 echo "=== Running tests ($BUILD_TYPE, runner built $BUILT_AT, library as committed in $COMMITTED_AT) ==="
+echo "=== OSC truth: $OSC_TRUTH_USED ==="
 
 set +e
 ctest --test-dir "$BUILD_DIR" --output-on-failure "${CTEST_ARGS[@]}"
