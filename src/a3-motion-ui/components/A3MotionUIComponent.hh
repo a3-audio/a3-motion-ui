@@ -618,7 +618,7 @@ private:
 
   private:
     std::mutex _addressMutex;
-    juce::String _address{ "/beat" };
+    juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
   /** The engine's own beats, stamped on the clock's thread. */
