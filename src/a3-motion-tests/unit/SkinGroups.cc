@@ -102,23 +102,20 @@ TEST (SkinGroups, AnUnknownKeyLandsSomewhereRatherThanNowhere)
                skinGroupOrder (heading));
 }
 
-// The same editor shows the Network page, whose keys are none of the above and
-// grouped themselves perfectly well by their own path. They keep doing that:
+// The same editor shows the config pages, whose keys are none of the above
+// and group themselves perfectly well by their own path. They keep doing that:
 // a grouping that tidied one page by flattening another would be a trade, not
 // an improvement.
 TEST (SkinGroups, PathsFromAnotherPageKeepTheirOwnHeadings)
 {
-  EXPECT_EQ (skinGroupFor ("oscAddresses.out.channelAzimuth"),
-             "oscAddresses.out");
-  EXPECT_EQ (skinGroupFor ("oscAddresses.in.vuPrefix"), "oscAddresses.in");
-  EXPECT_EQ (skinGroupFor ("oscSender.host"), "oscSender");
+  EXPECT_EQ (skinGroupFor ("buttonLeds.play"), "buttonLeds");
+  EXPECT_EQ (skinGroupFor ("buttonLeds.record.colour"), "buttonLeds.record");
 
-  // Together and after everything a skin has, so neither page interrupts the
-  // other if they ever appear in one list.
-  EXPECT_EQ (skinGroupOrder (skinGroupFor ("oscSender.host")),
-             skinGroupOrder (skinGroupFor ("oscReceiver.port")));
+  // After everything a skin has, so a config page never interrupts it.
+  EXPECT_EQ (skinGroupOrder (skinGroupFor ("buttonLeds.play")),
+             skinGroupOrder (skinGroupFor ("buttonLeds.record.colour")));
   EXPECT_LT (skinGroupOrder (skinGroupFor ("blob.whiteBlend")),
-             skinGroupOrder (skinGroupFor ("oscSender.host")));
+             skinGroupOrder (skinGroupFor ("buttonLeds.play")));
 }
 
 // Radii and insets are one subject and belong under one heading — scattered

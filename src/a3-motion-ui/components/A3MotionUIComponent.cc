@@ -1083,9 +1083,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       _ioAdapter->getTapTimeMicros ().addListener (_tempoEstimatorTest.get ());
     }
 
-  // Setup OSC Receiver from config
-  int oscRecvPort = 7771; // default
-  juce::String oscRecvHost = "0.0.0.0";
+  // Where Motion listens and sends: the one truth, a3-osc.json.
+  auto const endpoints = oscEndpointsFrom (installedOscTruth ());
+  if (!installedOscTruth ().isValid ())
+    std::cerr << "ERROR: " << installedOscTruth ().error ()
+              << " -- OSC stays closed" << std::endl;
+
+  auto const oscRecvPort = endpoints.receivePort;
   if (userConfig.hasProperty ("ui"))
     {
       auto const uiConfig = userConfig["ui"];
@@ -1094,17 +1098,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
             = static_cast<bool> (uiConfig["pauseRenderingInMenu"]);
     }
 
-  if (userConfig.hasProperty ("oscReceiver"))
-    {
-      auto oscRecvConfig = userConfig["oscReceiver"];
-      if (oscRecvConfig.hasProperty ("port"))
-        oscRecvPort = static_cast<int> (oscRecvConfig["port"]);
-      if (oscRecvConfig.hasProperty ("host"))
-        oscRecvHost = oscRecvConfig["host"].toString ();
-    }
   if (_oscReceiver.connect (oscRecvPort))
     {
-      std::cout << "OSC Receiver listening on " << oscRecvHost << ":" << oscRecvPort << std::endl;
+      std::cout << "OSC Receiver listening on port " << oscRecvPort << std::endl;
       _oscReceiver.addListener (this);
 
       _beatArrival.setAddress (_oscAddresses.beatIn);
@@ -1129,16 +1125,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     }
 
   // Setup OSC Receiver for VU meters (separate port)
-  int oscVuPort = 7772; // default
-  if (userConfig.hasProperty ("oscReceiver"))
-    {
-      auto oscRecvConfig = userConfig["oscReceiver"];
-      if (oscRecvConfig.hasProperty ("vuPort"))
-        oscVuPort = static_cast<int> (oscRecvConfig["vuPort"]);
-    }
+  auto const oscVuPort = endpoints.vuPort;
   if (_oscReceiverVU.connect (oscVuPort))
     {
-      std::cout << "OSC VU Receiver listening on " << oscRecvHost << ":" << oscVuPort << std::endl;
+      std::cout << "OSC VU Receiver listening on port " << oscVuPort << std::endl;
       _oscReceiverVU.addListener (this);
     }
   else
@@ -1149,16 +1139,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // Setup OSC Receiver for the IEM EnergyVisualizer (separate port again —
   // it sends 426 floats at 9 Hz and has no business sharing a socket with the
   // beat clock).
-  int oscEnergyPort = 7777; // default
-  if (userConfig.hasProperty ("oscReceiver"))
-    {
-      auto oscRecvConfig = userConfig["oscReceiver"];
-      if (oscRecvConfig.hasProperty ("energyPort"))
-        oscEnergyPort = static_cast<int> (oscRecvConfig["energyPort"]);
-    }
+  auto const oscEnergyPort = endpoints.energyPort;
   if (_oscReceiverEnergy.connect (oscEnergyPort))
     {
-      std::cout << "OSC Energy Receiver listening on " << oscRecvHost << ":" << oscEnergyPort << std::endl;
+      std::cout << "OSC Energy Receiver listening on port " << oscEnergyPort << std::endl;
       _oscReceiverEnergy.addListener (this);
     }
   else
@@ -1166,40 +1150,31 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
       std::cerr << "ERROR: Could not bind OSC Energy Receiver to port " << oscEnergyPort << std::endl;
     }
 
-  // Setup the OSC senders from config. Two destinations, not one: the beat
-  // clock and the tap belong to the beat-analyzer, everything the mixer turns
-  // belongs to A3 Core -- which is where MotionEngine's SpatBackendA3 already
-  // sends the spatial position. loadOscEndpoints() is the one place that reads
-  // which is which.
-  //
-  // The guard is older than that function and disagrees with it: without an
-  // "oscSender" block none of these three connects, while MotionEngine takes
-  // loadOscEndpoints()'s defaults and still reaches Core. So a config missing
-  // the block gives spatial motion with a dead mixer rather than a dead app,
-  // which is confusing but not what ships -- config.json has the block.
-  if (userConfig.hasProperty ("oscSender"))
+  // The OSC senders. Two destinations, not one: the beat clock and the tap
+  // belong to the beat-analyzer, everything the mixer turns belongs to
+  // A3 Core -- which is where MotionEngine's SpatBackendA3 already sends the
+  // spatial position. oscEndpointsFrom() is the one place that says which
+  // is which.
+  auto const &clock = endpoints.beatclock;
+  if (_oscSender.connect (clock.host, clock.port))
+    std::cout << "OSC Sender for beatclock connected to " << clock.host << ":" << clock.port << std::endl;
+  else
+    std::cerr << "ERROR: OSC Sender failed to connect to " << clock.host << ":" << clock.port << std::endl;
+
+  // Direct tap sender (same host/port, bypasses async queue for zero latency)
+  if (_tapSender.connect (clock.host, clock.port))
+    std::cout << "OSC Tap Sender connected to " << clock.host << ":" << clock.port << std::endl;
+  else
+    std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
+
+  auto const &core = endpoints.core;
+  if (_mixerSender.connect (core.host, core.port))
     {
-      auto const endpoints = loadOscEndpoints (userConfig);
-
-      if (_oscSender.connect (endpoints.host, endpoints.beatclockPort))
-        std::cout << "OSC Sender for beatclock connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
-      else
-        std::cerr << "ERROR: OSC Sender failed to connect to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
-
-      // Direct tap sender (same host/port, bypasses async queue for zero latency)
-      if (_tapSender.connect (endpoints.host, endpoints.beatclockPort))
-        std::cout << "OSC Tap Sender connected to " << endpoints.host << ":" << endpoints.beatclockPort << std::endl;
-      else
-        std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
-
-      if (_mixerSender.connect (endpoints.host, endpoints.corePort))
-        {
-          std::cout << "OSC Sender for mixer connected to " << endpoints.host << ":" << endpoints.corePort << std::endl;
-          askCoreForItsState ();
-        }
-      else
-        std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << endpoints.host << ":" << endpoints.corePort << std::endl;
+      std::cout << "OSC Sender for mixer connected to " << core.host << ":" << core.port << std::endl;
+      askCoreForItsState ();
     }
+  else
+    std::cerr << "ERROR: OSC Sender for mixer failed to connect to " << core.host << ":" << core.port << std::endl;
 }
 
 A3MotionUIComponent::~A3MotionUIComponent ()
@@ -7226,7 +7201,6 @@ A3MotionUIComponent::rebuildGlobalSettingsOptions ()
 
   add (MenuRow::Skin, { "Skin", std::move (skinValues), _skinIndex });
   add (MenuRow::SkinEditor, { "Skin Editor", { { "open" } }, 0, true });
-  add (MenuRow::Network, { "Network", { { "open" } }, 0, true });
   add (MenuRow::ButtonLeds, { "Button LEDs", { { "open" } }, 0, true });
   add (MenuRow::PatternFolder, { "Pattern Folder", { { "open" } }, 0, true });
   add (MenuRow::SphereInMenu,
@@ -7297,10 +7271,6 @@ A3MotionUIComponent::confirmGlobalSettingsOption ()
     {
     case MenuRow::Skin: applySkin (chosen); break;
     case MenuRow::SkinEditor: openSkinEditor (); break;
-    case MenuRow::Network:
-      openConfigPage ("Network",
-                      { "oscSender", "oscReceiver", "oscAddresses" });
-      break;
     case MenuRow::ButtonLeds:
       openConfigPage ("Button LEDs", { "buttonLeds" });
       break;

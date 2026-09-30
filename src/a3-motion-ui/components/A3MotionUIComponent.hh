@@ -829,7 +829,6 @@ private:
   {
     Skin,
     SkinEditor,
-    Network,
     ButtonLeds,
     PatternFolder,
     SphereInMenu,

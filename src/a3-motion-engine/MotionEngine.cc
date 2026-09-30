@@ -66,17 +66,16 @@ MotionEngine::calculateSubSamplingFactor (Measure recordingLength, int beatsPerB
 
 namespace
 {
-/** The backend the engine sends through, aimed at A3 Core.
- *
- *  Through loadOscEndpoints() rather than off the config directly, so that
- *  the spatial position and the mixer read where Core is from one function
- *  instead of each picking a key out of the same block by hand. */
+/** The backend the engine sends through, aimed at A3 Core -- where the one
+ *  truth says Core listens, through oscEndpointsFrom() like the mixer, so
+ *  the spatial position and the mixer cannot disagree about where that is. */
 std::unique_ptr<SpatBackendA3>
 coreBackend ()
 {
-  auto const endpoints = loadOscEndpoints (userConfig);
-  return std::make_unique<SpatBackendA3> (endpoints.host, endpoints.corePort,
-                                          oscAddressesFrom (installedOscTruth ()));
+  auto const &truth = installedOscTruth ();
+  auto const core = oscEndpointsFrom (truth).core;
+  return std::make_unique<SpatBackendA3> (core.host, core.port,
+                                          oscAddressesFrom (truth));
 }
 
 /** Passes the backend through, asserting it exists. Checked here, on the way

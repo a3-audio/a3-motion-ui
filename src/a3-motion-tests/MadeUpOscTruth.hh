@@ -22,6 +22,9 @@
 
 #include <JuceHeader.h>
 
+#include <initializer_list>
+#include <tuple>
+
 #include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-engine/OscTruth.hh>
 
@@ -49,8 +52,35 @@ madeUpOscTruth (juce::StringArray const &leaveOut = {})
         addresses->setProperty (juce::Identifier (key), juce::var (entry));
       }
 
+  auto *hosts = new juce::DynamicObject ();
+  hosts->setProperty ("local", "127.0.0.9");
+  hosts->setProperty ("any", "0.0.0.0");
+  hosts->setProperty ("core", "10.9.9.10");
+
+  // Ports nobody uses, and a Core on a host of its own, so an endpoint can
+  // only have come from here.
+  juce::Array<juce::var> listeners;
+  for (auto const &[program, role, host, port] :
+       std::initializer_list<std::tuple<char const *, char const *,
+                                        char const *, int> >{
+           { "core", "osc", "core", 19000 },
+           { "beat-analyzer", "clock", "any", 17775 },
+           { "motion", "osc", "any", 17771 },
+           { "motion", "vu", "any", 17772 },
+           { "motion", "energy", "any", 17777 } })
+    {
+      auto *listener = new juce::DynamicObject ();
+      listener->setProperty ("program", program);
+      listener->setProperty ("role", role);
+      listener->setProperty ("host", host);
+      listener->setProperty ("port", port);
+      listeners.add (juce::var (listener));
+    }
+
   auto *root = new juce::DynamicObject ();
   root->setProperty ("addresses", juce::var (addresses));
+  root->setProperty ("hosts", juce::var (hosts));
+  root->setProperty ("listeners", listeners);
   return parseOscTruth (juce::JSON::toString (juce::var (root)));
 }
 
