@@ -35,11 +35,11 @@ constexpr int minPadding = 4;
  *  per channel, and the right-hand key column. The panel's rows 0-1 over the pads carry its pots, which the
  *  screen has elsewhere, so that band stays empty here as it is on the
  *  panel. */
-constexpr int panelRows = 6;
-constexpr int firstPadRow = 2;
+constexpr int firstPadRow = firstPanelPadRow;
 constexpr int sceneColumns = 1;
 constexpr int gridColumns
     = sceneColumns + 2 * static_cast<int> (numChannelColumns) + 1;
+static_assert (gridColumns == panelColumns, "the page is the panel");
 constexpr int rightKeyColumn = gridColumns - 1;
 constexpr int leftKeyColumn = 0;
 
@@ -90,6 +90,13 @@ padCellInBox (index_t pad)
   // 4..7 down the right (padFunctionByPadIndex says which is which).
   return { static_cast<int> (pad / 4), static_cast<int> (pad % 4) };
 }
+}
+
+juce::Rectangle<int>
+panelCellBounds (juce::Rectangle<int> contentArea, PanelCell cell)
+{
+  return fitPanelGrid (contentArea.reduced (minPadding, minPadding))
+      .at (cell.col, cell.row);
 }
 
 ControllerLayout

@@ -1319,16 +1319,6 @@ ClipSettingsComponent::clipContentBounds () const
   return _layout.clipContent;
 }
 
-std::array<juce::Rectangle<int>, 8>
-ClipSettingsComponent::keyboardFields () const
-{
-  auto fields = keyboardFieldsOf (_layout);
-  auto const origin = _layout.clipContent.getPosition ();
-  for (auto &field : fields)
-    field -= origin;
-  return fields;
-}
-
 void
 ClipSettingsComponent::showControlsOfPage ()
 {

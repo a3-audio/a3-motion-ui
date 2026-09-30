@@ -21,6 +21,8 @@
 #include "BarKeyboardComponent.hh"
 
 #include <a3-motion-ui/components/BarButton.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/PanelKeyboard.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -49,11 +51,15 @@ BarKeyboardComponent::BarKeyboardComponent ()
 }
 
 void
-BarKeyboardComponent::setFields (
-    std::array<juce::Rectangle<int>, 8> const &fields, ControlMetrics metrics)
+BarKeyboardComponent::setMetrics (ControlMetrics metrics)
 {
-  _fields = fields;
   _metrics = metrics;
+  relayout ();
+}
+
+void
+BarKeyboardComponent::resized ()
+{
   relayout ();
 }
 
@@ -67,69 +73,15 @@ BarKeyboardComponent::applyTheme ()
 void
 BarKeyboardComponent::relayout ()
 {
-  _keys = layOutBarKeyboard (_fields, _state.page);
+  _keys = layOutPanelKeyboard (getLocalBounds (), _state.page);
   _pressed.clear ();
-  _repeatingKey = -1;
-  stopTimer ();
-  repaint ();
-}
-
-int
-BarKeyboardComponent::panelKeyOfBlock (int block) const
-{
-  auto const keys = keysOfBlock (_keys, block);
-  if (keys.empty ())
-    return -1;
-  auto const at = juce::jlimit (0, static_cast<int> (keys.size ()) - 1,
-                                _panelKey[static_cast<size_t> (block)]);
-  return static_cast<int> (keys[static_cast<size_t> (at)]);
-}
-
-void
-BarKeyboardComponent::turnEncoder (int column, int row, int increment)
-{
-  if (column < 0 || column > 3 || row < 0 || row > 1 || increment == 0)
-    return;
-
-  auto const block = static_cast<size_t> (row * 4 + column);
-  auto const count = static_cast<int> (keysOfBlock (_keys, row * 4 + column).size ());
-
-  // The first detent shows where the encoder stands rather than moving it
-  // from a place nobody could see: right lands on the field's first key,
-  // left on its last.
-  if (!_panelShown[block])
-    {
-      _panelShown[block] = true;
-      _panelKey[block] = increment > 0 ? 0 : count - 1;
-    }
-  else
-    _panelKey[block] = steppedKeyInBlock (count, _panelKey[block], increment);
-
+  stopRepeating ();
   repaint ();
 }
 
 void
-BarKeyboardComponent::pressEncoder (int column, int row)
+BarKeyboardComponent::fire (KeyDef const &def)
 {
-  if (column < 0 || column > 3 || row < 0 || row > 1)
-    return;
-
-  auto const block = row * 4 + column;
-  if (!_panelShown[static_cast<size_t> (block)])
-    return;
-
-  auto const key = panelKeyOfBlock (block);
-  if (key >= 0)
-    fire (key);
-}
-
-void
-BarKeyboardComponent::fire (int keyIndex)
-{
-  if (keyIndex < 0 || keyIndex >= static_cast<int> (_keys.size ()))
-    return;
-
-  auto const def = _keys[static_cast<size_t> (keyIndex)].def;
   auto const pageBefore = _state.page;
   auto const shiftHeld = isShiftHeld && isShiftHeld ();
   auto const outcome = pressKey (_state, def, shiftHeld);
@@ -146,6 +98,49 @@ BarKeyboardComponent::fire (int keyIndex)
 }
 
 void
+BarKeyboardComponent::startRepeating (KeyDef const &def)
+{
+  _repeating = def;
+  startTimer (repeatDelayMs);
+}
+
+void
+BarKeyboardComponent::stopRepeating ()
+{
+  _repeating.reset ();
+  _repeatingSource = -1;
+  _repeatingCell.reset ();
+  stopTimer ();
+}
+
+void
+BarKeyboardComponent::pressPanelCell (PanelCell cell, bool down)
+{
+  auto const key = std::make_pair (cell.row, cell.col);
+  auto const def = panelKeyAt (_state.page, cell);
+
+  if (!down)
+    {
+      _panelHeld.erase (key);
+      if (_repeatingCell && *_repeatingCell == cell)
+        stopRepeating ();
+      repaint ();
+      return;
+    }
+
+  if (def.action == KeyAction::None)
+    return;
+
+  _panelHeld.insert (key);
+  fire (def);
+  if (keyRepeatsWhileHeld (def.action))
+    {
+      startRepeating (def);
+      _repeatingCell = cell;
+    }
+}
+
+void
 BarKeyboardComponent::mouseDown (juce::MouseEvent const &e)
 {
   auto const key = keyAt (_keys, e.getPosition ());
@@ -158,12 +153,12 @@ BarKeyboardComponent::mouseDown (juce::MouseEvent const &e)
   // Backspace and the cursor act on touch and go on while held; every other
   // key types on release, so a finger that lands on the wrong key can slide
   // off it.
-  if (keyRepeatsWhileHeld (_keys[static_cast<size_t> (key)].def.action))
+  auto const def = _keys[static_cast<size_t> (key)].def;
+  if (keyRepeatsWhileHeld (def.action))
     {
-      _repeatingKey = key;
+      fire (def);
+      startRepeating (def);
       _repeatingSource = source;
-      fire (key);
-      startTimer (repeatDelayMs);
     }
 
   repaint ();
@@ -183,10 +178,7 @@ BarKeyboardComponent::mouseDrag (juce::MouseEvent const &e)
   // Slid off: the key is let go without typing.
   found->second = -1;
   if (source == _repeatingSource)
-    {
-      _repeatingKey = -1;
-      stopTimer ();
-    }
+    stopRepeating ();
   repaint ();
 }
 
@@ -203,28 +195,26 @@ BarKeyboardComponent::mouseUp (juce::MouseEvent const &e)
 
   if (source == _repeatingSource)
     {
-      _repeatingKey = -1;
-      _repeatingSource = -1;
-      stopTimer ();
+      stopRepeating ();
       repaint ();
       return;
     }
 
   if (key >= 0 && keyAt (_keys, e.getPosition ()) == key)
-    fire (key);
+    fire (_keys[static_cast<size_t> (key)].def);
   repaint ();
 }
 
 void
 BarKeyboardComponent::timerCallback ()
 {
-  if (_repeatingKey < 0)
+  if (!_repeating)
     {
       stopTimer ();
       return;
     }
 
-  fire (_repeatingKey);
+  fire (*_repeating);
   startTimer (repeatIntervalMs);
 }
 
@@ -237,11 +227,9 @@ BarKeyboardComponent::visibilityChanged ()
   // Put away, it forgets what hands were doing on it; the page stays, so a
   // keyboard brought back for a number comes back on the digits.
   _pressed.clear ();
-  _repeatingKey = -1;
-  _repeatingSource = -1;
-  stopTimer ();
+  _panelHeld.clear ();
+  stopRepeating ();
   _state.shift = ShiftState::Off;
-  _panelShown.fill (false);
 }
 
 bool
@@ -251,8 +239,13 @@ BarKeyboardComponent::keyIsLit (int keyIndex) const
     if (key == keyIndex)
       return true;
 
-  auto const &def = _keys[static_cast<size_t> (keyIndex)].def;
-  return def.action == KeyAction::Shift && _state.shift != ShiftState::Off;
+  auto const &cap = _keys[static_cast<size_t> (keyIndex)];
+  for (auto const &[row, col] : _panelHeld)
+    if (cap.bounds.contains (panelCellBounds (getLocalBounds (), { row, col })
+                                 .getCentre ()))
+      return true;
+
+  return cap.def.action == KeyAction::Shift && _state.shift != ShiftState::Off;
 }
 
 void
@@ -291,20 +284,6 @@ BarKeyboardComponent::paint (juce::Graphics &g)
 
   for (int i = 0; i < static_cast<int> (_keys.size ()); ++i)
     paintKey (g, i);
-
-  // Where each turned encoder stands: a ring, not a fill, so it never reads
-  // as a key held down.
-  g.setColour (toColour (theme ().textPrimary, theme ().alphaSecondary));
-  for (int block = 0; block < 8; ++block)
-    {
-      if (!_panelShown[static_cast<size_t> (block)])
-        continue;
-      auto const key = panelKeyOfBlock (block);
-      if (key < 0)
-        continue;
-      g.drawRoundedRectangle (_keys[static_cast<size_t> (key)].bounds.toFloat (),
-                              theme ().radiusControl, theme ().strokeThick);
-    }
 }
 
 }

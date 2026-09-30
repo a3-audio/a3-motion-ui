@@ -41,4 +41,9 @@ namespace a3
  *
  *  The symbols page changes rows 2-4 only. */
 KeyDef panelKeyAt (KeyboardPage page, PanelCell cell);
+
+/** The keys as the screen draws them in `area`: one per panel cell, on the
+ *  PADS grid, except the four space cells, which are one bar. */
+std::vector<KeyCap> layOutPanelKeyboard (juce::Rectangle<int> area,
+                                         KeyboardPage page);
 }

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 namespace a3
 {
 
@@ -46,7 +48,7 @@ typedRow (KeyboardPage page, int row)
   static char const *const letters[] = { "qwertyuiop", "asdfghjkl-",
                                          "zxcvbnm,./" };
   static char const *const symbols[] = { "1234567890", "-/:;()=+_*",
-                                         "{}[]<>\\|!?" };
+                                         "{}[]<>\\|!~" };
   auto const index = static_cast<std::size_t> (row - firstPanelPadRow);
   return page == KeyboardPage::Letters ? letters[index] : symbols[index];
 }
@@ -65,6 +67,32 @@ bottomRowKey (int col)
     default: return character (' ');
     }
 }
+}
+
+std::vector<KeyCap>
+layOutPanelKeyboard (juce::Rectangle<int> area, KeyboardPage page)
+{
+  std::vector<KeyCap> out;
+  for (auto const &cell : panelCells ())
+    {
+      auto const def = panelKeyAt (page, cell);
+      auto const bounds = panelCellBounds (area, cell);
+      auto const isSpace
+          = def.action == KeyAction::Character && def.character == ' ';
+
+      // The space cells are one bar on the screen; on the panel they stay
+      // four keys (panelKeyAt answers for each).
+      if (isSpace && !out.empty () && out.back ().cell.row == cell.row
+          && out.back ().def.character == ' '
+          && out.back ().def.action == KeyAction::Character)
+        {
+          out.back ().bounds = out.back ().bounds.getUnion (bounds);
+          continue;
+        }
+
+      out.push_back ({ def, bounds, cell });
+    }
+  return out;
 }
 
 KeyDef

@@ -1021,10 +1021,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // -- the same way a plugged-in keyboard's do -- to whatever holds the focus.
   _barKeyboard = std::make_unique<BarKeyboardComponent> ();
   _barKeyboard->setAlwaysOnTop (true);
-  _barKeyboard->onKey = [this] (juce::KeyPress const &key) {
-    if (auto *peer = getPeer ())
-      peer->handleKeyPress (key);
-  };
+  _barKeyboard->onKey = [this] (juce::KeyPress const &key) { typeKey (key); };
   _barKeyboard->onHide = [this] { showKeyboard (false); };
   _barKeyboard->onPlacementStale = [this] { placeKeyboard (); };
   _barKeyboard->isShiftHeld
@@ -7778,15 +7775,20 @@ A3MotionUIComponent::placeKeyboard ()
     return;
 
   _barKeyboard->setBounds (_clipSettings->clipContentBounds ());
-  _barKeyboard->setFields (_clipSettings->keyboardFields (),
-                           _clipSettings->barMetrics ());
+  _barKeyboard->setMetrics (_clipSettings->barMetrics ());
+}
+
+void
+A3MotionUIComponent::typeKey (juce::KeyPress const &key)
+{
+  if (auto *peer = getPeer ())
+    peer->handleKeyPress (key);
 }
 
 bool
-A3MotionUIComponent::keyboardTakesEncoders ()
+A3MotionUIComponent::keyboardShown () const
 {
-  return encodersDriveKeyboard (_barKeyboard && _barKeyboard->isVisible (),
-                                isButtonPressed (Button::Shift));
+  return _barKeyboard && _barKeyboard->isVisible ();
 }
 
 void
@@ -8788,9 +8790,11 @@ A3MotionUIComponent::encoderTargetAt (int column, int row)
 void
 A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
 {
-  if (keyboardTakesEncoders ())
+  if (auto const cursor = cursorKeyOfEncoder (keyboardShown (), column, row,
+                                               increment))
     {
-      _barKeyboard->turnEncoder (column, row, increment);
+      for (int step = 0; step < std::abs (increment); ++step)
+        typeKey (*cursor);
       return;
     }
 
@@ -8887,12 +8891,6 @@ void
 A3MotionUIComponent::handleEncoderPress (int column, int row)
 {
   disarmOnOtherInput ();
-
-  if (keyboardTakesEncoders ())
-    {
-      _barKeyboard->pressEncoder (column, row);
-      return;
-    }
 
   // A click switches what the encoder turns, where there are two things
   // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.

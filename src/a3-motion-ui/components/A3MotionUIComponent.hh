@@ -803,7 +803,10 @@ private:
   void  toggleKeyboard ();
   /** Whether the panel's encoders type rather than turn: the keyboard is
    *  up and SHIFT is not held (BarKeyboardModel.hh has the table). */
-  bool  keyboardTakesEncoders ();
+  /** The in-app keyboard is up -- and with it, owns the panel. */
+  bool keyboardShown () const;
+  /** A key press to whatever holds the focus, as a plugged-in keyboard's. */
+  void typeKey (juce::KeyPress const &key);
   /** The keyboard onto the bar's clip content and its fields. */
   void  placeKeyboard ();
   /** Light the status bar's icon for what the browsed row allows. */

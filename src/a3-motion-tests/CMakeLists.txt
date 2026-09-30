@@ -239,6 +239,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/PanelGrid.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/PanelKeyboard.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/BarKeyboardComponent.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/io/Workspaces.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/WorkspaceList.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui/components/StatusBar.cc"
