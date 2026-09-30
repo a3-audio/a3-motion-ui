@@ -30,14 +30,14 @@ constexpr int padGap = 4;
 constexpr int minPadding = 4;
 
 /** The panel as a grid of equal square cells (InputOutputAdapterV3.hh):
- *  six rows, the pads in rows 2-5 between the key columns. Across: the scene
- *  block (two columns, the screen's own), two per channel, and the right-hand
- *  key column. The panel's rows 0-1 over the pads carry its pots, which the
+ *  six rows, the pads in rows 2-5 between the key columns. Across: the
+ *  panel's ten -- the left column (TAP and clock over the scene column), two
+ *  per channel, and the right-hand key column. The panel's rows 0-1 over the pads carry its pots, which the
  *  screen has elsewhere, so that band stays empty here as it is on the
  *  panel. */
 constexpr int panelRows = 6;
 constexpr int firstPadRow = 2;
-constexpr int sceneColumns = 2;
+constexpr int sceneColumns = 1;
 constexpr int gridColumns
     = sceneColumns + 2 * static_cast<int> (numChannelColumns) + 1;
 constexpr int rightKeyColumn = gridColumns - 1;
@@ -113,12 +113,12 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
                 .getUnion (grid.at (firstColumn + 1, panelRows - 1));
     }
 
-  // The scene block, shaped like a channel: its pad `p` in the same cell as
+  // The scene column, in the panel's left column: its pad `p` level with
   // every channel's pad `p`.
   for (std::size_t pad = 0; pad < numSceneRows; ++pad)
     {
       auto const cell = padCellInBox (static_cast<index_t> (pad));
-      out.scenes[0][pad] = grid.at (cell.x, firstPadRow + cell.y);
+      out.scenes[0][pad] = grid.at (leftKeyColumn, firstPadRow + cell.y);
     }
 
   for (std::size_t i = 0; i < numPanelKeys; ++i)

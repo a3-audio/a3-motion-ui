@@ -2489,15 +2489,6 @@ A3MotionUIComponent::handleScenePress (index_t, std::size_t pad)
   auto const function = padFunctionByPadIndex[pad];
   for (index_t channel = 0; channel < _patterns.size (); ++channel)
     {
-      // The scene block's Page cell stops every channel: the panel has no
-      // Stop pads since 2026-09-27, and Page across four channels would
-      // only step the shown one's pages.
-      if (function == PadFunction::Page)
-        {
-          stopChannel (channel);
-          continue;
-        }
-
       auto const &pattern = _patterns[channel][0];
       if (!pattern)
         continue;
