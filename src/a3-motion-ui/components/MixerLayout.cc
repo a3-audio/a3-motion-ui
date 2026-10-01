@@ -380,7 +380,7 @@ mixerStripFieldOf (MixerLayout const &layout, MixerControl control)
       case MixerControl::EqHigh: return 1;
       case MixerControl::EqMid: return 2;
       case MixerControl::EqLow: return 3;
-      case MixerControl::FxSend: return 4;
+      case MixerControl::AuxSend: return 4;
       case MixerControl::Pfl: return 5;
       case MixerControl::Fx: return 6;
       default: return -1;

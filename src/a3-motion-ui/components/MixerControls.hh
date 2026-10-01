@@ -40,7 +40,7 @@ namespace a3
  *  where it is set once, the three bands under it, the volume under them, the
  *  two keys at the foot.
  *
- *  **fx-send arrived on 2026-09-12**, and the condition written here for it
+ *  **fx-send (aux-send since 2026-10-01) arrived on 2026-09-12**, and the condition written here for it
  *  is what let it in: it used to carry the 3D crossfade, which is what
  *  Motion's own 3d value does, so a fader for it would have been a second
  *  control for one function. Core gave the desk's pot its own job back, and
@@ -65,7 +65,7 @@ enum class MixerControl
   EqMid,
   EqLow,
   Volume,
-  FxSend,
+  AuxSend,
   Pfl,
   Fx,
 };
@@ -75,7 +75,7 @@ constexpr int numMixerControls = 8;
 /** Top to bottom on a vertical strip; left to right on the bar's one. */
 constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Gain,   MixerControl::EqHigh, MixerControl::EqMid,
-  MixerControl::EqLow,  MixerControl::Volume, MixerControl::FxSend,
+  MixerControl::EqLow,  MixerControl::Volume, MixerControl::AuxSend,
   MixerControl::Pfl,    MixerControl::Fx,
 };
 
@@ -88,7 +88,7 @@ constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
 constexpr int numMixerFaceControls = 7;
 constexpr std::array<MixerControl, numMixerFaceControls> mixerFaceOrder{
   MixerControl::Gain,  MixerControl::EqHigh, MixerControl::EqMid,
-  MixerControl::EqLow, MixerControl::FxSend, MixerControl::Pfl,
+  MixerControl::EqLow, MixerControl::AuxSend, MixerControl::Pfl,
   MixerControl::Fx,
 };
 
@@ -156,7 +156,7 @@ mixerControlRestPosition (MixerControl control)
     return 0.5f;
   if (control == MixerControl::Gain)
     return 1.f;
-  if (control == MixerControl::FxSend)
+  if (control == MixerControl::AuxSend)
     return 0.f;
   return {};
 }
@@ -185,7 +185,7 @@ constexpr float
 mixerControlStartPosition (MixerControl control)
 {
   if (control == MixerControl::Gain || control == MixerControl::Volume
-      || control == MixerControl::FxSend)
+      || control == MixerControl::AuxSend)
     return 0.f;
 
   if (auto const rest = mixerControlRestPosition (control))
@@ -213,7 +213,7 @@ mixerControlLabel (MixerControl control)
       return "LOW";
     case MixerControl::Volume:
       return "VOL";
-    case MixerControl::FxSend:
+    case MixerControl::AuxSend:
       return "SEND";
     case MixerControl::Pfl:
       return "PFL";

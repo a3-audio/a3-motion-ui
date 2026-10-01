@@ -130,7 +130,7 @@ TEST (EncoderMap, OnChmixTheShownChannelsEightFields)
   // SEND PFL FX VOL since 2026-09-27: 3D, FREQ and Q left CHMIX for the
   // channel row. PFL and FX are keys, a press flips them.
   EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).kind, EncoderTarget::Kind::Mixer);
-  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).mixer, MixerControl::FxSend);
+  EXPECT_EQ (turn (BarPage::Mixer, 0, bottom).mixer, MixerControl::AuxSend);
   EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).kind,
              EncoderTarget::Kind::MixerKey);
   EXPECT_EQ (turn (BarPage::Mixer, 1, bottom).mixer, MixerControl::Pfl);

@@ -153,7 +153,7 @@ TEST (MixerState, TheThreeThatMustNotGuessStartAtZero)
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::Gain), 0.f);
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::Volume),
                        0.f);
-      EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::FxSend),
+      EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::AuxSend),
                        0.f);
       EXPECT_FLOAT_EQ (state.channelValue (channel, MixerControl::EqMid),
                        0.5f);

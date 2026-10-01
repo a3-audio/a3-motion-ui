@@ -303,7 +303,7 @@ TEST (MixerLayout, TheBarsStripIsFieldsBesideItsMeter)
   std::array<juce::Rectangle<int>, 7> const expected{
     at (MixerControl::Gain),   at (MixerControl::EqHigh),
     at (MixerControl::EqMid),  at (MixerControl::EqLow),
-    at (MixerControl::FxSend), at (MixerControl::Pfl),
+    at (MixerControl::AuxSend), at (MixerControl::Pfl),
     at (MixerControl::Fx),
   };
   for (std::size_t i = 0; i < expected.size (); ++i)
@@ -380,7 +380,7 @@ TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
   // The EQ row: GAIN to LOW. SEND went into the row under it on 2026-09-27
   // -- see TheBarsStripsSendStandsLeftOfIts3d.
   auto const keys
-      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
+      = static_cast<std::size_t> (faceSlot (MixerControl::AuxSend));
 
   for (std::size_t i = 1; i < keys; ++i)
     EXPECT_GE (layout.controls[0][i].getX (),

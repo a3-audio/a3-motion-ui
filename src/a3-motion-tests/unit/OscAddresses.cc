@@ -66,7 +66,7 @@ TEST (OscAddresses, TheMixerTablesComeFromTheTruthInControlOrder)
   EXPECT_EQ (channel (MixerControl::EqMid), "/t/channel.eq.mid/{ch}");
   EXPECT_EQ (channel (MixerControl::EqLow), "/t/channel.eq.low/{ch}");
   EXPECT_EQ (channel (MixerControl::Volume), "/t/channel.volume/{ch}");
-  EXPECT_EQ (channel (MixerControl::FxSend), "/t/channel.fx-send/{ch}");
+  EXPECT_EQ (channel (MixerControl::AuxSend), "/t/channel.aux-send/{ch}");
   EXPECT_EQ (channel (MixerControl::Pfl), "/t/channel.pfl/{ch}");
   EXPECT_EQ (channel (MixerControl::Fx), "/t/channel.filter/{ch}");
 
@@ -74,7 +74,7 @@ TEST (OscAddresses, TheMixerTablesComeFromTheTruthInControlOrder)
   EXPECT_EQ (master (MasterControl::Booth), "/t/master.booth");
   EXPECT_EQ (master (MasterControl::PhonesMix), "/t/master.phones-mix");
   EXPECT_EQ (master (MasterControl::PhonesVolume), "/t/master.phones-volume");
-  EXPECT_EQ (master (MasterControl::Return), "/t/master.fx-return");
+  EXPECT_EQ (master (MasterControl::Return), "/t/master.aux-return");
 
   EXPECT_EQ (filter (FilterControl::Mode), "/t/filter.mode");
   EXPECT_EQ (filter (FilterControl::Frequency), "/t/filter.frequency");
