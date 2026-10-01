@@ -40,8 +40,8 @@ TEST (MixerControls, AStripReadsGainEqVolumeSendThenTheTwoKeys)
   EXPECT_EQ (mixerControlOrder[2], MixerControl::EqMid);
   EXPECT_EQ (mixerControlOrder[3], MixerControl::EqLow);
   EXPECT_EQ (mixerControlOrder[4], MixerControl::Volume);
-  EXPECT_EQ (mixerControlOrder[5], MixerControl::FxSend);
-  EXPECT_EQ (mixerControlOrder[6], MixerControl::Pfl);
+  EXPECT_EQ (mixerControlOrder[5], MixerControl::AuxSend);
+  EXPECT_EQ (mixerControlOrder[6], MixerControl::Cue);
   EXPECT_EQ (mixerControlOrder[7], MixerControl::Fx);
   EXPECT_EQ (numMixerControls, 8);
 }
@@ -56,8 +56,8 @@ TEST (MixerControls, ThePagesDrawEverythingButTheVolume)
   EXPECT_EQ (mixerFaceOrder[1], MixerControl::EqHigh);
   EXPECT_EQ (mixerFaceOrder[2], MixerControl::EqMid);
   EXPECT_EQ (mixerFaceOrder[3], MixerControl::EqLow);
-  EXPECT_EQ (mixerFaceOrder[4], MixerControl::FxSend);
-  EXPECT_EQ (mixerFaceOrder[5], MixerControl::Pfl);
+  EXPECT_EQ (mixerFaceOrder[4], MixerControl::AuxSend);
+  EXPECT_EQ (mixerFaceOrder[5], MixerControl::Cue);
   EXPECT_EQ (mixerFaceOrder[6], MixerControl::Fx);
   EXPECT_EQ (faceSlot (MixerControl::Volume), -1);
   EXPECT_EQ (faceSlot (MixerControl::Fx), numMixerFaceControls - 1);
@@ -80,7 +80,7 @@ TEST (MixerControls, TheMastersPotsAreEverythingButItsVolume)
 // that drifted behind them would be drawn as a key.
 TEST (MixerControls, TheSendIsTurnedAndComesBeforeTheKeys)
 {
-  EXPECT_FALSE (mixerControlIsAToggle (MixerControl::FxSend));
+  EXPECT_FALSE (mixerControlIsAToggle (MixerControl::AuxSend));
   EXPECT_TRUE (mixerControlIsAToggle (mixerControlOrder[6]));
   EXPECT_TRUE (mixerControlIsAToggle (mixerControlOrder[7]));
 }
@@ -134,7 +134,7 @@ TEST (MixerControls, TheTogglesAreTheLastTwoAndNothingBefore)
             << "a continuous control after a toggle breaks the split";
     }
 
-  EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Pfl));
+  EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Cue));
   EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Fx));
   EXPECT_FALSE (mixerControlIsAToggle (MixerControl::Volume));
 }
@@ -212,8 +212,8 @@ TEST (MixerControls, GainGoesBackToFullAndTheSendToNone)
   ASSERT_TRUE (mixerControlRestPosition (MixerControl::Gain).has_value ());
   EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::Gain), 1.f);
 
-  ASSERT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
-  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::FxSend), 0.f);
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::AuxSend).has_value ());
+  EXPECT_FLOAT_EQ (*mixerControlRestPosition (MixerControl::AuxSend), 0.f);
 }
 
 // The volume is the fader's, and the two keys have nothing to put back.
@@ -281,9 +281,9 @@ TEST (MixerControls, TheReturnGoesBackToNoneLikeTheSend)
   ASSERT_TRUE (masterControlRestPosition (MasterControl::Return).has_value ());
   EXPECT_FLOAT_EQ (*masterControlRestPosition (MasterControl::Return), 0.f);
 
-  ASSERT_TRUE (mixerControlRestPosition (MixerControl::FxSend).has_value ());
+  ASSERT_TRUE (mixerControlRestPosition (MixerControl::AuxSend).has_value ());
   EXPECT_FLOAT_EQ (*masterControlRestPosition (MasterControl::Return),
-                   *mixerControlRestPosition (MixerControl::FxSend));
+                   *mixerControlRestPosition (MixerControl::AuxSend));
 }
 
 // BTH and PHN are levels, and the only value two taps could mean on a level
@@ -315,4 +315,10 @@ TEST (MixerControls, AChannelPotWithNothingAboveItHasNoArc)
 {
   EXPECT_LT (channelPotReach (0.3f, 0.3f), -1.f);
   EXPECT_LT (channelPotReach (0.6f, 0.1f), -1.f);
+}
+
+// CUE is called cue since 2026-10-01, the wire included -- the key says so.
+TEST (MixerControls, TheCueKeySaysCue)
+{
+  EXPECT_STREQ (mixerControlLabel (MixerControl::Cue), "CUE");
 }

@@ -128,7 +128,7 @@ TEST (MixerLayout, TheControlsAreInTheTablesOrderDownTheStrip)
     }
 }
 
-// PFL and FX are the only two of the seven that are pressed rather than
+// CUE and FX are the only two of the seven that are pressed rather than
 // turned, and a key asks for a fingertip rather than for a row of its own:
 // they share the last row at half its width each. The row that frees goes to
 // the six above, which is why this is a change of arrangement rather than a
@@ -138,24 +138,24 @@ TEST (MixerLayout, TheTwoKeysShareTheLastRowOfAStrip)
   auto const layout = layOutMixerOverlay (aRoomyOverlay (), metrics);
   ASSERT_TRUE (layout.fits);
 
-  auto const pfl = static_cast<std::size_t> (faceSlot (MixerControl::Pfl));
+  auto const cue = static_cast<std::size_t> (faceSlot (MixerControl::Cue));
   auto const fx = static_cast<std::size_t> (faceSlot (MixerControl::Fx));
 
   for (auto const &strip : layout.controls)
     {
-      EXPECT_EQ (strip[pfl].getY (), strip[fx].getY ());
-      EXPECT_EQ (strip[pfl].getHeight (), strip[fx].getHeight ());
-      EXPECT_LE (strip[pfl].getRight (), strip[fx].getX ())
-          << "PFL is not left of FX";
-      EXPECT_FALSE (strip[pfl].intersects (strip[fx]));
+      EXPECT_EQ (strip[cue].getY (), strip[fx].getY ());
+      EXPECT_EQ (strip[cue].getHeight (), strip[fx].getHeight ());
+      EXPECT_LE (strip[cue].getRight (), strip[fx].getX ())
+          << "CUE is not left of FX";
+      EXPECT_FALSE (strip[cue].intersects (strip[fx]));
 
-      EXPECT_GE (strip[pfl].getWidth (), fingertipSize);
+      EXPECT_GE (strip[cue].getWidth (), fingertipSize);
       EXPECT_GE (strip[fx].getWidth (), fingertipSize);
     }
 }
 
 // The break's minimum is derived from the two keys, so a strip exactly at it
-// still holds PFL and FX a fingertip each -- the widened meter used to leave
+// still holds CUE and FX a fingertip each -- the widened meter used to leave
 // them under one at the minimum the break was made on.
 TEST (MixerLayout, AtTheBreaksMinimumTheKeysAreStillAFingertip)
 {
@@ -163,7 +163,7 @@ TEST (MixerLayout, AtTheBreaksMinimumTheKeysAreStillAFingertip)
 
   EXPECT_EQ (layout.strips.columns, numChannelsInitial);
   EXPECT_GE (layout.controls[0][static_cast<std::size_t> (
-                                    faceSlot (MixerControl::Pfl))]
+                                    faceSlot (MixerControl::Cue))]
                  .getWidth (),
              fingertipSize);
   EXPECT_TRUE (layout.fits);
@@ -181,7 +181,7 @@ TEST (MixerLayout, AColumnTooNarrowForTwoKeysSideBySideSaysSo)
   // alone would let through.
   EXPECT_GE (layout.controls[0][0].getHeight (), fingertipSize);
   EXPECT_LT (layout.controls[0][static_cast<std::size_t> (
-                                    faceSlot (MixerControl::Pfl))]
+                                    faceSlot (MixerControl::Cue))]
                  .getWidth (),
              fingertipSize);
   EXPECT_FALSE (layout.fits);
@@ -264,7 +264,7 @@ TEST (MixerLayout, TheMeterRunsTheWholeHeightOfItsStrip)
 
 // And it stands to the left of every one of them. A meter in its own column
 // takes no room out of any control's cell, which is what lets the strip's six
-// rows -- five knobs, then PFL and FX sharing the sixth -- stay the one height
+// rows -- five knobs, then CUE and FX sharing the sixth -- stay the one height
 // they have been since the fader went.
 TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
 {
@@ -288,7 +288,7 @@ TEST (MixerLayout, TheMeterStandsLeftOfEveryControlOfItsStrip)
 }
 
 // CHMIX is fields in the encoders' four by two (2026-09-27): GAIN HIGH MID
-// LOW over SEND PFL FX, and the channel's meter with its fader beside them.
+// LOW over SEND CUE FX, and the channel's meter with its fader beside them.
 // 3D, FREQ and Q are in the channel row over the bar.
 TEST (MixerLayout, TheBarsStripIsFieldsBesideItsMeter)
 {
@@ -303,7 +303,7 @@ TEST (MixerLayout, TheBarsStripIsFieldsBesideItsMeter)
   std::array<juce::Rectangle<int>, 7> const expected{
     at (MixerControl::Gain),   at (MixerControl::EqHigh),
     at (MixerControl::EqMid),  at (MixerControl::EqLow),
-    at (MixerControl::FxSend), at (MixerControl::Pfl),
+    at (MixerControl::AuxSend), at (MixerControl::Cue),
     at (MixerControl::Fx),
   };
   for (std::size_t i = 0; i < expected.size (); ++i)
@@ -380,7 +380,7 @@ TEST (MixerLayout, TheBarsStripReadsAcrossInTheTablesOrder)
   // The EQ row: GAIN to LOW. SEND went into the row under it on 2026-09-27
   // -- see TheBarsStripsSendStandsLeftOfIts3d.
   auto const keys
-      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
+      = static_cast<std::size_t> (faceSlot (MixerControl::AuxSend));
 
   for (std::size_t i = 1; i < keys; ++i)
     EXPECT_GE (layout.controls[0][i].getX (),
@@ -586,7 +586,7 @@ TEST (MixerLayout, TheFilterStandsInTheOutColumnUnderRet)
   auto const &res = layout.filter[index (FilterControl::Resonance)];
   auto const &mode = layout.filter[index (FilterControl::Mode)];
   auto const &keys = layout.controls[0][static_cast<std::size_t> (
-      faceSlot (MixerControl::Pfl))];
+      faceSlot (MixerControl::Cue))];
 
   EXPECT_EQ (freq.getY (), ret.getBottom ()) << "FX FREQ is not under RET";
   EXPECT_EQ (res.getY (), freq.getBottom ()) << "FX RES is not under FX FREQ";

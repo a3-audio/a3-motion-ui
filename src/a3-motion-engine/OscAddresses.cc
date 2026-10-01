@@ -45,12 +45,12 @@ constexpr char const *channelPlaceholder = "{ch}";
  *  mixerControlOrder/masterControlOrder/filterControlOrder. */
 constexpr std::array<char const *, numMixerAddresses> mixerChannelKeys{
   "channel.gain",   "channel.eq.high", "channel.eq.mid", "channel.eq.low",
-  "channel.volume", "channel.fx-send", "channel.pfl",    "channel.filter",
+  "channel.volume", "channel.aux-send", "channel.cue",    "channel.filter",
 };
 
 constexpr std::array<char const *, numMasterAddresses> mixerMasterKeys{
   "master.volume",        "master.booth",     "master.phones-mix",
-  "master.phones-volume", "master.fx-return",
+  "master.phones-volume", "master.aux-return",
 };
 
 constexpr std::array<char const *, numFilterAddresses> mixerFilterKeys{

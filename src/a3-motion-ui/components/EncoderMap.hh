@@ -47,7 +47,7 @@ struct EncoderTarget
     Speed,
     /** One of the shown channel's mixer pots (CHMIX). */
     Mixer,
-    /** One of the shown channel's two keys, PFL or FX (CHMIX): a press
+    /** One of the shown channel's two keys, CUE or FX (CHMIX): a press
      *  flips it, a turn does nothing. */
     MixerKey,
     /** ACTION: walks the list's highlight; a press assigns it. */

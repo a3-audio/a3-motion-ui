@@ -475,7 +475,7 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
   ASSERT_TRUE (layout.fits);
 
   auto const slot
-      = static_cast<std::size_t> (faceSlot (MixerControl::FxSend));
+      = static_cast<std::size_t> (faceSlot (MixerControl::AuxSend));
 
   ASSERT_FALSE (layout.channelMeter[0].isEmpty ());
   EXPECT_FALSE (layout.channelMeter[0].intersects (layout.controls[0][slot]));

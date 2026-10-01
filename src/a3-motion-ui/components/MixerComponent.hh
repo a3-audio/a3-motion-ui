@@ -181,7 +181,7 @@ public:
    *  is the caller's to say: it is the same step the encoders and the bar's
    *  channel grid take, and it lives with them rather than here. */
   std::function<void (int channel, MixerControl, int steps)> onChannelDragged;
-  /** A key with two values was tapped — PFL and FX. tapTogglesValue's rule:
+  /** A key with two values was tapped — CUE and FX. tapTogglesValue's rule:
    *  a tap flips it, because stepping a boolean is direction-tied and a tap
    *  has no direction. */
   std::function<void (int channel, MixerControl)> onChannelTapped;

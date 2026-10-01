@@ -325,7 +325,7 @@ struct StripColumns
  *  it is the channel's VOL -- and a fader wants the width of a finger rather
  *  than of a glance: "vu im mixer auch breiter".
  *
- *  Not the half that was asked for. The controls beside it end in PFL and FX
+ *  Not the half that was asked for. The controls beside it end in CUE and FX
  *  side by side, two fingertips across, and at half the strip a key on the
  *  device came out at 32 px -- under a fingertip. Two fifths leaves it 39.
  *  Public because MixerLayout derives the narrowest strip from it. */

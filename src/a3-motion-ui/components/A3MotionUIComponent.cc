@@ -8921,7 +8921,7 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
       return;
     }
 
-  // A press on a length chooses it, as a tap does; on PFL or FX it flips it.
+  // A press on a length chooses it, as a tap does; on CUE or FX it flips it.
   auto const target = encoderTargetAt (column, row);
   if (target.kind == EncoderTarget::Kind::Speed)
     chooseSpeedKey (target.speed);

@@ -118,8 +118,8 @@ onMixer (int column, int row)
       t.mixer = eq[column];
       return t;
     }
-  // SEND PFL FX VOL, as CHMIX's fields stand (2026-09-27).
-  MixerControl const bottom[] = { MixerControl::FxSend, MixerControl::Pfl,
+  // SEND CUE FX VOL, as CHMIX's fields stand (2026-09-27).
+  MixerControl const bottom[] = { MixerControl::AuxSend, MixerControl::Cue,
                                   MixerControl::Fx, MixerControl::Volume };
   t.mixer = bottom[column];
   t.kind = mixerControlIsAToggle (t.mixer) ? EncoderTarget::Kind::MixerKey
