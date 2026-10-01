@@ -99,10 +99,10 @@ TEST (MixerState, NothingIsSentBeforeAnythingIsTouched)
 TEST (MixerState, AToggleReadsBackAsABoolean)
 {
   Recording rig;
-  EXPECT_FALSE (rig.state.channelToggle (0, MixerControl::Pfl));
+  EXPECT_FALSE (rig.state.channelToggle (0, MixerControl::Cue));
 
-  rig.state.setChannelFromTouch (0, MixerControl::Pfl, 1.f);
-  EXPECT_TRUE (rig.state.channelToggle (0, MixerControl::Pfl));
+  rig.state.setChannelFromTouch (0, MixerControl::Cue, 1.f);
+  EXPECT_TRUE (rig.state.channelToggle (0, MixerControl::Cue));
   ASSERT_EQ (rig.sent.size (), 1u);
   EXPECT_FLOAT_EQ (rig.sent[0].value, 1.f);
 }

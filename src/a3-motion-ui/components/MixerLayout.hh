@@ -64,7 +64,7 @@ struct MixerLayout
              static_cast<std::size_t> (numChannelsInitial)>
       channelPots;
   /** The bar's strip only (2026-09-27): its fields, four by two as the
-   *  encoders stand -- GAIN HIGH MID LOW over SEND PFL FX; the last is empty,
+   *  encoders stand -- GAIN HIGH MID LOW over SEND CUE FX; the last is empty,
    *  the meter stands beside them. */
   std::array<juce::Rectangle<int>, 8> stripFields;
   std::array<juce::Rectangle<int>, numMasterFaceControls> master;
@@ -107,7 +107,7 @@ struct MixerLayout
  *  under RET, and FX MODE on the line the channels' two keys are on.
  *
  *  A strip has a row for each turned control -- the four face pots, then 3D,
- *  FREQ and Q -- and one more for PFL and FX, which are pressed rather than
+ *  FREQ and Q -- and one more for CUE and FX, which are pressed rather than
  *  turned and share it at half its width each. The master's column is
  *  stepped by the same count, or the five columns would stop standing on one
  *  line. */
@@ -122,7 +122,7 @@ constexpr float controlGapOfCell = 1.f / 24.f;
 
 /** The narrowest an overlay strip may be before the four break two by two.
  *
- *  Derived rather than written down: the strip ends in PFL and FX side by
+ *  Derived rather than written down: the strip ends in CUE and FX side by
  *  side, each a fingertip wide, and what is left for them is the strip less
  *  its air and less the meter's share. Written as minimumChannelWidth while
  *  the meter was narrow; widening the meter made that too small to hold the
@@ -144,7 +144,7 @@ MixerLayout layOutMixerOverlay (juce::Rectangle<int> area,
  *  order here.
  *
  *  **Three rows and a meter at the far right.** The five pots stand across
- *  the top, the channel's 3D, FREQ and Q under the first three of them, PFL
+ *  the top, the channel's 3D, FREQ and Q under the first three of them, CUE
  *  and FX in a row at the foot, and the meter takes a full-height column at
  *  the right-hand end of the band. That is the overlay's strip
  *  turned on its side: there the two keys share the last row of a column, here

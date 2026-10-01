@@ -41,7 +41,7 @@ TEST (MixerControls, AStripReadsGainEqVolumeSendThenTheTwoKeys)
   EXPECT_EQ (mixerControlOrder[3], MixerControl::EqLow);
   EXPECT_EQ (mixerControlOrder[4], MixerControl::Volume);
   EXPECT_EQ (mixerControlOrder[5], MixerControl::AuxSend);
-  EXPECT_EQ (mixerControlOrder[6], MixerControl::Pfl);
+  EXPECT_EQ (mixerControlOrder[6], MixerControl::Cue);
   EXPECT_EQ (mixerControlOrder[7], MixerControl::Fx);
   EXPECT_EQ (numMixerControls, 8);
 }
@@ -57,7 +57,7 @@ TEST (MixerControls, ThePagesDrawEverythingButTheVolume)
   EXPECT_EQ (mixerFaceOrder[2], MixerControl::EqMid);
   EXPECT_EQ (mixerFaceOrder[3], MixerControl::EqLow);
   EXPECT_EQ (mixerFaceOrder[4], MixerControl::AuxSend);
-  EXPECT_EQ (mixerFaceOrder[5], MixerControl::Pfl);
+  EXPECT_EQ (mixerFaceOrder[5], MixerControl::Cue);
   EXPECT_EQ (mixerFaceOrder[6], MixerControl::Fx);
   EXPECT_EQ (faceSlot (MixerControl::Volume), -1);
   EXPECT_EQ (faceSlot (MixerControl::Fx), numMixerFaceControls - 1);
@@ -134,7 +134,7 @@ TEST (MixerControls, TheTogglesAreTheLastTwoAndNothingBefore)
             << "a continuous control after a toggle breaks the split";
     }
 
-  EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Pfl));
+  EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Cue));
   EXPECT_TRUE (mixerControlIsAToggle (MixerControl::Fx));
   EXPECT_FALSE (mixerControlIsAToggle (MixerControl::Volume));
 }
@@ -315,4 +315,10 @@ TEST (MixerControls, AChannelPotWithNothingAboveItHasNoArc)
 {
   EXPECT_LT (channelPotReach (0.3f, 0.3f), -1.f);
   EXPECT_LT (channelPotReach (0.6f, 0.1f), -1.f);
+}
+
+// CUE is called cue since 2026-10-01, the wire included -- the key says so.
+TEST (MixerControls, TheCueKeySaysCue)
+{
+  EXPECT_STREQ (mixerControlLabel (MixerControl::Cue), "CUE");
 }

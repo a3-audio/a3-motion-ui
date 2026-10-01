@@ -33,7 +33,7 @@ namespace a3
  *  A free function beside paintBarKnob, and for the same
  *  reason: the mixer overlay and the bar are on screen at the same moment,
  *  the overlay covering the sphere and the bar staying visible beneath it, so
- *  two button faces are two faces a hand sees side by side. The mixer's PFL,
+ *  two button faces are two faces a hand sees side by side. The mixer's CUE,
  *  FX and filter MODE keys had grown a private copy of this — the same two
  *  rounded rectangles with the same three alphas written out again — and a
  *  brighter skin would have retuned one of them. The word on the face went

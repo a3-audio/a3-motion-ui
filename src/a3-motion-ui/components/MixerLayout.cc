@@ -65,7 +65,7 @@ gapIn (juce::Rectangle<int> cell)
 
 /** How many rows a strip has, against the seven controls standing in them.
  *
- *  Six. PFL and FX are the only two of the seven that are pressed rather than
+ *  Six. CUE and FX are the only two of the seven that are pressed rather than
  *  turned, and a key wants a fingertip rather than a whole row of a column --
  *  so they share the last one at half its width each, and the height that
  *  frees goes to the six rows above rather than to air at the foot.
@@ -103,21 +103,21 @@ constexpr ControlCell
 cellForMixerControl (MixerControl control)
 {
   static_assert (faceSlot (MixerControl::Fx) == numMixerFaceControls - 1,
-                 "FX joins PFL's row by being the control after it, so it has "
+                 "FX joins CUE's row by being the control after it, so it has "
                  "to be the last one in the table");
 
-  // The field below is counted from PFL and is bounded by nothing else: a
+  // The field below is counted from CUE and is bounded by nothing else: a
   // table that separated the two keys while leaving FX last would hand back a
   // field index past the end of the row it names. MixerControls'
   // TheTogglesAreTheLastTwoAndNothingBefore states the same rule from the
   // table's own side; this is the half of it this arithmetic depends on, said
   // where the arithmetic is.
-  static_assert (faceSlot (MixerControl::Pfl)
+  static_assert (faceSlot (MixerControl::Cue)
                      == numMixerFaceControls - fieldsInTheKeyRow,
                  "the two keys share a row, so they have to be the last two "
                  "in the table with nothing standing between them");
 
-  auto const shared = faceSlot (MixerControl::Pfl);
+  auto const shared = faceSlot (MixerControl::Cue);
   auto const slot = faceSlot (control);
 
   // Everything above the keys keeps a row to itself, and is the only field
@@ -133,7 +133,7 @@ cellForMixerControl (MixerControl control)
 constexpr int
 rowForChannelPot (int index)
 {
-  return faceSlot (MixerControl::Pfl) + index;
+  return faceSlot (MixerControl::Cue) + index;
 }
 
 /** One of the fields a row is divided into, side by side across it.
@@ -204,7 +204,7 @@ rowsDownStrip (juce::Rectangle<int> strip, ControlMetrics metrics)
 
 /** How many of the filter's controls are turned and stand under RET in the
  *  OUT column: FX FREQ and FX RES. FX MODE is pressed and stands on the keys'
- *  line, like PFL and FX. */
+ *  line, like CUE and FX. */
 
 /** Which of those rows a master pot stands in: the bottom ones, in order,
  *  above FX FREQ and FX RES and the keys' line.
@@ -381,7 +381,7 @@ mixerStripFieldOf (MixerLayout const &layout, MixerControl control)
       case MixerControl::EqMid: return 2;
       case MixerControl::EqLow: return 3;
       case MixerControl::AuxSend: return 4;
-      case MixerControl::Pfl: return 5;
+      case MixerControl::Cue: return 5;
       case MixerControl::Fx: return 6;
       default: return -1;
       }
@@ -409,7 +409,7 @@ layOutMixerStrip (juce::Rectangle<int> area, ControlMetrics metrics)
   auto cellsFit = true;
 
   // Fields four by two as the encoders stand (2026-09-27): GAIN HIGH MID LOW
-  // over SEND PFL FX, the meter with its fader beside them. 3D, FREQ and Q
+  // over SEND CUE FX, the meter with its fader beside them. 3D, FREQ and Q
   // stand in the channel row over the bar, so channelPots stays empty.
   auto const gap = juce::jmax (2, area.getHeight () / 40);
 

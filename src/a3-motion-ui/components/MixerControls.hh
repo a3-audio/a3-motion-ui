@@ -66,7 +66,7 @@ enum class MixerControl
   EqLow,
   Volume,
   AuxSend,
-  Pfl,
+  Cue,
   Fx,
 };
 
@@ -76,7 +76,7 @@ constexpr int numMixerControls = 8;
 constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
   MixerControl::Gain,   MixerControl::EqHigh, MixerControl::EqMid,
   MixerControl::EqLow,  MixerControl::Volume, MixerControl::AuxSend,
-  MixerControl::Pfl,    MixerControl::Fx,
+  MixerControl::Cue,    MixerControl::Fx,
 };
 
 /** What the two MIX pages draw, in the same order: everything but VOL.
@@ -88,7 +88,7 @@ constexpr std::array<MixerControl, numMixerControls> mixerControlOrder{
 constexpr int numMixerFaceControls = 7;
 constexpr std::array<MixerControl, numMixerFaceControls> mixerFaceOrder{
   MixerControl::Gain,  MixerControl::EqHigh, MixerControl::EqMid,
-  MixerControl::EqLow, MixerControl::AuxSend, MixerControl::Pfl,
+  MixerControl::EqLow, MixerControl::AuxSend, MixerControl::Cue,
   MixerControl::Fx,
 };
 
@@ -109,7 +109,7 @@ faceSlot (MixerControl control)
 constexpr bool
 mixerControlIsAToggle (MixerControl control)
 {
-  return control == MixerControl::Pfl || control == MixerControl::Fx;
+  return control == MixerControl::Cue || control == MixerControl::Fx;
 }
 
 
@@ -215,8 +215,8 @@ mixerControlLabel (MixerControl control)
       return "VOL";
     case MixerControl::AuxSend:
       return "SEND";
-    case MixerControl::Pfl:
-      return "PFL";
+    case MixerControl::Cue:
+      return "CUE";
     case MixerControl::Fx:
       return "FX";
     }
