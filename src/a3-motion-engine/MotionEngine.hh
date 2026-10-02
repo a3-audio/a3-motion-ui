@@ -23,6 +23,7 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/KnobLanes.hh>
+#include <a3-motion-engine/PositionPacer.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -487,6 +488,8 @@ private:
   // communication.
   AsyncCommandQueue _commandQueue;
   std::vector<Pos> _lastSentPositions;
+  // At most 60 positions a second per channel to Core (2026-10-02).
+  PositionPacer _positionPacer { 0 };
   /** The last value each channel value went out at -- which is what the far
    *  end actually has, and so what a ramp has to start from. See util/Slew.hh
    *  and the send loop in tickCallback(). */

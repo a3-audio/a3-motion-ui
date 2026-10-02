@@ -9,6 +9,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ControlSurface.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OutputOrder.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PositionPacer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpatBackendInternal.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"
