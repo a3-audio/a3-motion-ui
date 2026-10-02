@@ -20,6 +20,7 @@
 
 
 #include "OscTruth.hh"
+#include "TruthKeeper.hh"
 
 namespace a3
 {
@@ -113,9 +114,24 @@ oscTruthFile ()
 {
   auto const overridden
       = juce::SystemStats::getEnvironmentVariable ("A3_OSC_TRUTH", {});
-  if (overridden.isNotEmpty ())
-    return juce::File (overridden);
-  return juce::File ("/usr/share/a3/a3-osc.json");
+  return oscTruthFileFrom (
+      overridden.isNotEmpty () ? overridden.toRawUTF8 () : nullptr,
+      juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+}
+
+juce::File
+oscTruthFileFrom (char const *override, juce::File const &home)
+{
+  auto const cache
+      = truthkeeper::cachePath (home.getFullPathName ().toStdString ());
+  juce::var parsed;
+  auto const cached = juce::File (cache);
+  auto const usable
+      = cached.existsAsFile ()
+        && juce::JSON::parse (cached.loadFileAsString (), parsed).wasOk ()
+        && parsed["addresses"].isObject ();
+  return juce::File (truthkeeper::startPath (
+      override, cache, usable, "/usr/share/a3/a3-osc.json"));
 }
 
 OscTruth const &

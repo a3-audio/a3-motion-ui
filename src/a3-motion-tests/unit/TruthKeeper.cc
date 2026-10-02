@@ -1,0 +1,108 @@
+/*
+
+  A3 Motion UI
+  Copyright (C) 2026 Raphael Eismann
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+#include <gtest/gtest.h>
+
+#include <a3-motion-engine/OscTruth.hh>
+#include <a3-motion-engine/TruthKeeper.hh>
+
+// Motion takes its truth from Core like the desk and StemDeck (spec
+// truth-from-core, step 3). The same decisions as StemDeck's keeper, the
+// same tests; and the start order with real files.
+
+namespace tk = a3::truthkeeper;
+
+TEST (KeeperDecide, TheSameFingerprintNeedsNoFetch)
+{
+  EXPECT_FALSE (tk::needsFetch (std::string (64, 'a'), std::string (64, 'a')));
+  EXPECT_TRUE (tk::needsFetch (std::string (64, 'b'), std::string (64, 'a')));
+}
+
+TEST (KeeperDecide, AnOverrideIsNotFollowed)
+{
+  EXPECT_TRUE (tk::followsCore (nullptr));
+  EXPECT_TRUE (tk::followsCore (""));
+  EXPECT_FALSE (tk::followsCore ("/x.json"));
+}
+
+TEST (KeeperVerify, BodyHeaderAndAnnouncementMustAgree)
+{
+  std::string const h (64, 'c');
+  EXPECT_TRUE (tk::verified (h, h, h));
+  EXPECT_FALSE (tk::verified (h, h, std::string (64, 'd')));
+  EXPECT_FALSE (tk::verified (h, std::string (64, 'd'), h));
+  EXPECT_FALSE (tk::verified ("", "", ""));
+}
+
+TEST (KeeperStart, OverrideThenCacheThenPackage)
+{
+  EXPECT_EQ (tk::startPath ("/o.json", "/c.json", true, "/p.json"), "/o.json");
+  EXPECT_EQ (tk::startPath (nullptr, "/c.json", true, "/p.json"), "/c.json");
+  EXPECT_EQ (tk::startPath ("", "/c.json", true, "/p.json"), "/c.json");
+}
+
+TEST (KeeperStart, AnUnparsableCacheIsSkipped)
+{
+  EXPECT_EQ (tk::startPath (nullptr, "/c.json", false, "/p.json"), "/p.json");
+}
+
+TEST (KeeperStart, TheCacheIsInHome)
+{
+  EXPECT_EQ (tk::cachePath ("/home/aaa"), "/home/aaa/.cache/a3/a3-osc.json");
+}
+
+namespace
+{
+juce::File
+freshHome ()
+{
+  auto home = juce::File::createTempFile ("home");
+  home.createDirectory ();
+  return home;
+}
+}
+
+TEST (KeeperStart, MotionReadsAUsableCacheFirst)
+{
+  auto const home = freshHome ();
+  auto const cache = home.getChildFile (".cache/a3/a3-osc.json");
+  cache.create ();
+  cache.replaceWithText (R"({"addresses": {"channel.volume": {"pattern": "/channel/{ch}/volume"}}})");
+  EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), cache.getFullPathName ());
+  home.deleteRecursively ();
+}
+
+TEST (KeeperStart, MotionSkipsAGarbageCache)
+{
+  auto const home = freshHome ();
+  auto const cache = home.getChildFile (".cache/a3/a3-osc.json");
+  cache.create ();
+  cache.replaceWithText ("{");
+  EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), "/usr/share/a3/a3-osc.json");
+  home.deleteRecursively ();
+}
+
+TEST (KeeperStart, MotionWithoutACacheReadsThePackage)
+{
+  auto const home = freshHome ();
+  EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), "/usr/share/a3/a3-osc.json");
+  EXPECT_EQ (a3::oscTruthFileFrom ("/tmp/elsewhere.json", home).getFullPathName (), "/tmp/elsewhere.json");
+  home.deleteRecursively ();
+}

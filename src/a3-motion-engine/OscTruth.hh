@@ -83,6 +83,11 @@ OscTruth loadOscTruth (juce::File const &file);
 /** $A3_OSC_TRUTH if set, else the installed /usr/share/a3/a3-osc.json. */
 juce::File oscTruthFile ();
 
+/** The truth Motion reads (spec truth-from-core, step 3): `override`
+ *  ($A3_OSC_TRUTH), else what Core last served in `home`/.cache/a3 if it
+ *  reads as a truth, else the package's file. */
+juce::File oscTruthFileFrom (char const *override, juce::File const &home);
+
 /** The truth this process runs on: oscTruthFile(), read once. */
 OscTruth const &installedOscTruth ();
 
