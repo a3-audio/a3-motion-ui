@@ -122,5 +122,6 @@ TEST (OscTruth, TheEnvironmentPointsAtAnotherFile)
   ::setenv ("A3_OSC_TRUTH", "/tmp/elsewhere.json", 1);
   EXPECT_EQ (oscTruthFile ().getFullPathName (), "/tmp/elsewhere.json");
   ::unsetenv ("A3_OSC_TRUTH");
-  EXPECT_EQ (oscTruthFile ().getFullPathName (), "/usr/share/a3/a3-osc.json");
+  // Without the override the start order decides (cache, then the package):
+  // tests/unit/TruthKeeper.cc holds it with a temporary home.
 }

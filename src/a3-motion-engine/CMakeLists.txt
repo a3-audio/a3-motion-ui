@@ -6,6 +6,7 @@ target_link_libraries(juce_dependencies
     PUBLIC
         juce::juce_osc
         juce::juce_core
+        juce::juce_cryptography
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
 
@@ -37,6 +38,7 @@ target_sources("a3-motion-engine" PRIVATE
     OscEndpoints.cc
     OscEndpoints.hh
     OscTruth.cc
+    TruthKeeperLink.cc
     OscTruth.hh
     MotionEngine.cc
     MotionEngine.hh

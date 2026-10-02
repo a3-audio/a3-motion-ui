@@ -45,6 +45,9 @@ public:
   };
 
   bool isValid () const { return _error.isEmpty (); }
+  /** The sha256 of the bytes this truth was read from (empty if not read
+   *  from a file). */
+  juce::String const &digest () const { return _digest; }
   juce::String const &error () const { return _error; }
 
   /** The IP of a named host, or empty. */
@@ -75,13 +78,23 @@ private:
 
   juce::var _data;
   juce::String _error;
+  juce::String _digest;
 };
 
 OscTruth parseOscTruth (juce::String const &json);
 OscTruth loadOscTruth (juce::File const &file);
 
+/** Why `text` cannot be Motion's truth (it does not parse, or lacks an
+ *  address Motion speaks), or empty. One check for the start and the keeper. */
+juce::String unusableOscTruth (juce::String const &text);
+
 /** $A3_OSC_TRUTH if set, else the installed /usr/share/a3/a3-osc.json. */
 juce::File oscTruthFile ();
+
+/** The truth Motion reads (spec truth-from-core, step 3): `override`
+ *  ($A3_OSC_TRUTH), else what Core last served in `home`/.cache/a3 if
+ *  unusableOscTruth has nothing against it, else the package's file. */
+juce::File oscTruthFileFrom (char const *override, juce::File const &home);
 
 /** The truth this process runs on: oscTruthFile(), read once. */
 OscTruth const &installedOscTruth ();

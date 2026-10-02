@@ -20,6 +20,8 @@
 
 
 #include "OscTruth.hh"
+#include "OscAddresses.hh"
+#include "TruthKeeper.hh"
 
 namespace a3
 {
@@ -105,7 +107,22 @@ loadOscTruth (juce::File const &file)
       truth._error = "no OSC truth at " + file.getFullPathName ();
       return truth;
     }
-  return parseOscTruth (file.loadFileAsString ());
+  juce::MemoryBlock bytes;
+  file.loadFileAsData (bytes);
+  auto truth = parseOscTruth (bytes.toString ());
+  truth._digest = juce::SHA256 (bytes).toHexString ();
+  return truth;
+}
+
+juce::String
+unusableOscTruth (juce::String const &text)
+{
+  auto const truth = parseOscTruth (text);
+  if (!truth.isValid ())
+    return "not a truth: " + truth.error ();
+  auto const missing = missingOscKeys (truth);
+  return missing.isEmpty () ? juce::String ()
+                            : "it lacks " + missing.joinIntoString (", ");
 }
 
 juce::File
@@ -113,9 +130,21 @@ oscTruthFile ()
 {
   auto const overridden
       = juce::SystemStats::getEnvironmentVariable ("A3_OSC_TRUTH", {});
-  if (overridden.isNotEmpty ())
-    return juce::File (overridden);
-  return juce::File ("/usr/share/a3/a3-osc.json");
+  return oscTruthFileFrom (
+      overridden.isNotEmpty () ? overridden.toRawUTF8 () : nullptr,
+      juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+}
+
+juce::File
+oscTruthFileFrom (char const *override, juce::File const &home)
+{
+  auto const cache
+      = truthkeeper::cachePath (home.getFullPathName ().toStdString ());
+  auto const cached = juce::File (cache);
+  auto const usable = cached.existsAsFile ()
+                      && unusableOscTruth (cached.loadFileAsString ()).isEmpty ();
+  return juce::File (truthkeeper::startPath (
+      override, cache, usable, "/usr/share/a3/a3-osc.json"));
 }
 
 OscTruth const &
