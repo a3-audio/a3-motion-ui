@@ -165,3 +165,19 @@ TEST (KeeperBootstrap, PortAndWordAreTheTruths)
       port = (int) listener["port"];
   EXPECT_EQ (port, tk::announcePort);
 }
+
+// Final review of step 3 (minor 4): members die in reverse order, so the pool
+// -- whose destructor waits for a job still running -- must be the last one,
+// or that job writes `_busy` and `_lastReason` after they are gone.
+TEST (KeeperLink, ThePoolIsTheLastMember)
+{
+  auto const header = juce::File (__FILE__).getParentDirectory ().getParentDirectory ()
+                          .getSiblingFile ("a3-motion-engine").getChildFile ("TruthKeeperLink.hh");
+  auto const text = header.loadFileAsString ();
+  ASSERT_TRUE (text.isNotEmpty ()) << header.getFullPathName ();
+  auto const pool = text.indexOf ("juce::ThreadPool _fetcher");
+  ASSERT_GE (pool, 0);
+  auto const rest = text.substring (pool, text.indexOf ("JUCE_DECLARE_NON_COPYABLE"));
+  EXPECT_FALSE (rest.contains ("_busy")) << rest;
+  EXPECT_FALSE (rest.contains ("_lastReason")) << rest;
+}
