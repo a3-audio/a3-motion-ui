@@ -20,6 +20,9 @@
 
 #include "StandaloneApp.hh"
 
+#include <a3-motion-engine/OscAddresses.hh>
+#include <a3-motion-engine/OscTruth.hh>
+#include <a3-motion-engine/TruthKeeper.hh>
 #include <a3-motion-engine/UserConfig.hh>
 
 #include <iostream>
@@ -123,6 +126,8 @@ StandaloneApp::initialise (juce::String const &commandLine)
   // over half the room it has.
   _mainWindow->setBounds (0, 0, 768, 1024);
   _mainWindow->setVisible (true);
+
+  followCoresTruth ();
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
   // After the window, not before: the config parse above and the UI's own
@@ -263,6 +268,42 @@ juce::String const
 StandaloneApp::getApplicationVersion ()
 {
   return "0.0.0";
+}
+
+void
+StandaloneApp::followCoresTruth ()
+{
+  // With $A3_OSC_TRUTH set, that file wins at every start: following Core
+  // would restart Motion into the same file forever.
+  auto const overridden
+      = juce::SystemStats::getEnvironmentVariable ("A3_OSC_TRUTH", {});
+  if (!truthkeeper::followsCore (overridden.toRawUTF8 ()))
+    {
+      std::cerr << "A3 Motion: A3_OSC_TRUTH is set: not following Core's truth"
+                << std::endl;
+      return;
+    }
+  auto const home
+      = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+  _truthKeeper = std::make_unique<TruthKeeperLink> (
+      juce::SHA256 (oscTruthFile ()).toHexString ().toStdString (),
+      juce::File (truthkeeper::cachePath (home.getFullPathName ().toStdString ())),
+      [] (juce::String const &body) -> juce::String {
+        // Worth a restart only if it has every address Motion speaks.
+        auto const truth = parseOscTruth (body);
+        if (!truth.isValid ())
+          return "not a truth: " + truth.error ();
+        auto const missing = missingOscKeys (truth);
+        return missing.isEmpty () ? juce::String ()
+                                  : "it lacks " + missing.joinIntoString (", ");
+      },
+      [this] {
+        // As on a missing display: a clean quit with 1, so systemd starts
+        // Motion again (Restart=on-failure) and its state is saved.
+        setApplicationReturnValue (1);
+        quit ();
+      });
+  _truthKeeper->start ();
 }
 
 void

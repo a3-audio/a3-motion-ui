@@ -24,6 +24,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/TruthKeeperLink.hh>
+
 #include "MainWindow.hh"
 
 namespace a3
@@ -44,6 +46,7 @@ public:
   void systemRequestedQuit () override;
 
 private:
+  void followCoresTruth ();
   void setupFileLogger ();
 
 #ifdef A3_AUDIO_ENGINE_ENABLED
@@ -61,6 +64,8 @@ private:
 #endif
 
   std::unique_ptr<MainWindow> _mainWindow;
+  // The truth from Core (spec truth-from-core, step 3).
+  std::unique_ptr<TruthKeeperLink> _truthKeeper;
   std::unique_ptr<juce::SplashScreen> _splash;
   std::unique_ptr<juce::Logger> _logger;
 };
