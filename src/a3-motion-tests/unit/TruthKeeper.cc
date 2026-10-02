@@ -79,12 +79,20 @@ freshHome ()
 }
 }
 
+/** The truth the suite runs against ($A3_OSC_TRUTH, a3-core's). */
+juce::File
+suiteTruth ()
+{
+  return juce::File (juce::SystemStats::getEnvironmentVariable ("A3_OSC_TRUTH", {}));
+}
+
 TEST (KeeperStart, MotionReadsAUsableCacheFirst)
 {
   auto const home = freshHome ();
   auto const cache = home.getChildFile (".cache/a3/a3-osc.json");
   cache.create ();
-  cache.replaceWithText (R"({"addresses": {"channel.volume": {"pattern": "/channel/{ch}/volume"}}})");
+  ASSERT_TRUE (suiteTruth ().existsAsFile ()) << "set A3_OSC_TRUTH";
+  cache.replaceWithText (suiteTruth ().loadFileAsString ());
   EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), cache.getFullPathName ());
   home.deleteRecursively ();
 }
@@ -105,4 +113,55 @@ TEST (KeeperStart, MotionWithoutACacheReadsThePackage)
   EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), "/usr/share/a3/a3-osc.json");
   EXPECT_EQ (a3::oscTruthFileFrom ("/tmp/elsewhere.json", home).getFullPathName (), "/tmp/elsewhere.json");
   home.deleteRecursively ();
+}
+
+// Final review 2026-10-02: the start check is the keeper's own. A truth Motion
+// refused (it lacks an address Motion speaks) must not come back through the
+// cache StemDeck shares with it.
+TEST (KeeperStart, MotionSkipsACacheThatLacksItsAddresses)
+{
+  auto const home = freshHome ();
+  auto const cache = home.getChildFile (".cache/a3/a3-osc.json");
+  cache.create ();
+  cache.replaceWithText (R"({"addresses": {"channel.volume": {"pattern": "/channel/{ch}/volume"}}})");
+  EXPECT_EQ (a3::oscTruthFileFrom (nullptr, home).getFullPathName (), "/usr/share/a3/a3-osc.json");
+  EXPECT_TRUE (a3::unusableOscTruth (cache.loadFileAsString ()).isNotEmpty ());
+  home.deleteRecursively ();
+}
+
+// The fingerprint Motion compares is of the bytes it loaded, taken when it
+// loaded them -- not a second read of a file StemDeck may rewrite meanwhile.
+TEST (KeeperOwn, TheTruthKnowsTheDigestOfWhatWasRead)
+{
+  auto const file = juce::File::createTempFile ("json");
+  file.replaceWithText (R"({"addresses": {}})");
+  EXPECT_EQ (a3::loadOscTruth (file).digest (),
+             juce::SHA256 (file).toHexString ());
+  file.deleteFile ();
+}
+
+TEST (KeeperOwn, MotionHandsTheLoadedDigestToTheKeeper)
+{
+  auto const app = juce::File (__FILE__).getParentDirectory ().getParentDirectory ()
+                       .getSiblingFile ("a3-motion-ui").getChildFile ("StandaloneApp.cc");
+  auto const text = app.loadFileAsString ();
+  ASSERT_TRUE (text.isNotEmpty ()) << app.getFullPathName ();
+  EXPECT_TRUE (text.contains ("installedOscTruth ().digest ()"));
+  EXPECT_FALSE (text.contains ("SHA256 (oscTruthFile ())"));
+}
+
+// The two literals the keeper knows before it has a truth (a3-core's guard
+// allows them by name) are the truth's own -- else it goes deaf, suites green.
+TEST (KeeperBootstrap, PortAndWordAreTheTruths)
+{
+  ASSERT_TRUE (suiteTruth ().existsAsFile ()) << "set A3_OSC_TRUTH";
+  auto const truth = a3::loadOscTruth (suiteTruth ());
+  EXPECT_EQ (truth.pattern ("core.here"), juce::String (tk::announceAddress));
+  juce::var parsed;
+  ASSERT_TRUE (juce::JSON::parse (suiteTruth ().loadFileAsString (), parsed).wasOk ());
+  auto port = -1;
+  for (auto const &listener : *parsed["listeners"].getArray ())
+    if (listener["program"] == "devices" && listener["role"] == "announce")
+      port = (int) listener["port"];
+  EXPECT_EQ (port, tk::announcePort);
 }

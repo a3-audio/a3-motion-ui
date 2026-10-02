@@ -20,7 +20,6 @@
 
 #include "StandaloneApp.hh"
 
-#include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-engine/OscTruth.hh>
 #include <a3-motion-engine/TruthKeeper.hh>
 #include <a3-motion-engine/UserConfig.hh>
@@ -286,17 +285,9 @@ StandaloneApp::followCoresTruth ()
   auto const home
       = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
   _truthKeeper = std::make_unique<TruthKeeperLink> (
-      juce::SHA256 (oscTruthFile ()).toHexString ().toStdString (),
+      installedOscTruth ().digest ().toStdString (),
       juce::File (truthkeeper::cachePath (home.getFullPathName ().toStdString ())),
-      [] (juce::String const &body) -> juce::String {
-        // Worth a restart only if it has every address Motion speaks.
-        auto const truth = parseOscTruth (body);
-        if (!truth.isValid ())
-          return "not a truth: " + truth.error ();
-        auto const missing = missingOscKeys (truth);
-        return missing.isEmpty () ? juce::String ()
-                                  : "it lacks " + missing.joinIntoString (", ");
-      },
+      [] (juce::String const &body) { return unusableOscTruth (body); },
       [this] {
         // As on a missing display: a clean quit with 1, so systemd starts
         // Motion again (Restart=on-failure) and its state is saved.
