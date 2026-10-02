@@ -59,9 +59,10 @@ private:
   std::function<void ()> _restart;
   juce::DatagramSocket _socket{ true };
   juce::OSCReceiver _receiver;
-  juce::ThreadPool _fetcher{ juce::ThreadPoolOptions{}.withNumberOfThreads (1) };
   std::atomic<bool> _busy{ false };
   juce::String _lastReason;
+  // Last: destroyed first, so a job it still waits for finds the rest alive.
+  juce::ThreadPool _fetcher{ juce::ThreadPoolOptions{}.withNumberOfThreads (1) };
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TruthKeeperLink)
 };
