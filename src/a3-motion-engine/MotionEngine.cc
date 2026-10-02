@@ -130,6 +130,7 @@ MotionEngine::createChannels (index_t const numChannels)
 {
   _channels.resize (numChannels);
   _lastSentPositions.resize (numChannels);
+  _positionPacer = PositionPacer (numChannels);
   _positionHeld = std::vector<std::atomic<bool>> (numChannels);
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
@@ -857,10 +858,15 @@ MotionEngine::tickCallback ()
         continue;
 
       auto const position = _channels[index]->getPosition ();
-      if (position.isValid () && _lastSentPositions[index] != position)
+      // Paced, not every tick: ~260 a second per channel filled Core's
+      // port under load. A skipped position stays "not sent" and goes out
+      // on a later tick, so the newest always arrives.
+      if (position.isValid () && _lastSentPositions[index] != position
+          && _positionPacer.due (index, nowMillis))
         {
           _commandQueue.sendPosition (index, position);
           _lastSentPositions[index] = position;
+          _positionPacer.sent (index, nowMillis);
         }
 
       // All three go out on a ramp rather than straight from the value they
