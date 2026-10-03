@@ -145,11 +145,12 @@ TEST (ShippedLibrary, EveryShippedSetIsOneClipAndSixActionsPerChannel)
     }
 }
 
-/** The library ships fifty shapes, fifty clips and fifty actions, and ten
- *  sets built from them (maintainer, 2026-09-28): enough to cover the mood
- *  meter's four corners several ways, few enough to learn. Each clip draws a
- *  shape that ships -- a clip naming a missing one loads as nothing. */
-TEST (ShippedLibrary, TheLibraryShipsFiftyOfEachAndTenSets)
+/** The library ships fifty shapes and, since 2026-10-03, fourteen sets: the
+ *  ten of 2026-09-28 and four moods built like Groove (Tribal, Acid, Ambient,
+ *  Tension) -- five clips per phase, so seventy, and seventy-one actions.
+ *  Each clip draws a shape that ships -- a clip naming a missing one loads as
+ *  nothing. */
+TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFourteenSets)
 {
   juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -172,11 +173,11 @@ TEST (ShippedLibrary, TheLibraryShipsFiftyOfEachAndTenSets)
   });
 
   EXPECT_EQ (shapeFiles.size (), 50);
-  EXPECT_EQ (clipFiles.size (), 50);
-  EXPECT_EQ (actionFiles.size (), 50);
+  EXPECT_EQ (clipFiles.size (), 70);
+  EXPECT_EQ (actionFiles.size (), 71);
   EXPECT_EQ (sets.findChildFiles (juce::File::findFiles, false, "*.json")
                  .size (),
-             10);
+             14);
 
   juce::StringArray shapeNames;
   for (auto const &file : shapeFiles)
@@ -194,21 +195,23 @@ TEST (ShippedLibrary, TheLibraryShipsFiftyOfEachAndTenSets)
 
 namespace
 {
-juce::StringArray const phases{ "Warmup", "Groove", "Build", "Peak", "Drop",
-                                "Break",  "Dub",    "Deep",  "Float", "Closing" };
+juce::StringArray const phases{ "Warmup", "Groove", "Build",   "Peak",
+                                "Drop",   "Break",  "Dub",     "Deep",
+                                "Float",  "Closing", "Tribal", "Acid",
+                                "Ambient", "Tension" };
 }
 
-// Fifty clips, each named by the phase of the night it belongs to, each drawing
-// a shape that ships. Default stays beside them: the shapeless fallback every
-// empty channel gets (ruling 1 of the plan).
-TEST (ShippedLibrary, FiftyClipsNamedByTheirPhaseAndTheFallback)
+// Seventy clips, each named by the phase of the night it belongs to, each
+// drawing a shape that ships. Default stays beside them: the shapeless
+// fallback every empty channel gets (ruling 1 of the plan).
+TEST (ShippedLibrary, SeventyClipsNamedByTheirPhaseAndTheFallback)
 {
   auto files = juce::File (A3_PATTERN_CLIPS_DIR)
                    .findChildFiles (juce::File::findFiles, false, "*.json");
   files.removeIf ([] (juce::File const &f) {
     return f.getFileNameWithoutExtension () == "Default";
   });
-  EXPECT_EQ (files.size (), 50);
+  EXPECT_EQ (files.size (), 70);
 
   juce::StringArray shapes;
   for (auto const &f : juce::File (A3_PATTERN_SYSTEM_DIR)
@@ -255,19 +258,22 @@ shippedActionFiles ()
 }
 }
 
-// Fifty actions, each named by what it does.
-TEST (ShippedLibrary, FiftyActionsNamedByWhatTheyDo)
+// Seventy-one actions, each named by what it does.
+TEST (ShippedLibrary, SeventyOneActionsNamedByWhatTheyDo)
 {
   auto const files = shippedActionFiles ();
-  EXPECT_EQ (files.size (), 50);
+  EXPECT_EQ (files.size (), 71);
   for (auto const &f : files)
     EXPECT_TRUE (startsWithOneOf (f.getFileNameWithoutExtension (), kinds))
         << f.getFileName ();
 }
 
-// Only FX touches the sound. Resolved against a clip whose ceilings are all
-// up, so a ceiling left commented out would show.
-TEST (ShippedLibrary, OnlyFXChangesTheSound)
+// Every FX changes the sound. Since 2026-10-03 any other action may too: the
+// maintainer's own gestures move and sound at once (Speed Half with a filter
+// envelope), and the old rule kept exactly those out of the library.
+// Resolved against a clip whose ceilings are all up, so a ceiling left
+// commented out would show.
+TEST (ShippedLibrary, EveryFXChangesTheSound)
 {
   ClipSettings loud;
   loud.envelopeMax = 1.f;
@@ -280,13 +286,12 @@ TEST (ShippedLibrary, OnlyFXChangesTheSound)
       auto const r = runActionScript (f.loadFileAsString (), loud, 1);
       EXPECT_TRUE (r.errors.isEmpty ())
           << name << ": " << r.errors.joinIntoString (" | ");
+      if (!name.startsWith ("FX "))
+        continue;
       auto const silent = r.settings.envelopeMax == 0.f
                           && r.settings.freqMax == 0.f
                           && r.settings.qMax == 0.f;
-      if (name.startsWith ("FX "))
-        EXPECT_FALSE (silent) << name << " is FX but leaves the sound alone";
-      else if (!name.startsWith ("Cue "))
-        EXPECT_TRUE (silent) << name << " changes the sound but is not FX";
+      EXPECT_FALSE (silent) << name << " is FX but leaves the sound alone";
     }
 }
 
@@ -309,17 +314,17 @@ TEST (ShippedLibrary, EveryCueNamesAClipThatShipsAndNothingElse)
       EXPECT_EQ ("Cue " + *r.clip, name) << "a Cue is named after its clip";
       EXPECT_TRUE (cueClipFor (r.clip, clips).error.isEmpty ()) << name;
     }
-  EXPECT_EQ (cues, 12);
+  EXPECT_EQ (cues, 13);
 }
 
-// Ten sets, one for each phase of the night, laid out the same way: the four
+// Fourteen sets, one for each phase of the night, laid out the same way: the four
 // clips carry the set's own phase, A5 is the FX, A6 the Cue into what comes
 // next, and A1..A4 only move.
-TEST (ShippedLibrary, TenSetsOnePerPhaseLaidOutTheSameWay)
+TEST (ShippedLibrary, FourteenSetsOnePerPhaseLaidOutTheSameWay)
 {
   auto const files = juce::File (A3_PATTERN_SESSIONS_DIR)
                          .findChildFiles (juce::File::findFiles, false, "*.json");
-  EXPECT_EQ (files.size (), 10);
+  EXPECT_EQ (files.size (), 14);
   for (auto const &f : files)
     {
       auto const set = loadSession (f, 4, 1);
