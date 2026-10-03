@@ -1,7 +1,7 @@
 // Move Phase Drift -- the figure slips a quarter turn and starts drifting.
 // Mood: hypnotic -- out of phase with the others; acid (Q2).
 //
-// A quarter turn at once, then one turn in sixteen bars.
+// A quarter turn at once, then one turn in eight bars, the slowest there is.
 
 // ---- Cue -------------------------------------------------------------
 //~clip = "";            // "name"  puts that clip on the channel, from the next downbeat
@@ -27,7 +27,7 @@
 //~roll = 0;             // -2..2   the figure's plane leant to the left (+) or right
 //~tswp = 0;             // -8..8   turns ~tilt round, like spin
 //~rswp = 0;             // -8..8   turns ~roll round, like spin
-~spin = 16;              // -8..8   bars per revolution, sign = direction
+~spin = 8;               // -8..8   bars per revolution, sign = direction
 //~swell = 0;            // -8..8   sweeps ~reach out of where it sits and back
 //~sway = 0;             // -8..8   sweeps ~base towards the pole the sign says
 //~fade = 0;             // 0..1    how much of the take the joins take over
