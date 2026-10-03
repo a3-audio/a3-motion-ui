@@ -1,0 +1,133 @@
+{
+ "name": "Ambient",
+ "channels": [
+  {
+   "threeD": 0.25,
+   "freq": 0.35,
+   "q": 0.05,
+   "slots": [
+    {
+     "pattern": "Wander Drift",
+     "clip": "Ambient Drift",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Lift Cloud"
+    },
+    {
+     "script": "Move Wind"
+    },
+    {
+     "script": "Width Fog"
+    },
+    {
+     "script": "Speed Slow Tide"
+    },
+    {
+     "script": "FX Rain"
+    },
+    {
+     "script": "Cue Float Aurora"
+    }
+   ]
+  },
+  {
+   "threeD": 0.27,
+   "freq": 0.35,
+   "q": 0.05,
+   "slots": [
+    {
+     "pattern": "Wander Wave",
+     "clip": "Ambient Wave",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Lift Cloud"
+    },
+    {
+     "script": "Move Wind"
+    },
+    {
+     "script": "Width Fog"
+    },
+    {
+     "script": "Speed Slow Tide"
+    },
+    {
+     "script": "FX Rain"
+    },
+    {
+     "script": "Cue Float Aurora"
+    }
+   ]
+  },
+  {
+   "threeD": 0.29,
+   "freq": 0.35,
+   "q": 0.05,
+   "slots": [
+    {
+     "pattern": "Spiral Breath",
+     "clip": "Ambient Breath",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Lift Cloud"
+    },
+    {
+     "script": "Move Wind"
+    },
+    {
+     "script": "Width Fog"
+    },
+    {
+     "script": "Speed Slow Tide"
+    },
+    {
+     "script": "FX Rain"
+    },
+    {
+     "script": "Cue Float Aurora"
+    }
+   ]
+  },
+  {
+   "threeD": 0.31,
+   "freq": 0.35,
+   "q": 0.05,
+   "slots": [
+    {
+     "pattern": "Orbit Kepler",
+     "clip": "Ambient Kepler",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Lift Cloud"
+    },
+    {
+     "script": "Move Wind"
+    },
+    {
+     "script": "Width Fog"
+    },
+    {
+     "script": "Speed Slow Tide"
+    },
+    {
+     "script": "FX Rain"
+    },
+    {
+     "script": "Cue Float Aurora"
+    }
+   ]
+  }
+ ]
+}

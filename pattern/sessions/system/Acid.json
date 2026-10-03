@@ -1,0 +1,133 @@
+{
+ "name": "Acid",
+ "channels": [
+  {
+   "threeD": 0.3,
+   "freq": 0.55,
+   "q": 0.3,
+   "slots": [
+    {
+     "pattern": "Loop 3-4",
+     "clip": "Acid Loop",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Squeeze Sweep"
+    },
+    {
+     "script": "Width Inhale"
+    },
+    {
+     "script": "Move Phase Drift"
+    },
+    {
+     "script": "Speed Double Twist"
+    },
+    {
+     "script": "FX Resonance Climb"
+    },
+    {
+     "script": "Cue Dub Echo"
+    }
+   ]
+  },
+  {
+   "threeD": 0.32,
+   "freq": 0.55,
+   "q": 0.3,
+   "slots": [
+    {
+     "pattern": "Loop Infinity",
+     "clip": "Acid Infinity",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Squeeze Sweep"
+    },
+    {
+     "script": "Width Inhale"
+    },
+    {
+     "script": "Move Phase Drift"
+    },
+    {
+     "script": "Speed Double Twist"
+    },
+    {
+     "script": "FX Resonance Climb"
+    },
+    {
+     "script": "Cue Dub Echo"
+    }
+   ]
+  },
+  {
+   "threeD": 0.34,
+   "freq": 0.55,
+   "q": 0.3,
+   "slots": [
+    {
+     "pattern": "Cycle Epi 3-1",
+     "clip": "Acid Epicycle",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Squeeze Sweep"
+    },
+    {
+     "script": "Width Inhale"
+    },
+    {
+     "script": "Move Phase Drift"
+    },
+    {
+     "script": "Speed Double Twist"
+    },
+    {
+     "script": "FX Resonance Climb"
+    },
+    {
+     "script": "Cue Dub Echo"
+    }
+   ]
+  },
+  {
+   "threeD": 0.36,
+   "freq": 0.55,
+   "q": 0.3,
+   "slots": [
+    {
+     "pattern": "Orbit Pulse",
+     "clip": "Acid Pulse",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Squeeze Sweep"
+    },
+    {
+     "script": "Width Inhale"
+    },
+    {
+     "script": "Move Phase Drift"
+    },
+    {
+     "script": "Speed Double Twist"
+    },
+    {
+     "script": "FX Resonance Climb"
+    },
+    {
+     "script": "Cue Dub Echo"
+    }
+   ]
+  }
+ ]
+}
