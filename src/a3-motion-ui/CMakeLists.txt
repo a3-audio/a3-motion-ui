@@ -16,8 +16,6 @@ juce_add_plugin("a3-motion-ui"
     PRODUCT_NAME "a3-motion-ui"                 # The name of the final executable, which can differ from the target name
 )
 
-juce_generate_juce_header("a3-motion-ui")
-
 target_sources("a3-motion-ui" PRIVATE
     A3MotionAudioProcessor.cc
     A3MotionAudioProcessor.hh
@@ -26,187 +24,35 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.cc
     StandaloneApp.hh
     MainWindow.cc
-    FrameRate.cc
-    FrameRate.hh
-    WindowReport.cc
-    WindowReport.hh
     MainWindow.hh
-    io/SerialReconnect.cc
-    io/SerialReconnect.hh
     io/InputOutputAdapter.cc
     io/InputOutputAdapter.hh
-    osc/OscMessageHandler.cc
-    osc/OscMessageHandler.hh
-    osc/VuRouting.cc
-    osc/VuRouting.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
-    components/LookAndFeel.cc
-    components/LookAndFeel.hh
-    components/StatusBar.cc
-    components/StatusBar.hh
-    components/StatusBarLayout.cc
-    components/StatusBarLayout.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
-    components/BlobPunch.cc
-    components/CoronaScaling.cc
-    components/DragAccumulator.cc
-    components/DragAccumulator.hh
-    components/PotKnob.cc
-    components/ScriptEditor.cc
-    components/ScriptEditor.hh
-    components/PotKnob.hh
-    components/VuFader.cc
-    components/VuMeterView.cc
-    components/VuMeterView.hh
-    components/VuFader.hh
-    components/TouchControl.cc
-    components/TouchControl.hh
-    components/OverlayButtons.cc
-    components/OverlayButtons.hh
-    components/OverlaySideStrips.cc
-    components/OverlaySideStrips.hh
-    components/BarButton.cc
-    components/BarButton.hh
-    components/ClipSettingsLayout.cc
-    components/RecordingLength.cc
-    components/RecordingLength.hh
     components/BrowserComponent.cc
-    components/BrowserLayout.cc
-    components/ControllerLayout.cc
-    components/ListScroll.cc
-    components/ListScroll.hh
     components/BrowserComponent.hh
-    components/BrowserLayout.hh
-    components/ControllerLayout.hh
     components/ControllerComponent.cc
     components/ControllerComponent.hh
-    theme/FunctionKeyColours.cc
-    theme/TransportLook.cc
-    theme/PadStatusColours.cc
-    components/ChannelValueReset.cc
-    components/RecordingIndicator.cc
-    components/LibraryKeys.cc
-    components/ActionEditing.cc
-    components/ActionEditing.hh
-    components/ScriptPanelLayout.cc
-    components/ScriptPanelLayout.hh
-    components/ScriptPanel.cc
-    components/ScriptPanel.hh
-    components/LibraryList.cc
-    theme/SkinGroups.cc
-    theme/SkinGroups.hh
-    theme/SkinSections.cc
-    theme/SkinSections.hh
-    theme/CleanSkin.cc
-    theme/CleanSkin.hh
-    theme/FunctionKeyColours.hh
-    theme/TransportLook.hh
-    components/ClipSettingsLayout.hh
-    components/TouchGrabs.cc
-    components/TouchGrabs.hh
-    components/SpeakerLightScaling.cc
-    components/EnergyMap.cc
-    components/SphereProjection.cc
-    components/LineMapGeometry.cc
-    components/LineMapStrokes.cc
-    components/LineMapCapsules.cc
     components/LineMapRenderer.cc
-    components/ElevationSideView.cc
-    components/Listener.cc
-    io/ButtonLedColours.cc
-    io/LedLoad.cc
-    io/LedCache.cc
-    io/OnScreenKeyboard.cc
-    io/OnScreenKeyboard.hh
-    io/PanelGrid.cc
-    io/PanelGrid.hh
-    io/PanelButtonCells.cc
-    io/PanelButtonCells.hh
-    io/PanelOwnership.cc
-    io/PanelOwnership.hh
-    components/PanelKeyboard.cc
-    components/PanelKeyboard.hh
-    io/Workspaces.cc
-    io/Workspaces.hh
-    components/WorkspaceList.cc
-    components/WorkspaceList.hh
-    theme/Theme.cc
-    theme/ThemeColours.cc
-    theme/ThemedComponent.cc
-    theme/SkinParameters.cc
-    theme/TextInput.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/SphereShader.cc
     components/SphereShader.hh
-    components/TickIndicator.cc
-    components/TickIndicator.hh
     components/LoopLengthDisplay.cc
     components/LoopLengthDisplay.hh
     components/PadRowDisplay.cc
     components/PadRowDisplay.hh
-    components/TrajectoryIcon.cc
-    components/TrajectoryIcon.hh
     components/ElevationDisplay.cc
     components/ElevationDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
-    components/GlobalSettingsComponent.cc
     components/ColourPickerComponent.cc
     components/ColourPickerComponent.hh
-    components/SkinEditorComponent.cc
-    components/SkinEditorComponent.hh
-    components/SkinPanelLayout.cc
-    components/SkinPanelLayout.hh
-    components/SkinPanelComponent.cc
-    components/SkinPanelComponent.hh
-    components/GlobalSettingsComponent.hh
-    components/ClipSettingsCaptions.cc
-    components/PatternProgressBar.cc
-    components/PatternProgressBar.hh
-    components/ActionComponent.cc
-    components/ActionLayout.cc
-    components/ActionMotionKnobs.cc
-    components/ActionChain.cc
-    components/PendingScriptWrites.cc
-    components/BlobPush.cc
-    components/BarKnob.cc
-    components/KnobHold.cc
-    components/EncoderMap.cc
-    components/BarKeyboardLayout.cc
-    components/BarKeyboardLayout.hh
-    components/BarKeyboardModel.cc
-    components/BarKeyboardModel.hh
-    components/BarKeyboardComponent.cc
-    components/BarKeyboardComponent.hh
-    components/PatternDisplay.cc
-    components/ColumnBreak.cc
-    components/ColumnBreak.hh
     components/MixerControls.hh
-    components/VuMeter.cc
-    components/VuMeter.hh
-    components/MixerState.cc
-    components/MixerState.hh
-    components/MixerLayout.cc
-    components/MixerLayout.hh
-    components/MixerComponent.cc
-    components/MixerComponent.hh
-    components/MixerStripComponent.cc
-    components/MixerStripComponent.hh
-    components/FittedFont.cc
-    components/FittedFont.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
-    ConfigFileWatcher.cc
-    ConfigFileWatcher.hh
-    SettingsPersistence.cc
-    SessionFile.cc
-    PendingTakes.cc
-    SessionFile.hh
-    PendingTakes.hh
-    SettingsPersistence.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )
@@ -295,3 +141,190 @@ configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/Config.hh.in"
     "${CMAKE_CURRENT_BINARY_DIR}/Config.hh"
 )
+
+# The UI sources the test runner exercises, compiled once for both
+# (2026-10-03). Each target used to compile them itself, 93 files twice over.
+# The library takes the app's flags rather than linking JUCE modules of its
+# own: a JUCE module linked here would be compiled here once more, which costs
+# more than the copies it saves.
+add_library(a3-motion-ui-shared STATIC)
+set_target_properties(a3-motion-ui-shared PROPERTIES
+    POSITION_INDEPENDENT_CODE TRUE)
+
+target_sources(a3-motion-ui-shared PRIVATE
+    FrameRate.cc
+    FrameRate.hh
+    WindowReport.cc
+    WindowReport.hh
+    io/SerialReconnect.cc
+    io/SerialReconnect.hh
+    osc/OscMessageHandler.cc
+    osc/OscMessageHandler.hh
+    osc/VuRouting.cc
+    osc/VuRouting.hh
+    components/LookAndFeel.cc
+    components/LookAndFeel.hh
+    components/StatusBar.cc
+    components/StatusBar.hh
+    components/StatusBarLayout.cc
+    components/StatusBarLayout.hh
+    components/BlobPunch.cc
+    components/CoronaScaling.cc
+    components/DragAccumulator.cc
+    components/DragAccumulator.hh
+    components/PotKnob.cc
+    components/ScriptEditor.cc
+    components/ScriptEditor.hh
+    components/PotKnob.hh
+    components/VuFader.cc
+    components/VuMeterView.cc
+    components/VuMeterView.hh
+    components/VuFader.hh
+    components/TouchControl.cc
+    components/TouchControl.hh
+    components/OverlayButtons.cc
+    components/OverlayButtons.hh
+    components/OverlaySideStrips.cc
+    components/OverlaySideStrips.hh
+    components/BarButton.cc
+    components/BarButton.hh
+    components/ClipSettingsLayout.cc
+    components/RecordingLength.cc
+    components/RecordingLength.hh
+    components/BrowserLayout.cc
+    components/ControllerLayout.cc
+    components/ListScroll.cc
+    components/ListScroll.hh
+    components/BrowserLayout.hh
+    components/ControllerLayout.hh
+    theme/FunctionKeyColours.cc
+    theme/TransportLook.cc
+    theme/PadStatusColours.cc
+    components/ChannelValueReset.cc
+    components/RecordingIndicator.cc
+    components/LibraryKeys.cc
+    components/ActionEditing.cc
+    components/ActionEditing.hh
+    components/ScriptPanelLayout.cc
+    components/ScriptPanelLayout.hh
+    components/ScriptPanel.cc
+    components/ScriptPanel.hh
+    components/LibraryList.cc
+    theme/SkinGroups.cc
+    theme/SkinGroups.hh
+    theme/SkinSections.cc
+    theme/SkinSections.hh
+    theme/CleanSkin.cc
+    theme/CleanSkin.hh
+    theme/FunctionKeyColours.hh
+    theme/TransportLook.hh
+    components/ClipSettingsLayout.hh
+    components/TouchGrabs.cc
+    components/TouchGrabs.hh
+    components/SpeakerLightScaling.cc
+    components/EnergyMap.cc
+    components/SphereProjection.cc
+    components/LineMapGeometry.cc
+    components/LineMapStrokes.cc
+    components/LineMapCapsules.cc
+    components/ElevationSideView.cc
+    components/Listener.cc
+    io/ButtonLedColours.cc
+    io/LedLoad.cc
+    io/LedCache.cc
+    io/OnScreenKeyboard.cc
+    io/OnScreenKeyboard.hh
+    io/PanelGrid.cc
+    io/PanelGrid.hh
+    io/PanelButtonCells.cc
+    io/PanelButtonCells.hh
+    io/PanelOwnership.cc
+    io/PanelOwnership.hh
+    components/PanelKeyboard.cc
+    components/PanelKeyboard.hh
+    io/Workspaces.cc
+    io/Workspaces.hh
+    components/WorkspaceList.cc
+    components/WorkspaceList.hh
+    theme/Theme.cc
+    theme/ThemeColours.cc
+    theme/ThemedComponent.cc
+    theme/SkinParameters.cc
+    theme/TextInput.cc
+    components/TickIndicator.cc
+    components/TickIndicator.hh
+    components/TrajectoryIcon.cc
+    components/TrajectoryIcon.hh
+    components/GlobalSettingsComponent.cc
+    components/SkinEditorComponent.cc
+    components/SkinEditorComponent.hh
+    components/SkinPanelLayout.cc
+    components/SkinPanelLayout.hh
+    components/SkinPanelComponent.cc
+    components/SkinPanelComponent.hh
+    components/GlobalSettingsComponent.hh
+    components/ClipSettingsCaptions.cc
+    components/PatternProgressBar.cc
+    components/PatternProgressBar.hh
+    components/ActionComponent.cc
+    components/ActionLayout.cc
+    components/ActionMotionKnobs.cc
+    components/ActionChain.cc
+    components/PendingScriptWrites.cc
+    components/BlobPush.cc
+    components/BarKnob.cc
+    components/KnobHold.cc
+    components/EncoderMap.cc
+    components/BarKeyboardLayout.cc
+    components/BarKeyboardLayout.hh
+    components/BarKeyboardModel.cc
+    components/BarKeyboardModel.hh
+    components/BarKeyboardComponent.cc
+    components/BarKeyboardComponent.hh
+    components/PatternDisplay.cc
+    components/ColumnBreak.cc
+    components/ColumnBreak.hh
+    components/VuMeter.cc
+    components/VuMeter.hh
+    components/MixerState.cc
+    components/MixerState.hh
+    components/MixerLayout.cc
+    components/MixerLayout.hh
+    components/MixerComponent.cc
+    components/MixerComponent.hh
+    components/MixerStripComponent.cc
+    components/MixerStripComponent.hh
+    components/FittedFont.cc
+    components/FittedFont.hh
+    ConfigFileWatcher.cc
+    ConfigFileWatcher.hh
+    SettingsPersistence.cc
+    SessionFile.cc
+    PendingTakes.cc
+    SessionFile.hh
+    PendingTakes.hh
+    SettingsPersistence.hh
+)
+
+target_include_directories(a3-motion-ui-shared PRIVATE
+    $<TARGET_PROPERTY:a3-motion-ui,INCLUDE_DIRECTORIES>)
+target_compile_definitions(a3-motion-ui-shared PRIVATE
+    $<TARGET_PROPERTY:a3-motion-ui,COMPILE_DEFINITIONS>)
+target_compile_options(a3-motion-ui-shared PRIVATE
+    $<TARGET_PROPERTY:a3-motion-ui,COMPILE_OPTIONS>)
+target_link_libraries(a3-motion-ui-shared INTERFACE
+    a3-motion-engine
+    a3-audio-engine)
+
+# The app's JuceHeader.h, generated here because this library compiles first:
+# the app links it and so waits for it. Two owners of the one custom command
+# would let make run it twice at once.
+get_target_property(ui_library_code "a3-motion-ui" JUCE_GENERATED_SOURCES_DIRECTORY)
+set(ui_defs_file $<GENEX_EVAL:$<TARGET_PROPERTY:a3-motion-ui,JUCE_DEFS_FILE>>)
+add_custom_command(OUTPUT "${ui_library_code}/JuceHeader.h"
+    COMMAND juce::juceaide header "${ui_defs_file}" "${ui_library_code}/JuceHeader.h"
+    DEPENDS "${ui_defs_file}"
+    VERBATIM)
+target_sources(a3-motion-ui-shared PRIVATE "${ui_library_code}/JuceHeader.h")
+
+target_link_libraries("a3-motion-ui" PUBLIC a3-motion-ui-shared)
