@@ -29,6 +29,7 @@ set_target_properties("a3-motion-engine" PROPERTIES
 
 _juce_initialise_target("a3-motion-engine")
 juce_generate_juce_header("a3-motion-engine")
+a3_precompile_juce_header("a3-motion-engine")
 
 target_sources("a3-motion-engine" PRIVATE
     UserConfig.cc

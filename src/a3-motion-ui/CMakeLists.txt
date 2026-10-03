@@ -328,3 +328,6 @@ add_custom_command(OUTPUT "${ui_library_code}/JuceHeader.h"
 target_sources(a3-motion-ui-shared PRIVATE "${ui_library_code}/JuceHeader.h")
 
 target_link_libraries("a3-motion-ui" PUBLIC a3-motion-ui-shared)
+
+a3_precompile_juce_header(a3-motion-ui-shared "a3-motion-ui")
+a3_precompile_juce_header("a3-motion-ui")

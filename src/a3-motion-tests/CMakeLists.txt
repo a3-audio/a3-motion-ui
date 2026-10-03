@@ -4,6 +4,7 @@ juce_add_console_app(a3-motion-tests
     COMPANY_NAME "a3-audio"
     PRODUCT_NAME "a3-motion-tests")
 juce_generate_juce_header("a3-motion-tests")
+a3_precompile_juce_header("a3-motion-tests")
 
 target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
