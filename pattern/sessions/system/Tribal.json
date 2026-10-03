@@ -1,0 +1,133 @@
+{
+ "name": "Tribal",
+ "channels": [
+  {
+   "threeD": 0.38,
+   "freq": 0.4,
+   "q": 0.1,
+   "slots": [
+    {
+     "pattern": "Rhythm Gallop",
+     "clip": "Tribal Gallop",
+     "recordLengthLog2": 2
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Stomp"
+    },
+    {
+     "script": "Move Call"
+    },
+    {
+     "script": "Width Drum Roll"
+    },
+    {
+     "script": "Speed Double Gallop"
+    },
+    {
+     "script": "FX Thunder"
+    },
+    {
+     "script": "Cue Tension Siren"
+    }
+   ]
+  },
+  {
+   "threeD": 0.4,
+   "freq": 0.4,
+   "q": 0.1,
+   "slots": [
+    {
+     "pattern": "Rhythm Ping Pong",
+     "clip": "Tribal Ping Pong",
+     "recordLengthLog2": 2
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Stomp"
+    },
+    {
+     "script": "Move Call"
+    },
+    {
+     "script": "Width Drum Roll"
+    },
+    {
+     "script": "Speed Double Gallop"
+    },
+    {
+     "script": "FX Thunder"
+    },
+    {
+     "script": "Cue Tension Siren"
+    }
+   ]
+  },
+  {
+   "threeD": 0.42,
+   "freq": 0.4,
+   "q": 0.1,
+   "slots": [
+    {
+     "pattern": "Rhythm Clave 2-3",
+     "clip": "Tribal Clave",
+     "recordLengthLog2": 3
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Stomp"
+    },
+    {
+     "script": "Move Call"
+    },
+    {
+     "script": "Width Drum Roll"
+    },
+    {
+     "script": "Speed Double Gallop"
+    },
+    {
+     "script": "FX Thunder"
+    },
+    {
+     "script": "Cue Tension Siren"
+    }
+   ]
+  },
+  {
+   "threeD": 0.44,
+   "freq": 0.4,
+   "q": 0.1,
+   "slots": [
+    {
+     "pattern": "Edge Zigzag",
+     "clip": "Tribal Zigzag",
+     "recordLengthLog2": 3
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Stomp"
+    },
+    {
+     "script": "Move Call"
+    },
+    {
+     "script": "Width Drum Roll"
+    },
+    {
+     "script": "Speed Double Gallop"
+    },
+    {
+     "script": "FX Thunder"
+    },
+    {
+     "script": "Cue Tension Siren"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,133 @@
+{
+ "name": "Tension",
+ "channels": [
+  {
+   "threeD": 0.4,
+   "freq": 0.6,
+   "q": 0.2,
+   "slots": [
+    {
+     "pattern": "Orbit Circle",
+     "clip": "Tension Siren",
+     "recordLengthLog2": 4
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Siren"
+    },
+    {
+     "script": "Lift Climb"
+    },
+    {
+     "script": "Speed Accelerate"
+    },
+    {
+     "script": "Width Tighten"
+    },
+    {
+     "script": "FX Filter Rise"
+    },
+    {
+     "script": "Cue Drop Impact"
+    }
+   ]
+  },
+  {
+   "threeD": 0.42,
+   "freq": 0.6,
+   "q": 0.2,
+   "slots": [
+    {
+     "pattern": "Spiral Vortex",
+     "clip": "Tension Vortex",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Siren"
+    },
+    {
+     "script": "Lift Climb"
+    },
+    {
+     "script": "Speed Accelerate"
+    },
+    {
+     "script": "Width Tighten"
+    },
+    {
+     "script": "FX Filter Rise"
+    },
+    {
+     "script": "Cue Drop Impact"
+    }
+   ]
+  },
+  {
+   "threeD": 0.44,
+   "freq": 0.6,
+   "q": 0.2,
+   "slots": [
+    {
+     "pattern": "Spiral Helix",
+     "clip": "Tension Helix",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Siren"
+    },
+    {
+     "script": "Lift Climb"
+    },
+    {
+     "script": "Speed Accelerate"
+    },
+    {
+     "script": "Width Tighten"
+    },
+    {
+     "script": "FX Filter Rise"
+    },
+    {
+     "script": "Cue Drop Impact"
+    }
+   ]
+  },
+  {
+   "threeD": 0.46,
+   "freq": 0.6,
+   "q": 0.2,
+   "slots": [
+    {
+     "pattern": "Spiral Riser",
+     "clip": "Tension Riser",
+     "recordLengthLog2": 5
+    }
+   ],
+   "actions": [
+    {
+     "script": "Move Siren"
+    },
+    {
+     "script": "Lift Climb"
+    },
+    {
+     "script": "Speed Accelerate"
+    },
+    {
+     "script": "Width Tighten"
+    },
+    {
+     "script": "FX Filter Rise"
+    },
+    {
+     "script": "Cue Drop Impact"
+    }
+   ]
+  }
+ ]
+}
