@@ -26,6 +26,7 @@ set_target_properties("a3-audio-engine" PROPERTIES
 
 _juce_initialise_target("a3-audio-engine")
 juce_generate_juce_header("a3-audio-engine")
+a3_precompile_juce_header("a3-audio-engine")
 
 target_sources("a3-audio-engine" PRIVATE
     ChunkedRender.cc
