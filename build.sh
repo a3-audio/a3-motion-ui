@@ -152,15 +152,21 @@ fi
 BINARY="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone/a3-motion-ui"
 BINARY_DIR="$BUILD_DIR/src/a3-motion-ui/a3-motion-ui_artefacts/$BUILD_TYPE/Standalone"
 
-# Create symlinks to resources and config if not exists
-if [ ! -e "$BINARY_DIR/resources" ]; then
-    echo "=== Creating resources symlink ==="
-    ln -s "$SRC_DIR/resources" "$BINARY_DIR/resources"
-fi
-if [ ! -e "$BINARY_DIR/config" ]; then
-    echo "=== Creating config symlink ==="
-    ln -s "$SRC_DIR/config" "$BINARY_DIR/config"
-fi
+# resources/ and config/ beside the binary, as links into this checkout.
+# A link is set again when it points anywhere else: after the checkout moved
+# (a3-motion-ui into the a3-system umbrella, 2026-10-04) the old links pointed
+# at nothing, `[ ! -e ]` held for them, and `ln -s` failed on the existing
+# link -- which, under set -e, ended test.sh before a single test ran. A real
+# directory in their place is left alone.
+for name in resources config; do
+    link="$BINARY_DIR/$name"
+    if [ -L "$link" ] || [ ! -e "$link" ]; then
+        if [ "$(readlink "$link" 2>/dev/null)" != "$SRC_DIR/$name" ]; then
+            echo "=== Linking $name to $SRC_DIR/$name ==="
+            ln -sfn "$SRC_DIR/$name" "$link"
+        fi
+    fi
+done
 
 # What the compiler said, and only about our own code -- JUCE's modules warn
 # plentifully and none of it is ours to fix. Counted by kind, because the
