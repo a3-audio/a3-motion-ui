@@ -46,17 +46,23 @@ namespace a3
  *  controller whose firmware is not answering at all. That looks identical
  *  from here — an open port and no bytes — and reopening it changes nothing.
  *  The way to tell them apart is whether the device ever re-enumerates
- *  (`stat -c %z /dev/ttyACM0`, the ctime, not the mtime: the mtime moves on
- *  every write *we* make).
+ *  (`stat -c %z` on the panel's tty, the ctime, not the mtime: the mtime
+ *  moves on every write *we* make).
+ *
+ *  Each reopen asks serialInit() afresh, and serialInit() reads the
+ *  candidates from sysfs each time (panelSerialCandidates()), so a panel that
+ *  comes back under a different tty number is found as well.
  */
 /** Whether a reply to PING came from the controller.
  *
- *  serialInit() walks /dev/ttyACM0..2 and ttyUSB0..2 and used to take the
- *  first one that would open. On this device that is the CH343 bridge sitting
- *  beside the controller: it opens perfectly and answers nothing, so the
- *  adapter clamped onto it and read into the void for a whole session while
- *  the real controller -- native USB CDC on the ESP32-S3, a different node
- *  entirely -- was never looked at again.
+ *  serialInit() used to take the first serial port that would open. On the
+ *  board of the time that was a CH343 bridge with nothing talking behind it:
+ *  it opened perfectly and answered nothing, so the adapter clamped onto it
+ *  and read into the void for a whole session while the controller -- native
+ *  USB CDC on the ESP32-S3 then, a different node entirely -- was never
+ *  looked at again. Since 2026-10-04 the firmware talks on the CH343 itself
+ *  and the candidates are ordered by its USB ID (SerialCandidates), but an ID
+ *  only says which port to ask first; this is what says the answer is right.
  *
  *  PING (0x01) is answered with 0x01. One byte each way, in the firmware
  *  since the protocol existed (firmware/src/protocol.cpp); nothing was asking

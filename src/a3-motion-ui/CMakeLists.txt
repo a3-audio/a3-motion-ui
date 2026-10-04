@@ -158,6 +158,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     WindowReport.hh
     io/SerialReconnect.cc
     io/SerialReconnect.hh
+    io/SerialCandidates.cc
+    io/SerialCandidates.hh
     osc/OscMessageHandler.cc
     osc/OscMessageHandler.hh
     osc/VuRouting.cc

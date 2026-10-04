@@ -1721,6 +1721,10 @@ Two concrete adapters, selected at configure time via `HARDWARE_INTERFACE_VERSIO
   (`BTN+ENC` vs `ENC+BTN`) can vary by USB-CDC stack, so parsing is marker-based and must accept
   both layouts. Two physical buttons ("MenuToggle left/right") are combined into a single
   chorded `Menu` press/release pair inside `dispatchButtonEvent()`.
+  The port is not a fixed tty number: `serialInit()` asks every `ttyACM*`/`ttyUSB*` in
+  `/sys/class/tty`, those whose USB ID is the panel's CH343 bridge (`1a86:55d3`, the board file's
+  `build.hwids`) first, and keeps the first that answers PING (`io/SerialCandidates`). The ID only
+  orders the list; the handshake decides, so a different bridge on a later board still works.
 
 `host.py` (repo root) is a standalone diagnostic/reference tool — not part of the CMake build — for
 polling the firmware directly over serial and printing decoded input events; useful when debugging

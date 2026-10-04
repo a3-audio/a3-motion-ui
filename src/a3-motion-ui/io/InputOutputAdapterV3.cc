@@ -21,6 +21,7 @@
 #include "InputOutputAdapterV3.hh"
 
 #include <a3-motion-ui/io/PanelButtonCells.hh>
+#include <a3-motion-ui/io/SerialCandidates.hh>
 #include <a3-motion-engine/UserConfig.hh>
 #include <a3-motion-ui/io/ButtonLedColours.hh>
 
@@ -56,10 +57,10 @@ InputOutputAdapterV3::serialInit ()
 {
   using namespace LibSerial;
 
-  std::array<juce::String, 6> const candidates = {
-    "/dev/ttyACM0", "/dev/ttyACM1", "/dev/ttyACM2",
-    "/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyUSB2"
-  };
+  // Every USB-serial port there is, the panel's own bridge first -- not a
+  // fixed list of tty numbers, which missed a panel that came up as ttyACM3.
+  // See SerialCandidates.
+  auto const candidates = panelSerialCandidates ();
 
   for (auto const &serialDevice : candidates)
     {
@@ -86,11 +87,12 @@ InputOutputAdapterV3::serialInit ()
           juce::Thread::sleep (600);
 
           // Opening is not finding. Every candidate that exists will open --
-          // the CH343 bridge beside the controller opens perfectly and
+          // a bridge with nothing talking behind it opens perfectly and
           // answers nothing -- so a port has to say who it is before it is
-          // believed. Without this the adapter clamped onto the first node in
-          // the list and read into the void for a whole session while the
-          // controller sat on another one, never looked at again.
+          // believed, the USB ID it was ordered by included. Without this the
+          // adapter clamped onto the first node in the list and read into
+          // the void for a whole session while the controller sat on another
+          // one, never looked at again.
           if (!pingAnswers ())
             {
               juce::Logger::writeToLog (
@@ -121,8 +123,10 @@ InputOutputAdapterV3::serialInit ()
 
   _hardwareAvailable = false;
   juce::Logger::writeToLog (
-      "InputOutputAdapterV3: no usable serial port found "
-      "(/dev/ttyACM0..2, /dev/ttyUSB0..2)");
+      "InputOutputAdapterV3: no usable serial port found among "
+      + juce::String (static_cast<int> (candidates.size ()))
+      + " candidates (ttyACM*, ttyUSB*; the panel's bridge "
+      + panelUsbId ().vendor + ":" + panelUsbId ().product + " first)");
 }
 
 bool
