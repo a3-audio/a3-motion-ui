@@ -118,12 +118,14 @@ TEST (SerialReconnect, AClockThatGoesBackwardsDoesNotLockItOut)
 
 // ── Telling the controller from whatever else is on the bus ──────────────
 
-// serialInit() walks /dev/ttyACM0..2 and ttyUSB0..2 and used to take the
-// first one that would open. On this device that was the CH343 bridge sitting
-// beside the controller, which opens perfectly and answers nothing -- so the
-// adapter clamped onto the wrong port and read into the void for the whole
-// session, with the actual controller (native USB CDC, a different node
-// entirely) never looked at again.
+// serialInit() used to take the first serial port that would open. On the
+// board of the time that was a CH343 bridge with nothing talking behind it,
+// which opens perfectly and answers nothing -- so the adapter clamped onto the
+// wrong port and read into the void for the whole session, with the actual
+// controller (native USB CDC then, a different node entirely) never looked at
+// again. The candidates are now ordered by the panel's USB ID
+// (SerialCandidates), which says which port to ask first, not that it is
+// the right one.
 //
 // A port is the controller when it answers PING with PING. That is one byte
 // each way and the firmware has always had it; nothing was asking.
