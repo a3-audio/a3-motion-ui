@@ -159,6 +159,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BlobPush.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionChain.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SerialReconnect.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SerialCandidates.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternSpeedAndFade.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternPlayback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingSeam.cc"
