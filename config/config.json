@@ -1,5 +1,5 @@
 {
-  "patternDir": "/home/aaa/a3-system/a3-motion-ui/pattern",
+  "patternDir": "pattern",
   "oscSender": {
     "host": "127.0.0.1",
     "port": 9000,
