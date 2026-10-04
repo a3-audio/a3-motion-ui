@@ -300,8 +300,10 @@ target_sources(a3-motion-ui-shared PRIVATE
     ConfigFileWatcher.hh
     SettingsPersistence.cc
     SessionFile.cc
+    PatternDir.cc
     PendingTakes.cc
     SessionFile.hh
+    PatternDir.hh
     PendingTakes.hh
     SettingsPersistence.hh
 )
