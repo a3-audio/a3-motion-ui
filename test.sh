@@ -87,11 +87,18 @@ COMMITTED_AT="$(git -C "$SCRIPT_DIR" log -1 --format='%h')"
 
 # The one truth for OSC is a3-core's file, not this repository's. Installed it
 # is /usr/share/a3/a3-osc.json; on a machine without the package, the a3-core
-# checkout beside this one. OscTruthContract fails without either -- and the
+# checkout beside this one or above it. OscTruthContract fails without either -- and the
 # line below says which one the run held Motion against.
 if [ -z "$A3_OSC_TRUTH" ] && [ ! -f /usr/share/a3/a3-osc.json ]; then
-    BESIDE="$SCRIPT_DIR/../a3-core/platform-config/debian-x86_64/a3-core/usr/share/a3/a3-osc.json"
-    [ -f "$BESIDE" ] && export A3_OSC_TRUTH="$(realpath "$BESIDE")"
+    # Beside this checkout, or -- inside the a3-system umbrella, where this is
+    # a3-motion's ui -- two levels up.
+    for CORE in "$SCRIPT_DIR/../a3-core" "$SCRIPT_DIR/../../a3-core"; do
+        BESIDE="$CORE/platform-config/debian-x86_64/a3-core/usr/share/a3/a3-osc.json"
+        if [ -f "$BESIDE" ]; then
+            export A3_OSC_TRUTH="$(realpath "$BESIDE")"
+            break
+        fi
+    done
 fi
 OSC_TRUTH_USED="${A3_OSC_TRUTH:-/usr/share/a3/a3-osc.json}"
 

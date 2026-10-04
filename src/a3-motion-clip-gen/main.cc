@@ -253,7 +253,9 @@ main (int argc, char **argv)
   juce::ScopedJuceInitialiser_GUI juceInit;
 
   int count = 20;
-  juce::File outDir ("/home/aaa/a3-system/a3-motion-ui/pattern/clips");
+  // Relative to the working directory, as the usage says and as
+  // PatternDir reads it: the checkout may sit anywhere.
+  juce::File outDir (juce::File::getCurrentWorkingDirectory ().getChildFile ("pattern/clips"));
 
   for (int i = 1; i < argc; ++i)
     {

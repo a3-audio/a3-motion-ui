@@ -10,8 +10,8 @@
     a3-pattern-gen [OPTIONS]
 
   Options:
-    -o, --output <dir>   Output directory (default: ../pattern/system
-                         relative to the binary, or ./pattern/system)
+    -o, --output <dir>   Output directory (default: pattern/system,
+                         relative to the working directory)
     -a, --all            Generate all system patterns (default)
     -p, --pattern <name> Generate only the named pattern
     -l, --length <beats> Override length in beats for all patterns
@@ -159,7 +159,9 @@ main (int argc, char *argv[])
   // Initialise JUCE without a GUI
   juce::ScopedJuceInitialiser_GUI juceInit;
 
-  std::string outputDir = "/home/aaa/a3-system/a3-motion-ui/pattern/system";
+  // Relative to the working directory, as the usage says: the checkout may
+  // sit anywhere.
+  std::string outputDir = "pattern/system";
   std::string onlyPattern;
   int overrideLength = 0; // 0 = use per-pattern default
   float radius = 0.8f;
