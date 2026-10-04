@@ -15,7 +15,8 @@ spatialization software via OSC.
 
 ## Build
 
-Requires **JUCE 9.0.1** (release tag, not `develop`) built/installed separately; requires
+Requires **JUCE 9.0.3** (release tag, not `develop`; the one JUCE every A³ product builds against,
+pinned as `JUCE_VERSION` in a3-system's `installer/roles/base.py`) built/installed separately; requires
 `pkg-config`/`gsl` dev packages and `libegl-dev` (JUCE 9's OpenGL module includes `EGL/egl.h` on
 Linux — and if `egl.pc` is absent at configure time JUCE drops its `egl;gl` group silently, so the
 build directory must be configured again after installing it, not merely rebuilt), and (when hardware support is on) `libserial`/`libgpiod` dev packages, plus GoogleTest

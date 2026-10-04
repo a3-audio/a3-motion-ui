@@ -33,11 +33,13 @@ Older releases call the freetype package `libfreetype6-dev`. Install
 `libegl-dev` before the first configure (see ARCHITECTURE.md). `ccache` is used
 when it is installed.
 
-The app builds against **JUCE 9.0.1**, installed to `~/local/juce`:
+The app builds against **JUCE 9.0.3**, the one JUCE every A³ product uses. It is pinned as
+`JUCE_VERSION` in a3-system's `installer/roles/base.py`, and the installer sets it up in
+`~/local/juce`. By hand:
 
 ```bash
 git clone https://github.com/juce-framework/JUCE.git ~/src/JUCE
-cd ~/src/JUCE && git checkout 9.0.1
+cd ~/src/JUCE && git checkout 9.0.3
 cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$HOME/local/juce
 cmake --build build --target install
 ```
