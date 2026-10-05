@@ -658,6 +658,9 @@ private:
   
   // Direct OSC Sender for time-critical tap messages (bypasses async queue)
   juce::OSCSender _tapSender;
+  // The hello to Core: strings, which the async queue cannot carry; once
+  // every 30 s from the UI timer, so no queue is needed.
+  juce::OSCSender _helloSender;
 
   /** The mixer's own sender, because the beat clock's points at a different
    *  process. See OscEndpoints: the two ports in `oscSender` are the beat
