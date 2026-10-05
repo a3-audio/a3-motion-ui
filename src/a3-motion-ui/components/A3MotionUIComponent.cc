@@ -1169,6 +1169,8 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
 
   auto const &core = endpoints.core;
+  if (!_helloSender.connect (core.host, core.port))
+    std::cerr << "ERROR: OSC hello sender failed to connect to " << core.host << ":" << core.port << std::endl;
   if (_mixerSender.connect (core.host, core.port))
     {
       std::cout << "OSC Sender for mixer connected to " << core.host << ":" << core.port << std::endl;
@@ -7028,13 +7030,14 @@ A3MotionUIComponent::askCoreForItsState ()
 void
 A3MotionUIComponent::sayHelloWhenDue ()
 {
-  // On the mixer's sender: it is the one aimed at Core. The digest is of the
-  // truth this process loaded, the one Core compares with its fingerprint.
+  // On a plain sender aimed at Core: the async mixer sender carries numbers
+  // only. The digest is of the truth this process loaded, the one Core
+  // compares with its fingerprint.
   auto const now = juce::Time::getMillisecondCounterHiRes ();
   if (!_helloSchedule.due (now))
     return;
   _helloSchedule.said (now);
-  _mixerSender.send (
+  _helloSender.send (
       helloMessage (_oscAddresses, installedOscTruth ().digest ()));
 }
 

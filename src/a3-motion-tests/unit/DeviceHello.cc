@@ -25,6 +25,7 @@
 #include <a3-motion-engine/DeviceHello.hh>
 #include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-engine/OscTruth.hh>
+#include <a3-motion-ui/io/AsyncOSCSender.hh>
 
 #include <MadeUpOscTruth.hh>
 
@@ -109,4 +110,32 @@ TEST (DeviceHello, TheAppSaysHelloWithTheLoadedDigest)
   EXPECT_TRUE (text.contains ("helloMessage (_oscAddresses, "
                               "installedOscTruth ().digest ())"));
   EXPECT_TRUE (text.contains ("sayHelloWhenDue ();"));
+}
+
+// The hello reached Core as ("0", "0") on 2026-10-05: AsyncOSCSender's queue
+// carries numbers only, and a string argument went out as an empty number.
+// It now refuses such a message instead of garbling it, and the hello has a
+// plain sender of its own.
+TEST (DeviceHello, TheQueuedSenderRefusesWordsItCannotCarry)
+{
+  a3::AsyncOSCSender sender;
+  EXPECT_FALSE (sender.send (juce::OSCMessage ("/device/hello",
+                                               juce::String ("motion"),
+                                               juce::String ("abc123"))));
+  EXPECT_TRUE (sender.send (juce::OSCMessage ("/mixer/x", 1, 0.5f)));
+}
+
+TEST (DeviceHello, TheHelloGoesOutOnASenderThatKeepsItsWords)
+{
+  auto const ui = juce::File (__FILE__)
+                      .getParentDirectory ()
+                      .getParentDirectory ()
+                      .getSiblingFile ("a3-motion-ui")
+                      .getChildFile ("components/A3MotionUIComponent.cc");
+  auto const text = ui.loadFileAsString ();
+  ASSERT_TRUE (text.isNotEmpty ()) << ui.getFullPathName ();
+  EXPECT_TRUE (text.contains ("_helloSender.send (\n"
+                              "      helloMessage (_oscAddresses, "
+                              "installedOscTruth ().digest ()))"));
+  EXPECT_TRUE (text.contains ("_helloSender.connect (core.host, core.port)"));
 }

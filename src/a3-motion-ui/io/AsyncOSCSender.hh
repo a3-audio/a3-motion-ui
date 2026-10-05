@@ -72,6 +72,13 @@ public:
    */
   bool send (const juce::OSCMessage &message)
   {
+    // The FIFO carries numbers only. A string argument used to go out as an
+    // empty number -- Motion's hello reached Core as ("0", "0") on
+    // 2026-10-05 -- so such a message is refused rather than garbled.
+    for (auto const &arg : message)
+      if (!arg.isInt32 () && !arg.isFloat32 ())
+        return false;
+
     FifoMessage fifoMsg;
     fifoMsg.addressPattern = message.getAddressPattern ().toString ();
 
