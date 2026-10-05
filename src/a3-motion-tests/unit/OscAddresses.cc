@@ -42,6 +42,7 @@ TEST (OscAddresses, EveryAddressOfOursComesFromTheTruth)
   EXPECT_EQ (a.channelFilterQ, "/t/channel.filter.q/{ch}");
   EXPECT_EQ (a.channelThreeD, "/t/channel.3d/{ch}");
   EXPECT_EQ (a.stateRecall, "/t/state.recall");
+  EXPECT_EQ (a.deviceHello, "/t/device.hello");
   EXPECT_EQ (a.beatOut, "/t/beat");
   EXPECT_EQ (a.beatIn, "/t/beat");
   EXPECT_EQ (a.tap, "/t/tap");
@@ -149,7 +150,8 @@ TEST (OscAddresses, JuceAcceptsEveryAddressFromTheTruth)
   for (auto const &pattern :
        { a.channelAzimuth, a.channelElevation, a.channelFilterFrequency,
          a.channelFilterQ, a.channelThreeD, a.iemAzimuth, a.iemElevation,
-         a.beatOut, a.beatIn, a.tap, a.clockMode, a.stateRecall })
+         a.beatOut, a.beatIn, a.tap, a.clockMode, a.stateRecall,
+         a.deviceHello })
     for (int index = 0; index < 4; ++index)
       EXPECT_TRUE (isSendableOscAddress (withChannelIndex (pattern, index)))
           << pattern;

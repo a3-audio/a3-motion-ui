@@ -6691,6 +6691,8 @@ A3MotionUIComponent::refreshAllPadRowLabels ()
 void
 A3MotionUIComponent::timerCallback ()
 {
+  sayHelloWhenDue ();
+
   // At most one theme apply per tick, whatever arrived since the last one --
   // see applyEditedSkin(). Here rather than in a callAsync of its own because
   // a timer is what "once per frame" means; a queue is what it did before.
@@ -7021,6 +7023,19 @@ A3MotionUIComponent::askCoreForItsState ()
   auto message = juce::OSCMessage (_oscAddresses.stateRecall);
   message.addFloat32 (1.f);
   _mixerSender.send (message);
+}
+
+void
+A3MotionUIComponent::sayHelloWhenDue ()
+{
+  // On the mixer's sender: it is the one aimed at Core. The digest is of the
+  // truth this process loaded, the one Core compares with its fingerprint.
+  auto const now = juce::Time::getMillisecondCounterHiRes ();
+  if (!_helloSchedule.due (now))
+    return;
+  _helloSchedule.said (now);
+  _mixerSender.send (
+      helloMessage (_oscAddresses, installedOscTruth ().digest ()));
 }
 
 void
