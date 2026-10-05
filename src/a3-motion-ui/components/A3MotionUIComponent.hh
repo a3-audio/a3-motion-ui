@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include <a3-motion-engine/DeviceHello.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/MotionEngine.hh>
@@ -130,6 +131,7 @@ public:
   void repaintMixerPages ();
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
+  void sayHelloWhenDue ();
 
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
@@ -661,6 +663,10 @@ private:
    *  process. See OscEndpoints: the two ports in `oscSender` are the beat
    *  analyzer and A3 Core, and every mixer address belongs to Core. */
   AsyncOSCSender _mixerSender;
+
+  /** When Motion next tells Core who it is (/device/hello). Asked from
+   *  timerCallback(), which runs with or without the panel attached. */
+  HelloSchedule _helloSchedule;
   
   // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
   int _clockMode = 0;

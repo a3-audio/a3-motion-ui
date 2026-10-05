@@ -116,6 +116,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinPanel.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GlobalSettingsLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscAddresses.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/DeviceHello.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscEndpoints.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscTruth.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscTruthContract.cc"

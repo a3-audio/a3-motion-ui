@@ -41,6 +41,7 @@ target_sources("a3-motion-engine" PRIVATE
     OscTruth.cc
     TruthKeeperLink.cc
     OscTruth.hh
+    DeviceHello.hh
     MotionEngine.cc
     MotionEngine.hh
     AsyncCommandQueue.cc

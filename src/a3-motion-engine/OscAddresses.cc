@@ -60,13 +60,14 @@ constexpr std::array<char const *, numFilterAddresses> mixerFilterKeys{
 };
 
 /** The rest, one address each. */
-constexpr std::array<char const *, 10> singleKeys{
+constexpr std::array<char const *, 11> singleKeys{
   "channel.azimuth",
   "channel.elevation",
   "channel.filter.frequency",
   "channel.filter.q",
   "channel.3d",
   "state.recall",
+  "device.hello",
   "beat",
   "tap",
   "clockmode",
@@ -155,6 +156,7 @@ oscAddressesFrom (OscTruth const &truth)
   a.channelFilterQ = addressFor (truth, "channel.filter.q");
   a.channelThreeD = addressFor (truth, "channel.3d");
   a.stateRecall = addressFor (truth, "state.recall");
+  a.deviceHello = addressFor (truth, "device.hello");
   a.beatOut = addressFor (truth, "beat");
   a.beatIn = a.beatOut;
   a.tap = addressFor (truth, "tap");

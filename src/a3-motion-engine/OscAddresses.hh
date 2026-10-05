@@ -87,6 +87,10 @@ struct OscAddresses
    *  the device adopts what is already sounding. */
   juce::String stateRecall;
 
+  /** Motion naming itself to Core with the truth it speaks: at start, then
+   *  every 30 s (DeviceHello.hh). */
+  juce::String deviceHello;
+
   /** The beat clock going out -- sent every beat in INT mode. */
   juce::String beatOut;
   juce::String tap;
