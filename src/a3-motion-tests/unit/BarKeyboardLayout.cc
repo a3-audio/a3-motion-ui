@@ -58,7 +58,7 @@ deviceBar (BarSizes s, int width = 768)
   // As ClipSettingsComponent sizes the bar: the PADS page no longer asks
   // for room in it, so the clip settings alone set its height.
   auto const height = clipSettingsPreferredHeight (s.header, s.body, knobDiam)
-                      + channelRowHeight (knobDiam, width);
+                      + channelRowHeight (knobDiam, s.body, width);
   return layOutClipSettings ({ 0, 0, width, height }, s.header, s.body, s.pot,
                              BarPage::Clip);
 }

@@ -177,6 +177,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarRepaints.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChannelPotTurn.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FirstSourceOnly.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChannelFaces.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarKnob.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipKnobs.cc"
