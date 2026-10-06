@@ -44,8 +44,8 @@ class MotionEngine
 public:
   MotionEngine (index_t numChannels, HeightMap &heightMap);
 
-  /** The same engine, sending through `backend` instead of to A3 Core. The
-   *  app with its own audio engine hands in a SpatBackendInternal here. */
+  /** The same engine, sending through `backend` instead of to A3 Core's
+   *  default OSC backend. */
   MotionEngine (index_t numChannels, HeightMap &heightMap,
                 std::unique_ptr<SpatBackend> backend);
 

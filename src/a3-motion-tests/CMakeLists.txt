@@ -8,11 +8,8 @@ a3_precompile_juce_header("a3-motion-tests")
 
 target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ControlSurface.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/OutputOrder.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PositionPacer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TruthKeeper.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpatBackendInternal.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingTrace.cc"
@@ -179,10 +176,9 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeterView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpeakerTest.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChunkedRender.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/UnitScheduling.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionIsPureOsc.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
@@ -193,7 +189,18 @@ target_sources("a3-motion-tests" PRIVATE
 # every run (2026-09-29).
 set(A3_COMMITTED_DIR "${CMAKE_BINARY_DIR}/committed")
 
+# What the app is built from, for MotionIsPureOsc: the app target's
+# definitions and link libraries as CMake ends up with them.
+set(A3_UI_BUILD_REPORT "${CMAKE_CURRENT_BINARY_DIR}/a3-motion-ui-build-report.txt")
+file(GENERATE OUTPUT "${A3_UI_BUILD_REPORT}" CONTENT
+"compile definitions:
+$<JOIN:$<TARGET_PROPERTY:a3-motion-ui,COMPILE_DEFINITIONS>,\n>
+link libraries:
+$<JOIN:$<TARGET_PROPERTY:a3-motion-ui,LINK_LIBRARIES>,\n>
+")
+
 target_compile_definitions(a3-motion-tests PRIVATE
+    A3_UI_BUILD_REPORT="${A3_UI_BUILD_REPORT}"
     A3_CONFIG_JSON_PATH="${A3_COMMITTED_DIR}/config/config.json"
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-engine"
@@ -222,9 +229,6 @@ target_link_libraries(a3-motion-tests PUBLIC
     # The UI sources under test, compiled once with the app's flags.
     a3-motion-ui-shared
     a3-motion-engine
-    # The audio engine the app renders with. Buffers and the hand-over from
-    # Motion to the audio thread live here.
-    a3-audio-engine
     # Colour work is most of the theme, and juce::Colour lives here. Without
     # it the LookAndFeel and every colour conversion would be untestable.
     juce::juce_graphics

@@ -58,9 +58,6 @@ target_sources("a3-motion-ui" PRIVATE
 )
 
 set(HARDWARE_INTERFACE_ENABLED FALSE CACHE BOOL "Enable interfacing with hardware")
-# Off for the device build: on the NUC, A3 Core does the audio and this app
-# must not open an audio device of its own.
-set(A3_AUDIO_ENGINE_ENABLED FALSE CACHE BOOL "Run the audio engine inside the app")
 if(${HARDWARE_INTERFACE_ENABLED})
     set(HARDWARE_INTERFACE_VERSION "V3" CACHE STRING "Hardware interface to use, options are: V2, V3")
 else()
@@ -102,11 +99,11 @@ target_compile_definitions("a3-motion-ui" PUBLIC
     $<$<BOOL:${HARDWARE_INTERFACE_ENABLED}>:HARDWARE_INTERFACE_ENABLED>
     $<$<BOOL:${HARDWARE_INTERFACE_V2}>:HARDWARE_INTERFACE_V2>
     $<$<BOOL:${HARDWARE_INTERFACE_V3}>:HARDWARE_INTERFACE_V3>
-    $<$<BOOL:${A3_AUDIO_ENGINE_ENABLED}>:A3_AUDIO_ENGINE_ENABLED>
-    # JACK only with the engine: jackd holds the sound card on the dev machine,
-    # so ALSA alone cannot reach it. JUCE dlopens libjack at runtime and needs
-    # only its headers to build; the device build opens no audio at all.
-    $<$<BOOL:${A3_AUDIO_ENGINE_ENABLED}>:JUCE_JACK=1>
+    # Motion is a pure OSC interface; A3 Core does the audio (decided
+    # 2026-10-06). With both off the binary holds no audio device type at all,
+    # so nothing in it can open one. MotionIsPureOsc holds these two.
+    JUCE_ALSA=0
+    JUCE_JACK=0
 )
 
 target_include_directories("a3-motion-ui" PUBLIC
@@ -119,7 +116,9 @@ target_include_directories("a3-motion-ui" PUBLIC
 
 target_link_libraries("a3-motion-ui" PUBLIC
     a3-motion-engine
-    a3-audio-engine
+    # Only because JUCE's Standalone plugin format refuses to compile without
+    # these two (juce_audio_plugin_client_Standalone.cpp, #error). Motion opens
+    # no audio device: see JUCE_ALSA/JUCE_JACK above.
     juce::juce_audio_utils
     juce::juce_audio_devices
     juce::juce_gui_basics
@@ -317,8 +316,7 @@ target_compile_definitions(a3-motion-ui-shared PRIVATE
 target_compile_options(a3-motion-ui-shared PRIVATE
     $<TARGET_PROPERTY:a3-motion-ui,COMPILE_OPTIONS>)
 target_link_libraries(a3-motion-ui-shared INTERFACE
-    a3-motion-engine
-    a3-audio-engine)
+    a3-motion-engine)
 
 # The app's JuceHeader.h, generated here because this library compiles first:
 # the app links it and so waits for it. Two owners of the one custom command

@@ -149,6 +149,25 @@ generator and the test runner:
   used to generate pattern files offline.
 - **`a3-motion-tests`** — GoogleTest console app linking the engine.
 
+### Motion is pure OSC
+
+**This app renders no audio and opens no audio device** (decided 2026-10-06). It sends positions
+and control values to A³ Core over OSC; Core does the audio processing, StemDeck plays. The audio
+engine that Plan 1 (2026-09-21) had put here — `src/a3-audio-engine/` (`ControlSurface`,
+`SpatBackendInternal`, `OutputOrder`, `SpeakerTest`, `ChunkedRender`), the `A3_AUDIO_ENGINE_ENABLED`
+switch, the app's own `AudioDeviceManager`/`AudioProcessorPlayer` and its JACK switch — moved to
+its own repository, [a3-audio/a3-engine](https://github.com/a3-audio/a3-engine), where it is parked and not built.
+
+`A3MotionAudioProcessor` stays only because the app is a JUCE plugin in the `Standalone` format,
+and that format needs a processor; it does nothing. For the same reason `juce_audio_utils` and
+`juce_audio_devices` stay linked: `juce_audio_plugin_client_Standalone.cpp` stops with `#error`
+without them. What keeps the rule is that **no device type is compiled in**: `JUCE_ALSA=0` and
+`JUCE_JACK=0` on the app target. `MotionIsPureOsc` in the test runner holds it — it fails if either
+flag flips, if the old switch or `a3-audio-engine` comes back, or if a source under
+`src/a3-motion-ui`/`src/a3-motion-engine` names `AudioDeviceManager`, `AudioProcessorPlayer` or
+`AudioIODevice`. Dropping the two modules would mean building the app with `juce_add_gui_app`
+instead of as a plugin.
+
 ### Engine (`src/a3-motion-engine`)
 
 - `MotionEngine` is the core: owns `Channel`s, a `TempoClock`, and an `AsyncCommandQueue`. It

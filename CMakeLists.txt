@@ -51,7 +51,6 @@ function(a3_precompile_juce_header target)
 endfunction()
 
 add_subdirectory("src/a3-motion-engine")
-add_subdirectory("src/a3-audio-engine")
 add_subdirectory("src/a3-motion-ui")
 add_subdirectory("src/a3-motion-pattern-gen")
 add_subdirectory("src/a3-motion-clip-gen")
