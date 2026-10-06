@@ -51,8 +51,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/ColourPickerComponent.cc
     components/ColourPickerComponent.hh
     components/MixerControls.hh
-    components/ClipSettingsComponent.cc
-    components/ClipSettingsComponent.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
 )
@@ -296,6 +294,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/MixerComponent.hh
     components/MixerStripComponent.cc
     components/MixerStripComponent.hh
+    components/ClipSettingsComponent.cc
+    components/ClipSettingsComponent.hh
     components/FittedFont.cc
     components/FittedFont.hh
     ConfigFileWatcher.cc
