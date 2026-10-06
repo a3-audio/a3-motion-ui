@@ -6023,7 +6023,11 @@ A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
     case ChannelPot::Q: _engine.setChannelPot2 (channel, clamped); break;
     }
 
-  updateClipSettingsDisplay ();
+  // The knobs showing these three, and nothing else (#64): describing the
+  // whole clip again on every step of a drag -- every playing clip's
+  // elevation figure, the shape's SVG, the bar's setters -- for a value none
+  // of it shows was the lag behind the finger.
+  refreshChannelValues ();
   scheduleSetSave ();
 }
 
