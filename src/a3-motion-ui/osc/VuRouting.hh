@@ -34,9 +34,16 @@ namespace a3
  *  nine main tops (decided 2026-09-30). */
 constexpr int numMasterColumnMeters = 10;
 
+/** One channel's meter in stereo: the /vu numbers of its two sides. */
+struct StereoMeter
+{
+  int left{ 0 };
+  int right{ 0 };
+};
+
 /** Which /vu number feeds which part of Motion.
  *
- *  Motion names the meters it shows by what they measure -- "in1_pre",
+ *  Motion names the meters it shows by what they measure -- "in1_pre_L",
  *  "main_sub", "main_top1" -- and asks the one truth for their numbers, the
  *  channel map's `vu_meters`. The numbers are the map's business: they moved
  *  from 0..39 to 1..40 once, and REAPER's routing may move them again.
@@ -44,8 +51,9 @@ constexpr int numMasterColumnMeters = 10;
  *  A meter the truth does not have is number 0, which no message carries. */
 struct VuRouting
 {
-  /** The four input dots around the blobs: pre-fader, post-FX. */
-  std::array<int, 4> channelInputs{};
+  /** Each channel's input meter, left and right: the corona round its blob
+   *  and its meter on both mixer pages, which show the louder side. */
+  std::array<StereoMeter, 4> channelInputs{};
   /** The sphere's glow. */
   int glow{ 0 };
   /** The four towers' lights. */

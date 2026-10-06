@@ -82,13 +82,17 @@ madeUpOscTruth (juce::StringArray const &leaveOut = {})
   root->setProperty ("hosts", juce::var (hosts));
   root->setProperty ("listeners", listeners);
 
-  // The meters Motion shows, out of the channel map's order and among one it
-  // does not, so a meter found in the right place was found by its name.
+  // The meters Motion shows, out of the channel map's order and among ones it
+  // does not, so a meter found in the right place was found by its name. The
+  // mono in*_pre stay in the map, as in the real one until every consumer
+  // reads the stereo pairs appended after them (16..25).
   juce::Array<juce::var> meters;
   for (auto const *name :
-       { "free", "in3_pre", "main_top1", "in1_pre", "main_sub", "in2_pre",
-         "main_top2", "main_top3", "main_top4", "in4_pre", "main_top5",
-         "main_top6", "main_top7", "main_top8", "main_top9" })
+       { "free",      "in3_pre",   "main_top1", "in1_pre",   "main_sub",
+         "in2_pre",   "main_top2", "main_top3", "main_top4", "in4_pre",
+         "main_top5", "main_top6", "main_top7", "main_top8", "main_top9",
+         "in2_pre_R", "in1_post_L", "in1_pre_L", "in4_pre_R", "in1_pre_R",
+         "in3_pre_L", "in2_pre_L", "in3_pre_R", "in4_pre_L", "in1_post_R" })
     meters.add (name);
   root->setProperty ("vu_meters", meters);
   return parseOscTruth (juce::JSON::toString (juce::var (root)));

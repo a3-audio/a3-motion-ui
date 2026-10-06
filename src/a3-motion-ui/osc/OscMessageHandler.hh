@@ -145,6 +145,8 @@ public:
 
 private:
   void routeMeter (int number, float peak, float rms);
+  void routeChannelSide (std::size_t channel, std::size_t side, float peak,
+                         float rms);
 
   /** The tempo the engine runs at in EXT and PIO, followed from the one each
    *  /beat reports. Only this handler's thread touches it. */
@@ -152,6 +154,17 @@ private:
 
   OscAddresses _addresses;
   VuRouting _vuRouting;
+
+  /** The last reading of each side of each channel's input meter. The two
+   *  sides arrive as two messages, and the louder one is shown, so the side
+   *  that did not just arrive has to be remembered. */
+  struct SideReading
+  {
+    float peak{ 0.f };
+    float rms{ 0.f };
+  };
+  std::array<std::array<SideReading, 2>, 4> _channelSides{};
+
   MotionEngine &_engine;
   Listener &_listener;
 };
