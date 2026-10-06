@@ -49,9 +49,61 @@ PotKnob::refreshSensitivity ()
                            * knobHeightsForTheWholeRange)));
 }
 
+namespace
+{
+SourceKey
+keyOf (juce::MouseInputSource const &source)
+{
+  auto const type = source.isTouch () ? SourceKey::touch
+                    : source.isPen () ? SourceKey::pen
+                                      : SourceKey::mouse;
+  return { type, source.getIndex () };
+}
+
+bool
+isStillDown (SourceKey key)
+{
+  for (auto const &source : juce::Desktop::getInstance ().getMouseSources ())
+    if (keyOf (source) == key)
+      return source.isDragging ();
+  return false;
+}
+}
+
+void
+PotKnob::mouseDown (juce::MouseEvent const &event)
+{
+  // One finger, two sources on the device: the touch and X's emulated mouse
+  // (#64). Only the first moves the knob; the second would re-anchor the
+  // drag and pull the value along a stream of its own.
+  _gesture.forgetIfNotDown (isStillDown);
+  if (!_gesture.press (keyOf (event.source)))
+    return;
+
+  juce::Slider::mouseDown (event);
+}
+
+void
+PotKnob::mouseDrag (juce::MouseEvent const &event)
+{
+  if (_gesture.follows (keyOf (event.source)))
+    juce::Slider::mouseDrag (event);
+}
+
+void
+PotKnob::mouseUp (juce::MouseEvent const &event)
+{
+  if (_gesture.release (keyOf (event.source)))
+    juce::Slider::mouseUp (event);
+}
+
 void
 PotKnob::mouseDoubleClick (juce::MouseEvent const &event)
 {
+  // The same finger's second source double-taps too; one reset is enough.
+  if (!_gesture.press (keyOf (event.source)))
+    return;
+
   if (onDoubleTapped)
     {
       onDoubleTapped ();
