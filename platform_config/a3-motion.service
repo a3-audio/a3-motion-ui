@@ -30,8 +30,8 @@ After=graphical.target
 ExecStartPre=/home/aaa/.local/bin/a3-wait-for-the-screen
 ExecStart=/usr/bin/a3-motion
 CPUAffinity=0
-#CPUSchedulingPolicy=rr
-#CPUSchedulingPriority=61
+# No real-time for the whole process: it would put the GUI above JACK's
+# process threads, which made JACK report late clients (2026-10-06).
 
 [Install]
 WantedBy=default.target
