@@ -198,8 +198,9 @@ madeUpAddresses ()
 }
 
 // The meters arrive by their number in the channel map; Motion shows them by
-// what they measure. In madeUpOscTruth the map is scrambled: in2_pre is 6,
-// main_sub 5, main_top2 7, main_top9 15, and 1 is a meter Motion never shows.
+// what they measure. In madeUpOscTruth the map is scrambled: in2_pre_L is 22,
+// in1_pre_L 18, in1_pre_R 20, main_sub 5, main_top2 7, main_top9 15, and 1 is
+// a meter Motion never shows.
 namespace
 {
 juce::OSCMessage
@@ -221,7 +222,7 @@ TEST (OscMessageHandler, AnInputMeterGoesToItsChannel)
   handler.setAddresses (madeUpAddresses ());
   handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  handler.handleMessage (meter (6), /*clockMode=*/0); // in2_pre
+  handler.handleMessage (meter (22), /*clockMode=*/0); // in2_pre_L
 
   EXPECT_EQ (listener.channelVUCalls, 1);
   EXPECT_EQ (listener.lastChannel, 1);
@@ -230,6 +231,68 @@ TEST (OscMessageHandler, AnInputMeterGoesToItsChannel)
   EXPECT_EQ (listener.subwooferVUCalls, 0);
   EXPECT_EQ (listener.speakerVUCalls, 0);
   EXPECT_EQ (listener.outputVUCalls, 0);
+}
+
+// A channel is metered in stereo, the way a DJ mixer does it: the meter shows
+// the louder side, peak and RMS each the larger of the two. A mono downmix of
+// the pair read 3 dB low (gain structure, run 3).
+TEST (OscMessageHandler, AChannelShowsItsLouderSide)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
+
+  handler.handleMessage (meter (18, 0.2f, 0.1f), /*clockMode=*/0); // in1_pre_L
+  handler.handleMessage (meter (20, 0.6f, 0.05f), /*clockMode=*/0); // in1_pre_R
+
+  EXPECT_EQ (listener.lastChannel, 0);
+  EXPECT_FLOAT_EQ (listener.lastPeak, 0.6f);
+  EXPECT_FLOAT_EQ (listener.lastRms, 0.1f);
+
+  // The quieter side arriving next does not pull the meter down to it.
+  handler.handleMessage (meter (18, 0.1f, 0.02f), /*clockMode=*/0);
+
+  EXPECT_FLOAT_EQ (listener.lastPeak, 0.6f);
+  EXPECT_FLOAT_EQ (listener.lastRms, 0.05f);
+}
+
+// The two sides of one channel are not mixed up with another channel's.
+TEST (OscMessageHandler, OneChannelsSidesStayOutOfAnother)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
+
+  handler.handleMessage (meter (19, 0.9f, 0.8f), /*clockMode=*/0); // in4_pre_R
+  handler.handleMessage (meter (21, 0.3f, 0.2f), /*clockMode=*/0); // in3_pre_L
+
+  EXPECT_EQ (listener.lastChannel, 2);
+  EXPECT_FLOAT_EQ (listener.lastPeak, 0.3f);
+  EXPECT_FLOAT_EQ (listener.lastRms, 0.2f);
+}
+
+// The mono meters stay in the map until every consumer has moved, and the
+// post-fader pairs are the desk's business: neither reaches a channel here.
+TEST (OscMessageHandler, NeitherTheMonoMeterNorThePostPairFeedsAChannel)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap);
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
+
+  handler.handleMessage (meter (6), /*clockMode=*/0);  // in2_pre
+  handler.handleMessage (meter (17), /*clockMode=*/0); // in1_post_L
+  handler.handleMessage (meter (25), /*clockMode=*/0); // in1_post_R
+
+  EXPECT_EQ (listener.channelVUCalls, 0);
 }
 
 // The main sub is two things at once: the sphere's glow, and the first meter
@@ -527,7 +590,7 @@ TEST (OscMessageHandler, AVuMessageIsStillNotAPosition)
 
   handler.setVuRouting (vuRoutingFrom (madeUpOscTruth ()));
 
-  handler.handleMessage (meter (4), /*clockMode=*/0); // in1_pre
+  handler.handleMessage (meter (18), /*clockMode=*/0); // in1_pre_L
 
   EXPECT_EQ (listener.channelVUCalls, 1);
   EXPECT_EQ (listener.azimuthCalls, 0);
