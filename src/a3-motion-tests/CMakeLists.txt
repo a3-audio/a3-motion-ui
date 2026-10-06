@@ -182,6 +182,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SpeakerTest.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChunkedRender.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/UnitScheduling.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,
@@ -197,6 +198,7 @@ target_compile_definitions(a3-motion-tests PRIVATE
     A3_UI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-ui"
     A3_ENGINE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../a3-motion-engine"
     A3_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../resources"
+    A3_PLATFORM_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../platform_config"
     # The four folders the shipped material lives in. Three of them are the
     # system half of a folder split into shipped and hand-made; pattern/system
     # is the shapes' half and predates the split. Written out together so the
