@@ -6030,10 +6030,9 @@ A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
 void
 A3MotionUIComponent::resetChannelPot (index_t channel, ChannelPot pot)
 {
-  if (!channelValueResetIsAllowed (_ioAdapter
-                                   && _ioAdapter->hardwareIsAvailable ()))
-    return;
-
+  // Panel or not: a drag here was never refused, so neither is the way back.
+  // The 3d pot disagrees with the screen until it is next moved, as it does
+  // after a drag.
   if (auto const rest = channelPotRestPosition (pot))
     setChannelPotValue (channel, pot, *rest);
 }

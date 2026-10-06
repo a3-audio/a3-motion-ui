@@ -27,32 +27,16 @@
 namespace a3
 {
 
-/** Where two taps put one of a channel's 3D, FREQ and Q, and whether they
- *  may.
+/** Where two taps put one of a channel's 3D, FREQ and Q.
  *
- *  Both answers are pulled out of A3MotionUIComponent so a test can reach
- *  them without a panel on the wire -- which is the whole point of the
- *  second one, and the one condition that had no other way of being checked.
+ *  Pulled out of A3MotionUIComponent so a test can reach it. Two taps are a
+ *  turn to this value, panel on the wire or not (2026-10-06): the reset goes
+ *  through setChannelPotValue like a drag does.
  */
 
 /** The rest position of a channel pot, or nothing for one nobody has decided
  *  about. Not a default of 0.5 for the unknown case: a pot that fell through
  *  to a plausible value would look decided without being it. */
 std::optional<float> channelPotRestPosition (ChannelPot pot);
-
-/** Whether the screen may put a channel value back at all.
- *
- *  It may exactly while no panel is answering. These three are physical
- *  controls when one is -- the pot for 3d, the two encoders for freq and Q --
- *  and the pot is absolute: a value the screen moved away from where the pot
- *  is standing would be snatched back by the next hair of movement, so the
- *  reset would read as a control that does not work.
- *
- *  Answered at runtime rather than at build time. This device is built with
- *  the hardware interface compiled in and still spends whole sessions with no
- *  panel on the wire, so a compile-time answer would be wrong for exactly the
- *  case the reset exists for.
- */
-bool channelValueResetIsAllowed (bool hardwareIsAvailable);
 
 }

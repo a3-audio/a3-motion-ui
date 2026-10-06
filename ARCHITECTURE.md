@@ -1331,8 +1331,12 @@ values, not `MixerState`'s -- they reach Core through the spat backend, not the 
 both pages are handed them (`setChannelPots`, from `refreshChannelValues`) with the envelope's
 effective value beside the setting, and draw the envelope as the arc above the setting
 (`channelPotReach`), the way the bar's 4x3 grid did. A knob is set outright
-(`setChannelPotValue`); two taps follow the grid's rule, including "not while a panel answers"
-(`resetChannelPot`, `channelPotRestPosition`).
+(`setChannelPotValue`); two taps put 3D and FREQ back to 0.5 and Q to 0 through that same call
+(`resetChannelPot`, `channelPotRestPosition`), so a reset is a turn: the same OSC on the next tick,
+the same save, the same redraw. **Also while a panel answers** (since 2026-10-06): the reset used to
+be refused then, because the absolute 3d pot would disagree with the screen — but a drag on the same
+knob was never refused, so the screen could move a value and not put it back. The 3d pot disagrees
+after a reset as it does after a drag, until it is next moved; freq and Q sit on endless encoders.
 
 The overlay meter takes two fifths of its strip (`meterWidthOfStrip`), not the half asked for: the
 strip ends in PFL and FX side by side, and at half a key came out at 32 px on the device, under a

@@ -49,10 +49,4 @@ channelPotRestPosition (ChannelPot pot)
   return {};
 }
 
-bool
-channelValueResetIsAllowed (bool hardwareIsAvailable)
-{
-  return !hardwareIsAvailable;
-}
-
 }
