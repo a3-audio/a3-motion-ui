@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/FirstSourceOnly.hh>
+
 namespace a3
 {
 
@@ -93,11 +95,16 @@ public:
    *  Left empty, JUCE's own setDoubleClickReturnValue still works. */
   std::function<void ()> onDoubleTapped;
 
+  void mouseDown (juce::MouseEvent const &event) override;
+  void mouseDrag (juce::MouseEvent const &event) override;
+  void mouseUp (juce::MouseEvent const &event) override;
   void mouseDoubleClick (juce::MouseEvent const &event) override;
   void resized () override;
 
 private:
   void refreshSensitivity ();
+
+  FirstSourceOnly _gesture;
 
   juce::String _label;
   float _reach = -2.f;

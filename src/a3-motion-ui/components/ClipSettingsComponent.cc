@@ -474,6 +474,9 @@ void
 ClipSettingsComponent::setTarget (int channel, int slot,
                                   juce::Colour channelColour)
 {
+  if (channel == _channel && slot == _slot && channelColour == _channelColour)
+    return;
+
   _channel = channel;
   _slot = slot;
   _channelColour = channelColour;
@@ -481,9 +484,22 @@ ClipSettingsComponent::setTarget (int channel, int slot,
   repaint ();
 }
 
+namespace
+{
+bool
+sameIcon (TrajectoryIconData const &a, TrajectoryIconData const &b)
+{
+  return a.hasIcon == b.hasIcon && a.hasJumpDots == b.hasJumpDots
+         && a.jumpDots == b.jumpDots && a.path == b.path;
+}
+}
+
 void
 ClipSettingsComponent::setTrajectoryIcon (TrajectoryIconData const &icon)
 {
+  if (sameIcon (icon, _trajectoryIcon))
+    return;
+
   _trajectoryIcon = icon;
   repaint ();
 }
@@ -572,6 +588,9 @@ ClipSettingsComponent::setClipName (juce::String const &name, bool drifted)
 void
 ClipSettingsComponent::setTrajectoryName (juce::String const &name)
 {
+  if (name == _trajectoryName)
+    return;
+
   _trajectoryName = name;
   repaint ();
 }
@@ -582,10 +601,15 @@ ClipSettingsComponent::setElevationReach (float reach, float swept)
   // Signed now, so "not sweeping" cannot be said with a negative number any
   // more: -2 is outside the knob's range and is what the squeezes already use
   // for the same job.
-  _elevationReach = std::clamp (reach, -1.0f, 1.0f);
-  putOnKnob (motionSection, 2, _elevationReach);
-  _elevationReachSwept
+  auto const held = std::clamp (reach, -1.0f, 1.0f);
+  auto const heldSwept
       = swept <= -2.f ? -2.f : std::clamp (swept, -1.0f, 1.0f);
+  if (held == _elevationReach && heldSwept == _elevationReachSwept)
+    return;
+
+  _elevationReach = held;
+  putOnKnob (motionSection, 2, _elevationReach);
+  _elevationReachSwept = heldSwept;
   putReachOnKnob (motionSection, 2,
                   _elevationReachSwept <= -2.f
                       ? std::nullopt
@@ -599,18 +623,27 @@ ClipSettingsComponent::setElevationBase (float base, float swept)
   // On elv, the other way up (clockwise is higher), with the sway's hold on
   // the line as the blue arc every swept knob wears. The graphic draws the
   // base only; the sway is shown on the knob since 2026-09-26.
-  _elevationBase = std::clamp (base, 0.f, 1.f);
-  putOnKnob (elevationSection, 3, knobForElevationBase (_elevationBase));
+  // The knob is told either way and keeps its own unchanged-check; the bar
+  // draws the base alone, so only the base is a reason to redraw it.
+  auto const held = std::clamp (base, 0.f, 1.f);
+  putOnKnob (elevationSection, 3, knobForElevationBase (held));
   putReachOnKnob (elevationSection, 3,
                   swept < 0.f ? std::nullopt
                               : std::optional<float> (knobForElevationBase (
                                     std::clamp (swept, 0.f, 1.f))));
+  if (held == _elevationBase)
+    return;
+
+  _elevationBase = held;
   repaint ();
 }
 
 void
 ClipSettingsComponent::setElevationMirrorSouth (bool mirrorSouth)
 {
+  if (mirrorSouth == _elevationMirrorSouth)
+    return;
+
   _elevationMirrorSouth = mirrorSouth;
   repaint ();
 }
@@ -618,7 +651,11 @@ ClipSettingsComponent::setElevationMirrorSouth (bool mirrorSouth)
 void
 ClipSettingsComponent::setElevationClipTop (float clipTop)
 {
-  _elevationClipTop = std::clamp (clipTop, 0.0f, 1.0f);
+  auto const held = std::clamp (clipTop, 0.0f, 1.0f);
+  if (held == _elevationClipTop)
+    return;
+
+  _elevationClipTop = held;
   putOnKnob (elevationSection, 1, _elevationClipTop);
   repaint ();
 }
@@ -626,7 +663,11 @@ ClipSettingsComponent::setElevationClipTop (float clipTop)
 void
 ClipSettingsComponent::setElevationClipBottom (float clipBottom)
 {
-  _elevationClipBottom = std::clamp (clipBottom, 0.0f, 1.0f);
+  auto const held = std::clamp (clipBottom, 0.0f, 1.0f);
+  if (held == _elevationClipBottom)
+    return;
+
+  _elevationClipBottom = held;
   putOnKnob (elevationSection, 0, _elevationClipBottom);
   repaint ();
 }
@@ -634,6 +675,9 @@ ClipSettingsComponent::setElevationClipBottom (float clipBottom)
 void
 ClipSettingsComponent::setElevationFlat (bool flat)
 {
+  if (flat == _elevationFlat)
+    return;
+
   _elevationFlat = flat;
   repaint ();
 }
@@ -641,7 +685,11 @@ ClipSettingsComponent::setElevationFlat (bool flat)
 void
 ClipSettingsComponent::setElevationFlatElevation (float flatElevation)
 {
-  _elevationFlatElevation = std::clamp (flatElevation, 0.0f, 1.0f);
+  auto const held = std::clamp (flatElevation, 0.0f, 1.0f);
+  if (held == _elevationFlatElevation)
+    return;
+
+  _elevationFlatElevation = held;
   repaint ();
 }
 
@@ -704,6 +752,9 @@ ClipSettingsComponent::setSphereCamera (SphereCamera camera)
 void
 ClipSettingsComponent::setElevationSubIndex (int subIndex)
 {
+  if (subIndex == _elevationSubIndex)
+    return;
+
   _elevationSubIndex = subIndex;
   markKnobs ();
   repaint ();
@@ -713,7 +764,11 @@ void
 ClipSettingsComponent::setMotionSpeed (float normalizedFrac,
                                        juce::String const &label)
 {
-  _motionSpeedFrac = std::clamp (normalizedFrac, 0.0f, 1.0f);
+  auto const held = std::clamp (normalizedFrac, 0.0f, 1.0f);
+  if (held == _motionSpeedFrac && label == _motionSpeedLabel)
+    return;
+
+  _motionSpeedFrac = held;
   _motionSpeedLabel = label;
   repaint ();
 }
@@ -721,7 +776,11 @@ ClipSettingsComponent::setMotionSpeed (float normalizedFrac,
 void
 ClipSettingsComponent::setMotionDirection (int direction)
 {
-  _motionDirection = shownDirection (direction);
+  auto const shown = shownDirection (direction);
+  if (shown == _motionDirection)
+    return;
+
+  _motionDirection = shown;
   repaint ();
 }
 
@@ -729,7 +788,11 @@ void
 ClipSettingsComponent::setMotionEndAction (int endAction,
                                            juce::String const &follow)
 {
-  _motionEndAction = shownEndAction (endAction);
+  auto const shown = shownEndAction (endAction);
+  if (shown == _motionEndAction && follow == _motionEndFollow)
+    return;
+
+  _motionEndAction = shown;
   _motionEndFollow = follow;
   repaint ();
 }
@@ -761,14 +824,23 @@ void
 ClipSettingsComponent::setMotionSqueeze (float squeezeX, float squeezeY,
                                          float sweptX, float sweptY)
 {
-  _motionSqueezeX = juce::jlimit (-1.f, 1.f, squeezeX);
-  _motionSqueezeY = juce::jlimit (-1.f, 1.f, squeezeY);
+  auto const heldX = juce::jlimit (-1.f, 1.f, squeezeX);
+  auto const heldY = juce::jlimit (-1.f, 1.f, squeezeY);
+  auto const heldSweptX
+      = sweptX < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptX);
+  auto const heldSweptY
+      = sweptY < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptY);
+  if (heldX == _motionSqueezeX && heldY == _motionSqueezeY
+      && heldSweptX == _motionSqueezeXSwept
+      && heldSweptY == _motionSqueezeYSwept)
+    return;
+
+  _motionSqueezeX = heldX;
+  _motionSqueezeY = heldY;
   putOnKnob (motionSection, 4, _motionSqueezeX);
   putOnKnob (motionSection, 6, _motionSqueezeY);
-  _motionSqueezeXSwept
-      = sweptX < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptX);
-  _motionSqueezeYSwept
-      = sweptY < -1.5f ? -2.f : juce::jlimit (-1.f, 1.f, sweptY);
+  _motionSqueezeXSwept = heldSweptX;
+  _motionSqueezeYSwept = heldSweptY;
   putReachOnKnob (motionSection, 4,
                   _motionSqueezeXSwept < -1.5f
                       ? std::nullopt
@@ -834,7 +906,11 @@ ClipSettingsComponent::setSweeps (int spin, int swell, int sway)
 void
 ClipSettingsComponent::setMotionFadeReach (float reach)
 {
-  _motionFadeReach = juce::jlimit (0.f, 1.f, reach);
+  auto const held = juce::jlimit (0.f, 1.f, reach);
+  if (held == _motionFadeReach)
+    return;
+
+  _motionFadeReach = held;
   putOnKnob (motionSection, 8, _motionFadeReach);
   repaint ();
 }
@@ -957,6 +1033,9 @@ ClipSettingsComponent::setBeatsPerBar (int beats)
 void
 ClipSettingsComponent::setTrajectorySubIndex (int subIndex)
 {
+  if (subIndex == _trajectorySubIndex)
+    return;
+
   _trajectorySubIndex = subIndex;
   repaint ();
 }
@@ -964,6 +1043,9 @@ ClipSettingsComponent::setTrajectorySubIndex (int subIndex)
 void
 ClipSettingsComponent::setMotionSubIndex (int subIndex)
 {
+  if (subIndex == _motionSubIndex)
+    return;
+
   _motionSubIndex = subIndex;
   markKnobs ();
   repaint ();
@@ -973,6 +1055,9 @@ void
 ClipSettingsComponent::setSelectedParameterIndex (int index)
 {
   jassert (index >= 0 && index < numParameters);
+  if (index == _selectedIndex)
+    return;
+
   _selectedIndex = index;
   markKnobs ();
   repaint ();
@@ -982,6 +1067,9 @@ ClipSettingsComponent::setSelectedParameterIndex (int index)
 void
 ClipSettingsComponent::setLastControlReadout (juce::String const &text)
 {
+  if (text == _lastControlText)
+    return;
+
   _lastControlText = text;
   repaint ();
 }

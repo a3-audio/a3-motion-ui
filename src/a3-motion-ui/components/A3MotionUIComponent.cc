@@ -6023,7 +6023,11 @@ A3MotionUIComponent::setChannelPotValue (index_t channel, ChannelPot pot,
     case ChannelPot::Q: _engine.setChannelPot2 (channel, clamped); break;
     }
 
-  updateClipSettingsDisplay ();
+  // The knobs showing these three, and nothing else (#64): describing the
+  // whole clip again on every step of a drag -- every playing clip's
+  // elevation figure, the shape's SVG, the bar's setters -- for a value none
+  // of it shows was the lag behind the finger.
+  refreshChannelValues ();
   scheduleSetSave ();
 }
 
@@ -8748,6 +8752,14 @@ A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
   // does not. (PADS was the page where a face brought CLIP back instead; it
   // lies over the sphere since 2026-09-27, and every page left describes one
   // clip.)
+  // Reaching for a pot on the face already shown chooses nothing again
+  // (#64): selectClip() describes the bar afresh and the ACTION page lists
+  // its files from disk, all before the drag's first step.
+  auto const faceIsShown = channel == _clipSettingsChannel
+                           && _clipSettingsSlot == _channelSlot[channel];
+  if (!mayTurnOver && faceIsShown)
+    return;
+
   if (mayTurnOver && channel == _clipSettingsChannel)
     _channelSlot[channel]
         = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
