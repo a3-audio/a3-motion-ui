@@ -20,6 +20,8 @@
 
 #include "PotKnob.hh"
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 namespace a3
@@ -42,11 +44,11 @@ PotKnob::PotKnob ()
 void
 PotKnob::refreshSensitivity ()
 {
-  // In the knob's own heights rather than in pixels: the skin's pot size then
-  // decides the feel along with the look, and neither follows a screen.
+  // In fingertips, which are millimetres on the glass (#65): the finger is
+  // what travels, whatever size the knob is drawn at.
   setMouseDragSensitivity (juce::jmax (
-      1, juce::roundToInt (static_cast<float> (getHeight ())
-                           * knobHeightsForTheWholeRange)));
+      1, juce::roundToInt (static_cast<float> (displayFingertip ())
+                           * fingertipsForTheWholeRange)));
 }
 
 namespace
@@ -80,6 +82,10 @@ PotKnob::mouseDown (juce::MouseEvent const &event)
   if (!_gesture.press (keyOf (event.source)))
     return;
 
+  // The fingertip can change after the knob was laid out -- the screen it is
+  // read from settles during a cold start -- so the travel is taken from it
+  // as the finger lands.
+  refreshSensitivity ();
   juce::Slider::mouseDown (event);
 }
 
@@ -93,8 +99,15 @@ PotKnob::mouseDrag (juce::MouseEvent const &event)
 void
 PotKnob::mouseUp (juce::MouseEvent const &event)
 {
-  if (_gesture.release (keyOf (event.source)))
-    juce::Slider::mouseUp (event);
+  if (!_gesture.release (keyOf (event.source)))
+    return;
+
+  juce::Slider::mouseUp (event);
+
+  // Once per tap: the second of two is the double tap's.
+  if (onTapped && !event.mouseWasDraggedSinceMouseDown ()
+      && event.getNumberOfClicks () == 1)
+    onTapped ();
 }
 
 void

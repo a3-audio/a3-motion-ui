@@ -22,6 +22,7 @@
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/BarKnob.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -41,20 +42,30 @@ TEST (PotKnob, ItIsARotarySliderDraggedVertically)
   EXPECT_EQ (knob.getMaximum (), 1.0);
 }
 
-// The whole range is a few of the knob's own heights of finger travel -- no
-// pixel count of its own, so a bigger pot (the skin's potSize) is a longer
-// drag and the feel follows the size on any screen.
-TEST (PotKnob, TheDragIsMeasuredInKnobHeights)
+// The whole range is about four fingertips of travel (#65), whatever the
+// knob's size. It was four of the knob's own heights: on the device a face
+// pot is 27 px, so the range was 108 px -- 14 mm, and a 1 mm wobble moved
+// the value 7 %. The finger is what travels, so the finger is the measure.
+// Relative from where it lands: JUCE's vertical drag, not the absolute
+// position under it.
+TEST (PotKnob, TheWholeRangeIsSeveralFingertipsLong)
 {
-  PotKnob knob;
+  // The device's panel, as JUCE reports it (7.7 px/mm).
+  useDisplayForFingertip (195.0, 1.0);
 
-  knob.setBounds (0, 0, 60, 80);
-  EXPECT_EQ (knob.getMouseDragSensitivity (),
-             juce::roundToInt (80 * knobHeightsForTheWholeRange));
+  for (auto const size : { 27, 60, 120 })
+    {
+      PotKnob knob;
+      knob.setBounds (0, 0, size, size);
+      EXPECT_EQ (knob.getMouseDragSensitivity (),
+                 juce::roundToInt (fingertipsForTheWholeRange
+                                   * static_cast<float> (displayFingertip ())))
+          << "knob " << size << " px";
+    }
+  EXPECT_FLOAT_EQ (fingertipsForTheWholeRange, 4.f);
+  EXPECT_EQ (PotKnob{}.getSliderStyle (), juce::Slider::RotaryVerticalDrag);
 
-  knob.setBounds (0, 0, 40, 40);
-  EXPECT_EQ (knob.getMouseDragSensitivity (),
-             juce::roundToInt (40 * knobHeightsForTheWholeRange));
+  useDisplayForFingertip (unknownDisplayDpi, 1.0);
 }
 
 // What the arc has to say beyond the value: which way it fills, whether it is
@@ -147,4 +158,45 @@ TEST (PotKnob, TwoTapsAskTheOwnerAndLeaveTheValueAlone)
   EXPECT_EQ (asked, 1);
   EXPECT_EQ (changed, 0);
   EXPECT_DOUBLE_EQ (knob.getValue (), 0.8);
+}
+
+namespace
+{
+juce::MouseEvent
+eventOn (PotKnob &knob, int clicks, bool dragged)
+{
+  auto const source = juce::Desktop::getInstance ().getMainMouseSource ();
+  auto const at = juce::Point<float> (10.f, 10.f);
+  return juce::MouseEvent (source, at, {},
+                           juce::MouseInputSource::defaultPressure, 0.f, 0.f,
+                           0.f, 0.f, &knob, &knob,
+                           juce::Time::getCurrentTime (), at,
+                           juce::Time::getCurrentTime (), clicks, dragged);
+}
+}
+
+// A finger that lands on a knob and lifts without moving has tapped it, and
+// the owner is told (#65): a channel face's pots fill the face now, so a tap
+// that meant "show this channel" lands on one of them. A drag is not a tap,
+// and the second tap of two is the reset's, not another tap.
+TEST (PotKnob, ALiftWithoutMovementIsATap)
+{
+  PotKnob knob;
+  knob.setBounds (0, 0, 60, 120);
+  auto taps = 0;
+  knob.onTapped = [&taps] { ++taps; };
+
+  auto const tap = [&knob] (int clicks, bool dragged) {
+    knob.mouseDown (eventOn (knob, clicks, false));
+    knob.mouseUp (eventOn (knob, clicks, dragged));
+  };
+
+  tap (1, false);
+  EXPECT_EQ (taps, 1);
+
+  tap (1, true);
+  EXPECT_EQ (taps, 1) << "a drag";
+
+  tap (2, false);
+  EXPECT_EQ (taps, 1) << "the second of two taps";
 }
