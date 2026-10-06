@@ -156,7 +156,7 @@ and control values to A³ Core over OSC; Core does the audio processing, StemDec
 engine that Plan 1 (2026-09-21) had put here — `src/a3-audio-engine/` (`ControlSurface`,
 `SpatBackendInternal`, `OutputOrder`, `SpeakerTest`, `ChunkedRender`), the `A3_AUDIO_ENGINE_ENABLED`
 switch, the app's own `AudioDeviceManager`/`AudioProcessorPlayer` and its JACK switch — moved to
-a3-core's `engine/`, where it is parked and not built.
+its own repository, [a3-audio/a3-engine](https://github.com/a3-audio/a3-engine), where it is parked and not built.
 
 `A3MotionAudioProcessor` stays only because the app is a JUCE plugin in the `Standalone` format,
 and that format needs a processor; it does nothing. For the same reason `juce_audio_utils` and

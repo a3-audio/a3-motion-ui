@@ -28,7 +28,7 @@ namespace
 // Motion is a pure OSC interface: it sends positions and control values to
 // A3 Core and renders no audio (decided 2026-10-06). Core does the audio,
 // StemDeck plays. The audio engine Plan 1 had put here behind a CMake switch
-// moved to a3-core (engine/, parked). These tests hold the rule where it can
+// moved to its own repository, a3-audio/a3-engine (parked). These tests hold the rule where it can
 // break -- in what the app is built from -- rather than in a comment.
 //
 // JUCE's Standalone plugin format will not compile without the audio device
