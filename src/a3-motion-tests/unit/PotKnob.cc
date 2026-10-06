@@ -120,3 +120,31 @@ TEST (PotKnob, TheLookAndFeelDrawsItAsTheDevicesOwnKnob)
 
   knob.setLookAndFeel (nullptr);
 }
+
+// Two taps are JUCE's double-click, timed by the platform: a knob that has
+// someone to ask hands them over and leaves its own value alone, so the owner
+// sets the value once and through the same road as a turn -- the mixer's 3D,
+// FREQ and Q reset this way.
+TEST (PotKnob, TwoTapsAskTheOwnerAndLeaveTheValueAlone)
+{
+  PotKnob knob;
+  knob.setBounds (0, 0, 60, 80);
+  knob.setValue (0.8, juce::dontSendNotification);
+
+  auto asked = 0;
+  auto changed = 0;
+  knob.onDoubleTapped = [&asked] { ++asked; };
+  knob.onValueChange = [&changed] { ++changed; };
+
+  auto const source = juce::Desktop::getInstance ().getMainMouseSource ();
+  auto const at = juce::Point<float> (30.f, 40.f);
+  juce::MouseEvent const event (
+      source, at, {}, juce::MouseInputSource::defaultPressure, 0.f, 0.f, 0.f,
+      0.f, &knob, &knob, juce::Time::getCurrentTime (), at,
+      juce::Time::getCurrentTime (), 2, false);
+  knob.mouseDoubleClick (event);
+
+  EXPECT_EQ (asked, 1);
+  EXPECT_EQ (changed, 0);
+  EXPECT_DOUBLE_EQ (knob.getValue (), 0.8);
+}
