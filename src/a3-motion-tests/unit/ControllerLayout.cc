@@ -476,3 +476,25 @@ TEST (ControllerLayout, NoTargetOverlapsAnotherOrLeavesTheArea)
         }
     }
 }
+
+// A fingertip is 9 mm on the glass, whatever the glass (#65): the display's
+// density over its scale, in logical pixels. Where the display says nothing,
+// the desktop's 96 dpi -- the 34 px this floor was as a constant.
+TEST (ControllerLayout, TheFingertipComesFromTheDisplay)
+{
+  EXPECT_EQ (fingertipForDisplay (195.0, 1.0), 69) << "the device's panel";
+  EXPECT_EQ (fingertipForDisplay (195.0, 2.0), 35) << "drawn at twice the size";
+  EXPECT_EQ (fingertipForDisplay (unknownDisplayDpi, 1.0), 34);
+  EXPECT_EQ (fingertipForDisplay (0.0, 1.0), 34) << "unknown";
+  EXPECT_EQ (fingertipForDisplay (-1.0, 0.0), 34) << "unknown";
+
+  EXPECT_EQ (fingertipSize, 34) << "the floor every other layout keeps";
+  EXPECT_EQ (displayFingertip (), 34) << "the tests run on the unknown display";
+
+  EXPECT_TRUE (useDisplayForFingertip (195.0, 1.0));
+  EXPECT_EQ (displayFingertip (), 69);
+  EXPECT_EQ (fingertipSize, 34) << "untouched";
+  EXPECT_FALSE (useDisplayForFingertip (195.0, 1.0)) << "nothing changed";
+  EXPECT_TRUE (useDisplayForFingertip (unknownDisplayDpi, 1.0));
+  EXPECT_EQ (displayFingertip (), 34);
+}

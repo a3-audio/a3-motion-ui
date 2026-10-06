@@ -583,11 +583,26 @@ channelRowInset (int barWidth)
   return juce::jmax (2, barWidth / 4 / 40);
 }
 
+/** The strip under a face's pot columns, where the clip's name stands over
+ *  its progress: a line of body text (#65). */
+int
+faceStripHeight (float bodySize)
+{
+  return juce::jmax (4, juce::roundToInt (bodySize * 1.5f));
+}
+
+/** The air round a face's parts and between them, from the strip it frames. */
+int
+facePadding (int stripHeight)
+{
+  return juce::jmax (2, stripHeight / 6);
+}
+
 /** The row of channel faces, across the whole bar (2026-09-27): four faces,
  *  each with its meter, its 3D, FREQ and Q, and its clip's progress. */
 void
 layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
-                  int inset)
+                  int inset, float bodySize)
 {
   out.channelFacesFrame = row;
 
@@ -595,6 +610,8 @@ layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
   auto const faceGap = juce::jmax (2, faces.getWidth () / 120);
   auto const numFaces = static_cast<int> (numChannelColumns);
   auto const span = faces.getWidth () - (numFaces - 1) * faceGap;
+  auto const stripH = faceStripHeight (bodySize);
+  auto const pad = facePadding (stripH);
 
   // Edges from the whole width, like the header's, so the last face ends
   // flush with the frame.
@@ -604,17 +621,32 @@ layOutChannelRow (ClipSettingsLayout &out, juce::Rectangle<int> row,
       auto const x1 = faces.getX () + i * faceGap + (span * (i + 1)) / numFaces;
       auto const face
           = juce::Rectangle<int>{ x0, faces.getY (), x1 - x0, faces.getHeight () };
-      out.channelFaces[static_cast<size_t> (i)] = face;
+      auto const c = static_cast<size_t> (i);
+      out.channelFaces[c] = face;
 
-      // Left to right: the meter a narrow column, 3D, FREQ and Q as squares
-      // right beside it, and the rest the clip's progress bar.
-      auto inner = face.reduced (juce::jmax (2, face.getHeight () / 10));
-      out.channelFaceMeters[static_cast<size_t> (i)] = inner.removeFromLeft (
-          juce::jmax (4, inner.getHeight () / 4));
-      for (auto &pot : out.channelFacePots[static_cast<size_t> (i)])
-        pot = inner.removeFromLeft (inner.getHeight ());
-      inner.removeFromLeft (juce::jmax (2, inner.getHeight () / 10));
-      out.channelFaceProgress[static_cast<size_t> (i)] = inner;
+      // Under everything, across the face: the clip's progress with its name
+      // over it. Above it, left to right, the meter a narrow column and 3D,
+      // FREQ and Q as three columns sharing the rest (#65): each pot's touch
+      // is its whole column, a fingertip tall, where it was a square the
+      // size of the drawn ring.
+      auto inner = face.reduced (pad);
+      out.channelFaceProgress[c] = inner.removeFromBottom (stripH);
+      inner.removeFromBottom (pad);
+
+      out.channelFaceMeters[c]
+          = inner.removeFromLeft (juce::jmax (4, inner.getWidth () / 20));
+      inner.removeFromLeft (pad);
+
+      auto const columns = inner;
+      auto const numPots = static_cast<int> (out.channelFacePots[c].size ());
+      for (int p = 0; p < numPots; ++p)
+        {
+          auto const left = columns.getX () + columns.getWidth () * p / numPots;
+          auto const right
+              = columns.getX () + columns.getWidth () * (p + 1) / numPots;
+          out.channelFacePots[c][static_cast<size_t> (p)]
+              = columns.withX (left).withWidth (right - left);
+        }
     }
 }
 }
@@ -643,11 +675,15 @@ panelFrames (ClipSettingsLayout const &layout)
 }
 
 int
-channelRowHeight (int knobDiam, int barWidth)
+channelRowHeight (int knobDiam, float bodySize, int barWidth)
 {
-  auto const faceH = juce::jmax (
-      fingertipSize,
-      juce::jmax (34, static_cast<int> (static_cast<float> (knobDiam) * 1.35f)));
+  // The pot columns a fingertip tall at least (#65) -- the display's, so 9 mm
+  // on any panel -- and the strip with the clip's name under them.
+  auto const columnsH = juce::jmax (
+      displayFingertip (),
+      static_cast<int> (static_cast<float> (knobDiam) * 1.35f));
+  auto const stripH = faceStripHeight (bodySize);
+  auto const faceH = columnsH + stripH + 3 * facePadding (stripH);
   return faceH + 2 * channelRowInset (barWidth);
 }
 
@@ -678,8 +714,8 @@ layOutClipSettings (juce::Rectangle<int> bounds, float headerSize,
       out,
       bounds.removeFromTop (juce::jmin (
           bounds.getHeight (),
-          channelRowHeight (buttonDiam, bounds.getWidth ()))),
-      channelRowInset (bounds.getWidth ()));
+          channelRowHeight (buttonDiam, bodySize, bounds.getWidth ()))),
+      channelRowInset (bounds.getWidth ()), bodySize);
 
   // Two panels side by side, not one panel with an odd section on the end.
   out.globalBounds = bounds.removeFromRight (bounds.getWidth () / 4);

@@ -116,11 +116,49 @@ struct ControllerLayout
   std::array<juce::Rectangle<int>, numPanelKeys> keys;
 };
 
+/** A fingertip on the glass. What a hand can find without looking is a
+ *  physical size, not a number of pixels: the same 34 px were 9 mm on a desk
+ *  monitor and 4.4 mm on the device's panel (#65). */
+constexpr float fingertipMillimetres = 9.f;
+
+/** The density assumed where the display does not say: the desktop's 96 dpi,
+ *  which is also what JUCE reports when X knows no physical size. 9 mm there
+ *  is the 34 px this floor was as a constant. */
+constexpr double unknownDisplayDpi = 96.0;
+
+/** A fingertip in logical pixels on a display of `dpi` physical pixels per
+ *  inch shown at `scale` (juce::Displays::Display::dpi and ::scale). A dpi or
+ *  scale that is not a positive number is unknown and falls back to
+ *  unknownDisplayDpi at scale 1. */
+constexpr int
+fingertipForDisplay (double dpi, double scale)
+{
+  auto const known = dpi > 0.0 && scale > 0.0;
+  auto const logicalDpi = known ? dpi / scale : unknownDisplayDpi;
+  return static_cast<int> (fingertipMillimetres / 25.4 * logicalDpi + 0.5);
+}
+
 /** The smallest thing a hand can find without looking. Nothing hit in a hurry
  *  — a pad, a page tab — is drawn narrower or shorter than this: in the dark,
  *  by a hand that is also doing something else, a target under a fingertip is
- *  not a compromise but a fault. */
-constexpr int fingertipSize = 34;
+ *  not a compromise but a fault.
+ *
+ *  A fingertip at the unknown display's density: 34 px, which is 4.4 mm on the
+ *  device's panel. Kept as the floor of every layout but the channel pots
+ *  (#65): at the panel's real 9 mm (69 px) the mixer overlay has no room for
+ *  four strips and the global strip's three keys overrun it, so moving the
+ *  rest onto displayFingertip() is a decision of its own. */
+constexpr int fingertipSize = fingertipForDisplay (unknownDisplayDpi, 1.0);
+
+/** A fingertip on the display the window is on, in logical pixels: 9 mm,
+ *  once useDisplayForFingertip() has been told the display; fingertipSize
+ *  until then -- which is what every test runs against. The channel pots
+ *  are sized and turned by it (#65). */
+int displayFingertip ();
+
+/** Take the fingertip from `dpi` and `scale`. True when that changed it, so
+ *  the caller knows the layouts have to be worked out again. */
+bool useDisplayForFingertip (double dpi, double scale);
 
 /** How small a row of text may get before it stops being readable, and how
  *  little room the channel strips and the sphere may be left with.

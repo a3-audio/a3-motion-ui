@@ -191,9 +191,21 @@ ClipSettingsComponent::createTouchControls ()
             if (onChannelPotDoubleTapped)
               onChannelPotDoubleTapped (static_cast<int> (channel), which);
           };
+          // The pots fill the face (#65), so a tap meant for the face lands
+          // on one of them and has to mean what a tap on the face means:
+          // show this channel, or -- on the one already shown -- turn it
+          // over. Landing chooses the face, as reaching for a pot always
+          // did; the tap then turns over only a face that was shown before
+          // the finger came down.
           pot->onDragStart = [this, channel] {
+            _faceShownWhenTouched[channel]
+                = _shownChannel == static_cast<int> (channel);
             if (onChannelFaceChosen)
               onChannelFaceChosen (static_cast<index_t> (channel));
+          };
+          pot->onTapped = [this, channel] {
+            if (_faceShownWhenTouched[channel] && onChannelFaceTapped)
+              onChannelFaceTapped (static_cast<index_t> (channel));
           };
           addAndMakeVisible (*pot);
         }
@@ -2008,7 +2020,7 @@ ClipSettingsComponent::preferredHeight (int width) const
                                       theme ().clipSettingsHeightScale)))
          + channelRowHeight (knobDiameterForFont (theme ().fontSize (FontRole::Body),
                                                   theme ().buttonSize),
-                             width);
+                             theme ().fontSize (FontRole::Body), width);
 }
 
 

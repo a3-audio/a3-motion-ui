@@ -38,13 +38,14 @@ namespace a3
  *  closed ring, where something else is holding it, what is written under it
  *  -- lives here, because a LookAndFeel is handed a slider and nothing else.
  */
-/** How much finger travel the whole range takes, in the knob's own heights.
+/** How much finger travel the whole range takes, in fingertips
+ *  (displayFingertip(), 9 mm on the glass).
  *
  *  Four of them: enough that a value can be set finely, short enough that a
- *  hand can cross the range in one go. Relative to the knob rather than to a
- *  number of pixels, so the skin's pot size decides the feel along with the
- *  look. */
-constexpr float knobHeightsForTheWholeRange = 4.f;
+ *  hand can cross the range in one go. Measured on the finger rather than on
+ *  the knob (#65): the finger is what travels, and a knob drawn small on a
+ *  dense panel made the whole range 14 mm. */
+constexpr float fingertipsForTheWholeRange = 4.f;
 
 class PotKnob : public juce::Slider
 {
@@ -94,6 +95,10 @@ public:
    *  rule depends on the clip (reach comes back to where its figure sits).
    *  Left empty, JUCE's own setDoubleClickReturnValue still works. */
   std::function<void ()> onDoubleTapped;
+
+  /** A finger lifted where it landed, without turning anything -- once, not
+   *  for the second of two taps (those are onDoubleTapped's). */
+  std::function<void ()> onTapped;
 
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;

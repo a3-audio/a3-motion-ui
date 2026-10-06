@@ -663,6 +663,9 @@ private:
   Blink _stopFlash;
   bool _stopPressed = false;
 
+  /** Per channel: whether its face was the one shown when a finger landed
+   *  on one of its pots -- what decides whether a tap turns it over. */
+  std::array<bool, numChannelColumns> _faceShownWhenTouched{};
   int _channel = 0;
   int _slot = 0;
   juce::Colour _channelColour; // set from the theme in the constructor

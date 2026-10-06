@@ -468,9 +468,12 @@ struct ClipSettingsLayout
    *  and the global strip, between the settings and the sphere (2026-09-27).
    *  As tall as the faces' frame in the global strip was. */
   juce::Rectangle<int> channelFacesFrame;
-  /** In every face, left to right: the channel's meter, its 3D, FREQ and Q
-   *  (channelPotOrder), and the rest a bar its clip's progress fills. Drawn in
-   *  the face; the whole face selects the clip. */
+  /** In every face: the channel's meter at the left, its 3D, FREQ and Q
+   *  (channelPotOrder) as three columns sharing the rest of the width, and
+   *  under them a strip across the face that its clip's progress fills, with
+   *  the clip's name over it. A pot's column is its touch area, a fingertip
+   *  tall at least (#65); the ring is drawn in the middle of it. The whole
+   *  face selects the clip. */
   std::array<juce::Rectangle<int>, numChannelColumns> channelFaceMeters;
   std::array<std::array<juce::Rectangle<int>, 3>, numChannelColumns>
       channelFacePots;
@@ -622,11 +625,13 @@ constexpr std::size_t numPanelFrames = 3;
 std::array<PanelFrame, numPanelFrames>
 panelFrames (ClipSettingsLayout const &layout);
 
-/** How tall the row of channel faces is, above everything else in the bar: a
- *  button as the bar's buttons are sized by the knob, never under a
- *  fingertip, and the frame's inset round it. Not a share of the bar, so the
- *  bar's preferred height can add it on top of what its sections ask for. */
-int channelRowHeight (int knobDiam, int barWidth);
+/** How tall the row of channel faces is, above everything else in the bar:
+ *  the pot columns as the bar's buttons are sized by the knob, never under a
+ *  fingertip (displayFingertip(), the display's), the strip for the clip's name
+ *  in `bodySize` text under them, and the frame's inset round it. Not a share
+ *  of the bar, so the bar's preferred height can add it on top of what its
+ *  sections ask for. */
+int channelRowHeight (int knobDiam, float bodySize, int barWidth);
 
 /** Lays the whole bar out for the given bounds and the three sizes the
  *  user can actually change (header and body font size, Pot Size). Reads

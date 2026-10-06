@@ -1010,6 +1010,20 @@ went `pageDescribesAClip` — PADS was the one page that did not describe one cl
 face brought CLIP back. Every page left describes one, so a face now only selects (and turns over
 the face you are on), whatever lies over the sphere.
 
+**A face's 3D, FREQ and Q are columns a fingertip tall** (2026-10-07, #65). Each pot's touch area is
+its whole column — the face's height above a strip that carries the clip's name over its progress —
+and the ring is drawn in the middle of it, so a vertical drag anywhere in the column turns that pot.
+The fingertip there is the **display's**, `displayFingertip()`: 9 mm from `Displays::Display::dpi`
+over its `scale`, read in `MainWindow::resized()` (`useDisplayForFingertip`), 69 px on the device's
+panel. Every other floor stays on `fingertipSize` (34 px, the same 9 mm at an unknown display's
+96 dpi): at 69 px the mixer overlay has no room for four strips and FILES/MIXER/PADS overrun the
+global strip, so moving the rest is a decision still to make. A tap on a column without movement is
+a tap on the face (`PotKnob::onTapped`); landing on another channel's pot chooses that face first, as
+reaching for a pot always did. Every `PotKnob` turns its whole range over four fingertips
+(`fingertipsForTheWholeRange`), relative from where the finger lands — not four of its own heights,
+which made a face pot's range 14 mm. A knob follows the first input source of a gesture only
+(`FirstSourceOnly`): on the device X delivers every finger a second time as an emulated mouse.
+
 **CLIP and MOTION** (2026-09-26). The clip area is three columns (`layOutClipSettings`), and which
 card stands in them depends on the page. CLIP: Shape's card with the clip picker over the picture,
 then a card with **dir** (Fwd Rev Bnce Rnd) over **end** (Loop Stop Paus), each one field that

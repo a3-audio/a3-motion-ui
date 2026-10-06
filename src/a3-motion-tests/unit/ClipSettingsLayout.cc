@@ -66,7 +66,7 @@ grownBar (float headerSize, float bodySize, float potSize)
   auto const knobDiam = knobDiameterForFont (bodySize, potSize);
   return { 0, 0, panelWidth,
            clipSettingsPreferredHeight (headerSize, bodySize, knobDiam)
-               + channelRowHeight (knobDiam, panelWidth) };
+               + channelRowHeight (knobDiam, bodySize, panelWidth) };
 }
 
 /** The header's keys in the order they stand, left to right (2026-09-27):
@@ -196,12 +196,20 @@ TEST (ClipSettingsLayout, NothingEscapesTheBarAtAnyPotOrFontSize)
   for (float potSize : { 0.6f, 0.9f, 1.f, 1.4f, 1.8f })
     for (float bodySize : { 9.f, 12.f, 16.f, 22.f, 28.f })
       {
-        auto const l = layOutClipSettings (bar, bodySize * 1.3f, bodySize,
+        // The face row on top of the sections, as the bar asks for it
+        // (ClipSettingsComponent::preferredHeight): it grew a strip for the
+        // clip's name under the pot columns (#65), and a bar held at the old
+        // total would take that out of the sections.
+        auto const withRow = bar.withHeight (
+            barHeight
+            + channelRowHeight (knobDiameterForFont (bodySize, potSize),
+                                bodySize, bar.getWidth ()));
+        auto const l = layOutClipSettings (withRow, bodySize * 1.3f, bodySize,
                                            potSize);
 
         for (int s = 0; s < numClipSettingsSections; ++s)
           for (auto const &control : l.controls[static_cast<size_t> (s)])
-            EXPECT_TRUE (bar.contains (control))
+            EXPECT_TRUE (withRow.contains (control))
                 << "pot " << potSize << " body " << bodySize << " section "
                 << s;
       }
@@ -375,9 +383,13 @@ TEST (ClipSettingsLayout, TheHeaderIsTallEnoughToHitAtTheSizeItShipsAt)
 {
   // The whole row is pressed mid-set by a hand that is also doing something
   // else. It used to be a twelfth of the bar, which left it under a fingertip.
+  // The sections' heights; the face row stands on top of them, as the bar
+  // asks for it (#65).
+  auto const row = channelRowHeight (knobDiameterForFont (12.f, 1.f), 12.f, 768);
   for (int height : { 250, 314, 400 })
     {
-      auto const l = layOutClipSettings ({ 0, 0, 768, height }, 14.f, 12.f, 1.f);
+      auto const l
+          = layOutClipSettings ({ 0, 0, 768, height + row }, 14.f, 12.f, 1.f);
       EXPECT_GE (l.tabClip.getHeight (), fingertipSize)
           << "height " << height;
     }
@@ -1174,9 +1186,10 @@ TEST (ClipSettingsLayout, TheChannelRowSpansTheBarAboveEverything)
     }
 }
 
-// Left to right in every face: the channel's meter, its 3D, FREQ and Q side
-// by side, and the rest a bar the clip's progress fills, as a clip slot
-// shows it in a DAW. The whole face selects the clip.
+// In every face: the channel's meter at the left, its 3D, FREQ and Q as three
+// columns side by side filling the rest of the width, and under them a strip
+// across the whole face that the clip's progress fills, with its name over
+// it (#65). The whole face selects the clip.
 TEST (ClipSettingsLayout, EachFaceCarriesItsMeterPotsAndProgress)
 {
   auto const l = defaultLayout ();
@@ -1201,18 +1214,62 @@ TEST (ClipSettingsLayout, EachFaceCarriesItsMeterPotsAndProgress)
           ASSERT_FALSE (pots[p].isEmpty ()) << "channel " << ch << " pot " << p;
           EXPECT_TRUE (face.contains (pots[p])) << "channel " << ch;
           EXPECT_GE (pots[p].getX (), left) << "channel " << ch << " pot " << p;
-          EXPECT_LE (pots[p].getX () - left, juce::jmax (4, face.getHeight () / 8))
-              << "each pot right beside what stands before it";
-          EXPECT_EQ (pots[p].getWidth (), pots[0].getWidth ());
+          EXPECT_LE (pots[p].getX () - left, juce::jmax (4, face.getWidth () / 40))
+              << "each column right beside what stands before it";
+          EXPECT_LE (std::abs (pots[p].getWidth () - pots[0].getWidth ()), 1);
+          EXPECT_EQ (pots[p].getY (), pots[0].getY ());
+          EXPECT_EQ (pots[p].getHeight (), pots[0].getHeight ());
           left = pots[p].getRight ();
         }
+      EXPECT_GE (left, face.getRight () - face.getWidth () / 20)
+          << "the columns fill the face's width";
 
       ASSERT_FALSE (progress.isEmpty ()) << "channel " << ch;
       EXPECT_TRUE (face.contains (progress)) << "channel " << ch;
-      EXPECT_GE (progress.getX (), left) << "the bar after the pots";
-      EXPECT_GE (progress.getRight (), face.getRight () - face.getHeight () / 4)
-          << "the bar fills the rest of the face";
+      EXPECT_GE (progress.getY (), pots[0].getBottom ())
+          << "the strip under the columns";
+      EXPECT_GE (progress.getWidth (), face.getWidth () * 3 / 4)
+          << "across the face, so the name has room";
     }
+}
+
+// A channel's pot is at least a fingertip to touch (#65). Each is a column
+// the face's full height above the strip, and the fingertip is the display's:
+// on the device's panel (7.7 px/mm) 9 mm is 69 px, where the pot cell was
+// 27 px -- 3.5 mm -- and a fingertip covered two and a half pots.
+TEST (ClipSettingsLayout, AChannelPotIsAtLeastAFingertipToTouch)
+{
+  useDisplayForFingertip (195.0, 1.0);
+  ASSERT_EQ (displayFingertip (), 69);
+
+  for (int width : { 768, 1024 })
+    {
+      auto const knobDiam = knobDiameterForFont (defaultBodySize, defaultPotSize);
+      juce::Rectangle<int> const bounds{
+        0, 0, width,
+        clipSettingsPreferredHeight (defaultHeaderSize, defaultBodySize, knobDiam)
+            + channelRowHeight (knobDiam, defaultBodySize, width)
+      };
+      auto const l = layOutClipSettings (bounds, defaultHeaderSize,
+                                         defaultBodySize, defaultPotSize);
+
+      for (size_t ch = 0; ch < numChannelColumns; ++ch)
+        {
+          auto const &face = l.channelFaces[ch];
+          auto columns = 0;
+          for (auto const &pot : l.channelFacePots[ch])
+            {
+              EXPECT_GE (pot.getHeight (), displayFingertip ())
+                  << "channel " << ch << " at width " << width;
+              EXPECT_TRUE (face.contains (pot));
+              columns += pot.getWidth ();
+            }
+          EXPECT_GE (columns, face.getWidth () * 3 / 4)
+              << "three columns share the face, channel " << ch;
+        }
+    }
+
+  useDisplayForFingertip (unknownDisplayDpi, 1.0);
 }
 
 TEST (ClipSettingsLayout, AProgressBarFillsFromTheLeft)
