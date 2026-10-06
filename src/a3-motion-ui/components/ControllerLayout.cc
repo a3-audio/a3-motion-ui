@@ -25,6 +25,28 @@ namespace a3
 
 namespace
 {
+int fingertipInForce = fingertipSize;
+}
+
+int
+displayFingertip ()
+{
+  return fingertipInForce;
+}
+
+bool
+useDisplayForFingertip (double dpi, double scale)
+{
+  auto const fingertip = fingertipForDisplay (dpi, scale);
+  if (fingertip == fingertipInForce)
+    return false;
+
+  fingertipInForce = fingertip;
+  return true;
+}
+
+namespace
+{
 /** The breathing room between two pads, and between the grid and the edges. */
 constexpr int padGap = 4;
 constexpr int minPadding = 4;

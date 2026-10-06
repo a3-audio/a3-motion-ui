@@ -21,6 +21,8 @@
 #include "MainWindow.hh"
 
 #include <a3-motion-ui/WindowReport.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/theme/ThemedComponent.hh>
 
 #include "Config.hh"
 
@@ -67,6 +69,20 @@ MainWindow::resized ()
   // the panel and rotates it, and that sequence is the one thing about this
   // fault nobody has ever been able to read afterwards. See WindowReport.hh.
   logWindowReport (getScreenBounds ());
+
+  // The fingertip from the screen the window is on (#65), read again on every
+  // resize for the reason above: on a cold start the first sizes come from a
+  // screen that is still being turned. A changed fingertip is a re-layout,
+  // the same one a skin change asks for.
+  if (auto const *display = juce::Desktop::getInstance ()
+                                .getDisplays ()
+                                .getDisplayForRect (getScreenBounds ()))
+    if (useDisplayForFingertip (display->dpi, display->scale))
+      {
+        juce::Logger::writeToLog ("fingertip: "
+                                  + juce::String (displayFingertip ()) + " px");
+        applyThemeToTree (_motionController);
+      }
 
   auto const bounds = getLocalBounds ();
   _viewport.setBounds (bounds);
