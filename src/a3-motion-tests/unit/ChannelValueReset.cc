@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <JuceHeader.h>
+
 #include <a3-motion-engine/Channel.hh>
 #include <a3-motion-ui/components/ChannelValueReset.hh>
 using namespace a3;
@@ -61,23 +63,40 @@ TEST (ChannelValueReset, APotWithNoRestPositionWritesNothing)
           .has_value ());
 }
 
-// With the panel answering, these three are physical pots and an encoder pair.
-// A value that jumped away from where the pot is standing would be telling the
-// truth about neither, and the next hair of pot movement would snatch it back.
-TEST (ChannelValueReset, ThePanelOwnsTheValuesWhileItIsAnswering)
+// Two taps are a turn to the rest position, panel or no panel (asked for on
+// the device, 2026-10-06). The reset used to be refused while the panel
+// answered, on the grounds that the physical 3d pot would disagree with the
+// screen -- but a drag on the same knob was never refused, so the screen could
+// move a value and not put it back. Freq and Q sit on endless encoders and
+// never disagree; the 3d pot disagrees after a reset exactly as it does after
+// a drag, until it is next moved.
+//
+// Read from the source, as DeviceHello does: resetChannelPot lives in the
+// component that owns the engine, and what matters is that it takes the one
+// road a turn takes -- setChannelPotValue, which writes the engine (and so
+// /channel/{ch}/3d, filter/frequency, filter/q on the next tick), saves the
+// set and redraws every knob showing the value.
+TEST (ChannelValueReset, TwoTapsAreATurnToTheRestPositionPanelOrNot)
 {
-  EXPECT_FALSE (channelValueResetIsAllowed (true));
-}
+  auto const ui = juce::File (__FILE__)
+                      .getParentDirectory ()
+                      .getParentDirectory ()
+                      .getSiblingFile ("a3-motion-ui")
+                      .getChildFile ("components/A3MotionUIComponent.cc");
+  auto const text = ui.loadFileAsString ();
+  ASSERT_TRUE (text.isNotEmpty ()) << ui.getFullPathName ();
 
-// Without it the screen is the only way in, so two taps are the only way back.
-// "Without it" is answered at runtime, not at build time: this device is built
-// with the hardware interface compiled in and still spends sessions with no
-// panel on the wire.
-TEST (ChannelValueReset, TheScreenMayResetWhenNoPanelAnswers)
-{
-  EXPECT_TRUE (channelValueResetIsAllowed (false));
-}
+  auto const body
+      = text.fromFirstOccurrenceOf ("A3MotionUIComponent::resetChannelPot (",
+                                    false, false)
+            .upToFirstOccurrenceOf ("\n}\n", false, false);
+  ASSERT_TRUE (body.isNotEmpty ());
 
+  EXPECT_TRUE (body.contains ("channelPotRestPosition (pot)"));
+  EXPECT_TRUE (body.contains ("setChannelPotValue (channel, pot, *rest)"));
+  EXPECT_FALSE (body.contains ("hardwareIsAvailable"));
+  EXPECT_FALSE (body.contains ("return;"));
+}
 
 // ── Where they start ────────────────────────────────────────────────────────
 
