@@ -24,15 +24,40 @@
 namespace a3
 {
 
-OscEndpoints
-oscEndpointsFrom (OscTruth const &truth)
+juce::StringArray
+ownAddresses ()
 {
-  auto const nowhere = OscTruth::Endpoint{};
+  juce::StringArray addresses;
+  for (auto const &address : juce::IPAddress::getAllAddresses (false))
+    addresses.add (address.toString ());
+  return addresses;
+}
 
+namespace
+{
+/** An endpoint on the Core's machine, reached from wherever this runs: "any"
+ *  read as local is right only there; elsewhere it is the core host. */
+OscTruth::Endpoint
+onTheCoresMachine (OscTruth const &truth, OscTruth::Endpoint endpoint,
+                   juce::StringArray const &own)
+{
+  auto const coreHost = truth.host ("core");
+  auto const awayFromTheCore
+      = coreHost.isNotEmpty () && !own.contains (coreHost);
+  if (awayFromTheCore && endpoint.host == truth.host ("local"))
+    endpoint.host = coreHost;
+  return endpoint;
+}
+}
+
+OscEndpoints
+oscEndpointsFrom (OscTruth const &truth, juce::StringArray const &own)
+{
   OscEndpoints endpoints;
-  endpoints.core = truth.endpoint ("core", "osc").value_or (nowhere);
-  endpoints.beatclock
-      = truth.endpoint ("beat-analyzer", "clock").value_or (nowhere);
+  if (auto const core = truth.endpoint ("core", "osc"))
+    endpoints.core = onTheCoresMachine (truth, *core, own);
+  if (auto const clock = truth.endpoint ("beat-analyzer", "clock"))
+    endpoints.beatclock = onTheCoresMachine (truth, *clock, own);
   endpoints.receivePort = truth.port ("motion", "osc");
   endpoints.vuPort = truth.port ("motion", "vu");
   endpoints.energyPort = truth.port ("motion", "energy");

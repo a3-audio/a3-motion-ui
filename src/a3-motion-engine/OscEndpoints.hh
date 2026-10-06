@@ -52,6 +52,14 @@ struct OscEndpoints
   int energyPort{ -1 };
 };
 
-OscEndpoints oscEndpointsFrom (OscTruth const &truth);
+/** This machine's own IPv4 addresses, as text. */
+juce::StringArray ownAddresses ();
+
+/** Core and the beat-analyzer listen on "any" in the truth, on the Core's
+ *  machine. Seen from there that is this machine; seen from anywhere else
+ *  (Motion on a machine of its own, 2026-10-06) it is the truth's core host.
+ *  `own` says where this process runs. */
+OscEndpoints oscEndpointsFrom (OscTruth const &truth,
+                               juce::StringArray const &own = ownAddresses ());
 
 }

@@ -43,7 +43,8 @@ TEST (OscEndpoints, CoreIsWhereTheTruthSaysCoreListens)
 // go to the beat-analyzer and nowhere else.
 TEST (OscEndpoints, TheBeatClockGoesToTheAnalyzer)
 {
-  auto const endpoints = oscEndpointsFrom (madeUpOscTruth ());
+  // On the Core's own machine: the analyzer listens on "any", so locally.
+  auto const endpoints = oscEndpointsFrom (madeUpOscTruth (), { "10.9.9.10" });
 
   EXPECT_EQ (endpoints.beatclock.host, "127.0.0.9");
   EXPECT_EQ (endpoints.beatclock.port, 17775);
@@ -71,4 +72,50 @@ TEST (OscEndpoints, WithoutTheTruthThereIsNowhere)
   EXPECT_EQ (endpoints.receivePort, -1);
   EXPECT_EQ (endpoints.vuPort, -1);
   EXPECT_EQ (endpoints.energyPort, -1);
+}
+
+// Motion on a machine of its own (a3nuc2, 2026-10-06): Core and the analyzer
+// listen on "any", which Motion read as "here" and sent its hello, the tap and
+// the beat to itself. Away from the Core they are at the truth's core host.
+namespace
+{
+OscTruth
+truthWithCoreOnAny ()
+{
+  return parseOscTruth (R"({
+    "hosts": { "local": "127.0.0.9", "any": "0.0.0.0", "core": "10.9.9.10" },
+    "listeners": [
+      { "program": "core", "role": "osc", "host": "any", "port": 19000 },
+      { "program": "beat-analyzer", "role": "clock", "host": "any", "port": 17775 },
+      { "program": "motion", "role": "osc", "host": "any", "port": 17771 }
+    ],
+    "addresses": {}
+  })");
+}
+}
+
+TEST (OscEndpoints, AwayFromTheCoreCoreIsAtTheCoreHost)
+{
+  auto const endpoints = oscEndpointsFrom (truthWithCoreOnAny (), { "10.9.9.20" });
+
+  EXPECT_EQ (endpoints.core.host, "10.9.9.10");
+  EXPECT_EQ (endpoints.core.port, 19000);
+  EXPECT_EQ (endpoints.beatclock.host, "10.9.9.10");
+  EXPECT_EQ (endpoints.beatclock.port, 17775);
+}
+
+TEST (OscEndpoints, OnTheCoreCoreStaysLocal)
+{
+  auto const endpoints
+      = oscEndpointsFrom (truthWithCoreOnAny (), { "127.0.0.1", "10.9.9.10" });
+
+  EXPECT_EQ (endpoints.core.host, "127.0.0.9");
+  EXPECT_EQ (endpoints.beatclock.host, "127.0.0.9");
+}
+
+TEST (OscEndpoints, MotionsOwnSocketsDoNotMove)
+{
+  auto const endpoints = oscEndpointsFrom (truthWithCoreOnAny (), { "10.9.9.20" });
+
+  EXPECT_EQ (endpoints.receivePort, 17771);
 }
