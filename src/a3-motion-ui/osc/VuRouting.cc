@@ -26,8 +26,12 @@ namespace a3
 
 namespace
 {
-constexpr std::array<char const *, 4> inputNames{ "in1_pre", "in2_pre",
-                                                  "in3_pre", "in4_pre" };
+constexpr std::array<char const *, 4> inputLeftNames{
+  "in1_pre_L", "in2_pre_L", "in3_pre_L", "in4_pre_L"
+};
+constexpr std::array<char const *, 4> inputRightNames{
+  "in1_pre_R", "in2_pre_R", "in3_pre_R", "in4_pre_R"
+};
 constexpr char const *glowName = "main_sub";
 constexpr std::array<char const *, 4> towerNames{ "main_top1", "main_top2",
                                                   "main_top3", "main_top4" };
@@ -50,7 +54,9 @@ juce::StringArray
 vuMeterNames ()
 {
   juce::StringArray names;
-  for (auto const *name : inputNames)
+  for (auto const *name : inputLeftNames)
+    names.addIfNotAlreadyThere (name);
+  for (auto const *name : inputRightNames)
     names.addIfNotAlreadyThere (name);
   names.addIfNotAlreadyThere (glowName);
   for (auto const *name : towerNames)
@@ -64,7 +70,9 @@ VuRouting
 vuRoutingFrom (OscTruth const &truth)
 {
   VuRouting routing;
-  numberAll (truth, inputNames, routing.channelInputs);
+  for (std::size_t i = 0; i < routing.channelInputs.size (); ++i)
+    routing.channelInputs[i] = { truth.vuNumber (inputLeftNames[i]),
+                                 truth.vuNumber (inputRightNames[i]) };
   routing.glow = truth.vuNumber (glowName);
   numberAll (truth, towerNames, routing.towers);
   numberAll (truth, masterNames, routing.masterColumn);

@@ -463,7 +463,7 @@ counterpart of a3-core's `a3_osc.py` — and three functions turn it into what
 the device needs: `oscAddressesFrom()` (the addresses, by the truth's keys),
 `oscEndpointsFrom()` (where Core and the beat-analyzer listen, and Motion's own
 three sockets) and `vuRoutingFrom()` (which `/vu/N` feeds which meter, looked
-up by the meter's **name** in the channel map — `in1_pre`, `main_sub`,
+up by the meter's **name** in the channel map — `in1_pre_L`, `main_sub`,
 `main_top1` — never by its number). `config.json`'s `oscSender`,
 `oscReceiver` and `oscAddresses` blocks are no longer read.
 
@@ -481,6 +481,12 @@ Three things are not obvious:
   and fill the column too — so `OscMessageHandler::routeMeter` asks every
   table, not an else-chain, and the column has its own listener call
   (`onOutputVU`).
+- **A channel's meter is stereo, one value on screen.** Since 2026-10-06 each
+  channel is metered as `inN_pre_L` and `inN_pre_R`; the handler remembers
+  the side that did not just arrive and hands on peak and RMS each as the
+  louder side's (`routeChannelSide`), as a DJ mixer shows a stereo channel.
+  The mono `inN_pre` read 3 dB low (REAPER's send downmix) and is no longer
+  read; the `inN_post` pairs are the desk's, not Motion's.
 
 The addresses are applied once, at start-up (`applyOscAddresses`) — the truth
 only changes with a package install. They still cross a thread on the way:

@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/tempo/BeatTrace.hh>
 
+#include <algorithm>
 #include <array>
 
 namespace a3
@@ -57,8 +58,12 @@ OscMessageHandler::routeMeter (int number, float peak, float rms)
   auto const &r = _vuRouting;
 
   for (std::size_t i = 0; i < r.channelInputs.size (); ++i)
-    if (number == r.channelInputs[i])
-      _listener.onChannelVU (static_cast<int> (i), peak, rms);
+    {
+      if (number == r.channelInputs[i].left)
+        routeChannelSide (i, 0, peak, rms);
+      if (number == r.channelInputs[i].right)
+        routeChannelSide (i, 1, peak, rms);
+    }
 
   if (number == r.glow)
     _listener.onSubwooferVU (peak, rms);
@@ -70,6 +75,20 @@ OscMessageHandler::routeMeter (int number, float peak, float rms)
   for (std::size_t i = 0; i < r.masterColumn.size (); ++i)
     if (number == r.masterColumn[i])
       _listener.onOutputVU (static_cast<int> (i), peak, rms);
+}
+
+void
+OscMessageHandler::routeChannelSide (std::size_t channel, std::size_t side,
+                                     float peak, float rms)
+{
+  auto &sides = _channelSides[channel];
+  sides[side] = { peak, rms };
+
+  // Peak and RMS each the louder side's, as a DJ mixer shows a stereo
+  // channel -- not a downmix, which reads 3 dB low on a centred signal.
+  _listener.onChannelVU (static_cast<int> (channel),
+                         std::max (sides[0].peak, sides[1].peak),
+                         std::max (sides[0].rms, sides[1].rms));
 }
 
 void
