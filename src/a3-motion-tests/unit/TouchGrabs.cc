@@ -233,3 +233,51 @@ TEST (TouchGrabs, NoFingerDownMeansNoFirstSource)
   grabs.up (0);
   EXPECT_FALSE (grabs.firstSource ().has_value ());
 }
+
+// JUCE counts the mouse and the fingers separately, so the mouse and the
+// first finger are both index 0. On the rig a mouse event arrives during a
+// touch (JUCE 9.0.3 marks the button as down for the whole touch), and keyed
+// by index it took the finger's blob away: one position went out on the
+// press, and nothing followed the finger after that.
+TEST (TouchGrabs, TheMouseAndTheFirstFingerAreTwoSources)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+
+  EXPECT_NE (grabKey (Type::mouse, 0), grabKey (Type::touch, 0));
+  EXPECT_NE (grabKey (Type::pen, 0), grabKey (Type::touch, 0));
+  EXPECT_NE (grabKey (Type::mouse, 0), grabKey (Type::pen, 0));
+}
+
+TEST (TouchGrabs, AMousePressDuringATouchLeavesTheFingerItsBlob)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+  TouchGrabs grabs;
+
+  grabs.down (grabKey (Type::touch, 0), 2u);
+  // The blob is held, so the mouse finds nothing free under it.
+  grabs.down (grabKey (Type::mouse, 0), {});
+
+  EXPECT_EQ (grabs.channelFor (grabKey (Type::touch, 0)),
+             std::optional<index_t>{ 2u });
+  EXPECT_TRUE (grabs.isHeld (2u));
+}
+
+TEST (TouchGrabs, LiftingTheMouseLeavesTheFingerHolding)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+  TouchGrabs grabs;
+
+  grabs.down (grabKey (Type::touch, 0), 2u);
+  grabs.down (grabKey (Type::mouse, 0), {});
+
+  EXPECT_EQ (grabs.up (grabKey (Type::mouse, 0)), std::nullopt);
+  EXPECT_EQ (grabs.channelFor (grabKey (Type::touch, 0)),
+             std::optional<index_t>{ 2u });
+}
+
+TEST (TouchGrabs, AFingerIsKeyedByItsOwnIndex)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+
+  EXPECT_NE (grabKey (Type::touch, 0), grabKey (Type::touch, 1));
+}

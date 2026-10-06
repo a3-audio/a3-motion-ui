@@ -26,6 +26,8 @@
 
 #include <a3-motion-engine/util/Types.hh>
 
+#include <juce_gui_basics/juce_gui_basics.h>
+
 namespace a3
 {
 
@@ -47,6 +49,19 @@ namespace a3
  * Kept apart from MotionComponent because it is the whole of the multitouch
  * bookkeeping and the only part of it that can be tested without a screen.
  */
+/**
+ * The key a pointer's grab is kept under.
+ *
+ * JUCE numbers each kind of pointer on its own: the mouse is index 0, and so
+ * is the first finger. Since JUCE 9.0.3 a touch also sets the global mouse
+ * buttons, so a mouse event that arrives during it -- any XTEST motion, x11vnc
+ * echoing a VNC viewer's pointer -- comes in as a mouse press of its own.
+ * Keyed by index alone, that press overwrote the finger's grab and the blob
+ * stopped following the finger after the first position.
+ */
+int grabKey (juce::MouseInputSource::InputSourceType type, int index);
+int grabKey (juce::MouseInputSource const &source);
+
 class TouchGrabs
 {
 public:
