@@ -587,7 +587,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 {
   // No blanket reset any more: a finger going down must not let go of what
   // another finger is already holding.
-  auto const source = event.source.getIndex ();
+  auto const source = grabKey (event.source);
 
   // In camera mode the whole sphere turns the room: selected by the elevation
   // picture in the bar, which is in plain view while it is on. Two taps put
@@ -700,20 +700,21 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
+  auto const source = grabKey (event.source);
   if (_cameraMode)
     {
       // A pinch that loses a finger does not turn back into a turn: the
       // finger left is still wherever the pinch put it, and a view that
       // jumped from there would be a surprise.
-      _cameraFingers.erase (event.source.getIndex ());
-      if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+      _cameraFingers.erase (source);
+      if (_cameraGrab == std::optional<int>{ source })
         _cameraGrab.reset ();
       if (onCameraChanged)
         onCameraChanged ();
       return;
     }
 
-  auto const released = _grabs.up (event.source.getIndex ());
+  auto const released = _grabs.up (source);
   if (released.has_value ())
     {
       _uiStates[released.value ()]->grabbed = false;
@@ -730,10 +731,11 @@ void
 MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
+  auto const source = grabKey (event.source);
 
   if (_cameraMode)
     {
-      auto const finger = _cameraFingers.find (event.source.getIndex ());
+      auto const finger = _cameraFingers.find (source);
       if (finger != _cameraFingers.end ())
         finger->second = posPixel;
 
@@ -747,11 +749,11 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
 
       // A finger that is not turning the view -- the one left over from a
       // pinch -- does nothing. In camera mode no finger takes a blob.
-      if (_cameraGrab != std::optional<int>{ event.source.getIndex () })
+      if (_cameraGrab != std::optional<int>{ source })
         return;
     }
 
-  if (_cameraGrab == std::optional<int>{ event.source.getIndex () })
+  if (_cameraGrab == std::optional<int>{ source })
     {
       // Up and down leans the eye over the room, left and right walks it
       // round -- see cameraFromBallDrag(), which is where the feel of it is
@@ -765,11 +767,11 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
   if (_engine.isRecordingOrScheduled ())
     {
       // Only the finger that started it; the others are along for the ride.
-      if (_grabs.firstSource () == std::optional<int>{ event.source.getIndex () })
+      if (_grabs.firstSource () == std::optional<int>{ source })
         _engine.setRecording3DPosition (
             pixelToDirection (posPixel));
     }
-  else if (auto const grabbed = _grabs.channelFor (event.source.getIndex ()))
+  else if (auto const grabbed = _grabs.channelFor (source))
     {
       // Only this finger's channel. Another finger's blob is another finger's
       // business.

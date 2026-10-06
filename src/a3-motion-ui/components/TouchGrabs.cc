@@ -25,6 +25,29 @@
 namespace a3
 {
 
+int
+grabKey (juce::MouseInputSource::InputSourceType type, int index)
+{
+  // Fingers keep their own index (JUCE allows 0..99); the mouse and the pen
+  // get keys below zero, where no finger can be.
+  switch (type)
+    {
+    case juce::MouseInputSource::InputSourceType::touch:
+      return index;
+    case juce::MouseInputSource::InputSourceType::mouse:
+      return -1 - 2 * index;
+    case juce::MouseInputSource::InputSourceType::pen:
+      return -2 - 2 * index;
+    }
+  return index;
+}
+
+int
+grabKey (juce::MouseInputSource const &source)
+{
+  return grabKey (source.getType (), source.getIndex ());
+}
+
 void
 TouchGrabs::down (int source, std::optional<index_t> channel)
 {
