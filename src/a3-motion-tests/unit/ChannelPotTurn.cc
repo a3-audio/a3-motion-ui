@@ -56,3 +56,21 @@ TEST (ChannelPotTurn, ATurnRedrawsTheChannelValuesNotTheWholeBar)
   EXPECT_TRUE (body.contains ("scheduleSetSave ()"));
   EXPECT_FALSE (body.contains ("updateClipSettingsDisplay ()"));
 }
+
+// Reaching for a pot on the face already shown selects nothing again (#64).
+// Every touch-down on a face pot chose the face, and choosing re-ran
+// selectClip(): the bar described afresh and the ACTION page listing its
+// files from disk, before the first step of the drag.
+TEST (ChannelPotTurn, ReachingForAPotOnTheShownFaceChoosesNothingAgain)
+{
+  auto const body = bodyOf (
+      "A3MotionUIComponent::chooseChannelFace (index_t channel, bool "
+      "mayTurnOver)");
+  ASSERT_TRUE (body.isNotEmpty ());
+
+  auto const guard = body.indexOf ("!mayTurnOver && faceIsShown");
+  auto const select = body.indexOf ("selectClip (");
+  ASSERT_GE (guard, 0) << "no early return for the face already shown";
+  ASSERT_GE (select, 0);
+  EXPECT_LT (guard, select);
+}

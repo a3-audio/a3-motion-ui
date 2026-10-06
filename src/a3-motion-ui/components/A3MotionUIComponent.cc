@@ -8752,6 +8752,14 @@ A3MotionUIComponent::chooseChannelFace (index_t channel, bool mayTurnOver)
   // does not. (PADS was the page where a face brought CLIP back instead; it
   // lies over the sphere since 2026-09-27, and every page left describes one
   // clip.)
+  // Reaching for a pot on the face already shown chooses nothing again
+  // (#64): selectClip() describes the bar afresh and the ACTION page lists
+  // its files from disk, all before the drag's first step.
+  auto const faceIsShown = channel == _clipSettingsChannel
+                           && _clipSettingsSlot == _channelSlot[channel];
+  if (!mayTurnOver && faceIsShown)
+    return;
+
   if (mayTurnOver && channel == _clipSettingsChannel)
     _channelSlot[channel]
         = static_cast<index_t> ((_channelSlot[channel] + 1) % numPadSlots);
