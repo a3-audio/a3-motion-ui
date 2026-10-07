@@ -125,6 +125,15 @@ parseOscTruth (juce::String const &json)
   return truth;
 }
 
+namespace
+{
+juce::String
+digestOf (juce::MemoryBlock const &bytes)
+{
+  return juce::SHA256 (bytes).toHexString ();
+}
+}
+
 OscTruth
 loadOscTruth (juce::File const &file)
 {
@@ -137,8 +146,18 @@ loadOscTruth (juce::File const &file)
   juce::MemoryBlock bytes;
   file.loadFileAsData (bytes);
   auto truth = parseOscTruth (bytes.toString ());
-  truth._digest = juce::SHA256 (bytes).toHexString ();
+  truth._digest = digestOf (bytes);
   return truth;
+}
+
+juce::String
+oscTruthFileDigest (juce::File const &file)
+{
+  if (!file.existsAsFile ())
+    return {};
+  juce::MemoryBlock bytes;
+  file.loadFileAsData (bytes);
+  return digestOf (bytes);
 }
 
 juce::String

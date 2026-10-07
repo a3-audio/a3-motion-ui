@@ -22,21 +22,22 @@
 #include "TruthKeeper.hh"
 
 #include <iostream>
+#include <utility>
 
 namespace a3
 {
 
 TruthKeeperLink::TruthKeeperLink (
-    std::string own, juce::File cache,
-    std::function<juce::String (juce::String const &)> usable,
+    juce::File cache, std::function<juce::String (juce::String const &)> usable,
     std::function<void ()> restart)
-    : _own (std::move (own)), _cache (std::move (cache)),
-      _usable (std::move (usable)), _restart (std::move (restart))
+    : _cache (std::move (cache)), _usable (std::move (usable)),
+      _restart (std::move (restart))
 {
 }
 
 TruthKeeperLink::~TruthKeeperLink ()
 {
+  stopTimer ();
   _receiver.removeListener (this);
   _receiver.disconnect ();
   _fetcher.removeAllJobs (true, 6000);
@@ -59,6 +60,26 @@ TruthKeeperLink::start ()
 }
 
 void
+TruthKeeperLink::waitForCore (std::string candidate, std::function<void ()> open)
+{
+  _wait.emplace (std::move (candidate));
+  _open = std::move (open);
+  startTimer (truthkeeper::startupWaitMs);
+}
+
+void
+TruthKeeperLink::follow (std::string own)
+{
+  _own = std::move (own);
+}
+
+bool
+TruthKeeperLink::waiting () const
+{
+  return _wait.has_value () && !_wait->isOpen ();
+}
+
+void
 TruthKeeperLink::oscMessageReceived (juce::OSCMessage const &message)
 {
   if (message.getAddressPattern ().toString () != truthkeeper::announceAddress
@@ -67,16 +88,78 @@ TruthKeeperLink::oscMessageReceived (juce::OSCMessage const &message)
     return;
   auto const url = message[0].getString ();
   auto const announced = message[1].getString ();
-  if (!truthkeeper::needsFetch (announced.toStdString (), _own)
-      || _busy.exchange (true))
+  if (waiting ())
+    {
+      apply (_wait->announced (announced.toStdString ()), url, announced);
+      return;
+    }
+  if (truthkeeper::needsFetch (announced.toStdString (), _own))
+    fetch (url, announced);
+}
+
+void
+TruthKeeperLink::timerCallback ()
+{
+  stopTimer ();
+  if (!waiting ())
+    return;
+  std::cerr << "A3 Motion: no word from Core in "
+            << truthkeeper::startupWaitMs / 1000
+            << " s, opening on the truth on disk" << std::endl;
+  apply (_wait->timedOut (), {}, {});
+}
+
+void
+TruthKeeperLink::apply (truthkeeper::StartupStep next, juce::String const &url,
+                        juce::String const &announced)
+{
+  if (next == truthkeeper::StartupStep::fetch)
+    {
+      fetch (url, announced);
+      return;
+    }
+  if (next != truthkeeper::StartupStep::open)
+    return;
+  stopTimer ();
+  if (auto const open = std::exchange (_open, nullptr))
+    open ();
+}
+
+void
+TruthKeeperLink::fetch (juce::String const &url, juce::String const &announced)
+{
+  if (_busy.exchange (true))
     return;
   _fetcher.addJob ([this, url, announced] {
-    take (url, announced);
+    auto const written = take (url, announced);
     _busy = false;
+    juce::MessageManager::callAsync (
+        [link = juce::WeakReference<TruthKeeperLink> (this), written] {
+          if (auto *alive = link.get ())
+            alive->finished (written);
+        });
   });
 }
 
 void
+TruthKeeperLink::finished (bool written)
+{
+  if (waiting ())
+    {
+      std::cerr << (written ? "A3 Motion: took Core's truth, opening on it"
+                            : "A3 Motion: opening on the truth on disk")
+                << std::endl;
+      apply (_wait->fetched (), {}, {});
+      return;
+    }
+  if (!written)
+    return;
+  std::cerr << "A3 Motion: Core announced another truth, restarting on it"
+            << std::endl;
+  _restart ();
+}
+
+bool
 TruthKeeperLink::take (juce::String url, juce::String announced)
 {
   juce::StringPairArray headers;
@@ -89,7 +172,7 @@ TruthKeeperLink::take (juce::String url, juce::String announced)
   if (stream == nullptr || status != 200)
     {
       refuse ("fetch failed (status " + juce::String (status) + ")");
-      return;
+      return false;
     }
   juce::MemoryBlock body;
   stream->readIntoMemoryBlock (body);
@@ -99,12 +182,12 @@ TruthKeeperLink::take (juce::String url, juce::String announced)
                               announced.toStdString ()))
     {
       refuse ("body, header and announcement do not agree");
-      return;
+      return false;
     }
   if (auto const why = _usable (body.toString ()); why.isNotEmpty ())
     {
       refuse (why);
-      return;
+      return false;
     }
   _cache.getParentDirectory ().createDirectory ();
   juce::TemporaryFile temporary (_cache);
@@ -112,11 +195,9 @@ TruthKeeperLink::take (juce::String url, juce::String announced)
       || !temporary.overwriteTargetFileWithTemporary ())
     {
       refuse ("cannot write " + _cache.getFullPathName ());
-      return;
+      return false;
     }
-  std::cerr << "A3 Motion: Core announced another truth, restarting on it"
-            << std::endl;
-  juce::MessageManager::callAsync (_restart);
+  return true;
 }
 
 void

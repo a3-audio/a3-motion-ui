@@ -103,6 +103,14 @@ StandaloneApp::initialise (juce::String const &commandLine)
   // splash->deleteAfterDelay (RelativeTime::seconds (3),
   //                           true /* removeOnMouseClick */);
 
+  // The truth first, then the window, once (a3-system#74): a window opened on
+  // the cached truth used to quit seconds later when Core announced another.
+  waitForCoresTruth ();
+}
+
+void
+StandaloneApp::openWindow ()
+{
   _mainWindow = std::make_unique<MainWindow> (getApplicationName ());
 
   // The panel the device runs on, in the orientation it hangs in: 768x1024,
@@ -119,8 +127,6 @@ StandaloneApp::initialise (juce::String const &commandLine)
   // over half the room it has.
   _mainWindow->setBounds (0, 0, 768, 1024);
   _mainWindow->setVisible (true);
-
-  followCoresTruth ();
 }
 
 
@@ -161,7 +167,7 @@ StandaloneApp::getApplicationVersion ()
 }
 
 void
-StandaloneApp::followCoresTruth ()
+StandaloneApp::waitForCoresTruth ()
 {
   // With $A3_OSC_TRUTH set, that file wins at every start: following Core
   // would restart Motion into the same file forever.
@@ -171,12 +177,12 @@ StandaloneApp::followCoresTruth ()
     {
       std::cerr << "A3 Motion: A3_OSC_TRUTH is set: not following Core's truth"
                 << std::endl;
+      openWindow ();
       return;
     }
   auto const home
       = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
   _truthKeeper = std::make_unique<TruthKeeperLink> (
-      installedOscTruth ().digest ().toStdString (),
       juce::File (truthkeeper::cachePath (home.getFullPathName ().toStdString ())),
       [] (juce::String const &body) { return unusableOscTruth (body); },
       [this] {
@@ -185,7 +191,19 @@ StandaloneApp::followCoresTruth ()
         setApplicationReturnValue (1);
         quit ();
       });
-  _truthKeeper->start ();
+  if (!_truthKeeper->start ())
+    {
+      openWindow ();
+      return;
+    }
+  // Decided before anything loads the truth: the window's first
+  // installedOscTruth () then reads whatever the wait left in the cache.
+  _truthKeeper->waitForCore (oscTruthFileDigest (oscTruthFile ()).toStdString (), [this] {
+    openWindow ();
+    // The loaded bytes' digest, not a second read of a file StemDeck may
+    // rewrite meanwhile: from here on Motion follows what it runs on.
+    _truthKeeper->follow (installedOscTruth ().digest ().toStdString ());
+  });
 }
 
 void

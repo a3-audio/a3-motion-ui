@@ -181,3 +181,140 @@ TEST (KeeperLink, ThePoolIsTheLastMember)
   EXPECT_FALSE (rest.contains ("_busy")) << rest;
   EXPECT_FALSE (rest.contains ("_lastReason")) << rest;
 }
+
+// Motion opens its window once, on Core's truth if Core announces it within
+// 10 s, else on the truth on disk (decided 2026-10-07, a3-system#74).
+TEST (KeeperStartup, TheWaitIsTenSeconds)
+{
+  EXPECT_EQ (tk::startupWaitMs, 10000);
+}
+
+TEST (KeeperStartup, CoresTruthOnDiskOpensAtOnce)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_FALSE (wait.isOpen ());
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::open);
+  EXPECT_TRUE (wait.isOpen ());
+}
+
+TEST (KeeperStartup, AnotherTruthIsFetchedAndThenOpened)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_FALSE (wait.isOpen ());
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::open);
+}
+
+TEST (KeeperStartup, AnnouncementsDuringTheFetchAreIgnored)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.announced ("old"), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, SilenceOpensAtTheTimeout)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::open);
+}
+
+TEST (KeeperStartup, ItOpensOnlyOnce)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::open);
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.announced ("xyz"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::stay);
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, AFetchLandingAfterTheTimeoutDoesNotOpenAgain)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::open);
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, NoTruthOnDiskFetchesAnyAnnouncement)
+{
+  tk::StartupWait wait ("");
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::fetch);
+}
+
+// The candidate Motion waits with is the digest of the file it will load.
+TEST (KeeperOwn, TheFileDigestIsTheDigestOfWhatLoads)
+{
+  auto const file = juce::File::createTempFile ("json");
+  file.replaceWithText (R"({"addresses": {}})");
+  EXPECT_EQ (a3::oscTruthFileDigest (file), a3::loadOscTruth (file).digest ());
+  file.deleteFile ();
+  EXPECT_TRUE (a3::oscTruthFileDigest (file).isEmpty ());
+}
+
+namespace
+{
+juce::String
+siblingSource (char const *directory, char const *file)
+{
+  return juce::File (__FILE__).getParentDirectory ().getParentDirectory ()
+      .getSiblingFile (directory).getChildFile (file).loadFileAsString ();
+}
+
+juce::String
+bodyOf (juce::String const &text, juce::String const &signature)
+{
+  return text.fromFirstOccurrenceOf (signature, false, false)
+      .upToFirstOccurrenceOf ("\n}\n", false, false);
+}
+
+int
+countOf (juce::String const &text, juce::String const &needle)
+{
+  int found = 0;
+  for (auto at = text.indexOf (needle); at >= 0; at = text.indexOf (at + 1, needle))
+    ++found;
+  return found;
+}
+}
+
+// The window is built in one place, after the wait -- never in initialise,
+// where it used to come up on the cached truth and quit 6 s later.
+TEST (KeeperStartup, TheWindowIsBuiltInOnePlaceOnly)
+{
+  auto const app = siblingSource ("a3-motion-ui", "StandaloneApp.cc");
+  ASSERT_TRUE (app.isNotEmpty ());
+  EXPECT_EQ (countOf (app, "std::make_unique<MainWindow>"), 1);
+  EXPECT_TRUE (bodyOf (app, "StandaloneApp::openWindow ()")
+                   .contains ("std::make_unique<MainWindow>"));
+  EXPECT_FALSE (bodyOf (app, "StandaloneApp::initialise (").contains ("MainWindow"));
+}
+
+TEST (KeeperStartup, MotionWaitsOnTheFileItWillLoadAndFollowsWhatItLoaded)
+{
+  auto const app = siblingSource ("a3-motion-ui", "StandaloneApp.cc");
+  EXPECT_TRUE (app.contains ("waitForCore (oscTruthFileDigest (oscTruthFile ())"));
+  EXPECT_TRUE (app.contains ("follow (installedOscTruth ().digest ()"));
+}
+
+// A busy announce port or a set $A3_OSC_TRUTH: nothing to wait for.
+TEST (KeeperStartup, ADeafLinkOpensAtOnce)
+{
+  auto const wait = bodyOf (siblingSource ("a3-motion-ui", "StandaloneApp.cc"),
+                            "StandaloneApp::waitForCoresTruth ()");
+  ASSERT_TRUE (wait.isNotEmpty ());
+  EXPECT_EQ (countOf (wait, "openWindow ();"), 3);   // override, deaf, the wait's callback
+  EXPECT_LT (wait.indexOf ("_truthKeeper->start ()"), wait.indexOf ("waitForCore ("));
+}
+
+// During the wait a fetched truth is opened on, not restarted on.
+TEST (KeeperStartup, TheLinkRestartsOnlyOnceTheWindowIsOpen)
+{
+  auto const link = siblingSource ("a3-motion-engine", "TruthKeeperLink.cc");
+  ASSERT_TRUE (link.isNotEmpty ());
+  EXPECT_FALSE (link.contains ("callAsync (_restart)"));
+  EXPECT_EQ (countOf (link, "_restart ()"), 1);
+  auto const finished = bodyOf (link, "TruthKeeperLink::finished (");
+  EXPECT_LT (finished.indexOf ("waiting ()"), finished.indexOf ("_restart ()"));
+}

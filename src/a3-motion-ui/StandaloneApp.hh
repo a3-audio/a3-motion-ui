@@ -46,7 +46,8 @@ public:
   void systemRequestedQuit () override;
 
 private:
-  void followCoresTruth ();
+  void waitForCoresTruth ();
+  void openWindow ();
   void setupFileLogger ();
 
   std::unique_ptr<MainWindow> _mainWindow;

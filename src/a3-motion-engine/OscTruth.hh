@@ -108,4 +108,8 @@ juce::File oscTruthFileFrom (char const *override, juce::File const &home);
 /** The truth this process runs on: oscTruthFile(), read once. */
 OscTruth const &installedOscTruth ();
 
+/** The SHA-256 of `file`'s bytes, as loadOscTruth (file).digest () would
+ *  give it; empty when there is no file. For deciding before loading. */
+juce::String oscTruthFileDigest (juce::File const &file);
+
 }

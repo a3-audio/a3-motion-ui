@@ -569,6 +569,22 @@ they test the mechanics, not a copy of the vocabulary; `OscTruthContract`
 holds Motion against the real file, which `test.sh` finds (installed, or the
 a3-core checkout beside this one) and names.
 
+#### Core's truth at start-up
+
+Motion opens its window **once**, on Core's truth (a3-system#74, decided
+2026-10-07). `StandaloneApp::initialise` starts the truth link before any
+window exists and hands it the digest of the file it *would* load
+(`oscTruthFileDigest (oscTruthFile ())`). On Core's first `/core/here` with
+that digest the window opens; with another digest the link fetches it into
+`~/.cache/a3/a3-osc.json` and then opens — nothing has loaded the truth yet,
+so `installedOscTruth ()` reads the new file. No announcement within
+`truthkeeper::startupWaitMs` (10 s), a refused fetch, a busy announce port or
+a set `$A3_OSC_TRUTH`: it opens on what is on disk. The decisions are
+`truthkeeper::StartupWait`; once the window is open the link follows the
+loaded digest, and a truth changed *later* (a deploy) still fetches and
+restarts as before. The one start-up case that still restarts: a fetch that
+lands after the 10 s.
+
 The bar's **global section** takes its right quarter and holds three things: the elevation picture,
 the four channel faces and the transport two by two. A **Filter section** used to sit among
 the clip's sections showing freq and Q — but those were never the clip's: they are the same
