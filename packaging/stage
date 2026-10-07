@@ -36,6 +36,7 @@ run_tests() {
         echo "stage: --test needs a3-core's OSC truth ($INSTALLED_TRUTH) or A3_OSC_TRUTH" >&2
         exit 1
     fi
+    echo "stage: OSC truth: $truth" >&2
     A3_OSC_TRUTH=$truth ctest --test-dir "$build" --output-on-failure
     (cd "$src" && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests)
 }
@@ -48,6 +49,15 @@ build() {
         tests=ON
         targets+=(a3-motion-tests)
     fi
+    # The same lock as build.sh: a package build beside a build.sh run starves
+    # the live UI on the rig. It is released when stage ends.
+    local lock="${XDG_RUNTIME_DIR:-/tmp}/a3-motion-ui-build.lock"
+    exec 9>>"$lock"
+    if ! flock -n 9; then
+        echo "stage: waiting for the build in $(cat "$lock.who" 2>/dev/null || echo "another checkout")" >&2
+        flock 9
+    fi
+    echo "$src (package)" > "$lock.who"
     # TESTS_ENABLED defaults ON and needs GoogleTest at configure time; a
     # build without --test must not (a3coreV01 builds without it).
     cmake -S "$src" -B "$build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$juce" \

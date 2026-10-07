@@ -183,5 +183,19 @@ class TheStagedTree(unittest.TestCase):
         self.assertEqual(2, subprocess.run([STAGE, "nonsense"], capture_output=True).returncode)
 
 
+class TheBuildStep(unittest.TestCase):
+    def setUp(self):
+        self.text = STAGE.read_text()
+
+    def test_it_waits_for_build_sh_on_the_same_lock(self):
+        lock = '"${XDG_RUNTIME_DIR:-/tmp}/a3-motion-ui-build.lock"'
+        self.assertIn(lock, (REPO / "build.sh").read_text())
+        self.assertIn(lock, self.text)
+        self.assertIn("flock", self.text)
+
+    def test_it_names_the_truth_the_tests_run_against(self):
+        self.assertIn('echo "stage: OSC truth: $truth" >&2', self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
