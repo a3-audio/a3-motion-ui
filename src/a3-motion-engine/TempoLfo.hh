@@ -61,6 +61,11 @@ float lfoCyclesPerBar (int step);
  *  nothing. */
 float advanceLfoPhase (float phase, int step, float ticksPerBar);
 
+/** Where a cycle started at zero stands after `ticks` ticks -- what
+ *  advanceLfoPhase() reaches one tick at a time, in one step. For working out
+ *  where a sweep will be at a tick of a pass that has not been played yet. */
+float lfoPhaseAfter (int step, float ticks, float ticksPerBar);
+
 /** How far through its travel the cycle is: 0 at the start, 1 at the halfway
  *  point, 0 again at the end, on a raised cosine.
  *

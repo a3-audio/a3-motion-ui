@@ -21,6 +21,7 @@
 #include "MotionEngine.hh"
 
 #include <a3-motion-engine/SpaceTurn.hh>
+#include <a3-motion-engine/TakeProjection.hh>
 #include <a3-motion-engine/TakeSeed.hh>
 
 #include <a3-motion-engine/util/Slew.hh>
@@ -1280,10 +1281,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   // touched, so it needs something to write: where the blob stands as the take
   // begins. Touch and Latch never reach for this.
   _recordingHasTouched = false;
-  auto const startPosition = _channels[pattern->getChannel ()]->getPosition ();
-  _recordingHeldPosition2D = startPosition.isValid ()
-                                ? takePosition2D (startPosition, *pattern)
-                                : Pos::invalid;
+  _recordingHeldDirection = _channels[pattern->getChannel ()]->getPosition ();
   _patternRecording->setStatus (Pattern::Status::Recording);
 
   // Clear scheduled flag only if this pattern was scheduled
@@ -1383,25 +1381,42 @@ MotionEngine::finishRecording ()
   _recordingLap = 0;
 }
 
-/** A finger, as a take writes it: turned back out of the leant plane, so the
- *  take plays back under it, and through the take's own inverse, which holds
- *  a direction the take cannot play at the nearest one it can -- the take
- *  keeps the clip's elevation band (decided 2026-10-07, #66). */
-Pos
-MotionEngine::takePosition2D (Pos const &finger, Pattern const &take) const
+/** Lay onto `take` the sweeps' phases its first pass will have at `tick`
+ *  -- so writing and showing a point use the transform it will be played
+ *  through, spin and sweeps included. A take is not playing while it
+ *  records, so its phases are free; beginPass() zeroes them when it starts. */
+void
+MotionEngine::takePhasesAt (Pattern &take, index_t tick) const
 {
-  return _heightMap.mapTo2D (unturnedInSpace (finger, spaceTurnOf (take)),
-                             take.getElevationParams ());
+  auto const ticksPerBar
+      = static_cast<float> (TempoClock::getTicksPerBeat ())
+        * static_cast<float> (_tempoClock.getBeatsPerBar ());
+  auto const numTicks = take.getNumTicks ();
+
+  // The pass is as long as the take plays, which is not always as long as it
+  // records; a take with no playback length set plays at its own.
+  auto passTicks = static_cast<float> (Measure::convertToTicks (
+      take.getPlaybackLength (), _tempoClock.getBeatsPerBar ()));
+  if (passTicks <= 0.f)
+    passTicks = static_cast<float> (numTicks)
+                / static_cast<float> (std::max (_recordingSubSamplingFactor, 1));
+
+  setPassPhases (take,
+                 ticksIntoFirstPass (tick, numTicks, take.getPlayDirection (),
+                                     passTicks),
+                 ticksPerBar);
 }
 
-/** Where a written point is heard: the projection playback makes, without
- *  the shaping and the sweeps, which a take does not run while recording. */
+/** Where `direction` is heard once a take has written it at `tick`: the
+ *  direction itself inside the take's band, its nearest playable neighbour
+ *  outside it (#66). Leaves `take` at that tick's phases. */
 Pos
-MotionEngine::takePosition3D (Pos const &position2D, Pattern const &take) const
+MotionEngine::heardInTake (Pos const &direction, Pattern &take,
+                           index_t tick) const
 {
-  return turnedInSpace (
-      _heightMap.mapTo3D (position2D, take.getElevationParams ()),
-      spaceTurnOf (take));
+  takePhasesAt (take, tick);
+  return playedPosition (_heightMap,
+                         writtenPosition (_heightMap, direction, take), take);
 }
 
 void
@@ -1418,9 +1433,8 @@ MotionEngine::performRecording ()
       // the take begins.
       if (_patternScheduledForRecording && _recordingPosition.isValid ())
         _channels[_patternScheduledForRecording->getChannel ()]->setPosition (
-            takePosition3D (takePosition2D (_recordingPosition,
-                                            *_patternScheduledForRecording),
-                            *_patternScheduledForRecording));
+            heardInTake (_recordingPosition, *_patternScheduledForRecording,
+                         0));
 
       return;
     }
@@ -1473,58 +1487,10 @@ MotionEngine::performRecording ()
       // This fills in gaps between ticks with interpolation-friendly keyframes
       // Store 2D positions so elevation coverage can be changed later
       //
-      // A lifted finger writes nothing at all — punch-out. It used to write
-      // Pos::invalid, which erased whatever an earlier pass had put there.
-      // Since recording wraps and runs as many passes as you let it, that made
-      // every pass wipe the one before it, and only the last one ever counted.
-      // Protecting what is already there is what makes several passes worth
-      // running: rough one out, then mend a corner.
-      // The finger arrives as a direction on the sphere. A pattern stores 2D
-      // so elevation coverage can be changed later; see takePosition2D() for
-      // how a finger outside what the take can play is held in its band.
-      auto const fingerDown = _recordingPosition.isValid ();
-
-      if (fingerDown)
-        {
-          _recordingPosition2D
-              = takePosition2D (_recordingPosition, *_patternRecording);
-          _recordingHeldPosition2D = _recordingPosition2D;
-          _recordingHasTouched = true;
-        }
-      else if (_recordingFingerWasDown)
-        {
-          // Where the write head was when the finger left: the hold belongs
-          // to that lap and ends with it. See RecMode::shouldWriteTick.
-          _recordingTicksAtLift = static_cast<long long> (ticksSinceStart);
-        }
-      _recordingFingerWasDown = fingerDown;
-
-      // With the finger up, Latch and Write carry on writing where it was left
-      // — or, in Write before it was ever put down, where the take started.
-      auto const positionToWrite
-          = fingerDown ? _recordingPosition2D : _recordingHeldPosition2D;
-
-      if (shouldWriteTick (_recMode.load (std::memory_order_relaxed),
-                           { fingerDown, _recordingHasTouched,
-                             _recordingTicksAtLift,
-                             static_cast<long long> (ticksSinceStart),
-                             static_cast<long long> (ticksPatternLength) })
-          && positionToWrite.isValid ())
-        for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
-          {
-            auto const tick = (baseIndex + slot) % ticksPatternLength;
-            _patternRecording->setTick (tick, positionToWrite);
-            _takeWrote.store (true, std::memory_order_relaxed);
-
-            if (RecordingTrace::device ().isEnabled ())
-              RecordingTrace::device ().wrote (
-                  static_cast<int> (tick), positionToWrite.x (),
-                  positionToWrite.y (), fingerDown,
-                  static_cast<long long> (ticksSinceStart));
-          }
-
-      // The knobs are written by the same rule as the path, and played back
-      // at once, so a lap turned over is heard -- and drawn -- on the next.
+      // The knobs first: they are written by the same rule as the path and
+      // played back at once, so a lap turned over is heard -- and drawn -- on
+      // the next, and the path below is undone through the knobs as they
+      // stand at this tick.
       {
         auto const mode = _recMode.load (std::memory_order_relaxed);
         for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
@@ -1537,6 +1503,68 @@ MotionEngine::performRecording ()
             baseIndex % std::max<std::size_t> (ticksPatternLength, 1)));
       }
 
+      // A lifted finger writes nothing at all — punch-out. It used to write
+      // Pos::invalid, which erased whatever an earlier pass had put there.
+      // Since recording wraps and runs as many passes as you let it, that made
+      // every pass wipe the one before it, and only the last one ever counted.
+      // Protecting what is already there is what makes several passes worth
+      // running: rough one out, then mend a corner.
+      //
+      // The finger arrives as a direction on the sphere and is written through
+      // the inverse of what playback will do to that tick (writtenPosition):
+      // the clip's lean, band, squeeze and turn, spin and sweeps at the phase
+      // the first pass reaches that tick with. So the take plays back where
+      // the finger was (decided 2026-10-07, #66) -- or, outside the band, at
+      // the nearest direction it can play.
+      auto const fingerDown = _recordingPosition.isValid ();
+      auto const writeTick = baseIndex % std::max<std::size_t> (
+                                             ticksPatternLength, 1);
+
+      if (fingerDown)
+        {
+          _recordingHeldDirection = heardInTake (
+              _recordingPosition, *_patternRecording, writeTick);
+          _recordingHasTouched = true;
+        }
+      else if (_recordingFingerWasDown)
+        {
+          // Where the write head was when the finger left: the hold belongs
+          // to that lap and ends with it. See RecMode::shouldWriteTick.
+          _recordingTicksAtLift = static_cast<long long> (ticksSinceStart);
+        }
+      _recordingFingerWasDown = fingerDown;
+
+      // With the finger up, Latch and Write carry on writing where it was left
+      // — or, in Write before it was ever put down, where the take started.
+      auto const directionToWrite
+          = fingerDown ? _recordingPosition : _recordingHeldDirection;
+
+      if (shouldWriteTick (_recMode.load (std::memory_order_relaxed),
+                           { fingerDown, _recordingHasTouched,
+                             _recordingTicksAtLift,
+                             static_cast<long long> (ticksSinceStart),
+                             static_cast<long long> (ticksPatternLength) })
+          && directionToWrite.isValid ())
+        {
+          for (int slot = 0; slot < _recordingSubSamplingFactor; ++slot)
+            {
+              auto const tick = (baseIndex + slot) % ticksPatternLength;
+              takePhasesAt (*_patternRecording, tick);
+              auto const written = writtenPosition (
+                  _heightMap, directionToWrite, *_patternRecording);
+              _patternRecording->setTick (tick, written);
+              _takeWrote.store (true, std::memory_order_relaxed);
+
+              if (RecordingTrace::device ().isEnabled ())
+                RecordingTrace::device ().wrote (
+                    static_cast<int> (tick), written.x (), written.y (),
+                    fingerDown, static_cast<long long> (ticksSinceStart));
+            }
+          // Back to the write head's tick, where the blob is: the take is
+          // drawn turned by the phase it is heard at.
+          takePhasesAt (*_patternRecording, writeTick);
+        }
+
       if (fingerDown)
         {
           // What was written, played back -- not the finger's own direction.
@@ -1544,7 +1572,7 @@ MotionEngine::performRecording ()
           // used to lead the blob out of the band, which sounded right while
           // drawing and played back somewhere else (#66).
           _channels[_patternRecording->getChannel ()]->setPosition (
-              takePosition3D (_recordingPosition2D, *_patternRecording));
+              _recordingHeldDirection);
         }
     }
 }
@@ -1711,37 +1739,10 @@ MotionEngine::playTick (index_t chIdx, Pattern &playing, float playPosition)
       playing.getRollLfoPhase (),
       playing.getKnobStep (Knob::RollSweep), ticksPerBar));
 
+  // Shaped, projected through the band and leant -- one call, which the
+  // recording side inverts (writtenPosition) and the renderer mirrors.
   if (position2D.isValid ())
-    {
-      // Shaped before it is projected: in the recorded 2D disc
-      // the radius is the elevation and the angle is the azimuth,
-      // so turning the disc turns the trajectory around the pole
-      // and leaves every point at the height it was played in at,
-      // while squeezing an axis of it presses the figure flat
-      // without moving where it sits.
-      //
-      // One call, and the renderer makes the same one -- see
-      // shapedPosition(), which also fixes the order the two
-      // happen in.
-      position2D = shapedPosition (position2D, shapingOf (playing));
-
-      // Apply this clip's own elevation mapping (sphere
-      // projection) at playback time — elevation parameters
-      // live on the Pattern itself, not the channel.
-      auto params
-          = playing.getElevationParams ();
-      // ... with both slow sweeps laid over it, if they are
-      // sweeping. The renderer calls the same function from the
-      // same phases -- see sweptElevation() -- or the line would
-      // be drawn somewhere the blob is not running.
-      params = sweptElevation (params, playing);
-      // And the whole figure leant in the room, last -- the
-      // renderer leans it by the same call (spaceTurnOf).
-      auto position = turnedInSpace (
-          _heightMap.mapTo3D (position2D, params),
-          spaceTurnOf (playing));
-      channel->setPosition (position);
-    }
+    channel->setPosition (playedPosition (_heightMap, position2D, playing));
 }
 
 index_t

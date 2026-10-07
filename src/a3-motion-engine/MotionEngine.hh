@@ -413,8 +413,8 @@ private:
       _messagesStartStop;
 
   void performRecording ();
-  Pos takePosition2D (Pos const &finger, Pattern const &take) const;
-  Pos takePosition3D (Pos const &position2D, Pattern const &take) const;
+  void takePhasesAt (Pattern &take, index_t tick) const;
+  Pos heardInTake (Pos const &direction, Pattern &take, index_t tick) const;
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
 
@@ -444,14 +444,16 @@ private:
   std::atomic<RecMode> _recMode = RecMode::Touch;
 
   /** Whether the finger has been down at any point in this take, and the last
-   *  2D position it was at. Latch and Write keep writing that position after
-   *  the finger lifts, so it must outlive the release that invalidates
-   *  _recordingPosition2D. Both are reset when a take starts. */
+   *  direction it was heard at. Latch and Write keep writing that direction
+   *  after the finger lifts, so it must outlive the release that invalidates
+   *  _recordingPosition. A direction rather than a tick's 2D point: a clip
+   *  that spins or sweeps needs a different point at every tick to stay on
+   *  it. Both are reset when a take starts. */
   bool _recordingHasTouched = false;
   /** The knobs' own touch histories for the take that is running. */
   KnobRecorders _knobRecorders;
   std::atomic<bool> _takeWrote{ false };
-  Pos _recordingHeldPosition2D = Pos::invalid;
+  Pos _recordingHeldDirection = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */
   std::atomic<float> _recordingProgress{ -1.f };
 

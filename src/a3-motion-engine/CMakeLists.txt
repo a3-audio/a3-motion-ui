@@ -96,6 +96,8 @@ target_sources("a3-motion-engine" PRIVATE
     TakeSeed.hh
     SpaceTurn.cc
     SpaceTurn.hh
+    TakeProjection.cc
+    TakeProjection.hh
     tempo/BeatSync.cc
     tempo/BeatSync.hh
     tempo/ExternalTempo.cc
