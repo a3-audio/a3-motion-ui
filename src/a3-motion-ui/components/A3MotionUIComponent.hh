@@ -54,6 +54,8 @@
 #include <a3-motion-ui/components/LibraryList.hh>
 #include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
+#include <a3-motion-ui/components/AppView.hh>
+#include <a3-motion-ui/components/fpv/FpvStrips.hh>
 #include <a3-motion-ui/components/BarKeyboardComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/MixerComponent.hh>
@@ -718,6 +720,20 @@ private:
   /** Camera mode: the elevation picture is selected and the sphere turns the
    *  view. */
   bool _cameraMode = false;
+  /** FULL or FPV. FPV hides the bar and the menu, puts the four strips below
+   *  the sphere and turns the blobs into ships; every way into the menu
+   *  leads back to FULL. */
+  AppView _view = AppView::Full;
+  std::unique_ptr<FpvStrips> _fpvStrips;
+  void setView (AppView view);
+  /** What the strips show, from the engine and the clips; every UI tick in
+   *  FPV. */
+  void refreshFpvStrips ();
+  /** resized() for FPV: the sphere above, the strips below. */
+  void resizedFpv (juce::Rectangle<int> bounds);
+  /** What lies over the sphere takes the sphere's whole rectangle, in either
+   *  view. */
+  void placeOverSphere ();
   /** Lay the mixer or the browser over the sphere, or take either away, and
    *  tell everything that shows the state -- the two keys in the bar and the
    *  overlay's own buttons. One place, because Back, Close, the page tabs and

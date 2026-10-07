@@ -1045,6 +1045,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _speedButtonLog2 = persisted.speedButtonLog2;
   _developerMode = persisted.developerMode;
   _skinBeforeClean = persisted.skinBeforeClean;
+  _view = persisted.fpvView ? AppView::Fpv : AppView::Full;
   refreshCleanKey ();
 
   // The view the room was last looked at from, and saved again whenever a
@@ -1066,6 +1067,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   applyClockMode (persisted.clockMode);
   _engine.setRecMode (_recMode);
   _clipSettings->setSpeedButtons (_speedButtonLog2);
+  // The view last left in. After everything above: setView writes the
+  // settings back out.
+  setView (_view);
 
 
   // See uiTimerHz: fast enough for the write head to move while a take runs,
@@ -1320,6 +1324,7 @@ A3MotionUIComponent::persistSettings () const
     }
   settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
   settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
+  settings.fpvView = _view == AppView::Fpv;
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -1408,6 +1413,13 @@ A3MotionUIComponent::createMainUI ()
       = std::make_unique<MotionComponent> (_engine, _channelUIStates);
   addChildComponent (*_motionComponent);
   _motionComponent->setVisible (true);
+
+  // FPV's four strips below the sphere; shown by setView().
+  _fpvStrips = std::make_unique<FpvStrips> ();
+  _fpvStrips->channelLevel
+      = [this] (int ch) { return _vuLevels.channel (ch, vuNowMs ()); };
+  addChildComponent (*_fpvStrips);
+  _statusBar->onViewKeyTapped = [this] { setView (toggled (_view)); };
 
   // Hidden: no longer part of the visible layout (see resized()), but these
   // keep receiving their normal update calls underneath.
@@ -1588,6 +1600,14 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
+  if (_view == AppView::Fpv && _fpvStrips && _motionComponent)
+    {
+      resizedFpv (bounds);
+      return;
+    }
+  if (_fpvStrips)
+    _fpvStrips->setBounds ({});
+
   // LoopLength/Elevation/PadRow/Filter option bars are hidden (see
   // createMainUI()/createPadRowDisplays()) — they no longer get screen
   // space, but keep receiving their normal update calls under the hood.
@@ -1639,7 +1659,23 @@ A3MotionUIComponent::resized ()
   // would hide behind the sphere's image, so the menu must not reach past it.
 
   _motionComponent->setBounds (bounds);
+  placeOverSphere ();
+}
 
+void
+A3MotionUIComponent::resizedFpv (juce::Rectangle<int> bounds)
+{
+  auto const layout
+      = fpvLayout (bounds, juce::roundToInt (theme ().paddingSmall));
+  _motionComponent->setBounds (layout.sphere);
+  _fpvStrips->setBounds (
+      layout.strips[0].whole.getUnion (layout.strips[3].whole));
+  placeOverSphere ();
+}
+
+void
+A3MotionUIComponent::placeOverSphere ()
+{
   if (_globalSettings)
     _globalSettings->setBounds (_motionComponent->getLocalBounds ());
   if (_workspaceList)
@@ -1865,6 +1901,45 @@ A3MotionUIComponent::closeAllOverlays ()
 }
 
 void
+A3MotionUIComponent::setView (AppView view)
+{
+  _view = view;
+  auto const fpv = view == AppView::Fpv;
+  if (fpv)
+    closeAllOverlays ();
+  _clipSettings->setVisible (!fpv);
+  _fpvStrips->setVisible (fpv);
+  _motionComponent->setFpv (fpv);
+  _statusBar->setView (view);
+  if (fpv)
+    refreshFpvStrips ();
+  resized ();
+  persistSettings ();
+}
+
+void
+A3MotionUIComponent::refreshFpvStrips ()
+{
+  std::array<FpvChannel, 4> channels{};
+  for (index_t ch = 0; ch < channels.size () && ch < _channelUIStates.size ();
+       ++ch)
+    {
+      auto &c = channels[ch];
+      c.colour = _channelUIStates[ch]->colour;
+      if (ch < _slotClipFile.size () && !_slotClipFile[ch].empty ())
+        c.clipName = _slotClipFile[ch][0].getFileNameWithoutExtension ();
+      if (ch < _patterns.size () && !_patterns[ch].empty () && _patterns[ch][0])
+        c.playing = _patterns[ch][0]->getStatus () == Pattern::Status::Playing;
+      // In channelPotOrder: pot 3 is 3D, pot 1 FREQ, pot 2 Q
+      // (see channelPotValue).
+      c.pots = { _engine.getChannelPot3Effective (ch),
+                 _engine.getChannelPot1Effective (ch),
+                 _engine.getChannelPot2Effective (ch) };
+    }
+  _fpvStrips->setChannels (channels);
+}
+
+void
 A3MotionUIComponent::updateOverlayButtons ()
 {
   if (!_overlayButtons || !_motionComponent)
@@ -1918,6 +1993,8 @@ A3MotionUIComponent::updateOverlayButtons ()
 void
 A3MotionUIComponent::toggleGlobalSettings ()
 {
+  if (_view == AppView::Fpv)
+    setView (AppView::Full);
   updateControlReadout ("-- MENU");
 
   // One level at a time: what is over the sphere, then a name being typed,
@@ -1958,6 +2035,8 @@ A3MotionUIComponent::toggleGlobalSettings ()
 void
 A3MotionUIComponent::showOverSphere (SphereOverlay overlay)
 {
+  if (_view == AppView::Fpv && overlay != SphereOverlay::None)
+    setView (AppView::Full);
   if (!_mixer || !_browser || !_controller || !_motionComponent)
     return;
 
@@ -5186,6 +5265,9 @@ void
 A3MotionUIComponent::showPushedAction (index_t channel, index_t pad,
                                        PadSource source)
 {
+  // The action has fired already (handlePadPress); FPV stays on screen.
+  if (_view == AppView::Fpv)
+    return;
   if (padFunctionByPadIndex[pad] != PadFunction::Action)
     return;
   if (!actionPressShowsItsPage (source, isButtonPressed (Button::Shift)))
@@ -6702,6 +6784,9 @@ A3MotionUIComponent::timerCallback ()
 {
   sayHelloWhenDue ();
 
+  if (_view == AppView::Fpv)
+    refreshFpvStrips ();
+
   // At most one theme apply per tick, whatever arrived since the last one --
   // see applyEditedSkin(). Here rather than in a callAsync of its own because
   // a timer is what "once per frame" means; a queue is what it did before.
@@ -7166,6 +7251,8 @@ A3MotionUIComponent::onFilterValue (int slot, float value)
 void
 A3MotionUIComponent::openGlobalSettings ()
 {
+  if (_view == AppView::Fpv)
+    setView (AppView::Full);
   // The key says where you are. Told here rather than by whoever
   // opened it: there are three ways in (the panel's key, the strip's,
   // the encoder) and a key that only lit for some of them would be
