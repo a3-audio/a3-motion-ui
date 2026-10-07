@@ -212,7 +212,7 @@ private:
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };
   std::atomic<int> _clockMode{ 0 };
-  std::atomic<bool> _fpv{ false };
+  bool _fpv{ false }; // message thread only
 };
 
 }

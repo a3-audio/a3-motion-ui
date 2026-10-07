@@ -1923,6 +1923,7 @@ A3MotionUIComponent::setView (AppView view)
   if (fpv)
     refreshFpvStrips ();
   resized ();
+  updateControlReadout (fpv ? "-- FPV" : "-- FULL");
   persistSettings ();
 }
 
@@ -2322,6 +2323,9 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
 
   if (isButtonPressed (Button::Record) && function == PadFunction::PlayPause)
     {
+      // A take is steered and saved in FULL, as MENU does.
+      if (_view == AppView::Fpv)
+        setView (AppView::Full);
       startRecording (channel, slot);
       return;
     }
@@ -8928,7 +8932,9 @@ A3MotionUIComponent::encoderTargetAt (int column, int row)
       _barPage, column, row,
       encoderClicksOfPage ()[static_cast<size_t> (column)]
                             [static_cast<size_t> (row)],
-      isButtonPressed (Button::Shift));
+      // FPV has no page to edit, so the encoders act as with SHIFT: their own
+      // column's FREQ/Q, never the hidden FULL page.
+      isButtonPressed (Button::Shift) || _view == AppView::Fpv);
 }
 
 void
@@ -9035,6 +9041,10 @@ void
 A3MotionUIComponent::handleEncoderPress (int column, int row)
 {
   disarmOnOtherInput ();
+
+  // Nothing to click or choose in FPV: those belong to FULL's hidden page.
+  if (_view == AppView::Fpv)
+    return;
 
   // A click switches what the encoder turns, where there are two things
   // under it -- MOTION's rows, REC's fade|bias -- and says which it is now.

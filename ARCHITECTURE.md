@@ -1851,8 +1851,15 @@ four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AU
 with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is a placeholder in phase
 1: `CH n` at the left and a fixed `AUTO` at the right, not wired to any state (`FpvChannel` has no
 mode field). Only the strip's tint and the bar fills use the channel's colour
-(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. Both are in `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
+(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
+`a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
 `FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+
+**Encoders in FPV act as with SHIFT:** each one turns its own column's channel FREQ/Q
+(`encoderTarget(..., shift)` with `shift = SHIFT held || FPV`), and a press does nothing, so
+nothing on FULL's hidden bar page is edited. REC + Play/Pause switches to FULL first and starts the
+take there, since a take is steered and saved in FULL. Tapping the view key with FILES open drops
+a rename in progress, the same as CLOSE.
 
 **What may be touched in FPV.** The panel works as it does in FULL: Play/Pause, pots, SHIFT. An
 action pad fires and selects its action but does **not** switch the page -- there is no page to

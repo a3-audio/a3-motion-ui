@@ -562,7 +562,10 @@ StatusBar::setClockMode (int mode)
 void
 StatusBar::setView (AppView view)
 {
-  _fpv = view == AppView::Fpv;
+  auto const fpv = view == AppView::Fpv;
+  if (fpv == _fpv)
+    return;
+  _fpv = fpv;
   repaint (_layout.viewKey);
 }
 

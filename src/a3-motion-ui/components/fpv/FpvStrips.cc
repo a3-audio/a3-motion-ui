@@ -118,13 +118,15 @@ FpvStrips::setChannels (std::array<FpvChannel, 4> const &channels)
 void
 FpvStrips::applyTheme ()
 {
+  resized ();
   repaint ();
 }
 
 void
 FpvStrips::resized ()
 {
-  _strips = fpvStripRow (getLocalBounds (), juce::roundToInt (theme ().padding));
+  _strips = fpvStripRow (getLocalBounds (),
+                          juce::roundToInt (theme ().paddingSmall));
 }
 
 std::array<FpvStrip, 4> const &
