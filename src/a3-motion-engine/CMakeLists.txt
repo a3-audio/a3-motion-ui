@@ -40,6 +40,8 @@ target_sources("a3-motion-engine" PRIVATE
     OscEndpoints.hh
     OscSendGuard.cc
     OscSendGuard.hh
+    MeterBallistics.cc
+    MeterBallistics.hh
     OscTruth.cc
     TruthKeeperLink.cc
     OscTruth.hh

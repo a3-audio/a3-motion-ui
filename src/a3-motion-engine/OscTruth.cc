@@ -86,6 +86,33 @@ OscTruth::vuNumber (juce::String const &meterName) const
   return 0;
 }
 
+namespace
+{
+float
+numberOr (juce::var const &block, char const *key, float fallback)
+{
+  auto const value = block[juce::Identifier (key)];
+  return block.hasProperty (juce::Identifier (key))
+                 && (value.isInt () || value.isInt64 () || value.isDouble ())
+             ? static_cast<float> (value)
+             : fallback;
+}
+}
+
+MeterBallisticsParameters
+OscTruth::meterBallistics () const
+{
+  MeterBallisticsParameters const defaults;
+  auto const block = _data["meters"];
+  if (!block.isObject ())
+    return defaults;
+
+  return { numberOr (block, "attack_ms", defaults.attackMs),
+           numberOr (block, "release_db_per_second",
+                     defaults.releaseDbPerSecond),
+           numberOr (block, "peak_hold_seconds", defaults.peakHoldSeconds) };
+}
+
 OscTruth
 parseOscTruth (juce::String const &json)
 {
