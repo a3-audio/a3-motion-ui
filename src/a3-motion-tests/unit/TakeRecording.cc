@@ -29,6 +29,9 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/SpaceTurn.hh>
+#include <a3-motion-engine/TempoLfo.hh>
+#include <a3-motion-engine/TrajectoryShaping.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 #include <algorithm>
@@ -131,6 +134,48 @@ near2D (Pos const &a, Pos const &b)
          && std::hypot (a.x () - b.x (), a.y () - b.y ()) < 1e-3f;
 }
 
+/** Where the first pass of a forward take plays its tick `tick`, worked out
+ *  from the playback's own pieces -- squeeze and turn, the band, the lean --
+ *  rather than through anything the recording side uses. `lapBars` is the
+ *  take's playback length; the spin has turned by that share of it. */
+Pos
+heardOnFirstPass (HeightMapSphere const &heightMap, Pattern const &take,
+                  std::size_t tick, float lapBars)
+{
+  auto const ticks = take.getTicks ().positions;
+  auto const fraction
+      = static_cast<float> (tick) / static_cast<float> (ticks.size ());
+  auto const spin = take.getKnobStep (Knob::Spin);
+  auto const spun
+      = spin == 0 ? 0.f : fraction * lapBars * lfoCyclesPerBar (spin);
+
+  PlaneShaping shaping;
+  shaping.turns = take.getKnob (Knob::Rotate) + spun;
+  shaping.squeezeX = take.getKnob (Knob::SqueezeX);
+  shaping.squeezeY = take.getKnob (Knob::SqueezeY);
+
+  return turnedInSpace (
+      heightMap.mapTo3D (shapedPosition (ticks[tick], shaping),
+                         take.getElevationParams ()),
+      SpaceTurn{ take.getKnob (Knob::Tilt), take.getKnob (Knob::Roll) });
+}
+
+/** A take over a clip that is turned, squeezed, leant and spinning a bar a
+ *  turn -- every part of the plane's shaping at once. */
+std::shared_ptr<Pattern>
+aTakeOverATurnedSqueezedSpinningClip ()
+{
+  auto take = std::make_shared<Pattern> ();
+  take->setChannel (0);
+  take->setRotate (0.3f);
+  take->setSqueezeX (-0.8f);
+  take->setSqueezeY (0.4f);
+  take->setTilt (0.25f);
+  take->setSpin (6); // one bar a turn
+  take->setPlaybackLength (Measure{ 1, 0, 0 });
+  return take;
+}
+
 }
 
 // ── The take keeps the clip's band (#66) ─────────────────────────────────
@@ -195,6 +240,127 @@ TEST (TakeRecording, AnArmedTakeHoldsTheBlobInTheBandToo)
       << edge;
   EXPECT_FALSE (engine->isRecording ())
       << "the take must not have started yet for this test to mean anything";
+}
+
+// ── The clip's rotate and squeeze are undone (#66) ───────────────────────
+
+/** Decided 2026-10-07: a take inherits the clip's settings, so recording
+ *  undoes the clip's rotate and squeeze -- and its spin, at the tick each
+ *  point will be heard on. WRITE with the finger never down writes where the
+ *  blob stood for the whole lap, which tests every tick of it. */
+TEST (TakeRecording, ATakeOverATurnedClipIsHeardWhereTheBlobStood)
+{
+  HeightMapSphere heightMap;
+  auto engine = anOfflineEngine (heightMap);
+  engine->setPreviewMode (0, true);
+  engine->setTempoBPM (240.f);
+  engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
+  engine->setRecMode (RecMode::Write);
+
+  auto take = aTakeOverATurnedSqueezedSpinningClip ();
+  auto const standing = directionAt (0.3f, 2.f);
+  engine->setChannel3DPosition (0, standing);
+
+  engine->recordPattern (take, aBeatFromNow, Measure{ 1, 0, 0 });
+  ASSERT_TRUE (waitUntil ([&] {
+    return take->wasRecording ()
+           && take->getStatus () == Pattern::Status::Idle;
+  })) << "the take never ended";
+
+  auto const ticks = take->getTicks ().positions;
+  ASSERT_FALSE (ticks.empty ());
+  float worst = 0.f;
+  std::size_t worstTick = 0;
+  for (std::size_t tick = 0; tick < ticks.size (); ++tick)
+    {
+      ASSERT_TRUE (ticks[tick].isValid ()) << "tick " << tick;
+      auto const miss = angleBetween (
+          heardOnFirstPass (heightMap, *take, tick, 1.f), standing);
+      if (miss > worst)
+        {
+          worst = miss;
+          worstTick = tick;
+        }
+    }
+  EXPECT_LT (worst, 2e-3f) << "tick " << worstTick << " of " << ticks.size ()
+                           << " plays back turned by " << worst << " rad";
+}
+
+/** Played back, every lap of that take stands where the blob stood: the spin
+ *  turns once a bar and the take is a bar long, so it is the same lap every
+ *  time. Before, the take came back turned by the clip's rotate. */
+TEST (TakeRecording, ATakeOverATurnedClipPlaysBackWhereItWasRecorded)
+{
+  HeightMapSphere heightMap;
+  auto engine = anOfflineEngine (heightMap);
+  engine->setPreviewMode (0, true);
+  engine->setTempoBPM (240.f);
+  engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
+  engine->setRecMode (RecMode::Write);
+
+  auto take = aTakeOverATurnedSqueezedSpinningClip ();
+  auto const standing = directionAt (0.3f, 2.f);
+  engine->setChannel3DPosition (0, standing);
+
+  engine->recordPattern (take, aBeatFromNow, Measure{ 1, 0, 0 });
+  ASSERT_TRUE (waitUntil ([&] {
+    return take->wasRecording ()
+           && take->getStatus () == Pattern::Status::Idle;
+  })) << "the take never ended";
+
+  // Somewhere else first, so a channel left standing would be caught.
+  engine->setChannel3DPosition (0, directionAt (0.6f, -1.f));
+  engine->setRecordingMode (MotionEngine::RecordingMode::Loop);
+  engine->playPattern (take, Measure{});
+  ASSERT_TRUE (waitUntil (
+      [&] { return take->getStatus () == Pattern::Status::Playing; }));
+  juce::Thread::sleep (50);
+
+  float worst = 0.f;
+  for (int sample = 0; sample < 30; ++sample)
+    {
+      worst = std::max (worst,
+                        angleBetween (engine->getChannelPosition (0), standing));
+      juce::Thread::sleep (20);
+    }
+  EXPECT_LT (worst, 1e-2f) << "the take played back turned or stretched";
+}
+
+/** The blob during the take is what will play back, and with the finger
+ *  inside the band that is the finger: "Build Pulse" turned, squeezed, leant
+ *  and spinning, TOUCH, the finger down. */
+TEST (TakeRecording, TheBlobOverATurnedClipIsWhereTheTakeWillPlay)
+{
+  HeightMapSphere heightMap;
+  auto engine = anOfflineEngine (heightMap);
+  engine->setTempoBPM (120.f);
+  engine->setRecordingMode (MotionEngine::RecordingMode::Loop);
+  engine->setRecMode (RecMode::Touch);
+
+  auto take = aTakeOverATurnedSqueezedSpinningClip ();
+  take->setElevationBase (0.35f);
+  take->setReach (0.7f);
+  engine->recordPattern (take, Measure{}, Measure{ 1, 0, 0 });
+  ASSERT_TRUE (waitUntil ([&] { return engine->isRecording (); }));
+
+  auto const finger = turnedInSpace (directionAt (0.55f, -0.7f),
+                                     SpaceTurn{ 0.25f, 0.f });
+  engine->setRecording3DPosition (finger);
+  ASSERT_TRUE (waitUntil ([&] { return anyTickWritten (*take); }));
+  juce::Thread::sleep (20);
+
+  EXPECT_LT (angleBetween (engine->getChannelPosition (0), finger), 2e-3f)
+      << "the blob left the finger inside the band";
+
+  auto const ticks = take->getTicks ().positions;
+  float worst = 0.f;
+  for (std::size_t tick = 0; tick < ticks.size (); ++tick)
+    if (ticks[tick].isValid ())
+      worst = std::max (worst,
+                        angleBetween (heardOnFirstPass (heightMap, *take, tick,
+                                                        1.f),
+                                      finger));
+  EXPECT_LT (worst, 2e-3f) << "a written tick plays back away from the finger";
 }
 
 // ── What the rec modes do to the clip underneath ─────────────────────────
