@@ -21,6 +21,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -66,4 +67,38 @@ TEST (ShippedCopies, ALooseShippedCopyIsNotMovedIntoTheUserHalf)
   s.dir.getChildFile ("Default.json.shipped").replaceWithText ("{}");
   EXPECT_EQ (a3::splitLooseFilesIn (s.dir, ".json"), 0);
   EXPECT_TRUE (s.dir.getChildFile ("Default.json.shipped").existsAsFile ());
+}
+
+TEST (ShippedCopies, AShippedCopyIsNoShape)
+{
+  Scratch s;
+  auto const system = s.dir.getChildFile ("system");
+  system.createDirectory ();
+  juce::String const svg ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                          "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+                          "viewBox=\"-1 -1 2 2\" data-name=\"Line\" "
+                          "data-beats=\"8\" data-ppqn=\"128\">"
+                          "<path d=\"M -0.5 0 L 0.5 0\"/></svg>");
+  system.getChildFile ("08_Line.svg").replaceWithText (svg);
+  system.getChildFile ("08_Line.svg.shipped").replaceWithText (svg);
+
+  a3::PatternLibrary library (s.dir);
+  library.refresh ();
+
+  EXPECT_EQ (library.getNumEntries (), 2); // Empty + the one shape
+}
+
+TEST (ShippedCopies, AShippedCopyIsNoClipOrSetInEitherHalf)
+{
+  Scratch s;
+  for (auto const *half : { "system", "user" })
+    {
+      auto const dir = s.dir.getChildFile (half);
+      dir.createDirectory ();
+      dir.getChildFile (juce::String ("Mine ") + half + ".json")
+          .replaceWithText ("{}");
+      dir.getChildFile (juce::String ("Mine ") + half + ".json.shipped")
+          .replaceWithText ("{}");
+    }
+  EXPECT_EQ (a3::listFilesIn (s.dir, ".json").size (), 2u);
 }
