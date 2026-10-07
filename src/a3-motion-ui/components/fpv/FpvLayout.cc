@@ -20,30 +20,22 @@
 
 #include "FpvLayout.hh"
 
+#include <algorithm>
+
 namespace a3
 {
 
-FpvLayout
-fpvLayout (juce::Rectangle<int> area, int gap)
+std::array<FpvStrip, 4>
+fpvStripRow (juce::Rectangle<int> row, int gap)
 {
-  FpvLayout out{};
-  if (area.isEmpty ())
-    return out;
-
-  auto rest = area;
-  auto const stripsHeight = juce::roundToInt (
-      static_cast<float> (area.getHeight ()) * fpvStripsOfHeight);
-  auto stripsRow = rest.removeFromBottom (stripsHeight);
-  rest.removeFromBottom (gap);
-  out.sphere = rest;
-
-  auto const stripWidth = (stripsRow.getWidth () - 3 * gap) / 4;
-  for (int ch = 0; ch < 4; ++ch)
+  std::array<FpvStrip, 4> strips{};
+  auto const stripWidth = std::max (0, (row.getWidth () - 3 * gap) / 4);
+  for (size_t ch = 0; ch < strips.size (); ++ch)
     {
-      auto &strip = out.strips[static_cast<size_t> (ch)];
-      strip.whole = ch == 3 ? stripsRow : stripsRow.removeFromLeft (stripWidth);
+      auto &strip = strips[ch];
+      strip.whole = ch == 3 ? row : row.removeFromLeft (stripWidth);
       if (ch < 3)
-        stripsRow.removeFromLeft (gap);
+        row.removeFromLeft (gap);
 
       auto sections = strip.whole;
       auto const h = static_cast<float> (strip.whole.getHeight ());
@@ -55,6 +47,23 @@ fpvLayout (juce::Rectangle<int> area, int gap)
           juce::roundToInt (h * fpvInstrumentsOfStrip));
       strip.meter = sections;
     }
+  return strips;
+}
+
+FpvLayout
+fpvLayout (juce::Rectangle<int> area, int gap)
+{
+  FpvLayout out{};
+  if (area.isEmpty ())
+    return out;
+
+  auto rest = area;
+  auto const stripsHeight = juce::roundToInt (
+      static_cast<float> (area.getHeight ()) * fpvStripsOfHeight);
+  auto const stripsRow = rest.removeFromBottom (stripsHeight);
+  rest.removeFromBottom (gap);
+  out.sphere = rest;
+  out.strips = fpvStripRow (stripsRow, gap);
   return out;
 }
 

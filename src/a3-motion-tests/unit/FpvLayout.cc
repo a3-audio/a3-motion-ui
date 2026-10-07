@@ -44,29 +44,77 @@ TEST (FpvLayout, TheSphereTakesTheTopTwoThirds)
 
 TEST (FpvLayout, FourStripsShareTheBottomThirdLeftToRight)
 {
-  auto const l = fpvLayout (screen, gap);
-  for (int ch = 0; ch < 4; ++ch)
+  // 1280 divides evenly; 1283 leaves a remainder of 3 for the last strip.
+  for (auto const width : { 1280, 1283 })
     {
-      auto const &s = l.strips[ch].whole;
-      EXPECT_GE (s.getY (), l.sphere.getBottom ());
-      EXPECT_EQ (s.getBottom (), screen.getBottom ());
-      EXPECT_NEAR (s.getWidth (), (screen.getWidth () - 3 * gap) / 4, 1);
-      if (ch > 0)
-        EXPECT_EQ (s.getX (), l.strips[ch - 1].whole.getRight () + gap);
+      juce::Rectangle<int> const area{ 0, 40, width, 760 };
+      auto const l = fpvLayout (area, gap);
+      auto const equal = (width - 3 * gap) / 4;
+      for (int ch = 0; ch < 4; ++ch)
+        {
+          auto const &s = l.strips[static_cast<size_t> (ch)].whole;
+          EXPECT_GE (s.getY (), l.sphere.getBottom ());
+          EXPECT_EQ (s.getBottom (), area.getBottom ());
+          if (ch < 3)
+            EXPECT_EQ (s.getWidth (), equal) << width;
+          else
+            {
+              EXPECT_GE (s.getWidth (), equal) << width;
+              EXPECT_LE (s.getWidth (), equal + 3) << width;
+            }
+          if (ch > 0)
+            EXPECT_EQ (s.getX (),
+                       l.strips[static_cast<size_t> (ch - 1)].whole.getRight ()
+                           + gap);
+        }
+      EXPECT_EQ (l.strips[3].whole.getRight (), area.getRight ());
     }
-  EXPECT_EQ (l.strips[3].whole.getRight (), screen.getRight ());
+}
+
+TEST (FpvLayout, ATinyAreaNeverGivesANegativeWidth)
+{
+  juce::Rectangle<int> const row{ 0, 0, 8, 30 };
+  auto const strips = fpvStripRow (row, gap);
+  for (auto const &s : strips)
+    {
+      EXPECT_GE (s.whole.getWidth (), 0);
+      EXPECT_TRUE (row.contains (s.whole));
+    }
+  auto const l = fpvLayout ({ 0, 0, 8, 90 }, gap);
+  for (auto const &s : l.strips)
+    EXPECT_GE (s.whole.getWidth (), 0);
 }
 
 TEST (FpvLayout, AStripsSectionsStackTopToBottomAndFillIt)
 {
-  auto const s = fpvLayout (screen, gap).strips[2];
-  EXPECT_EQ (s.header.getY (), s.whole.getY ());
-  EXPECT_EQ (s.clip.getY (), s.header.getBottom ());
-  EXPECT_EQ (s.instruments.getY (), s.clip.getBottom ());
-  EXPECT_EQ (s.meter.getY (), s.instruments.getBottom ());
-  EXPECT_EQ (s.meter.getBottom (), s.whole.getBottom ());
-  for (auto const &r : { s.header, s.clip, s.instruments, s.meter })
-    EXPECT_EQ (r.getWidth (), s.whole.getWidth ());
+  // The default screen, and an odd small height that the fractions round on.
+  for (auto const area : { screen, juce::Rectangle<int>{ 0, 0, 203, 97 } })
+    for (auto const &s : fpvLayout (area, gap).strips)
+      {
+        EXPECT_EQ (s.header.getY (), s.whole.getY ());
+        EXPECT_EQ (s.clip.getY (), s.header.getBottom ());
+        EXPECT_EQ (s.instruments.getY (), s.clip.getBottom ());
+        EXPECT_EQ (s.meter.getY (), s.instruments.getBottom ());
+        EXPECT_EQ (s.meter.getBottom (), s.whole.getBottom ());
+        for (auto const &r : { s.header, s.clip, s.instruments, s.meter })
+          {
+            EXPECT_EQ (r.getWidth (), s.whole.getWidth ());
+            EXPECT_EQ (r.getX (), s.whole.getX ());
+          }
+      }
+}
+
+TEST (FpvLayout, TheStripRowAloneSplitsLikeTheBottomThird)
+{
+  auto const l = fpvLayout (screen, gap);
+  auto const row = l.strips[0].whole.getUnion (l.strips[3].whole);
+  auto const again = fpvStripRow (row, gap);
+  for (size_t i = 0; i < 4; ++i)
+    {
+      EXPECT_EQ (again[i].whole, l.strips[i].whole) << i;
+      EXPECT_EQ (again[i].header, l.strips[i].header) << i;
+      EXPECT_EQ (again[i].meter, l.strips[i].meter) << i;
+    }
 }
 
 TEST (FpvLayout, AnEmptyAreaGivesEmptyRectangles)

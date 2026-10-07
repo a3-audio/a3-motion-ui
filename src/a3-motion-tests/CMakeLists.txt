@@ -186,6 +186,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeterView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FpvLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FpvStripsPaint.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShipShape.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/AppView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"

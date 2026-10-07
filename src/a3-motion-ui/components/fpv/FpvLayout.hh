@@ -56,6 +56,12 @@ constexpr float fpvHeaderOfStrip = 0.2f;
 constexpr float fpvClipOfStrip = 0.2f;
 constexpr float fpvInstrumentsOfStrip = 0.4f;
 
+/** The four strips across `row` (the strips' row alone), sections included --
+ *  the same split fpvLayout makes for its bottom third. The first three are
+ *  equally wide; the last takes what the division leaves (0..3 px more). A
+ *  row too narrow for the gaps gives zero-width strips, never negative. */
+std::array<FpvStrip, 4> fpvStripRow (juce::Rectangle<int> row, int gap);
+
 /** Lays `area` out; `gap` is the air between the sphere and the strips and
  *  between neighbouring strips. The gap comes out of the sphere's share. */
 FpvLayout fpvLayout (juce::Rectangle<int> area, int gap);
