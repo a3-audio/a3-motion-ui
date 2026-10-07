@@ -1816,6 +1816,51 @@ No pad types: the pads play the set, and the keyboard is opened mid-set.
 `io/OnScreenKeyboard.{hh,cc}` (the Onboard D-Bus client) is no longer called by the app; it is
 still built and tested until it is removed.
 
+#### FPV: a second view of the same state
+
+**The app has two views, FULL and FPV** (2026-10-07; spec in the workspace at
+`.claude/notes/fpv-motion-ui.md`, this is phase 1 of it). FULL is everything described above. FPV
+is for watching and playing a set: the sphere on the top two thirds, one strip per channel on the
+bottom third, and nothing else. `AppView` (`components/AppView.hh`) is the value; the FULL/FPV key
+stands right of CLOCK in the status bar (CLOCK is at the left end) and lights while FPV is up. The
+view survives a restart as `fpvView` in `config/ui_state.json` (`SettingsPersistence`), because a
+desk that was left in FPV should not wake up in the editor.
+
+**It is a view, not a mode of the engine.** Positions, clips, OSC are untouched -- Motion stays
+pure OSC and phase 1 adds no address. `A3MotionUIComponent::setView` only decides what is shown
+and who may be touched.
+
+**The sphere stays the GL sphere.** The camera and tilt are FULL's, so phase 4's cockpit can be a
+camera sitting in a ship instead of a second renderer. What changes is the content:
+`MotionComponent::setFpv` stops the shader drawing blobs and draws each playing clip as a ship in
+the GL 2D pass instead, at the place `projectToScreen` gives the blob's position. That keeps
+ships on their spots on a turned sphere without a second projection. A ship's outline and heading
+are `ShipShape`: the heading is taken in **screen space** (from where the position was a moment
+ago to where it is now), because a heading on the sphere's surface would point wrongly whenever
+the camera is turned. Its path is a dart, sized from the blob size like everything else.
+
+**Touch on the sphere is camera only.** One finger tilts and turns, two zoom, a double tap resets.
+A blob cannot be grabbed, since nothing is drawn to grab. Entering camera mode now releases held
+blob grabs and the recording position (`TouchGrabs::releaseAll`) -- this holds for FULL's own
+elevation-picture camera toggle too: before, a blob held while the toggle was pressed stayed
+held, and the finger that let go was no longer listened to.
+
+**The strips take the clip settings' place.** `FpvLayout` is the pure arithmetic (sphere rectangle,
+four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
+with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter, all in the channel's colour from the
+theme. Both are in `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
+`FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+
+**What may be touched in FPV.** The panel works as it does in FULL: Play/Pause, pots, SHIFT. An
+action pad fires and selects its action but does **not** switch the page -- there is no page to
+switch to, and the next FULL shows the action. The pad's job is the performance; the page was
+only ever feedback. Everything that needs FULL's room does switch to it first: MENU, the
+overlays, and the keyboard icon (KEYS). Entering FPV closes the overlays and the keyboard, so
+nothing is left standing over a view that has no place for it.
+
+**Open on purpose.** Whether ships on the back half of the sphere need a depth cue, and their
+size and nose direction, are judged on the device; phase 1 draws them all alike.
+
 #### Hardware I/O (`src/a3-motion-ui/io`)
 
 `InputOutputAdapter` is the shared abstract base: it runs a background `juce::Thread` that polls
