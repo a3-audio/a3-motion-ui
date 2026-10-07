@@ -131,6 +131,13 @@ aClipStandingAt (Pos const &position2D, index_t ticks)
   return clip;
 }
 
+/** Where a OneShot take starts. Its stop is scheduled from the timepoint it
+ *  was asked for, not from when it began, so a timepoint already past (as
+ *  Measure{} is a tick or two after the engine starts) cuts the take short by
+ *  that much -- the UI always asks for a downbeat still ahead. A fresh
+ *  engine's clock starts at zero, so one beat in is still to come. */
+Measure const aBeatFromNow{ 0, 1, 0 };
+
 bool
 near2D (Pos const &a, Pos const &b)
 {
@@ -227,7 +234,7 @@ TEST (TakeRecording, WriteClearsTheOldPathForTheWholeLap)
   auto const standing2D
       = heightMap.mapTo2D (standing, take->getElevationParams ());
 
-  engine->recordPattern (take, Measure{}, Measure{ 0, 1, 0 }, clip);
+  engine->recordPattern (take, aBeatFromNow, Measure{ 0, 1, 0 }, clip);
   ASSERT_TRUE (waitUntil ([&] {
     return take->wasRecording ()
            && take->getStatus () == Pattern::Status::Idle;
@@ -266,7 +273,7 @@ TEST (TakeRecording, TouchKeepsTheTicksItDidNotTouch)
   auto const finger2D = heightMap.mapTo2D (finger, take->getElevationParams ());
 
   // One beat at 120: half a second, the finger down for roughly its middle.
-  engine->recordPattern (take, Measure{}, Measure{ 0, 1, 0 }, clip);
+  engine->recordPattern (take, aBeatFromNow, Measure{ 0, 1, 0 }, clip);
   ASSERT_TRUE (waitUntil ([&] { return engine->isRecording (); }));
   ASSERT_TRUE (waitUntil (
       [&] { return engine->getRecordingProgress () > 0.25f; }));
@@ -314,7 +321,7 @@ TEST (TakeRecording, ATakeRecordsNo3dFreqOrQ)
 
   auto take = std::make_shared<Pattern> ();
   take->setChannel (0);
-  engine->recordPattern (take, Measure{}, Measure{ 0, 1, 0 });
+  engine->recordPattern (take, aBeatFromNow, Measure{ 0, 1, 0 });
   ASSERT_TRUE (waitUntil ([&] { return engine->isRecording (); }));
   engine->setRecording3DPosition (Pos::fromCartesian (0.f, 0.f, 1.f));
 
@@ -413,7 +420,7 @@ TEST (TakeRecording, MeasureHowAFastDragIsSampled)
   auto const params = take->getElevationParams ();
 
   // One bar at 120: two seconds, 512 ticks.
-  engine->recordPattern (take, Measure{}, Measure{ 1, 0, 0 });
+  engine->recordPattern (take, aBeatFromNow, Measure{ 1, 0, 0 });
   ASSERT_TRUE (waitUntil ([&] { return engine->isRecording (); }));
 
   constexpr double fingerHz = 120.0;
