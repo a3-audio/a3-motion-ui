@@ -91,6 +91,10 @@ public:
    *  the untouched blobs away from all of these. */
   std::vector<index_t> heldChannels () const;
 
+  /** Every finger let go at once, when the sphere stops taking blobs (camera
+   *  mode). Returns the channels that were held, to hand back to playback. */
+  std::vector<index_t> releaseAll ();
+
 private:
   std::map<int, std::optional<index_t> > _bySource;
   /** Sources in the order they went down; _bySource is ordered by index. */

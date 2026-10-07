@@ -118,4 +118,13 @@ TouchGrabs::heldChannels () const
   return held;
 }
 
+std::vector<index_t>
+TouchGrabs::releaseAll ()
+{
+  auto held = heldChannels ();
+  _bySource.clear ();
+  _order.clear ();
+  return held;
+}
+
 }

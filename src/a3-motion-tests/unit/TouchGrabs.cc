@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include <a3-motion-ui/components/TouchGrabs.hh>
 
 using namespace a3;
@@ -280,4 +282,23 @@ TEST (TouchGrabs, AFingerIsKeyedByItsOwnIndex)
   using Type = juce::MouseInputSource::InputSourceType;
 
   EXPECT_NE (grabKey (Type::touch, 0), grabKey (Type::touch, 1));
+}
+
+TEST (TouchGrabs, ReleaseAllHandsBackEveryHeldChannelAndForgetsEveryFinger)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+  TouchGrabs grabs;
+
+  grabs.down (grabKey (Type::touch, 0), 2u);
+  grabs.down (grabKey (Type::touch, 1), {});
+  grabs.down (grabKey (Type::touch, 2), 0u);
+
+  auto released = grabs.releaseAll ();
+  std::sort (released.begin (), released.end ());
+
+  EXPECT_EQ (released, (std::vector<index_t>{ 0u, 2u }));
+  EXPECT_TRUE (grabs.empty ());
+  EXPECT_FALSE (grabs.isHeld (2u));
+  EXPECT_EQ (grabs.firstSource (), std::nullopt);
+  EXPECT_EQ (grabs.channelFor (grabKey (Type::touch, 0)), std::nullopt);
 }

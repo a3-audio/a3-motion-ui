@@ -167,6 +167,13 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/StatusBar.hh
     components/StatusBarLayout.cc
     components/StatusBarLayout.hh
+    components/fpv/FpvLayout.cc
+    components/fpv/FpvLayout.hh
+    components/fpv/FpvStrips.cc
+    components/fpv/FpvStrips.hh
+    components/fpv/ShipShape.cc
+    components/fpv/ShipShape.hh
+    components/AppView.hh
     components/BlobPunch.cc
     components/CoronaScaling.cc
     components/DragAccumulator.cc

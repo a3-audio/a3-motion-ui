@@ -72,6 +72,7 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   out.keyboardKey = rest.removeFromRight (keyW);
   out.cleanKey = rest.removeFromRight (keyW);
   out.clockKey = rest.removeFromLeft (keyW);
+  out.viewKey = rest.removeFromLeft (keyW);
 
   // Still centred, but never under a key: on a narrow bar the display gives
   // way rather than the keys.

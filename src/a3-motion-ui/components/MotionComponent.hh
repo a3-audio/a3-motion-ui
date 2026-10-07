@@ -42,6 +42,7 @@
 #include <a3-motion-ui/components/CameraFingers.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/fpv/ShipShape.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/LineMapRenderer.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -69,6 +70,10 @@ public:
    *  rather than a modifier held down, because the picture that says it is
    *  on is in plain view. */
   void setCameraMode (bool on);
+
+  /** FPV: ships instead of blobs, and touch on the sphere is camera only.
+   *  Message thread. */
+  void setFpv (bool on);
 
   /** How far the sphere is zoomed, as a factor on its size. */
   float getCameraZoom () const;
@@ -195,6 +200,11 @@ private:
   /** The finger that is moving the eye, and where it was last seen. Its own
    *  grab, not one of `_grabs`: it is holding the view, not a blob. */
   void drawBearings (juce::Graphics &g);
+  /** FPV's ships, where the shader draws blobs in FULL. GL thread (the 2D
+   *  pass), the only place _shipHeadings is touched. */
+  void drawShips (juce::Graphics &g);
+  /** Every blob and the recording let go, as if all fingers lifted. */
+  void releaseBlobGrabs ();
   void drawListener (juce::Graphics &g);
 
   std::optional<SourceKey> _cameraGrab;
@@ -202,6 +212,14 @@ private:
    *  mouse: the second tap lands a few pixels from the first. */
   juce::int64 _cameraTapMs = 0;
   bool _cameraMode = false;
+
+  /** Read by the GL thread every frame (no shader blobs, ships instead). */
+  std::atomic<bool> _fpv{ false };
+  bool _cameraModeBeforeFpv = false;
+  /** Set by setFpv on the message thread, consumed by drawShips on the GL
+   *  thread: the headings start over whenever the view changes. */
+  std::atomic<bool> _resetShipHeadings{ false };
+  std::array<ShipHeading, 4> _shipHeadings; // GL thread: the 2D pass only
 
   /** How far the sphere is zoomed, as a factor on its size -- set in camera
    *  mode by the wheel or a two-finger pinch, and read by the render thread
