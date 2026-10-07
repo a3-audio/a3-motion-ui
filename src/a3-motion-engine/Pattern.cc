@@ -64,7 +64,10 @@ Pattern::setStatus (Status status)
 {
   _statusLast = _status.exchange (status);
   if (status == Status::Recording)
-    _wasRecording = true;
+    {
+      _wasRecording = true;
+      _isTake = true;
+    }
 }
 
 Pattern::Status

@@ -222,6 +222,7 @@ TEST (PatternFileTakes, ATappedTakeKeepsItsTiming)
     }
   take->setStatus (Pattern::Status::Recording);
   take->setStatus (Pattern::Status::Idle);
+  take->markComplete (); // as RecordingSeam leaves a finished take
 
   auto const file = freshDir ("a3-tapped-take-timing").getChildFile ("04_Rec.svg");
   ASSERT_TRUE (PatternFile::save (take, file));
@@ -230,6 +231,18 @@ TEST (PatternFileTakes, ATappedTakeKeepsItsTiming)
 
   Pattern plain;
   expectPlaysTickForTick (*take, *reloaded, plain);
+
+  // Between ticks as well: a jump is stood on, not slid across, at any speed.
+  int sliding = 0;
+  for (index_t tick = 0; tick < 512; ++tick)
+    {
+      auto const before = take->getInterpolatedTick (tick + 0.5);
+      auto const after = reloaded->getInterpolatedTick (tick + 0.5);
+      if (std::hypot (before.x () - after.x (), before.y () - after.y ())
+          > 1e-3f)
+        ++sliding;
+    }
+  EXPECT_EQ (sliding, 0) << "half-ticks that slide across a tap after a reload";
 
   // And it is still pictured as its taps, where they were.
   auto const peeked = PatternFile::peek (file);

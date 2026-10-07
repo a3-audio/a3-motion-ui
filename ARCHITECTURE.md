@@ -768,6 +768,20 @@ it in place — the wobble. Sixteen of the thirty-nine system patterns were off 
 their radius, the triangle by 35%. The furthest point from the origin becomes 1; nothing moves.
 `smoke-test/scripts/pattern-centre.py` measures it.
 
+**A take is not a shape, and its file says so** (#68). Normalising, thinning to 128 points a run
+and closing an open run with its reversed copy are right for a drawn figure and wrong for a take:
+since a take keeps its clip's squeeze (#66) a written point can lie up to twice outside the pad,
+so the whole take shrank on save; the resample by arc length on load evened out its pace; and an
+open run played forward and then back. A pattern that went through `Status::Recording` is a take
+(`Pattern::isTake()`), and `PatternFile` writes it with `data-kind="take"` and a path of every
+tick, as it plays: one `M … L …` polyline per run, cut at gaps and teleports, with `data-ticks` on
+the path naming each run's first tick. Loading reads it back vertex for tick and finishes it the
+way a recording is finished (`markComplete()`), so its jumps are stood on between ticks. It is
+still an ordinary path, so the browser, the pads and the preview draw it unchanged; a tapped take
+also carries its taps as circles, and `peek()` hands those out instead of the path for its picture.
+A file without the mark is a shape — every shipped one, and every take written before #68, which
+loads as it always did (its scale was thrown away when it was written, and is not coming back).
+
 Some shapes are legitimately off-centre and must stay that way, and
 `SystemPatternIcons.EveryShippedShapeSitsWhereItShould` names them rather than leaving them to be
 "fixed" later: `Arc` and `Petal` are one-sided by construction, `Orbit` is a Kepler ellipse with the
