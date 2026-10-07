@@ -53,6 +53,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobHold.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TakeSeed.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TakeRecording.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TakeProjection.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/EncoderMap.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarKeyboardLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarKeyboardModel.cc"

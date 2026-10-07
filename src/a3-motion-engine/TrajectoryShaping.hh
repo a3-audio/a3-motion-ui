@@ -86,4 +86,11 @@ PlaneShaping shapingOf (Pattern const &pattern);
  *  at all to a circle -- the commonest take there is. */
 Pos shapedPosition (Pos const &recorded, PlaneShaping const &shaping);
 
+/** And back: turn back, then unsqueeze -- where a take has to hold a point
+ *  for shapedPosition() to play it at `played`. Exact everywhere, because a
+ *  squeeze is a factor between a half and two and never collapses an axis.
+ *  The answer can lie outside the pad by up to that factor: a figure pressed
+ *  to half its width has to be written twice as wide to reach the rim. */
+Pos unshapedPosition (Pos const &played, PlaneShaping const &shaping);
+
 }

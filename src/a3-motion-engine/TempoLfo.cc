@@ -32,6 +32,18 @@ namespace
  *  Written as an exponent so the table is one line instead of eight. */
 constexpr int slowestExponent = 5; // 2^5 bars at step 1
 
+/** std::fmod keeps the sign of its left operand, so a cycle running the
+ *  other way would come back negative and every reader would have to know
+ *  that. Wrapped into [0, 1) here, once. */
+float
+wrappedCycle (float cycles)
+{
+  auto wrapped = std::fmod (cycles, 1.f);
+  if (wrapped < 0.f)
+    wrapped += 1.f;
+  return wrapped;
+}
+
 int
 clampedStep (int step)
 {
@@ -66,16 +78,17 @@ advanceLfoPhase (float phase, int step, float ticksPerBar)
   if (rate == 0.f || ticksPerBar <= 0.f)
     return phase;
 
-  auto const advanced = phase + rate / ticksPerBar;
+  return wrappedCycle (phase + rate / ticksPerBar);
+}
 
-  // std::fmod keeps the sign of its left operand, so a cycle running the other
-  // way would come back negative and every reader would have to know that.
-  // Wrapped into [0, 1) here, once.
-  auto wrapped = std::fmod (advanced, 1.f);
-  if (wrapped < 0.f)
-    wrapped += 1.f;
+float
+lfoPhaseAfter (int step, float ticks, float ticksPerBar)
+{
+  auto const rate = lfoCyclesPerBar (step);
+  if (rate == 0.f || ticksPerBar <= 0.f)
+    return 0.f;
 
-  return wrapped;
+  return wrappedCycle (rate * ticks / ticksPerBar);
 }
 
 float

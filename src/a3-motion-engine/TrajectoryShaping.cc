@@ -86,4 +86,13 @@ shapedPosition (Pos const &recorded, PlaneShaping const &shaping)
   return spinPosition (squeezed, shaping.turns);
 }
 
+Pos
+unshapedPosition (Pos const &played, PlaneShaping const &shaping)
+{
+  auto const unturned = spinPosition (played, -shaping.turns);
+  return Pos::fromCartesian (unturned.x () / squeezeFactor (shaping.squeezeX),
+                             unturned.y () / squeezeFactor (shaping.squeezeY),
+                             unturned.z ());
+}
+
 }

@@ -213,6 +213,19 @@ instead of as a plugin.
   it plays back. Before, the blob followed the finger out of the band and the take came back as one
   ring at `1 - base`.
 
+  The same goes for the rest of what playback does to a tick (decided 2026-10-07): the clip's
+  squeeze and turn — rotate plus the spin's phase, the squeezes swept by their stretch — and the
+  band's swell and sway and the lean's sweeps. `TakeProjection` holds the chain once:
+  `playedPosition()` is what `playTick()` sends, `writtenPosition()` its inverse, and the engine
+  writes each tick through the inverse at the phases the **first pass** reaches that tick with
+  (`setPassPhases`, `ticksIntoFirstPass`). Squeeze and turn are exact (a squeeze is ×½…×2, it
+  never collapses an axis — a point can be written up to twice outside the pad); the band is the
+  only clamp. What cannot be known at recording time is answered on purpose, not exactly: a
+  sweep whose cycle is not a whole number of passes is somewhere else on later passes (that is
+  what it is for), Random enters at a phase drawn when it plays and is treated as Forward, and a
+  playback length changed after the take re-times every sweep against it. Before, a take over a
+  turned or squeezed clip played back turned or stretched by exactly that much.
+
   Deliberately **not** in the set: the clock mode and the rec mode. The clock depends on what is
   plugged into the switch at the venue and the rec mode is a working habit; a set that changed
   either out from under you on load would be a surprise at the one moment nobody wants one.
