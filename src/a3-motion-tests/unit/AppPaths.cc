@@ -78,3 +78,29 @@ TEST (AppPaths, NoResourceIsReadFromTheWorkingDirectory)
                       .contains ("getCurrentWorkingDirectory"))
         << sources.substring (juce::jmax (0, at - 160), at + 40);
 }
+
+TEST (AppPaths, TheLogIsInTheUsersStateFolder)
+{
+  EXPECT_EQ (logFile ("/home/aaa", ""),
+             juce::File ("/home/aaa/.local/state/a3-motion/a3-motion-ui.log"));
+}
+
+TEST (AppPaths, AnAbsoluteXdgStateHomeWins)
+{
+  EXPECT_EQ (logFile ("/home/aaa", "/data/state"),
+             juce::File ("/data/state/a3-motion/a3-motion-ui.log"));
+}
+
+TEST (AppPaths, ARelativeXdgStateHomeIsIgnored)
+{
+  // The XDG spec: a relative $XDG_STATE_HOME is invalid and must be ignored.
+  EXPECT_EQ (logFile ("/home/aaa", "state"),
+             juce::File ("/home/aaa/.local/state/a3-motion/a3-motion-ui.log"));
+}
+
+TEST (AppPaths, TheLogIsNotWrittenBesideTheExecutable)
+{
+  // /usr/bin is not writable; the package's Motion would log nowhere.
+  auto const app = juce::File (A3_UI_SOURCE_DIR).getChildFile ("StandaloneApp.cc").loadFileAsString ();
+  EXPECT_FALSE (app.contains ("currentExecutableFile"));
+}

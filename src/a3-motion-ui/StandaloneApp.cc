@@ -19,6 +19,7 @@
 */
 
 #include "StandaloneApp.hh"
+#include "AppPaths.hh"
 
 #include <a3-motion-engine/OscTruth.hh>
 #include <a3-motion-engine/TruthKeeper.hh>
@@ -71,7 +72,7 @@ StandaloneApp::initialise (juce::String const &commandLine)
                           "a window up that cannot exist.");
 
       // To both, and for different readers. writeToLog() goes to the log file
-      // beside the executable, which is where the app's own history lives;
+      // in ~/.local/state/a3-motion, which is where the app's own history lives;
       // stderr is what systemd puts in the journal, which is where somebody
       // looks when the unit is `failed`.
       juce::Logger::writeToLog (refusal);
@@ -133,12 +134,12 @@ StandaloneApp::openWindow ()
 void
 StandaloneApp::setupFileLogger ()
 {
-  auto fileExecutable = juce::File::getSpecialLocation (
-      juce::File::SpecialLocationType::currentExecutableFile);
-  auto filenameLog = fileExecutable.getFileNameWithoutExtension () + ".log";
-
+  // In the user's state folder, not beside the executable: the package's
+  // binary is in /usr/bin (2026-10-08).
+  auto const home = juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                        .getFullPathName ();
   _logger = std::make_unique<juce::FileLogger> (
-      fileExecutable.getParentDirectory ().getChildFile (filenameLog),
+      logFile (home, juce::SystemStats::getEnvironmentVariable ("XDG_STATE_HOME", {})),
       "a3-motion-ui debug log", 0);
   juce::Logger::setCurrentLogger (_logger.get ());
 }

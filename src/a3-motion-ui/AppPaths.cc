@@ -33,9 +33,12 @@ resourceDirectory (juce::File const &executable)
 }
 
 juce::File
-logFile (juce::String const &, juce::String const &)
+logFile (juce::String const &home, juce::String const &xdgStateHome)
 {
-  return {};
+  auto const base = juce::File::isAbsolutePath (xdgStateHome)
+                        ? juce::File (xdgStateHome)
+                        : juce::File (home).getChildFile (".local/state");
+  return base.getChildFile ("a3-motion").getChildFile ("a3-motion-ui.log");
 }
 
 } // namespace a3

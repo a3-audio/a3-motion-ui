@@ -53,6 +53,8 @@
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/SkinSections.hh>
 
+#include <mutex>
+
 namespace
 {
 
@@ -166,9 +168,17 @@ namespace
 juce::File
 resource (char const *name)
 {
-  return resourceDirectory (
-             juce::File::getSpecialLocation (juce::File::currentExecutableFile))
-      .getChildFile (name);
+  static auto const directory = resourceDirectory (
+      juce::File::getSpecialLocation (juce::File::currentExecutableFile));
+  // Once, so a broken package layout shows in the log instead of as blank art.
+  static auto const reported = !directory.isDirectory ();
+  static std::once_flag once;
+  if (reported)
+    std::call_once (once, [] {
+      juce::Logger::writeToLog ("Resource directory does not exist: "
+                                + directory.getFullPathName ());
+    });
+  return directory.getChildFile (name);
 }
 
 juce::File
