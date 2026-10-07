@@ -14,6 +14,18 @@ changed stays, and a newer shipped version goes beside it as <name>.shipped.
 Nothing is ever deleted. .shipped.json in ROOT remembers what was shipped,
 path -> sha256.
 
+The <name>.shipped copies belong to the seed: it writes them, and it
+refreshes them when a newer package ships a newer version. Take what you want
+from one into your file; do not keep your own changes in it.
+
+A .shipped.json that cannot be read is not a first start: it is the record of
+what was removed by hand. Then nothing is added or replaced, and the file stays
+as it is. Move it aside, and the next start treats the folder as new: every
+file there is kept as yours, and missing shipped files are added.
+
+Leftover .a3-motion.seed-part files come from a run that was cut off. They are
+named in the log and never removed by the seed.
+
 Every failure is logged and the exit is 0: a seed that cannot finish must not
 keep the surface off a set. A step that failed is tried again at the next start.
 """
@@ -148,21 +160,24 @@ def publish_over(data, target):
         raise
 
 
-def read_manifest(root, log):
-    """The last shipped hashes, or None: on a first start, and when the file
-    cannot be read -- then nothing is replaced, which is the safe guess."""
+class UnreadableManifest(Exception):
+    """The manifest exists but cannot be trusted. It is still the only record
+    of what he removed, so it must neither be ignored nor written over."""
+
+
+def read_manifest(root):
+    """The last shipped hashes, or None on a first start (no manifest).
+    Raises UnreadableManifest when one is there but cannot be read."""
     path = Path(root) / MANIFEST
     if not os.path.lexists(path):
         return None
     try:
         data = json.loads(path.read_bytes().decode("utf-8", errors="replace"))
     except (OSError, ValueError) as error:
-        log(f"{path} unreadable ({error}); nothing is replaced this start")
-        return None
+        raise UnreadableManifest(str(error)) from error
     if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str)
                                              for k, v in data.items()):
-        log(f"{path} is not a manifest; nothing is replaced this start")
-        return None
+        raise UnreadableManifest("not a map of path to sha256")
     return data
 
 
@@ -225,8 +240,14 @@ def reconcile(root, shipped, log):
     if not shipped.is_dir():
         log(f"no shipped files at {shipped}; nothing to do")
         return
+    try:
+        old = read_manifest(root)
+    except UnreadableManifest as error:
+        log(f"{root / MANIFEST} cannot be read ({error}); nothing is added or "
+            f"replaced and the file is left as it is. To recover, move it aside: "
+            f"the next start then treats the folder as new and keeps every file in it")
+        return
     new, complete = shipped_hashes(shipped, log)
-    old = read_manifest(root, log)
     first = old is None
     old = old or {}
     kept = dict(new)
@@ -248,15 +269,36 @@ def reconcile(root, shipped, log):
     if differing:
         log(f"{differing} files differ from the shipped ones and stay yours; "
             f"--report lists them")
-    write_manifest(root, kept)
+    write_manifest(root, kept, log)
 
 
-def write_manifest(root, kept):
+def write_manifest(root, kept, log):
     text = json.dumps(kept, indent=1, sort_keys=True) + "\n"
     manifest = root / MANIFEST
+    if manifest.is_symlink():
+        log(f"{manifest} is a link; read, but left alone and not updated")
+        return
     if is_plain(manifest) and manifest.read_bytes().decode("utf-8", errors="replace") == text:
         return
     publish_over(text.encode(), manifest)
+
+
+def leftover_parts(root):
+    """Part files a cut-off run left behind: (count, folders)."""
+    count, folders = 0, []
+    for folder, _dirs, names in os.walk(root):
+        found = [n for n in names if n == PART_NAME or n.startswith(PART_NAME + ".")]
+        if found:
+            count += len(found)
+            folders.append(Path(folder).relative_to(root).as_posix())
+    return count, sorted(folders)
+
+
+def note_leftover_parts(root, log):
+    count, folders = leftover_parts(root)
+    if count:
+        log(f"{count} {PART_NAME} files left by a cut-off run in "
+            f"{', '.join(folders)}; never removed by the seed -- delete them by hand")
 
 
 def report(root, shipped):
@@ -291,6 +333,7 @@ def seed(root, shipped=SHIPPED, home=None, source=None, log=print):
         root = Path(root)
         if not root.exists():
             root.mkdir(parents=True)
+        note_leftover_parts(root, log)
         reconcile(root, shipped, log)
     except Exception as error:  # never keep the surface off a set
         log(f"{type(error).__name__}: {error}")
@@ -299,7 +342,10 @@ def seed(root, shipped=SHIPPED, home=None, source=None, log=print):
 
 def main(argv=None):
     try:
-        parser = argparse.ArgumentParser(description="Seed A3 Motion's data folder.")
+        parser = argparse.ArgumentParser(
+            description=__doc__.split("\n\n", 1)[0],
+            epilog=__doc__.split("\n\n", 2)[2],
+            formatter_class=argparse.RawDescriptionHelpFormatter)
         parser.add_argument("root", type=Path)
         parser.add_argument("--shipped", type=Path, default=SHIPPED)
         parser.add_argument("--from", dest="source", type=Path)

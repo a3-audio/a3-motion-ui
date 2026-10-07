@@ -61,7 +61,7 @@ class SeedCase(unittest.TestCase):
         return log
 
     def tree(self):
-        return {p.relative_to(self.root).as_posix(): p.read_text()
+        return {p.relative_to(self.root).as_posix(): p.read_text(errors="replace")
                 for p in self.root.rglob("*") if p.is_file() and not p.is_symlink()}
 
     def write(self, rel, text):
@@ -364,6 +364,106 @@ class DataSafety(SeedCase):
         self.assertEqual(1, sum("differ" in line for line in log), log)
         self.assertEqual("his", self.tree()["config/skins/clean.json"])
         self.assertNotIn("config/skins/clean.json.shipped", self.tree())
+
+
+class ABadManifest(SeedCase):
+    """Review of 0b10d65: a manifest that cannot be read is not a first start.
+    It holds the record of what he removed, so the seed adds nothing, replaces
+    nothing and leaves the file as it is."""
+
+    def removed_then(self, spoil):
+        self.run_seed()
+        (self.root / "config/skins/clean.json").unlink()
+        manifest = self.root / ".shipped.json"
+        spoil(manifest)
+        before = manifest.read_bytes() if os.access(manifest, os.R_OK) else None
+        self.ship({**FIRST, "pattern/clips/system/Dawn.json": "dawn",
+                   "config/config.json": "config v2"})
+        log = self.run_seed()
+        return manifest, before, log
+
+    def assert_untouched(self, manifest, before, log):
+        tree = self.tree()
+        self.assertNotIn("config/skins/clean.json", tree)
+        self.assertNotIn("pattern/clips/system/Dawn.json", tree)
+        self.assertEqual('{"patternDir": "pattern"}', tree["config/config.json"])
+        lines = [line for line in log if ".shipped.json" in line and "move it aside" in line]
+        self.assertEqual(1, len(lines), log)
+
+    def test_a_corrupt_manifest_adds_nothing_and_stays_as_it_is(self):
+        manifest, before, log = self.removed_then(lambda m: m.write_bytes(b"\xff{not json"))
+        self.assert_untouched(manifest, before, log)
+        self.assertEqual(before, manifest.read_bytes())
+
+    def test_a_manifest_that_is_not_a_map_counts_as_corrupt(self):
+        manifest, before, log = self.removed_then(lambda m: m.write_text("[1, 2]"))
+        self.assert_untouched(manifest, before, log)
+        self.assertEqual(before, manifest.read_bytes())
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads everything")
+    def test_an_unreadable_manifest_adds_nothing_and_stays_as_it_is(self):
+        stamp = {}
+        def lock(m):
+            stamp["bytes"] = m.read_bytes()
+            m.chmod(0o000)
+        try:
+            manifest, _before, log = self.removed_then(lock)
+        finally:
+            (self.root / ".shipped.json").chmod(0o644)
+        self.assert_untouched(manifest, None, log)
+        self.assertEqual(stamp["bytes"], manifest.read_bytes())
+
+    def test_moved_aside_the_next_start_is_a_first_start(self):
+        manifest, _before, _log = self.removed_then(lambda m: m.write_text("{bad"))
+        manifest.rename(self.root / "shipped.json.bad")
+        self.run_seed()
+        self.assertEqual("dawn", self.tree()["pattern/clips/system/Dawn.json"])
+
+    def test_a_linked_manifest_is_left_a_link(self):
+        self.run_seed()
+        elsewhere = self.tmp / "manifest.json"
+        manifest = self.root / ".shipped.json"
+        elsewhere.write_bytes(manifest.read_bytes())
+        manifest.unlink()
+        manifest.symlink_to(elsewhere)
+        before = elsewhere.read_bytes()
+        self.ship({**FIRST, "pattern/clips/system/Dawn.json": "dawn"})
+        log = self.run_seed()
+        self.assertTrue(manifest.is_symlink())
+        self.assertEqual(before, elsewhere.read_bytes())
+        self.assertTrue(any(".shipped.json" in line and "link" in line for line in log), log)
+
+
+class LeftoverParts(SeedCase):
+    def test_leftover_parts_are_named_once_and_kept(self):
+        self.run_seed()
+        for folder in ("config/skins", "pattern/clips/system"):
+            (self.root / folder / seed.PART_NAME).write_text("cut off")
+        (self.root / "pattern/clips/system" / f"{seed.PART_NAME}.1").write_text("cut off")
+        log = self.run_seed()
+        lines = [line for line in log if "part" in line]
+        self.assertEqual(1, len(lines), log)
+        self.assertIn("3", lines[0])
+        self.assertIn("config/skins", lines[0])
+        self.assertTrue((self.root / "config/skins" / seed.PART_NAME).exists())
+        self.assertTrue((self.root / "pattern/clips/system" / f"{seed.PART_NAME}.1").exists())
+
+    def test_without_leftovers_nothing_is_said(self):
+        self.run_seed()
+        log = self.run_seed()
+        self.assertEqual([], [line for line in log if "part" in line], log)
+
+
+class TheHelp(unittest.TestCase):
+    def test_the_docstring_says_shipped_copies_are_the_seeds(self):
+        self.assertIn("belong to the seed", " ".join(seed.__doc__.split()))
+
+    def test_help_says_it_too(self):
+        import contextlib, io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            seed.main(["--help"])
+        self.assertIn("belong to the seed", " ".join(out.getvalue().split()))
 
 
 if __name__ == "__main__":
