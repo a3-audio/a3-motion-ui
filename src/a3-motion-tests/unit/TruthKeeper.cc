@@ -252,3 +252,69 @@ TEST (KeeperOwn, TheFileDigestIsTheDigestOfWhatLoads)
   file.deleteFile ();
   EXPECT_TRUE (a3::oscTruthFileDigest (file).isEmpty ());
 }
+
+namespace
+{
+juce::String
+siblingSource (char const *directory, char const *file)
+{
+  return juce::File (__FILE__).getParentDirectory ().getParentDirectory ()
+      .getSiblingFile (directory).getChildFile (file).loadFileAsString ();
+}
+
+juce::String
+bodyOf (juce::String const &text, juce::String const &signature)
+{
+  return text.fromFirstOccurrenceOf (signature, false, false)
+      .upToFirstOccurrenceOf ("\n}\n", false, false);
+}
+
+int
+countOf (juce::String const &text, juce::String const &needle)
+{
+  int found = 0;
+  for (auto at = text.indexOf (needle); at >= 0; at = text.indexOf (at + 1, needle))
+    ++found;
+  return found;
+}
+}
+
+// The window is built in one place, after the wait -- never in initialise,
+// where it used to come up on the cached truth and quit 6 s later.
+TEST (KeeperStartup, TheWindowIsBuiltInOnePlaceOnly)
+{
+  auto const app = siblingSource ("a3-motion-ui", "StandaloneApp.cc");
+  ASSERT_TRUE (app.isNotEmpty ());
+  EXPECT_EQ (countOf (app, "std::make_unique<MainWindow>"), 1);
+  EXPECT_TRUE (bodyOf (app, "StandaloneApp::openWindow ()")
+                   .contains ("std::make_unique<MainWindow>"));
+  EXPECT_FALSE (bodyOf (app, "StandaloneApp::initialise (").contains ("MainWindow"));
+}
+
+TEST (KeeperStartup, MotionWaitsOnTheFileItWillLoadAndFollowsWhatItLoaded)
+{
+  auto const app = siblingSource ("a3-motion-ui", "StandaloneApp.cc");
+  EXPECT_TRUE (app.contains ("waitForCore (oscTruthFileDigest (oscTruthFile ())"));
+  EXPECT_TRUE (app.contains ("follow (installedOscTruth ().digest ()"));
+}
+
+// A busy announce port or a set $A3_OSC_TRUTH: nothing to wait for.
+TEST (KeeperStartup, ADeafLinkOpensAtOnce)
+{
+  auto const wait = bodyOf (siblingSource ("a3-motion-ui", "StandaloneApp.cc"),
+                            "StandaloneApp::waitForCoresTruth ()");
+  ASSERT_TRUE (wait.isNotEmpty ());
+  EXPECT_EQ (countOf (wait, "openWindow ();"), 3);   // override, deaf, the wait's callback
+  EXPECT_LT (wait.indexOf ("_truthKeeper->start ()"), wait.indexOf ("waitForCore ("));
+}
+
+// During the wait a fetched truth is opened on, not restarted on.
+TEST (KeeperStartup, TheLinkRestartsOnlyOnceTheWindowIsOpen)
+{
+  auto const link = siblingSource ("a3-motion-engine", "TruthKeeperLink.cc");
+  ASSERT_TRUE (link.isNotEmpty ());
+  EXPECT_FALSE (link.contains ("callAsync (_restart)"));
+  EXPECT_EQ (countOf (link, "_restart ()"), 1);
+  auto const finished = bodyOf (link, "TruthKeeperLink::finished (");
+  EXPECT_LT (finished.indexOf ("waiting ()"), finished.indexOf ("_restart ()"));
+}
