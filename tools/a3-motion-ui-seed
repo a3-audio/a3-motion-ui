@@ -18,6 +18,12 @@ The <name>.shipped copies belong to the seed: it writes them, and it
 refreshes them when a newer package ships a newer version. Take what you want
 from one into your file; do not keep your own changes in it.
 
+No ROOT yet: the working copy of an old checkout -- config/ and pattern/ as
+they are, uncommitted edits and the user halves included -- is copied in
+(never moved; through a sibling folder renamed when whole); --from names
+another. Without one ROOT starts from the shipped files. By hand, --from on
+an existing ROOT is refused with 1.
+
 A .shipped.json that cannot be read is not a first start: it is the record of
 what was removed by hand. Then nothing is added or replaced, and the file stays
 as it is. Move it aside, and the next start treats the folder as new: every
@@ -327,12 +333,66 @@ def _safe(log):
     return write
 
 
+def find_old_tree(home):
+    for relative in OLD_TREES:
+        tree = Path(home) / relative
+        if (tree / "config" / "config.json").is_file():
+            return tree
+    return None
+
+
+def copy_tree(source, target, log):
+    """source into target, plain files and folders only; links and anything
+    else are named and left out. The source is only read."""
+    for folder, dirs, files in os.walk(source):
+        here = Path(folder)
+        (target / here.relative_to(source)).mkdir(parents=True, exist_ok=True)
+        for name in sorted(dirs + files):
+            path = here / name
+            if path.is_symlink():
+                log(f"skipped {path}: a link, not followed")
+            elif name in files and not path.is_file():
+                log(f"skipped {path}: not a plain file")
+        for name in sorted(files):
+            path = here / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            destination = target / path.relative_to(source)
+            shutil.copy2(path, destination)
+            if destination.stat().st_size != path.stat().st_size:
+                raise OSError(f"{destination}: size differs from {path} after the copy")
+            with open(destination, "rb") as handle:
+                os.fsync(handle.fileno())
+
+
+def migrate(root, tree, log):
+    """config/ and pattern/ of an old checkout, its working copy as it is,
+    into the new root: through a sibling folder renamed when whole, so a root
+    that exists is always complete. Copied, never moved."""
+    part = root.with_name(PART_NAME)
+    if part.exists():
+        shutil.rmtree(part)  # the seed's own copy, cut off at an earlier start
+    for name in PARTS:
+        if (tree / name).is_dir():
+            copy_tree(tree / name, part / name, log)
+    os.rename(part, root)
+
+
 def seed(root, shipped=SHIPPED, home=None, source=None, log=print):
     log = _safe(log)
     try:
         root = Path(root)
         if not root.exists():
-            root.mkdir(parents=True)
+            tree = Path(source) if source is not None else find_old_tree(home or Path.home())
+            if tree is not None:
+                root.parent.mkdir(parents=True, exist_ok=True)
+                migrate(root, tree, log)
+                log(f"copied config/ and pattern/ of {tree} into {root}; "
+                    "the originals stay where they were")
+            else:
+                places = ", ".join(str(Path(home or Path.home()) / t) for t in OLD_TREES)
+                log(f"no old checkout at {places}; {root} starts from the shipped files")
+                root.mkdir(parents=True)
         note_leftover_parts(root, log)
         reconcile(root, shipped, log)
     except Exception as error:  # never keep the surface off a set
@@ -355,6 +415,15 @@ def main(argv=None):
             for line in report(args.root, args.shipped):
                 print(line.encode("utf-8", "backslashreplace").decode("utf-8"))
             return 0
+        if args.source is not None:
+            if args.root.exists():
+                print(f"{PREFIX}{args.root} exists; nothing is copied from {args.source} "
+                      "-- an existing folder is never copied into", file=sys.stderr)
+                return 1
+            if not (args.source / "config" / "config.json").is_file():
+                print(f"{PREFIX}{args.source} has no config/config.json; not a Motion tree",
+                      file=sys.stderr)
+                return 1
         return seed(args.root, args.shipped, source=args.source)
     except SystemExit:  # argparse: --help, or a usage error; the start goes on
         return 0

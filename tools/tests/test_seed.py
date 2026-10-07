@@ -466,5 +466,146 @@ class TheHelp(unittest.TestCase):
         self.assertIn("belong to the seed", " ".join(out.getvalue().split()))
 
 
+class TheMigration(SeedCase):
+    def setUp(self):
+        super().setUp()
+        self.old = self.home / "a3-system/a3-motion/ui"
+        files = {
+            "config/config.json": '{"patternDir": "pattern", "ui": {"skin": "clean"}}',
+            "config/ui_state.json": "{}",
+            "config/skins/clean.json": "clean v1",
+            "pattern/actions/system/Speed Half.scd": "his edit",
+            "pattern/clips/system/Sunset.json": "sunset v1",
+            "pattern/clips/.migrated": "",
+            "pattern/user/Take.svg": "take",
+            "pattern/current.json": "{}",
+            "build/a3-motion-ui": "binary",
+            "resources/head.svg": "head",
+        }
+        for rel, text in files.items():
+            path = self.old / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        os.utime(self.old / "pattern/user/Take.svg", (1_700_000_000, 1_700_000_000))
+        self.checkout = {p.relative_to(self.old).as_posix(): (p.read_bytes(), p.stat().st_mtime_ns)
+                         for p in self.old.rglob("*") if p.is_file()}
+
+    def test_his_working_copy_is_copied_byte_for_byte(self):
+        self.run_seed()
+        for rel, (data, mtime) in self.checkout.items():
+            if rel.startswith(("config/", "pattern/")):
+                copy = self.root / rel
+                self.assertEqual(data, copy.read_bytes(), rel)
+                self.assertEqual(mtime, copy.stat().st_mtime_ns, rel)
+
+    def test_the_originals_stay_as_they_were(self):
+        self.run_seed()
+        now = {p.relative_to(self.old).as_posix(): (p.read_bytes(), p.stat().st_mtime_ns)
+               for p in self.old.rglob("*") if p.is_file()}
+        self.assertEqual(self.checkout, now)
+
+    def test_build_and_resources_are_not_copied(self):
+        self.run_seed()
+        self.assertFalse((self.root / "build").exists())
+        self.assertFalse((self.root / "resources").exists())
+
+    def test_his_edits_stay_his_with_no_shipped_copy_yet(self):
+        log = self.run_seed()
+        tree = self.tree()
+        self.assertEqual("his edit", tree["pattern/actions/system/Speed Half.scd"])
+        self.assertNotIn("pattern/actions/system/Speed Half.scd.shipped", tree)
+        self.assertTrue(any("differ from the shipped ones" in line for line in log), log)
+
+    def test_the_next_upgrade_puts_the_new_version_beside_his_edit(self):
+        self.run_seed()
+        self.ship({**FIRST, "pattern/actions/system/Speed Half.scd": "half v2"})
+        self.run_seed()
+        tree = self.tree()
+        self.assertEqual("his edit", tree["pattern/actions/system/Speed Half.scd"])
+        self.assertEqual("half v2", tree["pattern/actions/system/Speed Half.scd.shipped"])
+
+    def test_his_config_stays_and_shipped_files_his_checkout_lacks_are_added(self):
+        self.ship({**FIRST, "pattern/clips/system/Dawn.json": "dawn"})
+        self.run_seed()
+        tree = self.tree()
+        self.assertEqual('{"patternDir": "pattern", "ui": {"skin": "clean"}}',
+                         tree["config/config.json"])
+        self.assertEqual("dawn", tree["pattern/clips/system/Dawn.json"])
+
+    def test_an_existing_folder_is_never_copied_into(self):
+        self.root.mkdir(parents=True)
+        (self.root / "mine.txt").write_text("mine")
+        self.run_seed()
+        self.assertEqual("mine", (self.root / "mine.txt").read_text())
+        self.assertFalse((self.root / "config/ui_state.json").exists())
+
+    def test_a_copy_cut_off_is_done_again(self):
+        part = self.root.with_name(".a3-motion.seed-part")
+        (part / "config").mkdir(parents=True)
+        (part / "config/config.json").write_text("half")
+        self.run_seed()
+        self.assertFalse(part.exists())
+        self.assertEqual(self.checkout["config/config.json"][0],
+                         (self.root / "config/config.json").read_bytes())
+
+    def test_a_link_in_the_checkout_is_not_followed(self):
+        (self.old / "pattern/user/outside").symlink_to(self.tmp)
+        log = self.run_seed()
+        self.assertFalse((self.root / "pattern/user/outside").exists())
+        self.assertTrue(any("outside" in line for line in log), log)
+
+    def test_the_loose_clone_of_a3nuc2_is_found(self):
+        loose = self.home / "a3-system/a3-motion-ui"
+        loose.parent.mkdir(parents=True, exist_ok=True)
+        self.old.rename(loose)
+        self.run_seed()
+        self.assertEqual("take", self.tree()["pattern/user/Take.svg"])
+
+    def test_without_an_old_checkout_it_says_so(self):
+        shutil.rmtree(self.home / "a3-system")
+        log = self.run_seed()
+        self.assertTrue(any("no old checkout" in line for line in log), log)
+        self.assertEqual(FIRST["config/skins/clean.json"], self.tree()["config/skins/clean.json"])
+
+
+class ByHand(SeedCase):
+    def make_tree(self, where):
+        (where / "config").mkdir(parents=True)
+        (where / "config/config.json").write_text('{"patternDir": "pattern"}')
+        (where / "pattern/user").mkdir(parents=True)
+        (where / "pattern/user/Take.svg").write_text("take")
+
+    def test_from_copies_that_tree(self):
+        other = self.tmp / "elsewhere/ui"
+        self.make_tree(other)
+        code = seed.main([str(self.root), "--shipped", str(self.shipped), "--from", str(other)])
+        self.assertEqual(0, code)
+        self.assertEqual("take", self.tree()["pattern/user/Take.svg"])
+
+    def test_from_on_an_existing_folder_is_refused(self):
+        other = self.tmp / "elsewhere/ui"
+        self.make_tree(other)
+        self.root.mkdir(parents=True)
+        code = seed.main([str(self.root), "--shipped", str(self.shipped), "--from", str(other)])
+        self.assertEqual(1, code)
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_from_without_a_config_is_refused(self):
+        other = self.tmp / "empty"
+        other.mkdir()
+        code = seed.main([str(self.root), "--shipped", str(self.shipped), "--from", str(other)])
+        self.assertEqual(1, code)
+        self.assertFalse(self.root.exists())
+
+    def test_report_lists_what_differs_and_what_waits(self):
+        self.run_seed()
+        self.write("pattern/clips/system/Sunset.json", "mine")
+        self.ship({**FIRST, "pattern/clips/system/Sunset.json": "sunset v2"})
+        self.run_seed()
+        lines = seed.report(self.root, self.shipped)
+        self.assertIn("differs: pattern/clips/system/Sunset.json", lines)
+        self.assertIn("waiting: pattern/clips/system/Sunset.json.shipped", lines)
+
+
 if __name__ == "__main__":
     unittest.main()
