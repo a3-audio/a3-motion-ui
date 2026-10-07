@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""A3 Motion's data folder, kept in step with what the package ships.
+
+    a3-motion-ui-seed [--shipped DIR] [--from DIR] [--report] ROOT
+
+Runs as the user before every start of the packaged unit (ExecStartPre), so
+only while Motion is stopped, and never as root. ROOT is the folder Motion
+runs in (~/.local/share/a3-motion, the unit's WorkingDirectory), laid out
+like the checkout: config/ and pattern/.
+
+Every start, per shipped file: one ROOT lacks and never had is added; one
+still as the last package shipped it takes the new version; one the user
+changed stays, and a newer shipped version goes beside it as <name>.shipped.
+Nothing is ever deleted. .shipped.json in ROOT remembers what was shipped,
+path -> sha256.
+
+Every failure is logged and the exit is 0: a seed that cannot finish must not
+keep the surface off a set. A step that failed is tried again at the next start.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+SHIPPED = Path("/usr/share/a3-motion-ui")
+PARTS = ("config", "pattern")
+MANIFEST = ".shipped.json"
+SUFFIX = ".shipped"
+# Where Motion ran before the package: the umbrella's submodule, and the
+# loose clone a3nuc2 had (2026-10-04).
+OLD_TREES = (Path("a3-system/a3-motion/ui"), Path("a3-system/a3-motion-ui"))
+PART_NAME = ".a3-motion.seed-part"
+PREFIX = "a3-motion-ui-seed: "
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 16), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def is_plain(path):
+    return not path.is_symlink() and path.is_file()
+
+
+def plain_files(base, log):
+    """Every plain file under base; links are neither listed nor followed.
+    Returns (files, complete): complete is False when a folder could not be read."""
+    complete = True
+
+    def unreadable(error):
+        nonlocal complete
+        complete = False
+        log(f"{error.filename}: {error.strerror or error}; skipped this start")
+
+    files = []
+    for folder, _dirs, names in os.walk(base, onerror=unreadable):
+        for name in sorted(names):
+            path = Path(folder) / name
+            if is_plain(path):
+                files.append(path)
+            else:
+                log(f"{path}: not a plain file, not shipped")
+    return files, complete
+
+
+def shipped_hashes(shipped, log=lambda line: None):
+    """(hashes, complete): rel -> sha256 for every readable shipped file, and
+    whether the whole shipped tree could be read."""
+    shipped = Path(shipped)
+    hashes = {}
+    complete = True
+    for part in PARTS:
+        files, part_complete = plain_files(shipped / part, log)
+        complete = complete and part_complete
+        for path in files:
+            rel = path.relative_to(shipped).as_posix()
+            try:
+                hashes[rel] = sha256(path)
+            except OSError as error:
+                complete = False
+                log(f"{rel}: {error}; tried again at the next start")
+    return hashes, complete
+
+
+def _fsync(handle):
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _open_part(folder):
+    """A fresh part file of our own: created exclusively, so a file someone
+    else left under that name is never opened, let alone written over."""
+    for n in range(10_000):
+        part = folder / (PART_NAME if n == 0 else f"{PART_NAME}.{n}")
+        try:
+            return part, open(part, "xb")
+        except FileExistsError:
+            continue
+    raise OSError(f"{folder}: no free name for a part file")
+
+
+def _staged(source_bytes_or_path, target):
+    """A synced copy beside target, ready to be published; the caller publishes
+    or removes it. Only ever removes what it created itself."""
+    part, handle = _open_part(target.parent)
+    try:
+        with handle:
+            if isinstance(source_bytes_or_path, bytes):
+                handle.write(source_bytes_or_path)
+            else:
+                with open(source_bytes_or_path, "rb") as source:
+                    shutil.copyfileobj(source, handle)
+            _fsync(handle)
+        if not isinstance(source_bytes_or_path, bytes):
+            shutil.copystat(source_bytes_or_path, part)
+    except BaseException:
+        os.unlink(part)
+        raise
+    return part
+
+
+def add(source, target):
+    """A shipped file where there is none. Linked into place, never renamed:
+    a link fails instead of replacing a file that appeared meanwhile."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    part = _staged(source, target)
+    try:
+        os.link(part, target)
+    finally:
+        os.unlink(part)
+
+
+def publish_over(data, target):
+    """Writes target atomically. Only for files the seed owns or the manifest
+    proves untouched: the new version, a .shipped copy, the manifest."""
+    part = _staged(data, target)
+    try:
+        os.replace(part, target)
+    except BaseException:
+        os.unlink(part)
+        raise
+
+
+def read_manifest(root, log):
+    """The last shipped hashes, or None: on a first start, and when the file
+    cannot be read -- then nothing is replaced, which is the safe guess."""
+    path = Path(root) / MANIFEST
+    if not os.path.lexists(path):
+        return None
+    try:
+        data = json.loads(path.read_bytes().decode("utf-8", errors="replace"))
+    except (OSError, ValueError) as error:
+        log(f"{path} unreadable ({error}); nothing is replaced this start")
+        return None
+    if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str)
+                                             for k, v in data.items()):
+        log(f"{path} is not a manifest; nothing is replaced this start")
+        return None
+    return data
+
+
+def _through_link(root, rel):
+    """True when a folder between ROOT and the file is a link: writing there
+    would land outside Motion's folder."""
+    folder = root
+    for name in Path(rel).parts[:-1]:
+        folder = folder / name
+        if folder.is_symlink():
+            return True
+    return False
+
+
+class LeftAlone(Exception):
+    """A step that met something that is not the seed's to touch."""
+
+
+def place_beside(source, target, digest):
+    beside = target.with_name(target.name + SUFFIX)
+    if os.path.lexists(beside) and not is_plain(beside):
+        raise LeftAlone(f"{beside}: not a plain file, left alone")
+    if is_plain(beside) and sha256(beside) == digest:
+        return beside, False
+    publish_over(Path(source).read_bytes(), beside)
+    return beside, True
+
+
+def reconcile_one(root, shipped, rel, digest, old, first, log):
+    """Applies the rules to one shipped file. Returns 'differs' for a file
+    that is his on a first start, else None. Raises on a failed step."""
+    target = root / rel
+    if _through_link(root, rel) or os.path.lexists(target) and not is_plain(target):
+        log(f"{rel}: a link or not a plain file, left alone")
+        return None
+    if not os.path.lexists(target):
+        if rel not in old:
+            add(shipped / rel, target)
+            log(f"added {rel}")
+        return None
+    mine = sha256(target)
+    if mine == digest:
+        return None
+    if not first and mine == old.get(rel):
+        publish_over((shipped / rel).read_bytes(), target)
+        log(f"updated {rel}")
+        return None
+    if first:
+        return "differs"
+    if digest == old.get(rel):
+        return None
+    beside, written = place_beside(shipped / rel, target, digest)
+    if written:
+        log(f"kept your {rel}; the new shipped version is beside it as {beside.name}")
+    return None
+
+
+def reconcile(root, shipped, log):
+    root, shipped = Path(root), Path(shipped)
+    if not shipped.is_dir():
+        log(f"no shipped files at {shipped}; nothing to do")
+        return
+    new, complete = shipped_hashes(shipped, log)
+    old = read_manifest(root, log)
+    first = old is None
+    old = old or {}
+    kept = dict(new)
+    if not complete:
+        # What could not be read this start must not be forgotten -- a file he
+        # removed would otherwise come back once it is readable again.
+        kept.update({rel: digest for rel, digest in old.items() if rel not in new})
+    differing = 0
+    for rel, digest in sorted(new.items()):
+        try:
+            if reconcile_one(root, shipped, rel, digest, old, first, log) == "differs":
+                differing += 1
+        except (OSError, LeftAlone) as error:
+            log(f"{rel}: {error}; tried again at the next start")
+            if rel in old:
+                kept[rel] = old[rel]
+            else:
+                kept.pop(rel, None)
+    if differing:
+        log(f"{differing} files differ from the shipped ones and stay yours; "
+            f"--report lists them")
+    write_manifest(root, kept)
+
+
+def write_manifest(root, kept):
+    text = json.dumps(kept, indent=1, sort_keys=True) + "\n"
+    manifest = root / MANIFEST
+    if is_plain(manifest) and manifest.read_bytes().decode("utf-8", errors="replace") == text:
+        return
+    publish_over(text.encode(), manifest)
+
+
+def report(root, shipped):
+    """What differs from the shipped files, and which .shipped copies wait."""
+    root, shipped = Path(root), Path(shipped)
+    lines = []
+    hashes, _complete = shipped_hashes(shipped)
+    for rel, digest in sorted(hashes.items()):
+        target = root / rel
+        try:
+            if is_plain(target) and sha256(target) != digest:
+                lines.append(f"differs: {rel}")
+        except OSError as error:
+            lines.append(f"unreadable: {rel} ({error})")
+        if is_plain(target.with_name(target.name + SUFFIX)):
+            lines.append(f"waiting: {rel}{SUFFIX}")
+    return lines
+
+
+def _safe(log):
+    def write(line):
+        try:
+            log(PREFIX + line.encode("utf-8", "backslashreplace").decode("utf-8"))
+        except Exception:  # a log that fails must not stop the start either
+            pass
+    return write
+
+
+def seed(root, shipped=SHIPPED, home=None, source=None, log=print):
+    log = _safe(log)
+    try:
+        root = Path(root)
+        if not root.exists():
+            root.mkdir(parents=True)
+        reconcile(root, shipped, log)
+    except Exception as error:  # never keep the surface off a set
+        log(f"{type(error).__name__}: {error}")
+    return 0
+
+
+def main(argv=None):
+    try:
+        parser = argparse.ArgumentParser(description="Seed A3 Motion's data folder.")
+        parser.add_argument("root", type=Path)
+        parser.add_argument("--shipped", type=Path, default=SHIPPED)
+        parser.add_argument("--from", dest="source", type=Path)
+        parser.add_argument("--report", action="store_true")
+        args = parser.parse_args(argv)
+        if args.report:
+            for line in report(args.root, args.shipped):
+                print(line.encode("utf-8", "backslashreplace").decode("utf-8"))
+            return 0
+        return seed(args.root, args.shipped, source=args.source)
+    except SystemExit:  # argparse: --help, or a usage error; the start goes on
+        return 0
+    except Exception as error:
+        print(f"{PREFIX}{type(error).__name__}: {error}", file=sys.stderr)
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
