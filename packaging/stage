@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# A3 Motion UI's recipe for its Debian package, called by a3-system's
+# installer/package.py from an exported tree (git archive), never the checkout:
+#
+#   packaging/stage build <src> <build> <juce-prefix> <jobs> [--test]
+#   packaging/stage files <src> <build> <stage>
+#
+# `build` compiles in <build>; `files` lays out the package tree under <stage>
+# (the builder adds DEBIAN/). Neither writes anywhere else.
+set -euo pipefail
+umask 022
+
+BINARY=src/a3-motion-ui/a3-motion-ui_artefacts/Release/Standalone/a3-motion-ui
+TOOLS=(platform_config/a3-wait-for-the-screen tools/a3-motion-ui-seed)
+SHARE=usr/share/a3-motion-ui
+INSTALLED_TRUTH=/usr/share/a3/a3-osc.json
+
+usage() {
+    echo "usage: $0 build <src> <build> <juce> <jobs> [--test] | files <src> <build> <stage>" >&2
+    exit 2
+}
+
+# The suite as test.sh runs it, from the exported tree: the shipped material
+# is <src> itself (it is the commit), and the truth an offline copy (#67).
+run_tests() {
+    local src=$1 build=$2 truth
+    rm -rf "$build/committed"
+    mkdir -p "$build/committed"
+    cp -R "$src/config" "$src/pattern" "$build/committed/"
+    if [[ -n "${A3_OSC_TRUTH:-}" ]]; then
+        truth=$A3_OSC_TRUTH
+    elif [[ -f "$INSTALLED_TRUTH" ]]; then
+        truth="$build/a3-osc-offline.json"
+        python3 -I "$src/tools/a3-offline-truth" "$INSTALLED_TRUTH" "$truth"
+    else
+        echo "stage: --test needs a3-core's OSC truth ($INSTALLED_TRUTH) or A3_OSC_TRUTH" >&2
+        exit 1
+    fi
+    A3_OSC_TRUTH=$truth ctest --test-dir "$build" --output-on-failure
+    (cd "$src" && PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests)
+}
+
+build() {
+    [[ $# -eq 4 || ( $# -eq 5 && "$5" == --test ) ]] || usage
+    local src=$1 build=$2 juce=$3 jobs=$4 test=${5:-}
+    local tests=OFF targets=(a3-motion-ui_Standalone)
+    if [[ "$test" == --test ]]; then
+        tests=ON
+        targets+=(a3-motion-tests)
+    fi
+    # TESTS_ENABLED defaults ON and needs GoogleTest at configure time; a
+    # build without --test must not (a3coreV01 builds without it).
+    cmake -S "$src" -B "$build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$juce" \
+        -DHARDWARE_INTERFACE_ENABLED=ON -DTESTS_ENABLED="$tests"
+    cmake --build "$build" -j "$jobs" --target "${targets[@]}"
+    if [[ "$tests" == ON ]]; then
+        run_tests "$src" "$build"
+    fi
+}
+
+# Every file of <src>/<dir> under <dest>/<dir>, as data; names with spaces kept.
+ship_tree() {
+    local src=$1 dir=$2 dest=$3 file
+    while IFS= read -r -d '' file; do
+        install -D -m 644 "$file" "$dest/${file#"$src"/}"
+    done < <(find "$src/$dir" -type f -print0)
+}
+
+files() {
+    [[ $# -eq 3 ]] || usage
+    local src=$1 build=$2 stage=$3 tool skin
+    install -D -m 755 "$build/$BINARY" "$stage/usr/bin/a3-motion-ui"
+    for tool in "${TOOLS[@]}"; do
+        install -D -m 755 "$src/$tool" "$stage/usr/lib/a3-motion-ui/$(basename "$tool")"
+    done
+    install -D -m 644 "$src/platform_config/a3-motion.service" \
+        "$stage/usr/lib/systemd/user/a3-motion.service"
+    ship_tree "$src" resources "$stage/$SHARE"
+    ship_tree "$src" pattern "$stage/$SHARE"
+    install -D -m 644 "$src/config/config.json" "$stage/$SHARE/config/config.json"
+    for skin in "$src"/config/skins/*.json; do
+        install -D -m 644 "$skin" "$stage/$SHARE/config/skins/$(basename "$skin")"
+    done
+    # .reuse/dep5 is already in Debian's machine-readable copyright format.
+    install -D -m 644 "$src/.reuse/dep5" "$stage/usr/share/doc/a3-motion-ui/copyright"
+}
+
+case "${1:-}" in
+    build) shift; build "$@" ;;
+    files) shift; files "$@" ;;
+    *) usage ;;
+esac

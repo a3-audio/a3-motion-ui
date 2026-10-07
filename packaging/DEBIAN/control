@@ -1,0 +1,19 @@
+Package: a3-motion-ui
+Version: 0
+Architecture: amd64
+Maintainer: Rafjagger
+Section: sound
+Priority: optional
+Depends: ${shlibs:Depends}, x11-utils, x11-xserver-utils, python3
+Recommends: onboard, dbus-bin, i3
+Description: A3 Motion UI, the touch surface of the A3 Motion controller
+ Records and plays movement trajectories for four channels and sends
+ them to A3 Core over OSC; it renders no audio. Runs as the systemd user
+ unit a3-motion.service on i3 workspace 1; the panel is found by its USB ID.
+ .
+ User data stays when the package is removed or purged: settings, skins
+ and the pattern library in ~/.local/share/a3-motion, the log in
+ ~/.local/state/a3-motion. The shipped defaults in /usr/share/a3-motion-ui
+ are copied there at the start, never moved or written over: a file you
+ changed stays, and a newer shipped version goes beside it as
+ <name>.shipped.

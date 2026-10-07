@@ -1,0 +1,20 @@
+#!/bin/sh
+# Enables Motion's user unit for every user, and nothing else: no write into
+# any home, no restart. A running Motion keeps its old binary (dpkg renames
+# the new one into place) until its next start; `install` restarts it, a
+# manual apt-get install leaves the moment to whoever is playing the set.
+set -e
+
+if [ "$1" = "configure" ] && command -v systemctl >/dev/null 2>&1; then
+	systemctl --global enable a3-motion.service || true
+	# Every running user manager learns of the new unit file. Only a reload:
+	# reaching a user manager needs its user's name, which loginctl gives here,
+	# so no user is hard-coded.
+	for user in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $2}'); do
+		systemctl --user --machine="$user@" daemon-reload 2>/dev/null || true
+	done
+	echo "a3-motion-ui: installed. A running Motion keeps the old version until"
+	echo "  systemctl --user restart a3-motion.service"
+fi
+
+exit 0
