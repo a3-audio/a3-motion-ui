@@ -13,6 +13,17 @@ PartOf=a3-main.service
 After=graphical.target
 
 [Service]
+# The user manager starts the unit before the X session hands DISPLAY over,
+# and the screen wait would hang without it (a3nuc1, 2026-09-12; was the
+# drop-in display.conf).
+Environment=DISPLAY=:0
+# The user's data folder, laid out like the checkout: config/ and pattern/.
+# '-': on the very first start the seed below makes it.
+WorkingDirectory=-%h/.local/share/a3-motion
+# As the user, while Motion is stopped: the data folder seeded from
+# /usr/share/a3-motion-ui -- copied, never written over (a3-motion-ui-seed).
+# '-': a seed that fails must not keep the surface off a set.
+ExecStartPre=-/usr/lib/a3-motion-ui/a3-motion-ui-seed %h/.local/share/a3-motion
 # The screen being *itself*, not X merely answering -- and not three seconds.
 #
 # `xset q` answers long before i3 has set the mode: its config turns the output
@@ -27,8 +38,12 @@ After=graphical.target
 # Three seconds would not have helped: that start was already 20 seconds after
 # boot. So this waits for the quantity that actually decides -- the DPI X
 # reports -- and gives up after a minute rather than holding the rig hostage.
-ExecStartPre=/home/aaa/.local/bin/a3-wait-for-the-screen
-ExecStart=/usr/bin/a3-motion
+ExecStartPre=/usr/lib/a3-motion-ui/a3-wait-for-the-screen
+ExecStart=/usr/bin/a3-motion-ui
+# A new truth from Core ends Motion with 1 so that it starts again on it
+# (a3-system#74). This was the hand-made drop-in restart.conf on a3nuc1 (#69).
+Restart=on-failure
+RestartSec=5
 CPUAffinity=0
 # No real-time for the whole process: it would put the GUI above JACK's
 # process threads, which made JACK report late clients (2026-10-06).
