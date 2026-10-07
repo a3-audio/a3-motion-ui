@@ -71,6 +71,9 @@ loadSettings (juce::File const &file)
     settings.encoderClicksRecord
         = static_cast<int> (parsed["encoderClicksRecord"]) & 0xff;
 
+  if (parsed.hasProperty ("fpvView"))
+    settings.fpvView = static_cast<bool> (parsed["fpvView"]);
+
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
   // speed outside the range would sit on a key the drag cannot bring back.
@@ -102,6 +105,7 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   obj->setProperty ("cameraZoom", settings.cameraZoom);
   obj->setProperty ("encoderClicksMotion", settings.encoderClicksMotion);
   obj->setProperty ("encoderClicksRecord", settings.encoderClicksRecord);
+  obj->setProperty ("fpvView", settings.fpvView);
 
   juce::var const state (obj);
 

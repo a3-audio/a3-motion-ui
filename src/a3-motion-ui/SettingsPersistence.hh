@@ -82,6 +82,9 @@ struct AppSettings
    *  from before. */
   int encoderClicksMotion = 0;
   int encoderClicksRecord = 0;
+
+  /** The device came down in FPV and comes back up in it. */
+  bool fpvView = false;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */

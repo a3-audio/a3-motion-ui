@@ -323,3 +323,29 @@ TEST (SettingsPersistence, AStoredCameraIsHeldToItsLimits)
 
   file.deleteFile ();
 }
+
+TEST (SettingsPersistence, TheFpvViewRoundTrips)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-fpvview.json");
+  file.deleteFile ();
+
+  AppSettings settings;
+  settings.fpvView = true;
+  saveSettings (file, settings);
+
+  EXPECT_TRUE (loadSettings (file).fpvView);
+  file.deleteFile ();
+}
+
+TEST (SettingsPersistence, AFileWithoutTheViewStartsInFull)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-noview.json");
+  file.replaceWithText ("{ \"clockMode\": 1 }");
+
+  EXPECT_FALSE (loadSettings (file).fpvView);
+  file.deleteFile ();
+}

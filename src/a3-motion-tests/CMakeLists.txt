@@ -185,6 +185,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeterView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/StatusBarLayout.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/AppView.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/UnitScheduling.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionIsPureOsc.cc"

@@ -167,6 +167,7 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/StatusBar.hh
     components/StatusBarLayout.cc
     components/StatusBarLayout.hh
+    components/AppView.hh
     components/BlobPunch.cc
     components/CoronaScaling.cc
     components/DragAccumulator.cc
