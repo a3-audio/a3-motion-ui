@@ -396,7 +396,7 @@ public:
       onChannelPotChanged;
   std::function<void (int channel, ChannelPot)> onChannelPotDoubleTapped;
   /** Where a face's meter reads its channel. Asked at paint time. */
-  std::function<VuLevel (int channel)> channelLevel;
+  std::function<VuReading (int channel)> channelLevel;
 
   /** Where the engine holds a channel's 3D, FREQ and Q, and where their
    *  envelopes carry them -- drawn on the face's pots as the mixers draw

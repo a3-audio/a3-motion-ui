@@ -25,6 +25,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <a3-motion-engine/Config.hh>
+#include <a3-motion-engine/MeterBallistics.hh>
 
 #include <a3-motion-ui/components/ControllerLayout.hh>
 
@@ -68,10 +69,10 @@ constexpr int numOutputMeters = 10;
  *  question.
  *
  *  **It deliberately does not track the rate the meters arrive at, and must
- *  not be rewritten to.** VuLevels keeps only the latest sample, so a page
- *  redrawing slower than the sender shows the newest value and one redrawing
- *  faster shows the same value twice — neither is a fault, and neither needs
- *  the two numbers to agree. That independence is the point: how fast the
+ *  not be rewritten to.** VuLevels computes a meter's bar and hold when it is
+ *  read (MeterBallistics), so a page redrawing faster than the sender shows
+ *  the fall between two arrivals and one redrawing slower skips a step of it
+ *  — neither is a fault, and neither needs the two numbers to agree. That independence is the point: how fast the
  *  meters arrive is somebody else's setting on another machine, and a
  *  constant here derived from it would be one that goes quietly wrong when
  *  that setting changes.
@@ -105,19 +106,19 @@ struct VuLevel
  *  which is the same as having no meter. */
 constexpr float vuMeterFloorDb = -60.f;
 
-/** How long the peak's mark stands still before it follows the signal again.
+/** What one meter draws: its bar and its hold line, as linear amplitude.
  *
- *  A second and a half, and the number is about a person rather than about a
- *  frame rate. A transient occupies one frame however fast the frames come,
- *  which is to say nobody sees it; the hold has to be long enough that the
- *  mark can be found, read and believed with both hands busy, and short
- *  enough that it still answers to what is playing now rather than to what
- *  played a chorus ago.
- *
- *  In milliseconds rather than in frames for the same reason
- *  `vuMeterRefreshHz` is not derived from the sending rate: a hold counted in
- *  frames would mean a different length of time on every setup. */
-constexpr juce::int64 vuPeakHoldMs = 1500;
+ *  Not the wire's VuLevel. Since 2026-10-07 the sources send raw peaks and
+ *  every display applies the same ballistics (MeterBallistics, numbers from
+ *  Core's truth): the bar is the peak, falling at the release rate, and the
+ *  hold line is the highest recent peak, held and then falling the same way.
+ *  The desk, StemDeck and these meters draw one burst alike. The rms that
+ *  arrives beside the peak is no longer drawn here; the sphere still reads it. */
+struct VuReading
+{
+  float bar = 0.f;
+  float hold = 0.f;
+};
 
 /** The clock the peak's hold is measured on.
  *
@@ -187,10 +188,10 @@ struct VuMeterGeometry
   /** The whole bar, drawn even when it is empty: a meter has to be findable
    *  before it has anything to say. */
   juce::Rectangle<int> track;
-  /** The fill, standing on the foot of the track. */
-  juce::Rectangle<int> rms;
-  /** The thin mark, laid across the track where the peak reached. */
-  juce::Rectangle<int> peak;
+  /** The fill, standing on the foot of the track: the bar. */
+  juce::Rectangle<int> fill;
+  /** The thin mark, laid across the track at the hold line. */
+  juce::Rectangle<int> hold;
   /** The fill again, cut into its three colour bands foot to head.
    *
    *  **A band is a stretch of the track, not a state of the signal.** They are
@@ -200,7 +201,7 @@ struct VuMeterGeometry
    *  colour as a whole would be a warning light, and a warning light answers
    *  only yes or no.
    *
-   *  Together they are exactly `rms`: a band that came out empty is one the
+   *  Together they are exactly `fill`: a band that came out empty is one the
    *  fill has not reached. Cut here rather than in paint() so the boundaries
    *  can be checked without a screen. */
   std::array<juce::Rectangle<int>, numVuMeterBands> bands;
@@ -218,7 +219,7 @@ enum class VuDirection
   Right,
 };
 
-VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
+VuMeterGeometry vuMeterGeometry (juce::Rectangle<int> bounds, VuReading reading,
                                  VuDirection direction = VuDirection::Up);
 
 /** Where VOL stands, as a bar laid across a channel's meter -- see
@@ -397,21 +398,20 @@ stepMeterBarsUp (juce::Rectangle<int> block, int cell, int gap,
     }
 }
 
-/** Every level the mixer's meters read, and the peak lingering over each.
+/** Every level the mixer's meters read, through the shared ballistics.
  *
- *  **Why this exists at all**, given that `/vu/0..3` already lands in
+ *  **Why this exists at all**, given that the channels' `/vu` already lands in
  *  `ChannelUIState::vuPeak`/`vuLevel`: those are two bare atomics read by the
- *  GL thread for the corona, with no memory of when a value arrived. A peak
- *  mark that stands still for a moment needs that memory, and it has to be
- *  one memory — the overlay and the bar's MIX tab draw the same channel's
- *  meter, and two holds would be two marks disagreeing about the same sound.
- *  So the channel levels are written here *beside* the existing store, never
- *  instead of it, and the same goes for the outputs: `/vu/4` and `/vu/5..8`
- *  still reach the sphere's glow and the speaker lights, which have no other
- *  source.
+ *  GL thread for the corona, with no memory of when a value arrived. A bar
+ *  that falls and a mark that stands still for a moment need that memory, and
+ *  it has to be one memory — the overlay, the bar's MIX tab and the clip
+ *  faces draw the same channel's meter, and two would disagree about the same
+ *  sound. So the channel levels are written here *beside* the existing store,
+ *  never instead of it, and the same goes for the outputs, which still reach
+ *  the sphere's glow and the speaker lights.
  *
- *  Time is a parameter rather than something this reads, so the hold can be
- *  tested without waiting for it.
+ *  Time is a parameter rather than something this reads, so the ballistics
+ *  can be tested without waiting for them.
  *
  *  Not thread-safe, and does not need to be: every `/vu` message arrives on
  *  the message thread (`OSCReceiver::MessageLoopCallback`) and every reader
@@ -419,27 +419,22 @@ stepMeterBarsUp (juce::Rectangle<int> block, int cell, int gap,
 class VuLevels
 {
 public:
+  /** Core's numbers (OscTruth::meterBallistics()), for every meter here. */
+  void setBallistics (MeterBallisticsParameters parameters);
+
   void setChannel (int channel, VuLevel level, juce::int64 nowMs);
   void setOutput (int meter, VuLevel level, juce::int64 nowMs);
 
-  /** The latest rms, and the peak as it should be *drawn* — held while its
-   *  hold lasts, and the current frame's once it is up. */
-  VuLevel channel (int channel, juce::int64 nowMs) const;
-  VuLevel output (int meter, juce::int64 nowMs) const;
+  VuReading channel (int channel, juce::int64 nowMs) const;
+  VuReading output (int meter, juce::int64 nowMs) const;
 
 private:
-  struct Meter
-  {
-    VuLevel latest;
-    float heldPeak = 0.f;
-    juce::int64 heldAtMs = 0;
-  };
+  static VuReading read (MeterBallistics const &meter, juce::int64 nowMs);
 
-  static void set (Meter &meter, VuLevel level, juce::int64 nowMs);
-  static VuLevel read (Meter const &meter, juce::int64 nowMs);
-
-  std::array<Meter, static_cast<std::size_t> (numChannelsInitial)> _channel;
-  std::array<Meter, static_cast<std::size_t> (numOutputMeters)> _output;
+  std::array<MeterBallistics, static_cast<std::size_t> (numChannelsInitial)>
+      _channel;
+  std::array<MeterBallistics, static_cast<std::size_t> (numOutputMeters)>
+      _output;
 };
 
 /** One meter, drawn into `bounds`.
@@ -456,7 +451,7 @@ private:
  *  meter it is, the strip it stands in already says: the wash behind it and
  *  every knob beside it are in the channel's colour. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level, VuDirection direction = VuDirection::Up);
+                   VuReading reading, VuDirection direction = VuDirection::Up);
 
 /** The same meter, standing on a different ground.
  *
@@ -472,7 +467,7 @@ void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
  *  Only the track. The bands, the mark and every boundary between them stay
  *  exactly what they are on the mixer page, because those are the reading. */
 void paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
-                   VuLevel level, juce::Colour track,
+                   VuReading reading, juce::Colour track,
                    VuDirection direction = VuDirection::Up);
 
 }

@@ -48,7 +48,7 @@ public:
 
   /** Where the reading comes from. Asked at paint time, so the store stays
    *  the page's and this keeps no copy of a level to go stale. */
-  std::function<VuLevel ()> level;
+  std::function<VuReading ()> level;
 
   /** Up for a channel's column, Right for one of the master's output bars. */
   void setDirection (VuDirection direction);

@@ -6840,8 +6840,8 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
   // And into the mixer's own store, beside the two atomics above rather than
   // instead of them. Those two are what the GL thread reads for the corona
   // around the blob and they remember nothing about when a value arrived; a
-  // peak mark that stands still for a moment needs that, and it has to be one
-  // memory for the overlay and the bar's tab both.
+  // falling bar and a held mark need that, and it has to be one memory for
+  // every page that draws this channel's meter.
   _vuLevels.setChannel (channel, { peak, rms }, vuNowMs ());
 }
 
@@ -7340,6 +7340,10 @@ A3MotionUIComponent::applyOscAddresses ()
     _pendingBeatAddress = _oscAddresses.beatOut;
   }
   _beatAddressPending.store (true, std::memory_order_release);
+
+  // How the meters move is Core's to say, like the addresses: the same
+  // numbers the desk and StemDeck read, so one burst falls alike on all three.
+  _vuLevels.setBallistics (installedOscTruth ().meterBallistics ());
 }
 
 void
