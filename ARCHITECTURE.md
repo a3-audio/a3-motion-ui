@@ -541,6 +541,20 @@ Three things are not obvious:
   louder side's (`routeChannelSide`), as a DJ mixer shows a stereo channel.
   The mono `inN_pre` read 3 dB low (REAPER's send downmix) and is no longer
   read; the `inN_post` pairs are the desk's, not Motion's.
+- **The meters' ballistics are the truth's, and they do have defaults.**
+  Since 2026-10-07 the analyzer and StemDeck send raw peaks (the highest
+  sample since the last tick, no fall, no hold) and every display applies the
+  same ballistics on its own clock: attack immediate, release 20 dB/s, a hold
+  line that stands 1.5 s and then falls at 20 dB/s. The numbers are Core's
+  top-level `meters` block (`attack_ms`, `release_db_per_second`,
+  `peak_hold_seconds`), read by `OscTruth::meterBallistics()`; unlike an
+  address, a missing block or key falls back on those decided numbers
+  (`MeterBallisticsParameters`), because JUCE reads a missing key as 0 and a
+  release of 0 is a meter that never falls. `MeterBallistics` is the one
+  implementation; `VuLevels` keeps one per meter, so Motion's bars are the
+  falling peak and the white mark is the hold (`VuReading`). The rms on the
+  wire is no longer drawn by a meter; the sphere's corona, glow and speaker
+  lights still read peak and rms through their own skin envelopes.
 
 The addresses are applied once, at start-up (`applyOscAddresses`) — the truth
 only changes with a package install. They still cross a thread on the way:
