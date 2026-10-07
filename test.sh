@@ -113,18 +113,7 @@ installed_truth() {
 }
 
 offline_copy() {
-    python3 -I - "$1" "$2" <<'PY'
-import json, sys
-source, target = sys.argv[1], sys.argv[2]
-with open(source) as f:
-    truth = json.load(f)
-kept = ("local", "any")
-moved = [name for name in truth.get("hosts", {}) if name not in kept]
-for number, name in enumerate(moved, start=10):
-    truth["hosts"][name] = f"192.0.2.{number}"
-with open(target, "w") as f:
-    json.dump(truth, f, indent=2)
-PY
+    python3 -I "$SCRIPT_DIR/tools/a3-offline-truth" "$1" "$2"
 }
 
 if [ -n "$A3_OSC_TRUTH" ]; then
