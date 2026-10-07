@@ -52,6 +52,12 @@ cmake --build build --target install
 ./run.sh          # run it (the Debug build if there is one, else Release)
 ```
 
+Installed from the `a3-motion-ui` package, Motion runs as the user service
+`a3-motion.service` and keeps its settings, skins and pattern library in
+`~/.local/share/a3-motion` and its log in `~/.local/state/a3-motion/`. A dev
+build reaches the rig only through a drop-in; see "Packaged: what lives where"
+in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 The files the machine needs (user service, i3 config, X rules for the
 touchscreen) are in [`platform_config/`](platform_config/README.md), with
 where each one goes.

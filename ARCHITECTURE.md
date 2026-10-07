@@ -44,7 +44,10 @@ That trade is the reason `test.sh` exists — see Tests.
 
 `build.sh` configures CMake into `build/` with `-DHARDWARE_INTERFACE_ENABLED=ON` and builds only
 the `a3-motion-ui_Standalone` target. It also symlinks `resources/` and `config/` into the build's
-artefact directory so the binary can find them at runtime.
+artefact directory. The `resources/` link is how a dev build finds its pictures
+(`resourceDirectory`, see "Packaged: what lives where"); the `config/` link is
+unused at runtime, since `config/` and `pattern/` are read from the working
+directory.
 
 Manual CMake invocation (equivalent, useful for other targets like the test runner or pattern
 generator):
@@ -91,7 +94,60 @@ A3_BUILD_TYPE=Release ./run.sh
 ```
 
 Runtime config lives in `config/config.json` (OSC hosts/ports, LED colours, corona/glow visual
-tuning, per-channel colours). The build symlinks this directory next to the binary.
+tuning, per-channel colours). It is read from the working directory; `run.sh` does not
+change it, so run from a checkout it is the checkout's `config/` and `pattern/`.
+
+## Packaged: what lives where
+
+The `a3-motion-ui` package (`packaging/stage` lays out its tree) puts the program and
+what never changes under `/usr`, and keeps everything the performer edits in his home:
+
+| What | Where |
+|---|---|
+| binary | `/usr/bin/a3-motion-ui` |
+| helpers | `/usr/lib/a3-motion-ui/` (`a3-motion-ui-seed`, `a3-wait-for-the-screen`) |
+| unit | `/usr/lib/systemd/user/a3-motion.service` |
+| shipped defaults | `/usr/share/a3-motion-ui/{resources,config,pattern}` |
+| working directory (his) | `~/.local/share/a3-motion` (`config/`, `pattern/`, `.shipped.json`) |
+| log | `~/.local/state/a3-motion/a3-motion-ui.log` (`$XDG_STATE_HOME` if absolute) |
+
+**Resources** are not seeded: they are code. `resourceDirectory` (`AppPaths.hh`) takes
+`resources/` beside the executable if it exists (a build with `build.sh`'s link), else
+`../share/a3-motion-ui/resources` from it (the package). A missing folder is logged once.
+
+**The seed** (`a3-motion-ui-seed`, the unit's `ExecStartPre`, as the user, never fatal)
+copies `config/` and `pattern/` from the shipped defaults into the working directory
+and never deletes. Per shipped file: a link or non-plain file is left alone (1); one
+that is missing is added unless the manifest says he removed it (2); one equal to the
+shipped version needs nothing (3); one still as the last package shipped it takes the
+new version (4); on the first seed after a migration every existing file is his (5);
+one he changed that the package did not change stays as it is (6); one he changed
+while the package did gets the new version beside it as `<name>.shipped` (7).
+`.shipped.json` remembers `path -> sha256` of what was shipped. With no working
+directory yet, the seed copies an old checkout's `config/` and `pattern/` (the
+`a3-system/a3-motion/ui` layout, or `--from DIR`) instead of starting from the defaults.
+
+**`.shipped` files are invisible to the app** (`ShippedCopies` tests): not a skin, not a
+library entry, not moved into a user half. `a3-motion-ui-seed --report
+~/.local/share/a3-motion` lists what differs from the shipped defaults and what waits.
+
+**Factory work moves.** A rig edit does not land in the checkout any more. To promote it
+into the shipped library, copy the file from `~/.local/share/a3-motion` into the
+checkout's `config/` or `pattern/` and commit.
+
+**Dev route.** A dev build reaches the rig only through an explicit drop-in,
+`~/.config/systemd/user/a3-motion.service.d/zz-dev.conf`:
+
+```ini
+[Service]
+ExecStartPre=/bin/echo "a3-motion: DEV BUILD from <path> -- remove zz-dev.conf to go back to the package"
+ExecStart=
+ExecStart=<path>/build/src/a3-motion-ui/a3-motion-ui_artefacts/Release/Standalone/a3-motion-ui
+```
+
+It keeps the packaged working directory, so the dev build plays his live set. To go
+back: `rm` the file, `systemctl --user daemon-reload`, restart. `build.sh -s` restarts
+the *unit*; without `zz-dev.conf` that is the package.
 
 ## Tests
 
