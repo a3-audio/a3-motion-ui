@@ -100,7 +100,7 @@ change it, so run from a checkout it is the checkout's `config/` and `pattern/`.
 ## Packaged: what lives where
 
 The `a3-motion-ui` package (`packaging/stage` lays out its tree) puts the program and
-what never changes under `/usr`, and keeps everything the performer edits in his home:
+what never changes under `/usr`, and keeps everything the performer edits in their home:
 
 | What | Where |
 |---|---|
@@ -108,7 +108,7 @@ what never changes under `/usr`, and keeps everything the performer edits in his
 | helpers | `/usr/lib/a3-motion-ui/` (`a3-motion-ui-seed`, `a3-wait-for-the-screen`) |
 | unit | `/usr/lib/systemd/user/a3-motion.service` |
 | shipped defaults | `/usr/share/a3-motion-ui/{resources,config,pattern}` |
-| working directory (his) | `~/.local/share/a3-motion` (`config/`, `pattern/`, `.shipped.json`) |
+| working directory (the performer's) | `~/.local/share/a3-motion` (`config/`, `pattern/`, `.shipped.json`) |
 | log | `~/.local/state/a3-motion/a3-motion-ui.log` (`$XDG_STATE_HOME` if absolute) |
 
 **Resources** are not seeded: they are code. `resourceDirectory` (`AppPaths.hh`) takes
@@ -118,10 +118,10 @@ what never changes under `/usr`, and keeps everything the performer edits in his
 **The seed** (`a3-motion-ui-seed`, the unit's `ExecStartPre`, as the user, never fatal)
 copies `config/` and `pattern/` from the shipped defaults into the working directory
 and never deletes. Per shipped file: a link or non-plain file is left alone (1); one
-that is missing is added unless the manifest says he removed it (2); one equal to the
+that is missing is added unless the manifest says it was removed (2); one equal to the
 shipped version needs nothing (3); one still as the last package shipped it takes the
-new version (4); on the first seed after a migration every existing file is his (5);
-one he changed that the package did not change stays as it is (6); one he changed
+new version (4); on the first seed after a migration every existing file counts as the performer's (5);
+one changed locally that the package did not change stays as it is (6); one changed locally
 while the package did gets the new version beside it as `<name>.shipped` (7).
 `.shipped.json` remembers `path -> sha256` of what was shipped. With no working
 directory yet, the seed copies an old checkout's `config/` and `pattern/` (the
@@ -145,7 +145,7 @@ ExecStart=
 ExecStart=<path>/build/src/a3-motion-ui/a3-motion-ui_artefacts/Release/Standalone/a3-motion-ui
 ```
 
-It keeps the packaged working directory, so the dev build plays his live set. To go
+It keeps the packaged working directory, so the dev build plays the live set. To go
 back: `rm` the file, `systemctl --user daemon-reload`, restart. `build.sh -s` restarts
 the *unit*; without `zz-dev.conf` that is the package.
 
