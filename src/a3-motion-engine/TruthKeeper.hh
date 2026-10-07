@@ -21,6 +21,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 
 // Motion takes its truth from Core (spec truth-from-core, step 3), like the
 // desk and StemDeck: it starts on the truth Core last served, hears
@@ -72,4 +73,70 @@ startPath (char const *override, std::string const &cache, bool cacheUsable,
     return override;
   return cacheUsable ? cache : package;
 }
+
+/** How long Motion waits for Core's announcement before it opens on the
+ *  truth on disk (decided 2026-10-07, a3-system#74). */
+constexpr int startupWaitMs = 10000;
+
+enum class StartupStep
+{
+  stay,
+  open,
+  fetch
+};
+
+/** Motion's start-up: the window opens once -- on Core's truth when Core
+ *  announces within startupWaitMs (fetched first if it differs), else on what
+ *  is on disk. A fetch that fails still opens: on what is there. Pure;
+ *  TruthKeeperLink drives it on the message thread. */
+class StartupWait
+{
+public:
+  explicit StartupWait (std::string candidate)
+      : _candidate (std::move (candidate))
+  {
+  }
+
+  StartupStep
+  announced (std::string const &fingerprint)
+  {
+    if (_open || _fetching)
+      return StartupStep::stay;
+    if (!needsFetch (fingerprint, _candidate))
+      return openNow ();
+    _fetching = true;
+    return StartupStep::fetch;
+  }
+
+  StartupStep
+  fetched ()
+  {
+    _fetching = false;
+    return _open ? StartupStep::stay : openNow ();
+  }
+
+  StartupStep
+  timedOut ()
+  {
+    return _open ? StartupStep::stay : openNow ();
+  }
+
+  bool
+  isOpen () const
+  {
+    return _open;
+  }
+
+private:
+  StartupStep
+  openNow ()
+  {
+    _open = true;
+    return StartupStep::open;
+  }
+
+  std::string _candidate;
+  bool _open = false;
+  bool _fetching = false;
+};
 }

@@ -181,3 +181,74 @@ TEST (KeeperLink, ThePoolIsTheLastMember)
   EXPECT_FALSE (rest.contains ("_busy")) << rest;
   EXPECT_FALSE (rest.contains ("_lastReason")) << rest;
 }
+
+// Motion opens its window once, on Core's truth if Core announces it within
+// 10 s, else on the truth on disk (decided 2026-10-07, a3-system#74).
+TEST (KeeperStartup, TheWaitIsTenSeconds)
+{
+  EXPECT_EQ (tk::startupWaitMs, 10000);
+}
+
+TEST (KeeperStartup, CoresTruthOnDiskOpensAtOnce)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_FALSE (wait.isOpen ());
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::open);
+  EXPECT_TRUE (wait.isOpen ());
+}
+
+TEST (KeeperStartup, AnotherTruthIsFetchedAndThenOpened)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_FALSE (wait.isOpen ());
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::open);
+}
+
+TEST (KeeperStartup, AnnouncementsDuringTheFetchAreIgnored)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.announced ("old"), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, SilenceOpensAtTheTimeout)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::open);
+}
+
+TEST (KeeperStartup, ItOpensOnlyOnce)
+{
+  tk::StartupWait wait ("abc");
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::open);
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.announced ("xyz"), tk::StartupStep::stay);
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::stay);
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, AFetchLandingAfterTheTimeoutDoesNotOpenAgain)
+{
+  tk::StartupWait wait ("old");
+  EXPECT_EQ (wait.announced ("new"), tk::StartupStep::fetch);
+  EXPECT_EQ (wait.timedOut (), tk::StartupStep::open);
+  EXPECT_EQ (wait.fetched (), tk::StartupStep::stay);
+}
+
+TEST (KeeperStartup, NoTruthOnDiskFetchesAnyAnnouncement)
+{
+  tk::StartupWait wait ("");
+  EXPECT_EQ (wait.announced ("abc"), tk::StartupStep::fetch);
+}
+
+// The candidate Motion waits with is the digest of the file it will load.
+TEST (KeeperOwn, TheFileDigestIsTheDigestOfWhatLoads)
+{
+  auto const file = juce::File::createTempFile ("json");
+  file.replaceWithText (R"({"addresses": {}})");
+  EXPECT_EQ (a3::oscTruthFileDigest (file), a3::loadOscTruth (file).digest ());
+  file.deleteFile ();
+  EXPECT_TRUE (a3::oscTruthFileDigest (file).isEmpty ());
+}
