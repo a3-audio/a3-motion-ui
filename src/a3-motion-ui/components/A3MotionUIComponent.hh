@@ -720,8 +720,8 @@ private:
   /** Camera mode: the elevation picture is selected and the sphere turns the
    *  view. */
   bool _cameraMode = false;
-  /** FULL or FPV. FPV hides the bar and the menu, puts the four strips below
-   *  the sphere and turns the blobs into ships; every way into the menu
+  /** FULL or FPV. FPV hides the clip-settings bar (the status bar stays, it
+   *  carries the view key), puts the four strips below the sphere and turns the blobs into ships; every way into the menu
    *  leads back to FULL. */
   AppView _view = AppView::Full;
   std::unique_ptr<FpvStrips> _fpvStrips;

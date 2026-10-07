@@ -1820,8 +1820,9 @@ still built and tested until it is removed.
 
 **The app has two views, FULL and FPV** (2026-10-07; spec in the workspace at
 `.claude/notes/fpv-motion-ui.md`, this is phase 1 of it). FULL is everything described above. FPV
-is for watching and playing a set: the sphere on the top two thirds, one strip per channel on the
-bottom third, and nothing else. `AppView` (`components/AppView.hh`) is the value; the FULL/FPV key
+is for watching and playing a set: below the status bar, the sphere on the top two thirds and one
+strip per channel on the bottom third; the clip-settings bar is gone. The status bar stays, since it
+carries the key. `AppView` (`components/AppView.hh`) is the value; the FULL/FPV key
 stands right of CLOCK in the status bar (CLOCK is at the left end) and lights while FPV is up. The
 view survives a restart as `fpvView` in `config/ui_state.json` (`SettingsPersistence`), because a
 desk that was left in FPV should not wake up in the editor.
@@ -1847,13 +1848,16 @@ held, and the finger that let go was no longer listened to.
 
 **The strips take the clip settings' place.** `FpvLayout` is the pure arithmetic (sphere rectangle,
 four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
-with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter, all in the channel's colour from the
-theme. Both are in `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
+with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is a placeholder in phase
+1: `CH n` at the left and a fixed `AUTO` at the right, not wired to any state (`FpvChannel` has no
+mode field). Only the strip's tint and the bar fills use the channel's colour
+(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. Both are in `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
 `FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
 
 **What may be touched in FPV.** The panel works as it does in FULL: Play/Pause, pots, SHIFT. An
 action pad fires and selects its action but does **not** switch the page -- there is no page to
-switch to, and the next FULL shows the action. The pad's job is the performance; the page was
+switch to. FULL comes back on whatever bar page it had, and shows the action only if the ACTION
+page is open. The pad's job is the performance; the page was
 only ever feedback. Everything that needs FULL's room does switch to it first: MENU, the
 overlays, and the keyboard icon (KEYS). Entering FPV closes the overlays and the keyboard, so
 nothing is left standing over a view that has no place for it.
