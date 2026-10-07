@@ -200,7 +200,7 @@ meterSlice (juce::Rectangle<int> bounds, VuDirection direction, float from,
 }
 
 VuMeterGeometry
-vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
+vuMeterGeometry (juce::Rectangle<int> bounds, VuReading reading,
                  VuDirection direction)
 {
   VuMeterGeometry out{};
@@ -209,7 +209,7 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
     return out;
 
   out.track = bounds;
-  out.rms = meterSlice (bounds, direction, 0.f, vuMeterFraction (level.rms));
+  out.fill = meterSlice (bounds, direction, 0.f, vuMeterFraction (reading.bar));
 
   auto foot = 0.f;
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
@@ -218,11 +218,11 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
       // makes this a meter rather than three lamps is that a band is only
       // drawn as far as the signal has actually reached into it.
       auto const zone = meterSlice (bounds, direction, foot, bandCeilings[i]);
-      out.bands[i] = zone.getIntersection (out.rms);
+      out.bands[i] = zone.getIntersection (out.fill);
       foot = bandCeilings[i];
     }
 
-  auto const peakFraction = vuMeterFraction (level.peak);
+  auto const peakFraction = vuMeterFraction (reading.hold);
   if (peakFraction > 0.f)
     {
       auto const along = direction == VuDirection::Up ? bounds.getHeight ()
@@ -237,13 +237,13 @@ vuMeterGeometry (juce::Rectangle<int> bounds, VuLevel level,
       // scale the mark would sit exactly on the track's far edge and its
       // thickness would carry it out the other side.
       if (direction == VuDirection::Up)
-        out.peak = juce::Rectangle<int> (
+        out.hold = juce::Rectangle<int> (
             bounds.getX (),
             juce::jlimit (bounds.getY (), bounds.getBottom () - thickness,
                           bounds.getBottom () - at),
             bounds.getWidth (), thickness);
       else
-        out.peak = juce::Rectangle<int> (
+        out.hold = juce::Rectangle<int> (
             juce::jlimit (bounds.getX (), bounds.getRight () - thickness,
                           bounds.getX () + at - thickness),
             bounds.getY (), thickness, bounds.getHeight ());
@@ -411,28 +411,18 @@ outputMeterBlock (juce::Rectangle<int> block, ControlMetrics metrics)
 }
 
 void
-VuLevels::set (Meter &meter, VuLevel level, juce::int64 nowMs)
+VuLevels::setBallistics (MeterBallisticsParameters parameters)
 {
-  meter.latest = level;
-
-  // A louder peak takes over at once; a quieter one only once the hold is up.
-  // Both branches restart the hold, so a signal sitting at one level keeps
-  // its mark rather than having it expire underneath a steady sound.
-  if (level.peak >= meter.heldPeak || nowMs - meter.heldAtMs > vuPeakHoldMs)
-    {
-      meter.heldPeak = level.peak;
-      meter.heldAtMs = nowMs;
-    }
+  for (auto &meter : _channel)
+    meter.setParameters (parameters);
+  for (auto &meter : _output)
+    meter.setParameters (parameters);
 }
 
-VuLevel
-VuLevels::read (Meter const &meter, juce::int64 nowMs)
+VuReading
+VuLevels::read (MeterBallistics const &meter, juce::int64 nowMs)
 {
-  // The rms is always the latest frame's -- it is the level, and holding it
-  // would draw a sound that has stopped. Only the mark lingers.
-  return { nowMs - meter.heldAtMs <= vuPeakHoldMs ? meter.heldPeak
-                                                  : meter.latest.peak,
-           meter.latest.rms };
+  return { meter.bar (nowMs), meter.hold (nowMs) };
 }
 
 void
@@ -440,7 +430,7 @@ VuLevels::setChannel (int channel, VuLevel level, juce::int64 nowMs)
 {
   if (channel < 0 || channel >= numChannelsInitial)
     return;
-  set (_channel[static_cast<std::size_t> (channel)], level, nowMs);
+  _channel[static_cast<std::size_t> (channel)].note (level.peak, nowMs);
 }
 
 void
@@ -448,10 +438,10 @@ VuLevels::setOutput (int meter, VuLevel level, juce::int64 nowMs)
 {
   if (meter < 0 || meter >= numOutputMeters)
     return;
-  set (_output[static_cast<std::size_t> (meter)], level, nowMs);
+  _output[static_cast<std::size_t> (meter)].note (level.peak, nowMs);
 }
 
-VuLevel
+VuReading
 VuLevels::channel (int channel, juce::int64 nowMs) const
 {
   if (channel < 0 || channel >= numChannelsInitial)
@@ -459,7 +449,7 @@ VuLevels::channel (int channel, juce::int64 nowMs) const
   return read (_channel[static_cast<std::size_t> (channel)], nowMs);
 }
 
-VuLevel
+VuReading
 VuLevels::output (int meter, juce::int64 nowMs) const
 {
   if (meter < 0 || meter >= numOutputMeters)
@@ -468,21 +458,22 @@ VuLevels::output (int meter, juce::int64 nowMs) const
 }
 
 void
-paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
-              VuDirection direction)
+paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
+              VuReading reading, VuDirection direction)
 {
   // The strip's own raised surface, so a meter reads as part of the block of
   // controls beside it rather than as a picture laid over it — and, on the
   // page this was drawn for, as a channel cut into the black the mixer fills
   // itself with.
-  paintVuMeter (g, bounds, level, toColour (theme ().surfaceRaised), direction);
+  paintVuMeter (g, bounds, reading, toColour (theme ().surfaceRaised),
+                direction);
 }
 
 void
-paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
-              juce::Colour track, VuDirection direction)
+paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
+              VuReading reading, juce::Colour track, VuDirection direction)
 {
-  auto const geometry = vuMeterGeometry (bounds, level, direction);
+  auto const geometry = vuMeterGeometry (bounds, reading, direction);
   if (geometry.track.isEmpty ())
     return;
 
@@ -501,17 +492,17 @@ paintVuMeter (juce::Graphics &g, juce::Rectangle<int> bounds, VuLevel level,
         g.fillRect (geometry.bands[i]);
       }
 
-  if (!geometry.peak.isEmpty ())
+  if (!geometry.hold.isEmpty ())
     {
       // White, and not one of the three band colours it may land on or beside
       // -- a mark drawn in the yellow of the band under it says "band" where
       // it means "peak", and a red one at full scale would be invisible on
-      // exactly the reading a meter exists to shout. It stands over the bare
-      // track whenever there is any headroom between the rms and the peak,
-      // which with real programme material is always, so reading against the
-      // dark is the case it has to answer first.
+      // exactly the reading a meter exists to shout. For the hold's second
+      // and a half after a hit it stands over the bare track above the
+      // falling bar, so reading against the dark is the case it has to
+      // answer first; after that it rides on the bar's head.
       g.setColour (toColour (t.textPrimary));
-      g.fillRect (geometry.peak);
+      g.fillRect (geometry.hold);
     }
 }
 

@@ -25,6 +25,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/MeterBallistics.hh>
+
 namespace a3
 {
 
@@ -68,6 +70,13 @@ public:
   /** The number a meter is sent under, counted from 1 -- its place in the
    *  channel map's `vu_meters` -- or 0 if the map does not have it. */
   int vuNumber (juce::String const &meterName) const;
+
+  /** How the meters move: the top-level "meters" block (attack_ms,
+   *  release_db_per_second, peak_hold_seconds). **Unlike the addresses this
+   *  has defaults**, the decided numbers in MeterBallisticsParameters: a
+   *  truth from before the block (or one lacking a key) still meters, and a
+   *  key JUCE would read as 0 must not become a meter that never falls. */
+  MeterBallisticsParameters meterBallistics () const;
 
 private:
   friend OscTruth parseOscTruth (juce::String const &json);

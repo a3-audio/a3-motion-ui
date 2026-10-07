@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/MeterBallistics.hh>
 #include <a3-motion-engine/OscTruth.hh>
 
 #include <cstdlib>
@@ -124,4 +125,42 @@ TEST (OscTruth, TheEnvironmentPointsAtAnotherFile)
   ::unsetenv ("A3_OSC_TRUTH");
   // Without the override the start order decides (cache, then the package):
   // tests/unit/TruthKeeper.cc holds it with a temporary home.
+}
+
+// The meters' ballistics are Core's to set (2026-10-07): one block in the
+// truth, read by every display. A truth from before it carries none.
+TEST (OscTruth, ATruthWithoutMetersGivesTheSharedRule)
+{
+  auto const ballistics = parseOscTruth (sample).meterBallistics ();
+  MeterBallisticsParameters const defaults;
+  EXPECT_FLOAT_EQ (ballistics.attackMs, defaults.attackMs);
+  EXPECT_FLOAT_EQ (ballistics.releaseDbPerSecond, defaults.releaseDbPerSecond);
+  EXPECT_FLOAT_EQ (ballistics.peakHoldSeconds, defaults.peakHoldSeconds);
+}
+
+TEST (OscTruth, ReadsTheMetersBallistics)
+{
+  auto const truth = parseOscTruth (R"({
+    "meters": { "attack_ms": 5, "release_db_per_second": 30,
+                "peak_hold_seconds": 2.5 }
+  })");
+  ASSERT_TRUE (truth.isValid ()) << truth.error ();
+
+  auto const ballistics = truth.meterBallistics ();
+  EXPECT_FLOAT_EQ (ballistics.attackMs, 5.f);
+  EXPECT_FLOAT_EQ (ballistics.releaseDbPerSecond, 30.f);
+  EXPECT_FLOAT_EQ (ballistics.peakHoldSeconds, 2.5f);
+}
+
+// A key the block lacks, or one that is not a number, is the rule's.
+TEST (OscTruth, AMissingOrBrokenMetersKeyIsTheRules)
+{
+  auto const truth = parseOscTruth (R"({
+    "meters": { "release_db_per_second": 30, "peak_hold_seconds": "long" }
+  })");
+  auto const ballistics = truth.meterBallistics ();
+  MeterBallisticsParameters const defaults;
+  EXPECT_FLOAT_EQ (ballistics.attackMs, defaults.attackMs);
+  EXPECT_FLOAT_EQ (ballistics.releaseDbPerSecond, 30.f);
+  EXPECT_FLOAT_EQ (ballistics.peakHoldSeconds, defaults.peakHoldSeconds);
 }

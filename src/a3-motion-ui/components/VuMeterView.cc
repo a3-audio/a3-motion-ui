@@ -47,7 +47,7 @@ VuMeterView::setDirection (VuDirection direction)
 void
 VuMeterView::paint (juce::Graphics &g)
 {
-  paintVuMeter (g, getLocalBounds (), level ? level () : VuLevel{},
+  paintVuMeter (g, getLocalBounds (), level ? level () : VuReading{},
                 _direction);
 }
 

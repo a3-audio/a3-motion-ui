@@ -170,7 +170,7 @@ ClipSettingsComponent::createTouchControls ()
       meter->setDirection (VuDirection::Up);
       meter->level = [this, channel] {
         return channelLevel ? channelLevel (static_cast<int> (channel))
-                            : VuLevel{};
+                            : VuReading{};
       };
       meter->setInterceptsMouseClicks (false, false);
       addAndMakeVisible (*meter);

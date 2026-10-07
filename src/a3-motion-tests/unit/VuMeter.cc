@@ -69,11 +69,11 @@ aMeterBar ()
 // is already down.
 TEST (VuMeter, AMeterWithNoValueDrawsNothing)
 {
-  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{});
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuReading{});
 
   EXPECT_FALSE (geometry.track.isEmpty ()) << "the empty bar is still drawn";
-  EXPECT_TRUE (geometry.rms.isEmpty ());
-  EXPECT_TRUE (geometry.peak.isEmpty ());
+  EXPECT_TRUE (geometry.fill.isEmpty ());
+  EXPECT_TRUE (geometry.hold.isEmpty ());
 }
 
 // And the store answers the same way before a single message has arrived.
@@ -83,14 +83,14 @@ TEST (VuMeter, AStoreWithNothingInItReportsSilence)
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)
     {
-      EXPECT_FLOAT_EQ (levels.channel (channel, 0).rms, 0.f);
-      EXPECT_FLOAT_EQ (levels.channel (channel, 0).peak, 0.f);
+      EXPECT_FLOAT_EQ (levels.channel (channel, 0).bar, 0.f);
+      EXPECT_FLOAT_EQ (levels.channel (channel, 0).hold, 0.f);
     }
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
     {
-      EXPECT_FLOAT_EQ (levels.output (meter, 0).rms, 0.f);
-      EXPECT_FLOAT_EQ (levels.output (meter, 0).peak, 0.f);
+      EXPECT_FLOAT_EQ (levels.output (meter, 0).bar, 0.f);
+      EXPECT_FLOAT_EQ (levels.output (meter, 0).hold, 0.f);
     }
 }
 
@@ -145,16 +145,16 @@ TEST (VuMeter, TheScaleIsDecibelsRatherThanAmplitude)
 TEST (VuMeter, TheRmsStandsOnTheFootAndThePeakMarksAboveIt)
 {
   auto const bar = aMeterBar ();
-  auto const geometry = vuMeterGeometry (bar, VuLevel{ 0.5f, 0.1f });
+  auto const geometry = vuMeterGeometry (bar, VuReading{ 0.1f, 0.5f });
 
-  ASSERT_FALSE (geometry.rms.isEmpty ());
-  ASSERT_FALSE (geometry.peak.isEmpty ());
+  ASSERT_FALSE (geometry.fill.isEmpty ());
+  ASSERT_FALSE (geometry.hold.isEmpty ());
 
-  EXPECT_EQ (geometry.rms.getBottom (), bar.getBottom ())
+  EXPECT_EQ (geometry.fill.getBottom (), bar.getBottom ())
       << "the fill has left the foot of the bar";
-  EXPECT_LE (geometry.peak.getBottom (), geometry.rms.getY ())
+  EXPECT_LE (geometry.hold.getBottom (), geometry.fill.getY ())
       << "the peak mark is inside the fill instead of above it";
-  EXPECT_LT (geometry.peak.getHeight (), geometry.rms.getHeight ())
+  EXPECT_LT (geometry.hold.getHeight (), geometry.fill.getHeight ())
       << "the mark is a line, not a second block of fill";
 }
 
@@ -162,17 +162,17 @@ TEST (VuMeter, TheRmsStandsOnTheFootAndThePeakMarksAboveIt)
 TEST (VuMeter, TheRmsAndThePeakLandWhereTheScaleSaysTheyDo)
 {
   auto const bar = aMeterBar ();
-  auto const level = VuLevel{ 0.5f, 0.1f };
+  auto const level = VuReading{ 0.1f, 0.5f };
   auto const geometry = vuMeterGeometry (bar, level);
 
   auto const heightFor = [&bar] (float amplitude) {
     return juce::roundToInt (bar.getHeight () * vuMeterFraction (amplitude));
   };
 
-  EXPECT_EQ (geometry.rms.getHeight (), heightFor (level.rms));
-  EXPECT_NEAR (geometry.peak.getBottom (),
-               bar.getBottom () - heightFor (level.peak),
-               geometry.peak.getHeight ());
+  EXPECT_EQ (geometry.fill.getHeight (), heightFor (level.bar));
+  EXPECT_NEAR (geometry.hold.getBottom (),
+               bar.getBottom () - heightFor (level.hold),
+               geometry.hold.getHeight ());
 }
 
 // Full scale fills the bar and no more. A meter is read for exactly this
@@ -180,10 +180,10 @@ TEST (VuMeter, TheRmsAndThePeakLandWhereTheScaleSaysTheyDo)
 TEST (VuMeter, FullScaleFillsTheBarAndStaysInside)
 {
   auto const bar = aMeterBar ();
-  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 1.f });
+  auto const geometry = vuMeterGeometry (bar, VuReading{ 1.f, 1.f });
 
-  EXPECT_EQ (geometry.rms, bar);
-  EXPECT_TRUE (bar.contains (geometry.peak));
+  EXPECT_EQ (geometry.fill, bar);
+  EXPECT_TRUE (bar.contains (geometry.hold));
 }
 
 // Even a bar a couple of pixels tall gets a mark rather than none: an absent
@@ -191,25 +191,41 @@ TEST (VuMeter, FullScaleFillsTheBarAndStaysInside)
 TEST (VuMeter, AShortBarStillGetsAPeakMark)
 {
   auto const bar = juce::Rectangle<int> (0, 0, 4, 6);
-  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 0.f });
+  auto const geometry = vuMeterGeometry (bar, VuReading{ 0.f, 1.f });
 
-  ASSERT_FALSE (geometry.peak.isEmpty ());
-  EXPECT_TRUE (bar.contains (geometry.peak));
+  ASSERT_FALSE (geometry.hold.isEmpty ());
+  EXPECT_TRUE (bar.contains (geometry.hold));
 }
 
 // resized() runs with an empty rectangle before the window has a size.
 TEST (VuMeter, AnEmptyBarDoesNotDivideByZero)
 {
-  auto const geometry = vuMeterGeometry ({}, VuLevel{ 1.f, 1.f });
+  auto const geometry = vuMeterGeometry ({}, VuReading{ 1.f, 1.f });
 
   EXPECT_TRUE (geometry.track.isEmpty ());
-  EXPECT_TRUE (geometry.rms.isEmpty ());
-  EXPECT_TRUE (geometry.peak.isEmpty ());
+  EXPECT_TRUE (geometry.fill.isEmpty ());
+  EXPECT_TRUE (geometry.hold.isEmpty ());
+}
+
+// The bar and the mark both come from the peak, through the one set of
+// ballistics every meter in the system shares (MeterBallistics): the sources
+// send raw peaks since 2026-10-07, so the fall happens here.
+TEST (VuMeter, TheBarFallsTwentyDecibelsASecondAfterTheSignalHasGone)
+{
+  VuLevels levels;
+
+  levels.setChannel (0, VuLevel{ 1.f, 0.4f }, 1000);
+  levels.setChannel (0, VuLevel{ 0.f, 0.f }, 1040);
+
+  EXPECT_FLOAT_EQ (levels.channel (0, 1040).bar, 1.f)
+      << "the bar dropped with the raw peak instead of falling";
+  EXPECT_NEAR (levels.channel (0, 1540).bar, std::pow (10.f, -10.f / 20.f),
+               1e-4f);
 }
 
 // The mark lingers. A transient at twenty-five frames a second is one frame
 // long, which nobody sees -- holding it is what makes a peak meter a peak
-// meter rather than a faster rms one.
+// meter.
 TEST (VuMeter, ThePeakMarkLingersAfterTheSignalHasGone)
 {
   VuLevels levels;
@@ -217,22 +233,21 @@ TEST (VuMeter, ThePeakMarkLingersAfterTheSignalHasGone)
   levels.setChannel (0, VuLevel{ 0.8f, 0.4f }, 1000);
   levels.setChannel (0, VuLevel{ 0.1f, 0.05f }, 1040);
 
-  EXPECT_FLOAT_EQ (levels.channel (0, 1040).peak, 0.8f)
-      << "the held peak was let go on the very next frame";
-  EXPECT_FLOAT_EQ (levels.channel (0, 1040).rms, 0.05f)
-      << "the rms is the latest frame's, never held";
+  EXPECT_FLOAT_EQ (levels.channel (0, 2500).hold, 0.8f)
+      << "the held peak was let go before its second and a half";
 }
 
-// And it lets go again, or a meter would carry one loud moment for the rest
-// of the night.
-TEST (VuMeter, ThePeakMarkLetsGoOnceItsHoldIsUp)
+// And it lets go again, falling as the bar does, or a meter would carry one
+// loud moment for the rest of the night.
+TEST (VuMeter, ThePeakMarkFallsOnceItsHoldIsUp)
 {
   VuLevels levels;
 
-  levels.setChannel (0, VuLevel{ 0.8f, 0.4f }, 1000);
-  levels.setChannel (0, VuLevel{ 0.1f, 0.05f }, 1000 + vuPeakHoldMs + 1);
+  levels.setChannel (0, VuLevel{ 1.f, 0.4f }, 1000);
+  levels.setChannel (0, VuLevel{ 0.f, 0.f }, 1040);
 
-  EXPECT_FLOAT_EQ (levels.channel (0, 1000 + vuPeakHoldMs + 1).peak, 0.1f);
+  EXPECT_NEAR (levels.channel (0, 3000).hold, std::pow (10.f, -10.f / 20.f),
+               1e-4f);
 }
 
 // A louder peak takes over immediately rather than waiting its turn.
@@ -243,7 +258,26 @@ TEST (VuMeter, ALouderPeakReplacesTheHeldOneAtOnce)
   levels.setChannel (0, VuLevel{ 0.4f, 0.2f }, 1000);
   levels.setChannel (0, VuLevel{ 0.9f, 0.2f }, 1010);
 
-  EXPECT_FLOAT_EQ (levels.channel (0, 1010).peak, 0.9f);
+  EXPECT_FLOAT_EQ (levels.channel (0, 1010).hold, 0.9f);
+  EXPECT_FLOAT_EQ (levels.channel (0, 1010).bar, 0.9f);
+}
+
+// Core's truth sets the numbers (its "meters" block); the store hands them to
+// every meter it keeps, channels and outputs alike.
+TEST (VuMeter, TheStoreTakesTheTruthsBallistics)
+{
+  VuLevels levels;
+  levels.setBallistics ({ 0.f, 40.f, 0.5f });
+
+  levels.setChannel (0, VuLevel{ 1.f, 0.f }, 1000);
+  levels.setChannel (0, VuLevel{ 0.f, 0.f }, 1001);
+  levels.setOutput (0, VuLevel{ 1.f, 0.f }, 1000);
+  levels.setOutput (0, VuLevel{ 0.f, 0.f }, 1001);
+
+  auto const minus20 = std::pow (10.f, -20.f / 20.f);
+  EXPECT_NEAR (levels.channel (0, 1501).bar, minus20, 1e-4f);
+  EXPECT_NEAR (levels.channel (0, 2000).hold, minus20, 1e-4f);
+  EXPECT_NEAR (levels.output (0, 1501).bar, minus20, 1e-4f);
 }
 
 // The output store is the one thing this task had to build: the subwoofer and
@@ -256,7 +290,7 @@ TEST (VuMeter, TheOutputMetersAreHeldOneByOne)
     levels.setOutput (meter, VuLevel{ 0.1f * (meter + 1), 0.f }, 1000);
 
   for (int meter = 0; meter < numOutputMeters; ++meter)
-    EXPECT_NEAR (levels.output (meter, 1000).peak, 0.1f * (meter + 1), 1e-6f)
+    EXPECT_NEAR (levels.output (meter, 1000).hold, 0.1f * (meter + 1), 1e-6f)
         << meter << " reads another meter's level";
 }
 
@@ -272,12 +306,12 @@ TEST (VuMeter, AnIndexOffTheEndChangesNothing)
   levels.setOutput (numOutputMeters, VuLevel{ 1.f, 1.f }, 1000);
 
   for (int channel = 0; channel < numChannelsInitial; ++channel)
-    EXPECT_FLOAT_EQ (levels.channel (channel, 1000).peak, 0.f) << channel;
+    EXPECT_FLOAT_EQ (levels.channel (channel, 1000).hold, 0.f) << channel;
   for (int meter = 0; meter < numOutputMeters; ++meter)
-    EXPECT_FLOAT_EQ (levels.output (meter, 1000).peak, 0.f) << meter;
+    EXPECT_FLOAT_EQ (levels.output (meter, 1000).hold, 0.f) << meter;
 
-  EXPECT_FLOAT_EQ (levels.channel (-1, 1000).peak, 0.f);
-  EXPECT_FLOAT_EQ (levels.output (numOutputMeters, 1000).peak, 0.f);
+  EXPECT_FLOAT_EQ (levels.channel (-1, 1000).hold, 0.f);
+  EXPECT_FLOAT_EQ (levels.output (numOutputMeters, 1000).hold, 0.f);
 }
 
 // A meter is a tall thin thing, and that is not decoration: the scale runs
@@ -500,7 +534,7 @@ TEST (VuMeter, TheBarsStripCarriesOneMeterAndNoOutputBlock)
 TEST (VuMeter, ABarFilledIntoTheRedIsStillGreenAtItsFoot)
 {
   auto const bar = aMeterBar ();
-  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 1.f });
+  auto const geometry = vuMeterGeometry (bar, VuReading{ 1.f, 1.f });
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
     EXPECT_FALSE (geometry.bands[i].isEmpty ()) << i;
@@ -515,7 +549,7 @@ TEST (VuMeter, ABarFilledIntoTheRedIsStillGreenAtItsFoot)
 // where the yellow starts.
 TEST (VuMeter, AQuietBarIsGreenAndNothingElse)
 {
-  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{ 0.f, 0.01f });
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuReading{ 0.01f, 0.f });
 
   EXPECT_FALSE (geometry.bands[vuGreenBand].isEmpty ());
   EXPECT_TRUE (geometry.bands[vuYellowBand].isEmpty ());
@@ -528,7 +562,7 @@ TEST (VuMeter, AQuietBarIsGreenAndNothingElse)
 TEST (VuMeter, TheBandsMeetWhereTheScaleSaysTheyDo)
 {
   auto const bar = aMeterBar ();
-  auto const geometry = vuMeterGeometry (bar, VuLevel{ 1.f, 1.f });
+  auto const geometry = vuMeterGeometry (bar, VuReading{ 1.f, 1.f });
 
   auto const yFor = [&bar] (float db) {
     return bar.getBottom ()
@@ -550,15 +584,15 @@ TEST (VuMeter, TheBandsMeetWhereTheScaleSaysTheyDo)
 // would leave a hairline of track showing through a solid fill.
 TEST (VuMeter, TheBandsCutUpTheFillAndNothingElse)
 {
-  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{ 0.9f, 0.7f });
-  ASSERT_FALSE (geometry.rms.isEmpty ());
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuReading{ 0.7f, 0.9f });
+  ASSERT_FALSE (geometry.fill.isEmpty ());
 
   juce::Rectangle<int> covered;
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
     {
       if (!geometry.bands[i].isEmpty ())
-        EXPECT_TRUE (geometry.rms.contains (geometry.bands[i])) << i;
+        EXPECT_TRUE (geometry.fill.contains (geometry.bands[i])) << i;
 
       covered = covered.getUnion (geometry.bands[i]);
 
@@ -568,14 +602,14 @@ TEST (VuMeter, TheBandsCutUpTheFillAndNothingElse)
             << i << " over " << j;
     }
 
-  EXPECT_EQ (covered, geometry.rms);
+  EXPECT_EQ (covered, geometry.fill);
 }
 
 // An empty meter has no bands either. The bands are a cut of the fill, and
 // there is no fill to cut.
 TEST (VuMeter, AMeterWithNoValueHasNoBands)
 {
-  auto const geometry = vuMeterGeometry (aMeterBar (), VuLevel{});
+  auto const geometry = vuMeterGeometry (aMeterBar (), VuReading{});
 
   for (std::size_t i = 0; i < static_cast<std::size_t> (numVuMeterBands); ++i)
     EXPECT_TRUE (geometry.bands[i].isEmpty ()) << i;
@@ -763,7 +797,7 @@ TEST (VuMeter, TheFaderHandleSpansTheBarAndIsThickEnoughToGrasp)
 {
   auto const bar = aMeterBar ();
   auto const handle = vuFaderHandle (bar, 0.6f);
-  auto const peak = vuMeterGeometry (bar, { 0.5f, 0.1f }).peak;
+  auto const peak = vuMeterGeometry (bar, { 0.1f, 0.5f }).hold;
 
   EXPECT_EQ (handle.getX (), bar.getX ());
   EXPECT_EQ (handle.getWidth (), bar.getWidth ());
@@ -826,28 +860,28 @@ TEST (VuMeter, ASidewaysMeterFillsFromTheLeft)
   auto const bar = juce::Rectangle<int> (10, 20, 400, 12);
 
   auto const silent = vuMeterGeometry (bar, { 0.f, 0.f }, VuDirection::Right);
-  EXPECT_TRUE (silent.rms.isEmpty ());
+  EXPECT_TRUE (silent.fill.isEmpty ());
 
   auto const loud = vuMeterGeometry (bar, { 1.f, 1.f }, VuDirection::Right);
-  EXPECT_EQ (loud.rms, bar);
+  EXPECT_EQ (loud.fill, bar);
 
   auto const half = vuMeterGeometry (bar, { 0.5f, 0.5f }, VuDirection::Right);
-  EXPECT_EQ (half.rms.getX (), bar.getX ());
-  EXPECT_EQ (half.rms.getY (), bar.getY ());
-  EXPECT_EQ (half.rms.getHeight (), bar.getHeight ());
-  EXPECT_GT (half.rms.getWidth (), 0);
-  EXPECT_LT (half.rms.getWidth (), bar.getWidth ());
+  EXPECT_EQ (half.fill.getX (), bar.getX ());
+  EXPECT_EQ (half.fill.getY (), bar.getY ());
+  EXPECT_EQ (half.fill.getHeight (), bar.getHeight ());
+  EXPECT_GT (half.fill.getWidth (), 0);
+  EXPECT_LT (half.fill.getWidth (), bar.getWidth ());
 }
 
 TEST (VuMeter, ASidewaysPeakMarkStandsUpright)
 {
   auto const bar = juce::Rectangle<int> (10, 20, 400, 12);
-  auto const geometry = vuMeterGeometry (bar, { 0.5f, 0.2f }, VuDirection::Right);
+  auto const geometry = vuMeterGeometry (bar, { 0.2f, 0.5f }, VuDirection::Right);
 
-  ASSERT_FALSE (geometry.peak.isEmpty ());
-  EXPECT_EQ (geometry.peak.getHeight (), bar.getHeight ());
-  EXPECT_LT (geometry.peak.getWidth (), bar.getWidth () / 4);
-  EXPECT_TRUE (bar.contains (geometry.peak));
+  ASSERT_FALSE (geometry.hold.isEmpty ());
+  EXPECT_EQ (geometry.hold.getHeight (), bar.getHeight ());
+  EXPECT_LT (geometry.hold.getWidth (), bar.getWidth () / 4);
+  EXPECT_TRUE (bar.contains (geometry.hold));
 }
 
 TEST (VuMeter, ASidewaysBandsRunLeftToRight)
