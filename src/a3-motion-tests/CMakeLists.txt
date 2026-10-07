@@ -184,6 +184,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FittedFont.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/UnitScheduling.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionIsPureOsc.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/TestsSendNothing.cc"
     )
 
 # The corona visibility test reads the config that actually ships with the app,

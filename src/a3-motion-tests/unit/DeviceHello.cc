@@ -137,5 +137,5 @@ TEST (DeviceHello, TheHelloGoesOutOnASenderThatKeepsItsWords)
   EXPECT_TRUE (text.contains ("_helloSender.send (\n"
                               "      helloMessage (_oscAddresses, "
                               "installedOscTruth ().digest ()))"));
-  EXPECT_TRUE (text.contains ("_helloSender.connect (core.host, core.port)"));
+  EXPECT_TRUE (text.contains ("connectOscSender (_helloSender, core.host, core.port)"));
 }

@@ -20,6 +20,8 @@
 
 #include "WaitUntil.hh"
 
+#include <OfflineBackend.hh>
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -36,7 +38,7 @@ namespace
 TEST (MotionEngine, TempoFacadeForwardsToTempoClock)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   // Defaults come straight from TempoClock's own defaults.
   EXPECT_EQ (engine.getBeatsPerBar (), 4);
@@ -66,7 +68,7 @@ TEST (MotionEngine, TempoFacadeForwardsToTempoClock)
 TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   std::atomic<int> lastBeat{ -1 };
   std::atomic<int> beatCallbacks{ 0 };
@@ -119,7 +121,7 @@ TEST (MotionEngine, FirstTapPutsTheBeatBackToOne)
 TEST (MotionEngine, OutputIsNotHeldToBeginWith)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   EXPECT_FALSE (engine.outputHeld ());
 }
@@ -127,7 +129,7 @@ TEST (MotionEngine, OutputIsNotHeldToBeginWith)
 TEST (MotionEngine, ADeadlineInTheFutureHoldsOutput)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
@@ -138,7 +140,7 @@ TEST (MotionEngine, ADeadlineInTheFutureHoldsOutput)
 TEST (MotionEngine, ADeadlineThatHasPassedReleasesItself)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   - 1.);
@@ -152,7 +154,7 @@ TEST (MotionEngine, AHoldCanBeLiftedBeforeItRunsOut)
   // but a hold with no way back would be the one bug that silences the
   // device, so the way back is pinned here rather than left to be discovered.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
@@ -169,7 +171,7 @@ TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
   // position arriving from Core during the hold reaches the blob; only this
   // device's own announcements are kept in.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.holdOutputUntil (juce::Time::getMillisecondCounterHiRes ()
                                   + 60000.);
@@ -184,7 +186,7 @@ TEST (MotionEngine, AHoldDoesNotStopThePositionItselfFromMoving)
 TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   auto const held = Pos::fromCartesian (0.3f, 0.2f, 0.9f);
 
@@ -201,7 +203,7 @@ TEST (MotionEngine, AHeldChannelKeepsThePositionItWasGiven)
 TEST (MotionEngine, ReleasingAChannelEndsTheHold)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.setChannelPositionHeld (0, true);
   EXPECT_TRUE (engine.isChannelPositionHeld (0));
@@ -222,7 +224,7 @@ TEST (MotionEngine, ReleasingAChannelEndsTheHold)
 TEST (MotionEngine, AnArmedTakeOwnsTheFingerBeforeItsDownbeat)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   auto pattern = std::make_shared<Pattern> ();
   pattern->setChannel (0);
@@ -244,7 +246,7 @@ TEST (MotionEngine, AnArmedTakeOwnsTheFingerBeforeItsDownbeat)
 TEST (MotionEngine, HoldingOneChannelLeavesTheOthersAlone)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
 
   engine.setChannelPositionHeld (2, true);
 

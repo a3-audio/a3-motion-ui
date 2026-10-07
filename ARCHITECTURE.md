@@ -108,6 +108,16 @@ Unit tests use GoogleTest via `src/a3-motion-tests` (built when `TESTS_ENABLED=O
 the working copy, which ACTION and the skin panel write into while a set is played. A bare `ctest`
 without that export fails `ShippedLibrary.TheTestsReadTheCommittedState` and says why.
 
+**The tests send nothing** (#67). An engine built without a backend aims at Core as the truth
+names it — on the rig, the live one — and the suite used to send positions and 3D/FREQ/Q there.
+Two walls now: every `juce::OSCSender` is aimed through `connectOscSender()`
+(`a3-motion-engine/OscSendGuard.hh`), which the test runner switches to throw for every host
+before any test runs, so an engine needs an `OfflineBackend` (`src/a3-motion-tests/OfflineBackend.hh`)
+or its test fails; `TestsSendNothing` holds that and scans the sources for a sender connected past
+the guard. And without an `A3_OSC_TRUTH` of yours, `test.sh` runs against
+`build/a3-osc-offline.json`, a copy of the installed truth with every host but `local`/`any` moved
+to 192.0.2.x; the `OSC truth:` line says which file the run used.
+
 **One build at a time:** `build.sh` (and so `test.sh`) takes a machine-wide lock
 (`$XDG_RUNTIME_DIR/a3-motion-ui-build.lock`); a second build in another worktree waits and says
 for whom. Two `-j4` builds on four cores take as long as both in a row.

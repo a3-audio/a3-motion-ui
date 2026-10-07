@@ -20,6 +20,8 @@
 
 #include "WaitUntil.hh"
 
+#include <OfflineBackend.hh>
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -27,7 +29,6 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
-#include <a3-motion-engine/backends/SpatBackend.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 #include <algorithm>
@@ -41,25 +42,10 @@ using namespace a3;
 namespace
 {
 
-/** Sends nothing. These tests run takes on a real engine, and the default
- *  backend aims at Core -- on the rig, the live one. */
-class SilentBackend : public SpatBackend
-{
-public:
-  void sendPosition (index_t, Pos const &) override {}
-  void sendPot1 (index_t, float) override {}
-  void sendPot2 (index_t, float) override {}
-  void sendPot3 (index_t, float) override {}
-
-protected:
-  void addressesChanged (OscAddresses const &) override {}
-};
-
 std::unique_ptr<MotionEngine>
-aSilentEngine (HeightMap &heightMap)
+anOfflineEngine (HeightMap &heightMap)
 {
-  return std::make_unique<MotionEngine> (4, heightMap,
-                                         std::make_unique<SilentBackend> ());
+  return std::make_unique<MotionEngine> (4, heightMap, offlineBackend ());
 }
 
 float
@@ -156,7 +142,7 @@ near2D (Pos const &a, Pos const &b)
 TEST (TakeRecording, ATakeIsHeardWhereItIsStored)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setTempoBPM (120.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::Loop);
   engine->setRecMode (RecMode::Touch);
@@ -192,7 +178,7 @@ TEST (TakeRecording, ATakeIsHeardWhereItIsStored)
 TEST (TakeRecording, AnArmedTakeHoldsTheBlobInTheBandToo)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setTempoBPM (60.f);
 
   auto take = aTakeOverBuildPulse ();
@@ -218,7 +204,7 @@ TEST (TakeRecording, AnArmedTakeHoldsTheBlobInTheBandToo)
 TEST (TakeRecording, WriteClearsTheOldPathForTheWholeLap)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setPreviewMode (0, true);
   engine->setTempoBPM (240.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
@@ -258,7 +244,7 @@ TEST (TakeRecording, WriteClearsTheOldPathForTheWholeLap)
 TEST (TakeRecording, TouchKeepsTheTicksItDidNotTouch)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setPreviewMode (0, true);
   engine->setTempoBPM (120.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
@@ -311,7 +297,7 @@ TEST (TakeRecording, TouchKeepsTheTicksItDidNotTouch)
 TEST (TakeRecording, ATakeRecordsNo3dFreqOrQ)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setPreviewMode (0, true);
   engine->setTempoBPM (240.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
@@ -409,7 +395,7 @@ TEST (TakeRecording, PotLanesInAClipFileAreIgnored)
 TEST (TakeRecording, MeasureHowAFastDragIsSampled)
 {
   HeightMapSphere heightMap;
-  auto engine = aSilentEngine (heightMap);
+  auto engine = anOfflineEngine (heightMap);
   engine->setPreviewMode (0, true);
   engine->setTempoBPM (120.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);

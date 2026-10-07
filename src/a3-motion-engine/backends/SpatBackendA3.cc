@@ -20,6 +20,8 @@
 
 #include "SpatBackendA3.hh"
 
+#include <a3-motion-engine/OscSendGuard.hh>
+
 #include <JuceHeader.h>
 #include <cmath>
 
@@ -30,7 +32,7 @@ SpatBackendA3::SpatBackendA3 (juce::String address, int port,
                               OscAddresses const &addresses)
     : _address (address), _port (port)
 {
-  if (_sender.connect (address, port))
+  if (connectOscSender (_sender, address, port))
     std::cout << "OSC Sender connected to " << address << ":" << port << std::endl;
   else
     std::cerr << "ERROR: OSC Sender failed to connect to " << address << ":" << port << std::endl;

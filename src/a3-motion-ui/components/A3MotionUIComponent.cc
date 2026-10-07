@@ -25,6 +25,7 @@
 #include <a3-motion-ui/components/RecordingLength.hh>
 
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/OscSendGuard.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
 #include <a3-motion-engine/TrajectorySpin.hh>
@@ -1163,13 +1164,13 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     std::cerr << "ERROR: OSC Sender failed to connect to " << clock.host << ":" << clock.port << std::endl;
 
   // Direct tap sender (same host/port, bypasses async queue for zero latency)
-  if (_tapSender.connect (clock.host, clock.port))
+  if (connectOscSender (_tapSender, clock.host, clock.port))
     std::cout << "OSC Tap Sender connected to " << clock.host << ":" << clock.port << std::endl;
   else
     std::cerr << "ERROR: OSC Tap Sender failed to connect" << std::endl;
 
   auto const &core = endpoints.core;
-  if (!_helloSender.connect (core.host, core.port))
+  if (!connectOscSender (_helloSender, core.host, core.port))
     std::cerr << "ERROR: OSC hello sender failed to connect to " << core.host << ":" << core.port << std::endl;
   if (_mixerSender.connect (core.host, core.port))
     {

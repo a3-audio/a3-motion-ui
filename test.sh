@@ -87,20 +87,58 @@ COMMITTED_AT="$(git -C "$SCRIPT_DIR" log -1 --format='%h')"
 
 # The one truth for OSC is a3-core's file, not this repository's. Installed it
 # is /usr/share/a3/a3-osc.json; on a machine without the package, the a3-core
-# checkout beside this one or above it. OscTruthContract fails without either -- and the
-# line below says which one the run held Motion against.
-if [ -z "$A3_OSC_TRUTH" ] && [ ! -f /usr/share/a3/a3-osc.json ]; then
+# checkout beside this one or above it (#63). OscTruthContract fails without
+# either -- and the line below says which one the run held Motion against.
+#
+# Without an A3_OSC_TRUTH of the caller's, the run holds Motion against an
+# offline copy of that file: the same addresses and ports, but every named
+# host except "local" and "any" moved to 192.0.2.x, the documentation range
+# that routes nowhere. On the rig the installed truth names the live Core, and
+# the suite used to send positions and 3D/FREQ/Q there (#67). The test runner
+# refuses every OSC sender on its own; this is the second wall, not the first.
+installed_truth() {
+    if [ -f /usr/share/a3/a3-osc.json ]; then
+        echo /usr/share/a3/a3-osc.json
+        return
+    fi
     # Beside this checkout, or -- inside the a3-system umbrella, where this is
     # a3-motion's ui -- two levels up.
     for CORE in "$SCRIPT_DIR/../a3-core" "$SCRIPT_DIR/../../a3-core"; do
         BESIDE="$CORE/platform-config/debian-x86_64/a3-core/usr/share/a3/a3-osc.json"
         if [ -f "$BESIDE" ]; then
-            export A3_OSC_TRUTH="$(realpath "$BESIDE")"
-            break
+            realpath "$BESIDE"
+            return
         fi
     done
+}
+
+offline_copy() {
+    python3 -I - "$1" "$2" <<'PY'
+import json, sys
+source, target = sys.argv[1], sys.argv[2]
+with open(source) as f:
+    truth = json.load(f)
+kept = ("local", "any")
+moved = [name for name in truth.get("hosts", {}) if name not in kept]
+for number, name in enumerate(moved, start=10):
+    truth["hosts"][name] = f"192.0.2.{number}"
+with open(target, "w") as f:
+    json.dump(truth, f, indent=2)
+PY
+}
+
+if [ -n "$A3_OSC_TRUTH" ]; then
+    OSC_TRUTH_USED="$A3_OSC_TRUTH (given)"
+else
+    INSTALLED_TRUTH="$(installed_truth)"
+    if [ -n "$INSTALLED_TRUTH" ]; then
+        export A3_OSC_TRUTH="$BUILD_DIR/a3-osc-offline.json"
+        offline_copy "$INSTALLED_TRUTH" "$A3_OSC_TRUTH"
+        OSC_TRUTH_USED="$A3_OSC_TRUTH (offline copy of $INSTALLED_TRUTH)"
+    else
+        OSC_TRUTH_USED="none found -- OscTruthContract will say so"
+    fi
 fi
-OSC_TRUTH_USED="${A3_OSC_TRUTH:-/usr/share/a3/a3-osc.json}"
 
 echo ""
 echo "=== Running tests ($BUILD_TYPE, runner built $BUILT_AT, library as committed in $COMMITTED_AT) ==="
