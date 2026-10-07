@@ -218,6 +218,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     theme/FunctionKeyColours.hh
     theme/TransportLook.hh
     components/ClipSettingsLayout.hh
+    components/CameraFingers.cc
+    components/CameraFingers.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh
     components/SpeakerLightScaling.cc
