@@ -283,6 +283,141 @@ buildSvgPathData (std::vector<Pos> const &ticks,
 }
 
 // ---------------------------------------------------------------------------
+//  Takes — every tick, in the coordinates it plays in (#68)
+// ---------------------------------------------------------------------------
+
+/** The attribute that says a file holds a take, and its value. */
+static constexpr char const *kKindAttribute = "data-kind";
+static constexpr char const *kKindTake = "take";
+
+/** On a take's path: the tick each subpath starts at, in order. */
+static constexpr char const *kTicksAttribute = "data-ticks";
+
+/** A take's path: one vertex per tick, a subpath per run.
+ *
+ *  Nothing of buildSvgPathData() applies to a take. Its scale is where it
+ *  plays -- a take over a squeezed clip lies up to twice outside the pad, and
+ *  normalising it shrank the whole take by that much. Its pace is part of the
+ *  movement, which a resample by arc length on load evens out. And an open
+ *  run is open: the reversed copy that closes a drawn shape into a loop made
+ *  it play forward and back. A polyline of every tick keeps all three and is
+ *  still a path the browser, the pads and the preview can draw.
+ *
+ *  Cut where the data is missing and where it teleports, as the drawn line
+ *  is, so no edge is drawn across a jump. `outStarts` gets each subpath's
+ *  first tick, which is what puts the vertices back on their ticks. */
+static std::string
+buildTakePathData (std::vector<Pos> const &ticks,
+                   std::vector<std::size_t> &outStarts)
+{
+  outStarts.clear ();
+  std::ostringstream out;
+
+  // trajectorySegments() with no bridge plan skips no tick: its runs are the
+  // valid ticks in order, so each starts at the first valid tick after the
+  // previous one ended.
+  std::size_t cursor = 0;
+  for (auto const &run : trajectorySegments (ticks, BridgePlan{}))
+    {
+      while (cursor < ticks.size () && !ticks[cursor].isValid ())
+        ++cursor;
+      outStarts.push_back (cursor);
+      cursor += run.size ();
+
+      if (out.tellp () > 0)
+        out << ' ';
+      out << "M " << fts (run.front ().x ()) << ' ' << fts (run.front ().y ());
+      for (std::size_t i = 1; i < run.size (); ++i)
+        out << " L " << fts (run[i].x ()) << ' ' << fts (run[i].y ());
+    }
+
+  return out.str ();
+}
+
+/** A tapped take's taps, where they were, for its picture. The ticks are in
+ *  the path; these are what a shape of taps is drawn as. */
+static std::vector<std::pair<float, float>>
+takeTapDots (std::vector<Pos> const &ticks)
+{
+  std::vector<std::pair<float, float>> dots;
+  if (!isTappedTrajectory (ticks))
+    return dots;
+
+  for (auto const &held : trajectoryPlateaus (ticks))
+    {
+      auto const duplicate
+          = std::any_of (dots.begin (), dots.end (), [&held] (auto const &d) {
+              return std::abs (d.first - held.x ()) < 0.05f
+                     && std::abs (d.second - held.y ()) < 0.05f;
+            });
+      if (!duplicate)
+        dots.push_back ({ held.x (), held.y () });
+    }
+  return dots;
+}
+
+/** The pad, or as far past it as the take reaches -- a take over a squeezed
+ *  clip lies up to twice outside it, and another program opening the file
+ *  should show all of it. The origin stays in the middle. */
+static juce::String
+takeViewBox (std::vector<Pos> const &ticks)
+{
+  auto reach = 1.f;
+  for (auto const &tick : ticks)
+    if (tick.isValid ())
+      reach = std::max ({ reach, std::abs (tick.x ()), std::abs (tick.y ()) });
+
+  auto const edge = juce::String (fts (reach));
+  auto const side = juce::String (fts (2.f * reach));
+  return "-" + edge + " -" + edge + " " + side + " " + side;
+}
+
+/** And back: every vertex onto its tick, every tick no subpath covers left
+ *  invalid. */
+static std::vector<Pos>
+readTakeTicks (juce::String const &pathData, juce::String const &starts,
+               std::size_t numTicks)
+{
+  std::vector<Pos> ticks (numTicks, Pos::invalid);
+
+  auto const runStarts = juce::StringArray::fromTokens (starts, " ", "");
+  auto const tokens = svgPathTokens (pathData);
+
+  int run = -1;
+  std::size_t tick = 0;
+  int idx = 0;
+  while (idx < tokens.size ())
+    {
+      auto const &token = tokens[idx];
+      if (token == "M")
+        {
+          ++idx;
+          ++run;
+          if (run >= runStarts.size ())
+            break;
+          tick = static_cast<std::size_t> (runStarts[run].getLargeIntValue ());
+          continue;
+        }
+      if (token == "L")
+        {
+          ++idx;
+          continue;
+        }
+      if (idx + 1 >= tokens.size () || run < 0)
+        break;
+
+      auto const x = tokens[idx].getFloatValue ();
+      auto const y = tokens[idx + 1].getFloatValue ();
+      idx += 2;
+      if (tick < numTicks)
+        ticks[tick] = Pos::fromCartesian (x, y, 0.f);
+      ++tick;
+    }
+
+  return ticks;
+}
+
+// ---------------------------------------------------------------------------
 //  Adaptive cubic Bezier flattening -- matches JUCE PathFlatteningIterator
 //  Recursively subdivides until the control-point deviation from the chord
 //  is below the given tolerance.  This ensures the playback polyline matches
@@ -582,14 +717,21 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   auto const lengthBeats
       = static_cast<int> (numTicks) / TempoClock::getTicksPerBeat ();
 
-  // Build the SVG path data string (with palindrome for seamless loops)
+  // A shape is normalised, thinned and closed into a loop; a take is kept
+  // tick for tick where it plays (#68).
+  auto const isTake = pattern->isTake ();
   std::vector<std::pair<float,float>> jumpDots;
-  auto pathData = buildSvgPathData (ticks.positions, jumpDots);
+  std::vector<std::size_t> runStarts;
+  auto pathData = isTake ? buildTakePathData (ticks.positions, runStarts)
+                         : buildSvgPathData (ticks.positions, jumpDots);
+  if (isTake)
+    jumpDots = takeTapDots (ticks.positions);
 
   // Build SVG XML
   auto svg = std::make_unique<juce::XmlElement> ("svg");
   svg->setAttribute ("xmlns", "http://www.w3.org/2000/svg");
-  svg->setAttribute ("viewBox", "-1 -1 2 2");
+  svg->setAttribute ("viewBox", isTake ? takeViewBox (ticks.positions)
+                                       : juce::String ("-1 -1 2 2"));
   svg->setAttribute ("data-name", juce::String (pattern->getName ()));
   svg->setAttribute ("data-beats", lengthBeats);
   // No seam metadata. It existed so a destructive closing move could be
@@ -606,11 +748,20 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   // migration reads takes written the old way, and it runs on every start.
 
   svg->setAttribute ("data-ppqn", TempoClock::getTicksPerBeat ());
+  if (isTake)
+    svg->setAttribute (kKindAttribute, kKindTake);
 
   if (!pathData.empty ())
     {
       auto *pathEl = svg->createNewChildElement ("path");
       pathEl->setAttribute ("d", juce::String (pathData));
+      if (isTake)
+        {
+          juce::StringArray starts;
+          for (auto const start : runStarts)
+            starts.add (juce::String (static_cast<juce::int64> (start)));
+          pathEl->setAttribute (kTicksAttribute, starts.joinIntoString (" "));
+        }
       pathEl->setAttribute ("fill", "none");
       pathEl->setAttribute ("stroke", "black");
     }
@@ -650,6 +801,7 @@ PatternFile::load (juce::File const &file)
     return nullptr;
 
   std::string pathData;
+  juce::String runStarts;
   std::vector<std::pair<float,float>> jumpDots;
 
   for (auto *child : xml->getChildIterator ())
@@ -658,7 +810,10 @@ PatternFile::load (juce::File const &file)
         {
           auto d = child->getStringAttribute ("d");
           if (d.isNotEmpty ())
-            pathData = d.toStdString ();
+            {
+              pathData = d.toStdString ();
+              runStarts = child->getStringAttribute (kTicksAttribute);
+            }
         }
       else if (child->getTagName () == "circle")
         {
@@ -678,11 +833,25 @@ PatternFile::load (juce::File const &file)
 
   auto const numTicks = pattern->getNumTicks ();
 
+  // A take is read back vertex for tick; a shape -- and every take written
+  // before #68, which carries no mark -- is sampled along its path as always.
+  auto const isTake = xml->getStringAttribute (kKindAttribute) == kKindTake;
+  if (isTake)
+    pattern->markAsTake ();
+
   std::vector<Pos> sampled;
-  sampleSvgPathToTicks (pathData, jumpDots, numTicks, sampled);
+  if (isTake)
+    sampled = readTakeTicks (juce::String (pathData), runStarts, numTicks);
+  else
+    sampleSvgPathToTicks (pathData, jumpDots, numTicks, sampled);
 
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);
+
+  // Finished the way a recorded take is finished (RecordingSeam), so its
+  // jumps are stood on between ticks as they were before it was saved.
+  if (isTake)
+    pattern->markComplete ();
 
   {
     auto const mode = playbackModeFromNames (
@@ -774,6 +943,13 @@ PatternFile::peek (juce::File const &file)
           result.jumpDots.push_back ({ cx, cy });
         }
     }
+
+  // A tapped take carries its ticks in the path and its taps as dots. Its
+  // picture is the dots, as a tapped shape's is: the path's runs are taps
+  // held in place, and a line of no length draws nothing.
+  if (xml->getStringAttribute (kKindAttribute) == kKindTake
+      && !result.jumpDots.empty ())
+    result.pathData.clear ();
 
   return result;
 }

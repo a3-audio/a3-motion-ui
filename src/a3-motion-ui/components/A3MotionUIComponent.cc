@@ -3898,6 +3898,9 @@ A3MotionUIComponent::saveSlotShapeAsCopy ()
     copy->setTick (tick, pattern->getTick (tick));
   copy->markComplete ();
   copy->setName (name.toStdString ());
+  // A copy of a take is a take: stored tick for tick, not normalised (#68).
+  if (pattern->isTake ())
+    copy->markAsTake ();
 
   _patternLibrary->saveUserPattern (copy);
 

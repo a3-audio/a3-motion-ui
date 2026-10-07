@@ -46,6 +46,15 @@ namespace a3
  * Continuous patterns are stored with Catmull-Rom→Bézier curves
  * and a palindrome (forward+backward) approach for seamless loops.
  *
+ * A take (Pattern::isTake()) is stored differently (#68): the svg carries
+ * data-kind="take" and its path is a polyline of every tick in the
+ * coordinates it plays in -- no scaling, no thinning, no palindrome:
+ *     <path d="M x y L x y ..." data-ticks="0 340 760"/>
+ * one subpath per run, data-ticks naming the tick each one starts at. A
+ * tapped take adds its taps as circles, for the picture. A file without
+ * data-kind is read as a shape, which is how a take written before #68
+ * still loads.
+ *
  * Note: Z (height) is NOT stored — it is computed live by the
  * HeightMap in PatternLibrary when loading patterns for playback.
  */
