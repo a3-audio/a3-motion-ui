@@ -23,6 +23,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SettingsPersistence.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SessionFile.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternDir.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/AppPaths.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PendingTakes.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OscMessageHandler.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BlobPunch.cc"

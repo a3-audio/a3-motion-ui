@@ -20,6 +20,7 @@
 
 #include "MotionComponent.hh"
 
+#include <a3-motion-ui/AppPaths.hh>
 #include <a3-motion-ui/components/BlobPush.hh>
 #include <a3-motion-ui/components/SourceKeys.hh>
 
@@ -161,6 +162,15 @@ namespace a3
 
 namespace
 {
+// Motion's own pictures: beside a dev build, in /usr/share for the package.
+juce::File
+resource (char const *name)
+{
+  return resourceDirectory (
+             juce::File::getSpecialLocation (juce::File::currentExecutableFile))
+      .getChildFile (name);
+}
+
 juce::File
 configFile ()
 {
@@ -306,11 +316,8 @@ MotionComponent::MotionComponent (
 
   // @TODO: compile as binary resources into executable
   _imageIsoSphere = juce::ImageFileFormat::loadFrom (
-      juce::File::getCurrentWorkingDirectory ().getChildFile (
-          "resources/iso-sphere-wireframe.png"));
-  _drawableHead = juce::Drawable::createFromSVGFile (
-      juce::File::getCurrentWorkingDirectory ().getChildFile (
-          "resources/head.svg"));
+      resource ("iso-sphere-wireframe.png"));
+  _drawableHead = juce::Drawable::createFromSVGFile (resource ("head.svg"));
 
   // start disocclusion / animation timer at 30 Hz
   // (GL renders at 60 Hz vsync, 30 Hz is enough for blob push-away)
@@ -911,9 +918,7 @@ MotionComponent::newOpenGLContextCreated ()
   // Energy map from the IEM EnergyVisualizer. Folding 426 directions into the
   // map is a fixed geometry problem, so the weights are resolved once here.
   {
-    auto const grid = loadEnergyGrid (
-        juce::File::getCurrentWorkingDirectory ().getChildFile (
-            "resources/EnergyVisualizerGrid.json"));
+    auto const grid = loadEnergyGrid (resource ("EnergyVisualizerGrid.json"));
 
     if (grid.size () == energyGridPointCount)
       {
