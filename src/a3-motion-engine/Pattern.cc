@@ -85,6 +85,18 @@ Pattern::wasRecording () const
   return _wasRecording;
 }
 
+bool
+Pattern::isTake () const
+{
+  return _isTake;
+}
+
+void
+Pattern::markAsTake ()
+{
+  _isTake = true;
+}
+
 void
 Pattern::restoreStatus ()
 {

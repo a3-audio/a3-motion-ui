@@ -68,6 +68,12 @@ public:
    *  at any point during its lifetime. */
   bool wasRecording () const;
 
+  /** Whether this pattern is a take -- recorded, or loaded from a file that
+   *  says it is one -- rather than a drawn shape. A take is stored tick for
+   *  tick in the coordinates it plays in; a shape is normalised (#68). */
+  bool isTake () const;
+  void markAsTake ();
+
   void setChannel (index_t channel);
   index_t getChannel () const;
 
@@ -448,6 +454,7 @@ private:
   std::atomic<Status> _status = Status::Empty;
   std::atomic<Status> _statusLast = Status::Empty;
   std::atomic<bool> _wasRecording{ false };
+  std::atomic<bool> _isTake{ false };
 
   // for now patterns are fixed to a channel, this will probably
   // change later on.
