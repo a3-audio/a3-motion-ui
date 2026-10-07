@@ -26,6 +26,7 @@
 
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
+#include <a3-motion-ui/components/AppView.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/StatusBarLayout.hh>
 #include <a3-motion-ui/components/TickIndicator.hh>
@@ -74,6 +75,8 @@ public:
 
   /** The clock key, left of the tempo: step to the next clock mode. */
   std::function<void ()> onClockKeyTapped;
+  /** The FULL/FPV key, right of CLOCK. */
+  std::function<void ()> onViewKeyTapped;
   /** STEMDECK, at the right end: over to StemDeck's workspace. */
   std::function<void ()> onDeckKeyTapped;
   /** The arrow beside it: list the rig's workspaces. */
@@ -156,6 +159,8 @@ public:
   
   // Clock mode status: 0 = INT, 1 = EXT, 2 = PIO
   void setClockMode (int mode);
+  /** Names the view that is shown; FPV lights the key. */
+  void setView (AppView view);
 
   /** What was last turned, and to what -- "reach 0.42", "fade 0.25".
    *
@@ -207,6 +212,7 @@ private:
   std::atomic<int> _beatClockBeat{ 0 };
   std::atomic<int> _beatClockBar{ 0 };
   std::atomic<int> _clockMode{ 0 };
+  std::atomic<bool> _fpv{ false };
 };
 
 }

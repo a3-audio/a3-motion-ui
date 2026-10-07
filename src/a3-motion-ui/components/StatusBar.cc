@@ -372,6 +372,9 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
 
   if (_layout.clockKey.contains (at) && onClockKeyTapped)
     onClockKeyTapped ();
+
+  if (_layout.viewKey.contains (at) && onViewKeyTapped)
+    onViewKeyTapped ();
 }
 
 void
@@ -441,6 +444,9 @@ StatusBar::paint (juce::Graphics &g)
       g.drawFittedText (clockModeName (_clockMode), _layout.clockKey,
                         juce::Justification::centred, 1);
     }
+
+  paintWordKey (g, _layout.viewKey,
+                appViewName (_fpv ? AppView::Fpv : AppView::Full), true, _fpv);
 
   // The switch in StemDeck's look, not the skin's: it is the same key in
   // both apps, named after the app it goes to.
@@ -551,6 +557,13 @@ StatusBar::setClockMode (int mode)
         self->refreshClockReadout ();
       }
   });
+}
+
+void
+StatusBar::setView (AppView view)
+{
+  _fpv = view == AppView::Fpv;
+  repaint (_layout.viewKey);
 }
 
 }

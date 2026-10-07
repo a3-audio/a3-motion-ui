@@ -95,6 +95,18 @@ TEST (StatusBarLayout, TheBeatDisplayIsCentredOnTheBar)
   EXPECT_EQ (l.tick.getCentreX (), deviceWidth / 2);
 }
 
+// The view key stands right beside CLOCK, one key wide, and the readings
+// start after it.
+TEST (StatusBarLayout, TheViewKeyStandsRightOfTheClockKey)
+{
+  auto const l = deviceLayout ();
+
+  EXPECT_EQ (l.viewKey.getX (), l.clockKey.getRight ());
+  EXPECT_EQ (l.viewKey.getWidth (), l.clockKey.getWidth ());
+  EXPECT_EQ (l.viewKey.getHeight (), l.clockKey.getHeight ());
+  EXPECT_LE (l.viewKey.getRight (), l.bpm.getX ());
+}
+
 // Left of the beat display, in reading order: the clock's key, the tempo, and
 // what was last done -- the readout stands against the display since
 // 2026-09-26, so the right end is keys only.
@@ -102,7 +114,7 @@ TEST (StatusBarLayout, TheReadingsStandLeftOfTheBeatDisplay)
 {
   auto const l = deviceLayout ();
 
-  EXPECT_LE (l.clockKey.getRight (), l.bpm.getX ());
+  EXPECT_LE (l.viewKey.getRight (), l.bpm.getX ());
   EXPECT_LE (l.bpm.getRight (), l.readout.getX ());
   EXPECT_LE (l.readout.getRight (), l.tick.getX ());
   EXPECT_GT (l.readout.getWidth (), l.bpm.getWidth ())
