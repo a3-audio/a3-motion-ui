@@ -20,6 +20,8 @@
 
 #include "WaitUntil.hh"
 
+#include <OfflineBackend.hh>
+
 #include <gtest/gtest.h>
 
 #include <JuceHeader.h>
@@ -118,7 +120,7 @@ firstIndexWhere (std::vector<Sample> const &samples, bool (*test) (Sample const 
 TEST (EndActionClip, TheFollowTakesOverOnTheTickThePassEnds)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true); // nothing leaves the machine from a test
   engine.setTempoBPM (240.f);
 
@@ -176,7 +178,7 @@ TEST (EndActionClip, TheFollowTakesOverOnTheTickThePassEnds)
 TEST (EndActionClip, WithoutAFollowTheClipStopsAsStopDoes)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -198,7 +200,7 @@ TEST (EndActionClip, WithoutAFollowTheClipStopsAsStopDoes)
 TEST (EndActionClip, AFollowArmedForAnotherClipIsNotTaken)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -221,7 +223,7 @@ TEST (EndActionClip, AFollowArmedForAnotherClipIsNotTaken)
 TEST (EndActionClip, AskingItToFinishStopsInsteadOfFollowing)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -245,7 +247,7 @@ TEST (EndActionClip, AskingItToFinishStopsInsteadOfFollowing)
 TEST (EndActionClip, ATakeEndingDoesNotFollow)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
   engine.setRecordingMode (MotionEngine::RecordingMode::OneShot);
@@ -274,7 +276,7 @@ TEST (EndActionClip, ATakeEndingDoesNotFollow)
 TEST (EndActionClip, AnAccentRunningOutLeavesTheChainToThePassEnd)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 

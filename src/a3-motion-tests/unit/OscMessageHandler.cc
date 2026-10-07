@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <MadeUpOscTruth.hh>
+#include <OfflineBackend.hh>
 
 #include <JuceHeader.h>
 
@@ -216,7 +217,7 @@ meter (int number, float peak = 0.5f, float rms = 0.25f)
 TEST (OscMessageHandler, AnInputMeterGoesToItsChannel)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -239,7 +240,7 @@ TEST (OscMessageHandler, AnInputMeterGoesToItsChannel)
 TEST (OscMessageHandler, AChannelShowsItsLouderSide)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -263,7 +264,7 @@ TEST (OscMessageHandler, AChannelShowsItsLouderSide)
 TEST (OscMessageHandler, OneChannelsSidesStayOutOfAnother)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -282,7 +283,7 @@ TEST (OscMessageHandler, OneChannelsSidesStayOutOfAnother)
 TEST (OscMessageHandler, NeitherTheMonoMeterNorThePostPairFeedsAChannel)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -300,7 +301,7 @@ TEST (OscMessageHandler, NeitherTheMonoMeterNorThePostPairFeedsAChannel)
 TEST (OscMessageHandler, TheSubGlowsAndFillsTheFirstMasterMeter)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -318,7 +319,7 @@ TEST (OscMessageHandler, TheSubGlowsAndFillsTheFirstMasterMeter)
 TEST (OscMessageHandler, ATopLightsItsTowerAndFillsItsMasterMeter)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -335,7 +336,7 @@ TEST (OscMessageHandler, ATopLightsItsTowerAndFillsItsMasterMeter)
 TEST (OscMessageHandler, AnUpperTopOnlyFillsTheMasterColumn)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -351,7 +352,7 @@ TEST (OscMessageHandler, AnUpperTopOnlyFillsTheMasterColumn)
 TEST (OscMessageHandler, AMeterMotionDoesNotShowIsLeftAlone)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -370,7 +371,7 @@ TEST (OscMessageHandler, AMeterMotionDoesNotShowIsLeftAlone)
 TEST (OscMessageHandler, MetersTheTruthLacksAreNotAllFedByZero)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -386,7 +387,7 @@ TEST (OscMessageHandler, MetersTheTruthLacksAreNotAllFedByZero)
 TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -425,7 +426,7 @@ TEST (OscMessageHandler, BeatAlwaysNotifiesClockButOnlySyncsTempoInExternalMode)
 TEST (OscMessageHandler, TheTempoArrivesWithItsFraction)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -447,7 +448,7 @@ TEST (OscMessageHandler, TheTempoArrivesWithItsFraction)
 TEST (OscMessageHandler, EnergyGridIsForwardedInOrder)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine{ 4, heightMap };
+  MotionEngine engine{ 4, heightMap, offlineBackend () };
   RecordingListener listener;
   OscMessageHandler handler{ engine, listener };
   handler.setAddresses (madeUpAddresses ());
@@ -469,7 +470,7 @@ TEST (OscMessageHandler, EnergyGridIsForwardedInOrder)
 TEST (OscMessageHandler, EnergyGridOfTheWrongLengthIsRejected)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine{ 4, heightMap };
+  MotionEngine engine{ 4, heightMap, offlineBackend () };
   RecordingListener listener;
   OscMessageHandler handler{ engine, listener };
   handler.setAddresses (madeUpAddresses ());
@@ -495,7 +496,7 @@ TEST (OscMessageHandler, EnergyGridOfTheWrongLengthIsRejected)
 TEST (OscMessageHandler, RoutesChannelAzimuthToListener)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -514,7 +515,7 @@ TEST (OscMessageHandler, RoutesChannelAzimuthToListener)
 TEST (OscMessageHandler, RoutesChannelElevationToListener)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -537,7 +538,7 @@ TEST (OscMessageHandler, RoutesChannelElevationToListener)
 TEST (OscMessageHandler, IgnoresAPositionWithNoValue)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -551,7 +552,7 @@ TEST (OscMessageHandler, IgnoresAPositionWithNoValue)
 TEST (OscMessageHandler, IgnoresAPositionThatIsNotANumber)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -567,7 +568,7 @@ TEST (OscMessageHandler, IgnoresAPositionThatIsNotANumber)
 TEST (OscMessageHandler, IgnoresAChannelThisRigDoesNotHave)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -583,7 +584,7 @@ TEST (OscMessageHandler, IgnoresAChannelThisRigDoesNotHave)
 TEST (OscMessageHandler, AVuMessageIsStillNotAPosition)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -603,7 +604,7 @@ TEST (OscMessageHandler, FollowsAReconfiguredPositionAddress)
   // matched by a hardcoded prefix -- it has to be built from the same table
   // the sender would use.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -641,7 +642,7 @@ TEST (OscMessageHandler, RoutesTheEncoderPotsToListener)
   using Value = OscMessageHandler::Listener::ChannelValue;
 
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -669,7 +670,7 @@ TEST (OscMessageHandler, RoutesTheCrossfadeToListener)
   using Value = OscMessageHandler::Listener::ChannelValue;
 
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -692,7 +693,7 @@ TEST (OscMessageHandler, TheFiveValuesAreToldApart)
   using Value = OscMessageHandler::Listener::ChannelValue;
 
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -724,7 +725,7 @@ TEST (OscMessageHandler, RoutesAMixerChannelValueToItsSlot)
   // 2026-09-12. Before that the strip came up at its own defaults and stayed
   // there -- GAIN and VOL reading zero on a rig that was making sound.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -750,7 +751,7 @@ TEST (OscMessageHandler, EveryStripAddressFindsItsOwnSlot)
   // compiler checks and the exact shape that goes wrong silently. Eight
   // addresses, eight slots, in order.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -783,7 +784,7 @@ TEST (OscMessageHandler, TheStripDoesNotSwallowThePots)
   using Value = OscMessageHandler::Listener::ChannelValue;
 
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -806,7 +807,7 @@ TEST (OscMessageHandler, EveryMasterAddressFindsItsOwnSlot)
   // for them at all until 2026-09-12 -- and why this page came up at its own
   // defaults for as long as it existed.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -833,7 +834,7 @@ TEST (OscMessageHandler, EveryMasterAddressFindsItsOwnSlot)
 TEST (OscMessageHandler, EveryFilterAddressFindsItsOwnSlot)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());
@@ -866,7 +867,7 @@ TEST (OscMessageHandler, AChannelAddressIsNotAMasterOne)
   // tables are walked one after the other. Crossing them would put the room's
   // level on a channel fader, and neither number would look wrong.
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   RecordingListener listener;
   OscMessageHandler handler (engine, listener);
   handler.setAddresses (madeUpAddresses ());

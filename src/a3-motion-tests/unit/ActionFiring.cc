@@ -20,6 +20,8 @@
 
 #include "WaitUntil.hh"
 
+#include <OfflineBackend.hh>
+
 #include <atomic>
 
 #include <gtest/gtest.h>
@@ -185,7 +187,7 @@ clipWithAShortAccent (ActMode mode)
 TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true); // nothing leaves the machine from a test
   engine.setTempoBPM (240.f);
 
@@ -231,7 +233,7 @@ TEST (ActionFiring, AOneShotThrowsTheClipAndItComesBack)
 TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -272,7 +274,7 @@ TEST (ActionFiring, AHoldComesBackWhenTheFingerLetsGo)
 TEST (ActionFiring, ASecondButtonDuringAnAccentTakesOver)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -305,7 +307,7 @@ TEST (ActionFiring, ASecondButtonDuringAnAccentTakesOver)
 TEST (ActionFiring, WithNoActionOnTheSlotTheClipIsNotTouched)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -334,7 +336,7 @@ TEST (ActionFiring, WithNoActionOnTheSlotTheClipIsNotTouched)
 TEST (ActionFiring, AnActionsEndActionIsWhatEndsTheAccent)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -365,7 +367,7 @@ TEST (ActionFiring, AnActionsEndActionIsWhatEndsTheAccent)
 TEST (ActionFiring, FreqAndQSweepOnEnvelopesOfTheirOwn)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -473,7 +475,7 @@ TEST (ActionFiring, TheButtonsFeelIsOnTheResolvedAction)
 TEST (ActionFiring, AMovementOnlyActionMovesTheClipAndNotTheSound)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true); // nothing leaves the machine from a test
   engine.setTempoBPM (240.f);
 
@@ -508,7 +510,7 @@ TEST (ActionFiring, AMovementOnlyActionMovesTheClipAndNotTheSound)
 TEST (ActionFiring, AClipScheduledOnAChannelLeavesTheRunningOneUntilItStarts)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true);
   engine.setTempoBPM (240.f);
 
@@ -534,7 +536,7 @@ TEST (ActionFiring, AClipScheduledOnAChannelLeavesTheRunningOneUntilItStarts)
 TEST (ActionFiring, TheEngineCountsEachAccentThatEnds)
 {
   HeightMapSphere heightMap;
-  MotionEngine engine (4, heightMap);
+  MotionEngine engine (4, heightMap, offlineBackend ());
   engine.setPreviewMode (0, true); // nothing leaves the machine from a test
   engine.setTempoBPM (240.f);
 
