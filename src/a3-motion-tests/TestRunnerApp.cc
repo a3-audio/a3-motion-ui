@@ -23,6 +23,8 @@
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 
+#include <a3-motion-engine/OscSendGuard.hh>
+
 class ScopedMessageThread : public juce::Thread
 {
 public:
@@ -93,6 +95,10 @@ class MessageThreadParked : public ::testing::EmptyTestEventListener
 int
 main (int argc, char **argv)
 {
+  // Before anything else: from here on no test can aim an OSC sender at any
+  // host, whatever truth the run was given (#67).
+  a3::refuseOscSenders ();
+
   ScopedMessageThread t;
   ::testing::InitGoogleTest (&argc, argv);
   ::testing::UnitTest::GetInstance ()->listeners ().Append (

@@ -22,6 +22,8 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/OscSendGuard.hh>
+
 #include <array>
 #include <cstring>
 
@@ -51,7 +53,7 @@ public:
     _host = host;
     _port = port;
 
-    if (!_sender.connect (host, port))
+    if (!connectOscSender (_sender, host, port))
       return false;
 
     startThread (juce::Thread::Priority::normal);

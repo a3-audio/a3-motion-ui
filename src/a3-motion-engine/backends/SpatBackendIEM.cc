@@ -20,6 +20,8 @@
 
 #include "SpatBackendIEM.hh"
 
+#include <a3-motion-engine/OscSendGuard.hh>
+
 #include <JuceHeader.h>
 
 namespace a3
@@ -29,7 +31,7 @@ SpatBackendIEM::SpatBackendIEM (juce::String address, int basePort,
                                 OscAddresses const &addresses)
     : _address (address), _basePort (basePort)
 {
-  _sender.connect (address, basePort);
+  connectOscSender (_sender, address, basePort);
 
   // Not through setAddresses(): nothing else exists yet to race with.
   addressesChanged (addresses);

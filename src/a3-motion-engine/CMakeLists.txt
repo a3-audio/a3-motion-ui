@@ -38,6 +38,8 @@ target_sources("a3-motion-engine" PRIVATE
     OscAddresses.hh
     OscEndpoints.cc
     OscEndpoints.hh
+    OscSendGuard.cc
+    OscSendGuard.hh
     OscTruth.cc
     TruthKeeperLink.cc
     OscTruth.hh
