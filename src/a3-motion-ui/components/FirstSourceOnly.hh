@@ -44,6 +44,11 @@ struct SourceKey
   {
     return type == other.type && index == other.index;
   }
+
+  constexpr bool operator!= (SourceKey const &other) const
+  {
+    return !(*this == other);
+  }
 };
 
 /** A gesture belongs to the source that started it (#64).
