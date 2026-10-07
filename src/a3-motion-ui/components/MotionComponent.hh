@@ -203,6 +203,8 @@ private:
   /** FPV's ships, where the shader draws blobs in FULL. GL thread (the 2D
    *  pass), the only place _shipHeadings is touched. */
   void drawShips (juce::Graphics &g);
+  /** Every blob and the recording let go, as if all fingers lifted. */
+  void releaseBlobGrabs ();
   void drawListener (juce::Graphics &g);
 
   std::optional<SourceKey> _cameraGrab;

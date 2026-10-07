@@ -1378,7 +1378,12 @@ A3MotionUIComponent::createMainUI ()
   _valueBPM = static_cast<double> (_engine.getTempoBPM ());
 
   _statusBar = std::make_unique<StatusBar> (_valueBPM);
-  _statusBar->onKeyboardIconTapped = [this] { toggleKeyboard (); };
+  // The keyboard lives in the bar, which FPV hides: it opens in FULL only.
+  _statusBar->onKeyboardIconTapped = [this] {
+    if (_view == AppView::Fpv)
+      setView (AppView::Full);
+    toggleKeyboard ();
+  };
   _statusBar->onCleanIconTapped = [this] { toggleClean (); };
   _statusBar->onClockKeyTapped = [this] { stepClockMode (); };
   _statusBar->onMenuKeyTapped = [this] { toggleGlobalSettings (); };
@@ -1600,13 +1605,12 @@ A3MotionUIComponent::resized ()
   auto boundsStatus = bounds.removeFromTop (statusBarHeight);
   _statusBar->setBounds (boundsStatus);
 
-  if (_view == AppView::Fpv && _fpvStrips && _motionComponent)
+  if (_view == AppView::Fpv)
     {
       resizedFpv (bounds);
       return;
     }
-  if (_fpvStrips)
-    _fpvStrips->setBounds ({});
+  _fpvStrips->setBounds ({});
 
   // LoopLength/Elevation/PadRow/Filter option bars are hidden (see
   // createMainUI()/createPadRowDisplays()) — they no longer get screen
@@ -1903,10 +1907,15 @@ A3MotionUIComponent::closeAllOverlays ()
 void
 A3MotionUIComponent::setView (AppView view)
 {
+  jassert (_clipSettings && _fpvStrips && _motionComponent && _statusBar);
   _view = view;
   auto const fpv = view == AppView::Fpv;
+  // An invisible keyboard would still own the panel's buttons.
   if (fpv)
-    closeAllOverlays ();
+    {
+      closeAllOverlays ();
+      showKeyboard (false);
+    }
   _clipSettings->setVisible (!fpv);
   _fpvStrips->setVisible (fpv);
   _motionComponent->setFpv (fpv);
@@ -5265,9 +5274,6 @@ void
 A3MotionUIComponent::showPushedAction (index_t channel, index_t pad,
                                        PadSource source)
 {
-  // The action has fired already (handlePadPress); FPV stays on screen.
-  if (_view == AppView::Fpv)
-    return;
   if (padFunctionByPadIndex[pad] != PadFunction::Action)
     return;
   if (!actionPressShowsItsPage (source, isButtonPressed (Button::Shift)))
@@ -5278,7 +5284,9 @@ A3MotionUIComponent::showPushedAction (index_t channel, index_t pad,
   // from a recording.
   if (channel != _clipSettingsChannel)
     selectClip (channel, 0);
-  if (!_recArmedSlot && !takeIsUnderway ())
+  // FPV stays on screen; the pressed action is still chosen, so FULL shows
+  // it later and the encoders edit it.
+  if (_view != AppView::Fpv && !_recArmedSlot && !takeIsUnderway ())
     {
       if (_overSphere != SphereOverlay::None)
         showOverSphere (SphereOverlay::None);

@@ -1597,6 +1597,26 @@ MotionComponent::setCameraMode (bool on)
   _cameraFingers.clear ();
   if (!on)
     _cameraGrab.reset ();
+  else
+    releaseBlobGrabs ();
+}
+
+void
+MotionComponent::releaseBlobGrabs ()
+{
+  // A finger lifted in camera mode never reaches the blob path of mouseUp,
+  // so whatever it held would stay held -- and a take would keep its last
+  // position -- until grabbed again in FULL. Let go of all of it here.
+  // Only when a finger was down: with none, the recording position is not
+  // the sphere's to release.
+  if (_grabs.empty ())
+    return;
+  for (auto const channel : _grabs.releaseAll ())
+    {
+      _uiStates[channel]->grabbed = false;
+      _engine.setChannelPositionHeld (channel, false);
+    }
+  _engine.releaseRecordingPosition ();
 }
 
 void
