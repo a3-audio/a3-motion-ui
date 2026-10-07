@@ -413,6 +413,8 @@ private:
       _messagesStartStop;
 
   void performRecording ();
+  Pos takePosition2D (Pos const &finger, Pattern const &take) const;
+  Pos takePosition3D (Pos const &position2D, Pattern const &take) const;
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
 

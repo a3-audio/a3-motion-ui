@@ -20,7 +20,9 @@
 
 #include "HeightMapSphere.hh"
 
+#include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include <a3-motion-engine/util/Geometry.hh>
 
@@ -133,6 +135,110 @@ originFold (float base, float reach)
   auto const edge = past > 1.f ? 2.f - past : (past < 0.f ? -past : past);
 
   return { radius, edge, edge <= 0.5f ? 0.f : 1.f };
+}
+
+// What runs past a pole comes back on the far side rather than piling onto it.
+float
+overTheWall (float past)
+{
+  if (past > 1.f)
+    return 2.f - past;
+  if (past < 0.f)
+    return -past;
+  return past;
+}
+
+// The clip-top/-bottom clamp as a closed range of colatitudes.
+std::pair<float, float>
+clipRange (ElevationParams const &params)
+{
+  auto const rangeLow = std::clamp (params.clipTop, 0.f, 1.f);
+  auto const rangeHigh = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
+  if (rangeLow >= rangeHigh)
+    {
+      auto const middle = (rangeLow + rangeHigh) * 0.5f;
+      return { middle, middle };
+    }
+  return { rangeLow, rangeHigh };
+}
+
+// Everything the forward map can reach for one clip (not flat), in the terms
+// its inverse needs.
+//
+// The pad's radius runs the colatitude continuously: from the pole the run
+// from the middle starts at, out to the run's edge, then along the band --
+// "past", the base plus the shape's theta, unfolded -- until theta stops at
+// pi. A continuous path over one interval reaches one interval of
+// colatitudes, so what a clip can play is a band, [lowest, highest], and
+// every direction outside it has a nearest one inside it: the same azimuth at
+// the band's nearer edge (#66).
+struct PlayableBand
+{
+  float base;
+  float towards;
+  OriginFold fold;
+  float pastFrom; ///< the band's unfolded start, at the run's edge
+  float pastTo;   ///< and its end, at theta = pi
+  float lowest;   ///< what can be played, before the clip-top/-bottom clamp
+  float highest;
+};
+
+PlayableBand
+playableBand (ElevationParams const &params)
+{
+  PlayableBand band;
+  band.base = std::clamp (params.elevationBase, 0.f, 1.f);
+  band.towards = params.reach < 0.f ? -1.f : 1.f;
+  band.fold = originFold (band.base, params.reach);
+
+  auto const thetaAtEdge = std::min (
+      thetaShapeFromR (band.fold.radius, std::abs (params.reach)), pi<float> ());
+  band.pastFrom = band.base + band.towards * thetaAtEdge / pi<float> ();
+  band.pastTo = band.base + band.towards;
+
+  auto const pastLow = std::min (band.pastFrom, band.pastTo);
+  auto const pastHigh = std::max (band.pastFrom, band.pastTo);
+
+  band.lowest = std::min ({ band.fold.pole, overTheWall (band.pastFrom),
+                            overTheWall (band.pastTo) });
+  band.highest = std::max ({ band.fold.pole, overTheWall (band.pastFrom),
+                             overTheWall (band.pastTo) });
+  if (pastLow < 0.f && pastHigh > 0.f)
+    band.lowest = 0.f;
+  if (pastLow < 1.f && pastHigh > 1.f)
+    band.highest = 1.f;
+  return band;
+}
+
+// The normalised pad radius that plays `frac`, which has to be in the band.
+//
+// The band first, straight and then over the wall -- the outer pad is where a
+// finger records, and what the inverse has always answered with. The run from
+// the middle only for what the band does not reach: it covers latitudes on
+// the pole's side of the run's edge, which the band may never come back to
+// (a base of 0.1 reaches 0.05 only through it).
+float
+radiusPlaying (float frac, PlayableBand const &band, float reach)
+{
+  constexpr float slack = 1e-5f;
+  auto const pastLow = std::min (band.pastFrom, band.pastTo) - slack;
+  auto const pastHigh = std::max (band.pastFrom, band.pastTo) + slack;
+
+  auto const wrapped = band.towards > 0.f ? 2.f - frac : -frac;
+  for (auto const past : { frac, wrapped })
+    if (past >= pastLow && past <= pastHigh)
+      {
+        auto const theta
+            = std::clamp (band.towards * (past - band.base), 0.f, 1.f)
+              * pi<float> ();
+        return rFromThetaShape (theta, std::abs (reach));
+      }
+
+  auto const span = band.fold.edge - band.fold.pole;
+  if (std::abs (span) < 1e-6f)
+    return band.fold.radius;
+  return band.fold.radius
+         * std::clamp ((frac - band.fold.pole) / span, 0.f, 1.f);
 }
 
 }
@@ -258,17 +364,10 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
     // where the rest of it goes.
     auto const towards = params.reach < 0.f ? -1.f : 1.f;
 
-    auto const heightAt = [&] (float t) {
-      auto const past = base + towards * t / pi<float> ();
-
-      // Over the wall at whichever end it reaches: what runs past a pole comes
-      // back on the far side rather than piling onto it.
-      if (past > 1.f)
-        return 2.f - past;
-      if (past < 0.f)
-        return -past;
-      return past;
-    };
+    // Over the wall at whichever end it reaches: what runs past a pole comes
+    // back on the far side rather than piling onto it.
+    auto const heightAt
+        = [&] (float t) { return overTheWall (base + towards * t / pi<float> ()); };
 
     // The middle of the pad runs to the pole rather than standing on the
     // base's own latitude.
@@ -309,12 +408,7 @@ HeightMapSphere::mapTo3D (Pos const &pos2D, ElevationParams const &params) const
   // pushed past one of them slides *along* it: its bearing is kept and only
   // its colatitude is pulled back, so a figure that runs into the ceiling
   // travels along the ceiling rather than piling onto a single spot.
-  auto const rangeLow = std::clamp (params.clipTop, 0.f, 1.f);
-  auto const rangeHigh = 1.f - std::clamp (params.clipBottom, 0.f, 1.f);
-  bool const collapsed = rangeLow >= rangeHigh;
-  auto const bandLow = collapsed ? (rangeLow + rangeHigh) * 0.5f
-                                 : std::min (rangeLow, rangeHigh);
-  auto const bandHigh = collapsed ? bandLow : std::max (rangeLow, rangeHigh);
+  auto const [bandLow, bandHigh] = clipRange (params);
 
   auto const held = std::clamp (frac, bandLow, bandHigh);
 
@@ -401,38 +495,33 @@ HeightMapSphere::mapTo2D (Pos const &pos3D, ElevationParams const &params) const
                                  0.f);
     }
 
-  // The exact inverse of the forward step: undo the base, and what is left is
-  // the theta the shape was built from. Getting this wrong does not show as an
-  // error -- a recording is written through here and played back through
-  // mapTo3D, so the take would simply sit somewhere else.
+  // The exact inverse of the forward step wherever the clip can play, and the
+  // nearest direction it can play everywhere else. A take is written through
+  // here and played back through mapTo3D, and the engine puts the blob on
+  // that round trip while recording -- so what is heard during the take is
+  // what the take plays back (#66).
+  //
+  // It used to undo the base on the assumption that every direction was
+  // reachable. With the base off the pole the band does not reach up to it,
+  // and a finger above the band went the "over the floor and back up" branch
+  // into a theta past pi, which mapTo3D clamps: every such finger played back
+  // on one ring at 1 - base. A finger outside the band is now held at its
+  // nearer edge, in its own azimuth, which is the nearest direction there is.
   auto const rXY = std::sqrt (x * x + y * y);
-  auto const frac = std::atan2 (rXY, z) / pi<float> ();
+  auto const touched = std::atan2 (rXY, z) / pi<float> ();
 
-  auto const base = std::clamp (params.elevationBase, 0.f, 1.f);
+  auto const band = playableBand (params);
+  auto const [clipLow, clipHigh] = clipRange (params);
 
-  // Undone the way it was done: down from the base, or up from it, and what
-  // went past a pole came back on the far side, so that is the branch to
-  // recognise. Written out rather than folded into one expression -- a
-  // recording is written through here and played back through mapTo3D, and a
-  // clever inverse that is wrong moves every take instead of failing.
-  auto const away = [&] {
-    if (params.reach < 0.f)
-      return frac <= base ? base - frac  // straight up from the base
-                          : base + frac; // over the ceiling and back down
-    return frac >= base ? frac - base    // straight down from it
-                        : 2.f - base - frac; // over the floor and back up
-  }();
+  // What can be heard is the band with the clips laid over it; the radius
+  // asked for is one the band itself reaches, so the clip clamp in mapTo3D
+  // lands it on exactly `heard`.
+  auto const heard = std::clamp (
+      touched, std::clamp (band.lowest, clipLow, clipHigh),
+      std::clamp (band.highest, clipLow, clipHigh));
+  auto const reached = std::clamp (heard, band.lowest, band.highest);
 
-  auto const theta = away * pi<float> ();
-
-  // Not exact inside the run from the pad's middle, and it never was: that run
-  // covers the same latitudes the band does -- it goes to the *nearer* pole,
-  // which is the one the figure is heading for anyway -- so a direction there
-  // is reached twice, once on the way out through the middle and once out on
-  // the band. The band is the answer given, because it is the outer two thirds
-  // of the pad and the outer pad is where a finger records. Same rule as the
-  // wrap past a pole, above, and for the same reason.
-  auto const r = rFromThetaShape (theta, std::abs (params.reach))
+  auto const r = radiusPlaying (reached, band, params.reach)
                  * kPatternCoordinateMaxRadius;
 
   return Pos::fromCartesian (r * std::cos (phi), r * std::sin (phi), 0.f);
