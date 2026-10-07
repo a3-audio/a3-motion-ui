@@ -21,6 +21,7 @@
 #include "MotionComponent.hh"
 
 #include <a3-motion-ui/components/BlobPush.hh>
+#include <a3-motion-ui/components/SourceKeys.hh>
 
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/PatternRunning.hh>
@@ -598,13 +599,23 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
   if (_cameraMode)
     {
       auto const at = event.getPosition ().toFloat ();
-      auto const alone = _cameraFingers.empty ();
-      _cameraFingers[source] = at;
+      auto const key = sourceKeyOf (event.source);
 
-      if (_cameraFingers.size () == 2)
+      _cameraFingers.forgetIfNotDown (isSourceDown);
+      if (_cameraFingers.count () == 0)
+        _cameraGrab.reset ();
+
+      // One finger arrives twice on the device, as a touch and as X's
+      // emulated mouse; only the kind that touched first counts, or the
+      // second copy turned every turn into a pinch.
+      auto const alone = _cameraFingers.count () == 0;
+      if (!_cameraFingers.press (key, at))
+        return;
+
+      if (_cameraFingers.count () == 2)
         {
           _cameraGrab.reset ();
-          _pinchDistanceAtStart = pinchDistance ();
+          _pinchDistanceAtStart = _cameraFingers.pinchDistance ();
           _zoomAtPinch = _cameraZoom;
           return;
         }
@@ -628,7 +639,7 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
         }
 
       _cameraTapMs = now;
-      _cameraGrab = source;
+      _cameraGrab = key;
       _cameraGrabbedAt = at;
       _cameraAtGrab = getCamera ();
       return;
@@ -700,21 +711,22 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
   // Exactly the channel this finger held, and no other. Clearing them all was
   // right while there could only be one grab; with several it handed every
   // other blob back to playback mid-drag.
-  auto const source = grabKey (event.source);
   if (_cameraMode)
     {
       // A pinch that loses a finger does not turn back into a turn: the
       // finger left is still wherever the pinch put it, and a view that
       // jumped from there would be a surprise.
-      _cameraFingers.erase (source);
-      if (_cameraGrab == std::optional<int>{ source })
+      auto const key = sourceKeyOf (event.source);
+      if (!_cameraFingers.release (key))
+        return;
+      if (_cameraGrab == std::optional<SourceKey>{ key })
         _cameraGrab.reset ();
       if (onCameraChanged)
         onCameraChanged ();
       return;
     }
 
-  auto const released = _grabs.up (source);
+  auto const released = _grabs.up (grabKey (event.source));
   if (released.has_value ())
     {
       _uiStates[released.value ()]->grabbed = false;
@@ -731,30 +743,26 @@ void
 MotionComponent::mouseDrag (const juce::MouseEvent &event)
 {
   auto const posPixel = event.getPosition ().toFloat ();
-  auto const source = grabKey (event.source);
 
   if (_cameraMode)
     {
-      auto const finger = _cameraFingers.find (source);
-      if (finger != _cameraFingers.end ())
-        finger->second = posPixel;
+      auto const key = sourceKeyOf (event.source);
+      if (!_cameraFingers.move (key, posPixel))
+        return;
 
-      if (_cameraFingers.size () == 2)
+      if (_cameraFingers.count () == 2)
         {
           _cameraZoom = zoomFromPinch (_zoomAtPinch, _pinchDistanceAtStart,
-                                       pinchDistance ());
+                                       _cameraFingers.pinchDistance ());
           repaint ();
           return;
         }
 
       // A finger that is not turning the view -- the one left over from a
       // pinch -- does nothing. In camera mode no finger takes a blob.
-      if (_cameraGrab != std::optional<int>{ source })
+      if (_cameraGrab != std::optional<SourceKey>{ key })
         return;
-    }
 
-  if (_cameraGrab == std::optional<int>{ source })
-    {
       // Up and down leans the eye over the room, left and right walks it
       // round -- see cameraFromBallDrag(), which is where the feel of it is
       // decided and where it can be tested. The sphere's own size is the
@@ -763,6 +771,8 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
           _cameraAtGrab, posPixel - _cameraGrabbedAt, getLocalBounds ())));
       return;
     }
+
+  auto const source = grabKey (event.source);
 
   if (_engine.isRecordingOrScheduled ())
     {
@@ -1597,17 +1607,6 @@ MotionComponent::setCameraZoom (float zoom)
 {
   _cameraZoom = std::clamp (zoom, minCameraZoom, maxCameraZoom);
   repaint ();
-}
-
-float
-MotionComponent::pinchDistance () const
-{
-  if (_cameraFingers.size () != 2)
-    return 0.f;
-
-  auto const first = _cameraFingers.begin ()->second;
-  auto const second = std::next (_cameraFingers.begin ())->second;
-  return first.getDistanceFrom (second);
 }
 
 void

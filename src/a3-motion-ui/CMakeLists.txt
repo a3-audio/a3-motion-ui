@@ -219,6 +219,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     theme/TransportLook.hh
     components/ClipSettingsLayout.hh
     components/CameraFingers.cc
+    components/SourceKeys.cc
+    components/SourceKeys.hh
     components/CameraFingers.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh

@@ -39,6 +39,7 @@
 #include <a3-motion-ui/ConfigFileWatcher.hh>
 #include <a3-motion-ui/components/BlobTrail.hh>
 #include <a3-motion-ui/components/CoronaScaling.hh>
+#include <a3-motion-ui/components/CameraFingers.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
@@ -196,7 +197,7 @@ private:
   void drawBearings (juce::Graphics &g);
   void drawListener (juce::Graphics &g);
 
-  std::optional<int> _cameraGrab;
+  std::optional<SourceKey> _cameraGrab;
   /** For the double tap that puts the view back overhead. A finger is not a
    *  mouse: the second tap lands a few pixels from the first. */
   juce::int64 _cameraTapMs = 0;
@@ -208,12 +209,10 @@ private:
   std::atomic<float> _cameraZoom{ 1.f };
   /** The fingers on the sphere in camera mode, and where each was last seen.
    *  One turns the view; two pinch the zoom. */
-  std::map<int, juce::Point<float> > _cameraFingers;
+  CameraFingers _cameraFingers;
   float _pinchDistanceAtStart = 0.f;
   float _zoomAtPinch = 1.f;
 
-  /** The distance between the two fingers in _cameraFingers. */
-  float pinchDistance () const;
   juce::Point<float> _cameraGrabbedAt;
   SphereCamera _cameraAtGrab;
   Pos localToNormalized2DPosition (juce::Point<float> const &posLocal) const;

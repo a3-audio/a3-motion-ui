@@ -632,7 +632,11 @@ tenth a notch), a trackpad's magnify and a two-finger pinch on the sphere (`zoom
 the sphere between `minCameraZoom` and `maxCameraZoom`; it is a factor on the skin's sphere size in
 `updateBoundsAndTransform`, so everything placed through that region follows. A second finger
 turns a turn into a pinch; only a finger alone on the sphere counts towards the double tap, which
-puts view and zoom back. A small camera in the picture's top right corner (`elevationCameraMark`)
+puts view and zoom back. **A finger is counted once** (`CameraFingers`, 2026-10-07): on the device X
+sends every touch a second time as an emulated mouse at the same point, and with grabs keyed by
+source (9a04236, for the blobs) the camera took one finger for two — a pinch of zero width — and
+stopped turning. Only sources of the kind that touched first count until its last one is up, so two
+real touches still pinch and a mouse alone (VNC) still turns. A small camera in the picture's top right corner (`elevationCameraMark`)
 says what touching the picture selects. **The view survives a restart**: lean, walk and zoom are
 device settings (`AppSettings::camera*`), saved whenever a camera gesture settles
 (`MotionComponent::onCameraChanged`) and held to the same limits when read back.
