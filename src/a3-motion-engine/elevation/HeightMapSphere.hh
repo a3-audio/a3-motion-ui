@@ -80,9 +80,11 @@ public:
   Pos mapTo2D (Pos const &pos3D, float coverage) const override;
   Pos mapTo2D (Pos const &pos3D, float coverage, EdgeMode edgeMode) const;
 
-  /** Best-effort inverse of mapTo3D(pos2D, ElevationParams) — exact for the
-   *  reach/mirrorSouth shape; in flat mode there is no radius information
-   *  left to recover, so it falls back to a nominal mid radius. */
+  /** Inverse of mapTo3D(pos2D, ElevationParams): exact for every direction
+   *  the clip can play, and for any other the nearest one it can -- same
+   *  azimuth, colatitude held at the band's nearer edge (#66). In flat mode
+   *  there is no radius information left to recover, so it falls back to a
+   *  nominal mid radius. */
   Pos mapTo2D (Pos const &pos3D, ElevationParams const &params) const override;
 
   void setCoverage (float coverage) override;

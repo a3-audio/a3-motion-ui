@@ -1281,12 +1281,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   // begins. Touch and Latch never reach for this.
   _recordingHasTouched = false;
   auto const startPosition = _channels[pattern->getChannel ()]->getPosition ();
-  _recordingHeldPosition2D
-      = startPosition.isValid ()
-            ? _heightMap.mapTo2D (
-                  unturnedInSpace (startPosition, spaceTurnOf (*pattern)),
-                  pattern->getElevationParams ())
-            : Pos::invalid;
+  _recordingHeldPosition2D = startPosition.isValid ()
+                                ? takePosition2D (startPosition, *pattern)
+                                : Pos::invalid;
   _patternRecording->setStatus (Pattern::Status::Recording);
 
   // Clear scheduled flag only if this pattern was scheduled
@@ -1386,6 +1383,27 @@ MotionEngine::finishRecording ()
   _recordingLap = 0;
 }
 
+/** A finger, as a take writes it: turned back out of the leant plane, so the
+ *  take plays back under it, and through the take's own inverse, which holds
+ *  a direction the take cannot play at the nearest one it can -- the take
+ *  keeps the clip's elevation band (decided 2026-10-07, #66). */
+Pos
+MotionEngine::takePosition2D (Pos const &finger, Pattern const &take) const
+{
+  return _heightMap.mapTo2D (unturnedInSpace (finger, spaceTurnOf (take)),
+                             take.getElevationParams ());
+}
+
+/** Where a written point is heard: the projection playback makes, without
+ *  the shaping and the sweeps, which a take does not run while recording. */
+Pos
+MotionEngine::takePosition3D (Pos const &position2D, Pattern const &take) const
+{
+  return turnedInSpace (
+      _heightMap.mapTo3D (position2D, take.getElevationParams ()),
+      spaceTurnOf (take));
+}
+
 void
 MotionEngine::performRecording ()
 {
@@ -1396,9 +1414,13 @@ MotionEngine::performRecording ()
       // Armed but still waiting for its downbeat: nothing is written yet, but
       // the finger already steers the blob, so that it is under the finger the
       // moment the take does begin instead of jumping there.
+      // Held in the take's band already, or the blob would jump into it as
+      // the take begins.
       if (_patternScheduledForRecording && _recordingPosition.isValid ())
         _channels[_patternScheduledForRecording->getChannel ()]->setPosition (
-            _recordingPosition);
+            takePosition3D (takePosition2D (_recordingPosition,
+                                            *_patternScheduledForRecording),
+                            *_patternScheduledForRecording));
 
       return;
     }
@@ -1458,20 +1480,14 @@ MotionEngine::performRecording ()
       // Protecting what is already there is what makes several passes worth
       // running: rough one out, then mend a corner.
       // The finger arrives as a direction on the sphere. A pattern stores 2D
-      // so elevation coverage can be changed later, and mapTo2D is the exact
-      // inverse of the mapTo3D playback uses — see
-      // HeightMapSphere.MapTo2DRoundTripLeavesAPositionWhereItWas.
-      auto const params = _patternRecording->getElevationParams ();
+      // so elevation coverage can be changed later; see takePosition2D() for
+      // how a finger outside what the take can play is held in its band.
       auto const fingerDown = _recordingPosition.isValid ();
 
       if (fingerDown)
         {
-          // The finger draws in the leant plane: turned back before it is
-          // written, so the take plays back under it.
-          _recordingPosition2D = _heightMap.mapTo2D (
-              unturnedInSpace (_recordingPosition,
-                               spaceTurnOf (*_patternRecording)),
-              params);
+          _recordingPosition2D
+              = takePosition2D (_recordingPosition, *_patternRecording);
           _recordingHeldPosition2D = _recordingPosition2D;
           _recordingHasTouched = true;
         }
@@ -1521,13 +1537,14 @@ MotionEngine::performRecording ()
             baseIndex % std::max<std::size_t> (ticksPatternLength, 1)));
       }
 
-      if (_recordingPosition.isValid ())
+      if (fingerDown)
         {
-          // The finger's own direction, not a round trip through the pattern
-          // space — that is what puts the blob exactly under it.
-          auto const recChannel = _patternRecording->getChannel ();
-          auto pos3D = _recordingPosition;
-          _channels[recChannel]->setPosition (pos3D);
+          // What was written, played back -- not the finger's own direction.
+          // Inside the band the two are the same point; outside it the finger
+          // used to lead the blob out of the band, which sounded right while
+          // drawing and played back somewhere else (#66).
+          _channels[_patternRecording->getChannel ()]->setPosition (
+              takePosition3D (_recordingPosition2D, *_patternRecording));
         }
     }
 }

@@ -191,6 +191,18 @@ instead of as a plugin.
   a `set.json` beside the takes. A folder with a set and the takes it names is a gig on a stick,
   which is the whole reason it is a file of its own rather than something in the app's settings.
 
+  **A take is recorded into its clip, band and all** (decided 2026-10-07, #66). It starts with every
+  setting of the clip the slot held and, by the rec mode, its path: TOUCH overdubs (an untouched
+  tick keeps the clip's), WRITE replaces the whole pass. The exceptions are 3D, FREQ and Q, which
+  belong to the actions: no take records them and no lane carries them (`TakeRecording`). Keeping
+  the elevation band means a finger can point where the clip cannot play — with the base off the
+  pole the band does not reach up to it. `HeightMapSphere::mapTo2D(…, ElevationParams)` therefore
+  answers with the *nearest playable* direction (same azimuth, colatitude clamped to the band's
+  nearer edge) and is exact everywhere inside the band, and the engine puts the blob on that round
+  trip while recording (`MotionEngine::takePosition2D/3D`), so what is heard during the take is what
+  it plays back. Before, the blob followed the finger out of the band and the take came back as one
+  ring at `1 - base`.
+
   Deliberately **not** in the set: the clock mode and the rec mode. The clock depends on what is
   plugged into the switch at the venue and the rec mode is a working habit; a set that changed
   either out from under you on load would be a surprise at the one moment nobody wants one.

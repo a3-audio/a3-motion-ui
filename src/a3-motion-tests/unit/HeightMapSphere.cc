@@ -22,6 +22,11 @@
 
 #include <JuceHeader.h>
 
+#include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 using namespace a3;
@@ -640,4 +645,165 @@ TEST (HeightMapSphere, TheInverseTakesTheNearSideOfTheBase)
         EXPECT_NEAR (round.y (), there.y (), 1e-3f)
             << "reach " << reach << " at " << x;
       }
+}
+
+// ── What a take can hold (#66) ───────────────────────────────────────────
+
+namespace
+{
+/** The colatitudes a clip can play, found the slow way: by running the
+ *  forward map over the whole pad, so the tests do not lean on the
+ *  arithmetic they are checking. */
+std::pair<float, float>
+playableRange (HeightMapSphere const &heightMap, ElevationParams const &params)
+{
+  auto lowest = 1.f;
+  auto highest = 0.f;
+  auto const visit = [&] (float r) {
+    auto const frac
+        = fracOf (heightMap.mapTo3D (Pos::fromCartesian (r, 0.f, 0.f), params));
+    lowest = std::min (lowest, frac);
+    highest = std::max (highest, frac);
+  };
+  // Finely over the pad, where the band's edges are; coarsely beyond, out to
+  // where theta stops growing even at the smallest reach.
+  for (int i = 0; i <= 80000; ++i)
+    visit (4.f * static_cast<float> (i) / 80000.f);
+  for (int i = 0; i <= 3600; ++i)
+    visit (4.f + 36.f * static_cast<float> (i) / 3600.f);
+  return { lowest, highest };
+}
+
+Pos
+directionAt (float frac, float azimuth)
+{
+  auto const t = frac * juce::MathConstants<float>::pi;
+  return Pos::fromCartesian (std::sin (t) * std::cos (azimuth),
+                             std::sin (t) * std::sin (azimuth), std::cos (t));
+}
+
+float
+angleBetween (Pos const &a, Pos const &b)
+{
+  auto const dot = a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
+  return std::acos (std::clamp (dot, -1.f, 1.f));
+}
+
+/** What a take does with a finger: written through mapTo2D, heard through
+ *  mapTo3D. */
+Pos
+heldInTake (HeightMapSphere const &heightMap, Pos const &finger,
+            ElevationParams const &params)
+{
+  return heightMap.mapTo3D (heightMap.mapTo2D (finger, params), params);
+}
+
+std::vector<ElevationParams>
+aSpreadOfClips ()
+{
+  std::vector<ElevationParams> clips;
+  for (float base : { 0.f, 0.1f, 0.35f, 0.5f, 0.8f, 1.f })
+    for (float reach : { 0.3f, 0.7f, 1.f, -0.3f, -0.7f })
+      clips.push_back (baseParams (base, reach));
+
+  auto clipped = baseParams (0.2f, 0.6f);
+  clipped.clipTop = 0.3f;
+  clipped.clipBottom = 0.25f;
+  clips.push_back (clipped);
+
+  auto flat = baseParams (0.f);
+  flat.flat = true;
+  flat.flatElevation = 0.4f;
+  clips.push_back (flat);
+  return clips;
+}
+}
+
+/** Adapted from the diagnosis' AFingerAboveTheBaseIsPlayedBackWhereItWasTouched
+ *  (2026-10-07): with a base off the pole, a clip cannot play the directions
+ *  above its band, and every finger up there came back on one ring at
+ *  1 - base -- the circle on the rig ("Build Pulse": base 0.35, reach 0.7).
+ *  Decided the same day: the take keeps the clip's band, and a finger outside
+ *  it is held at the band's nearest edge, in its own azimuth. */
+TEST (HeightMapSphere, AFingerAboveTheBandIsPlayedBackOnItsEdge)
+{
+  HeightMapSphere heightMap;
+  auto const params = baseParams (0.35f, 0.7f);
+  auto const edge = playableRange (heightMap, params).first;
+  ASSERT_GT (edge, 0.35f) << "the test needs a band that does not reach up";
+
+  constexpr float azimuth = 0.4f;
+  for (float frac : { 0.05f, 0.15f, 0.25f, 0.33f })
+    {
+      auto const played
+          = heldInTake (heightMap, directionAt (frac, azimuth), params);
+
+      EXPECT_NEAR (fracOf (played), edge, 2e-3f) << "touched at frac " << frac;
+      EXPECT_NEAR (std::atan2 (played.y (), played.x ()), azimuth, 1e-3f)
+          << "touched at frac " << frac;
+    }
+}
+
+/** Inside the band nothing is held: every direction a clip can play is
+ *  written so that it plays back exactly there -- through the run from the
+ *  pad's middle too, which the inverse used to leave inexact. */
+TEST (HeightMapSphere, EveryDirectionAClipCanPlayIsWrittenWhereItIs)
+{
+  HeightMapSphere heightMap;
+
+  for (auto const &params : aSpreadOfClips ())
+    for (int ri = 0; ri <= 120; ++ri)
+      for (float azimuth : { -2.5f, 0.4f, 1.9f })
+        {
+          auto const r = 3.f * static_cast<float> (ri) / 120.f;
+          auto const playable = heightMap.mapTo3D (
+              Pos::fromCartesian (r * std::cos (azimuth),
+                                  r * std::sin (azimuth), 0.f),
+              params);
+
+          EXPECT_LT (angleBetween (heldInTake (heightMap, playable, params),
+                                   playable),
+                     2e-3f)
+              << "base " << params.elevationBase << " reach " << params.reach
+              << " flat " << params.flat << " r " << r << " az " << azimuth;
+        }
+}
+
+/** Anywhere a finger goes, what the take holds is the nearest direction the
+ *  clip can play -- same azimuth, colatitude clamped into the band -- and
+ *  holding it again changes nothing, so what is heard while recording is
+ *  what is heard on playback. */
+TEST (HeightMapSphere, AFingerOutsideTheBandIsHeldAtItsNearestEdge)
+{
+  HeightMapSphere heightMap;
+
+  for (auto const &params : aSpreadOfClips ())
+    {
+      auto const [lowest, highest] = playableRange (heightMap, params);
+
+      for (int fi = 1; fi < 50; ++fi)
+        for (float azimuth : { -2.5f, 0.4f, 1.9f })
+          {
+            auto const frac = static_cast<float> (fi) / 50.f;
+            auto const held
+                = heldInTake (heightMap, directionAt (frac, azimuth), params);
+            auto const again = heldInTake (heightMap, held, params);
+
+            auto const where = [&] {
+              return "base " + std::to_string (params.elevationBase)
+                     + " reach " + std::to_string (params.reach) + " flat "
+                     + std::to_string (params.flat) + " frac "
+                     + std::to_string (frac);
+            };
+
+            EXPECT_NEAR (fracOf (held), std::clamp (frac, lowest, highest),
+                         2e-3f)
+                << where ();
+            if (std::sin (fracOf (held) * juce::MathConstants<float>::pi)
+                > 1e-2f)
+              EXPECT_NEAR (std::atan2 (held.y (), held.x ()), azimuth, 2e-3f)
+                  << where ();
+            EXPECT_LT (angleBetween (again, held), 2e-3f) << where ();
+          }
+    }
 }
