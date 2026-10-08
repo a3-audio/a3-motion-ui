@@ -348,6 +348,44 @@ TEST (ShippedLibrary, FourteenSetsOnePerPhaseLaidOutTheSameWay)
     }
 }
 
+// The buttons sit the same way in every phase set (a3-doc's library page):
+// A1 and A3 move towards "more", A2 and A4 towards "less", as each script's
+// own Mood: line says. Break and Float carried Width Breathe, a "less", on
+// A3 (docs question 9, 2026-10-08). The four mood sets use A1..A4 for
+// gestures of their own mood and are not held to it.
+TEST (ShippedLibrary, PhaseSetsPutMoreLeftAndLessRight)
+{
+  juce::StringArray const moodSets{ "Tribal", "Tension", "Acid", "Ambient" };
+  auto const moodOf = [] (juce::String const &script) {
+    auto const file
+        = juce::File (A3_PATTERN_ACTIONS_DIR).getChildFile (script + ".scd");
+    for (auto const &line : juce::StringArray::fromLines (file.loadFileAsString ()))
+      if (line.contains ("Mood:"))
+        return line.fromFirstOccurrenceOf ("Mood:", false, false)
+            .trim ()
+            .upToFirstOccurrenceOf (" ", false, false);
+    return juce::String{};
+  };
+
+  auto const files = juce::File (A3_PATTERN_SESSIONS_DIR)
+                         .findChildFiles (juce::File::findFiles, false, "*.json");
+  for (auto const &f : files)
+    {
+      auto const set = loadSession (f, 4, 1);
+      auto const name = juce::String (set.name);
+      if (moodSets.contains (name))
+        continue;
+      for (auto const &channel : set.channels)
+        for (int b = 0; b < 4; ++b)
+          {
+            auto const script
+                = juce::String (channel.actions[static_cast<size_t> (b)].script);
+            EXPECT_EQ (moodOf (script), b % 2 == 0 ? "more" : "less")
+                << name << " A" << (b + 1) << " " << script;
+          }
+    }
+}
+
 // The library the tests hold to their promises is what is committed, not what
 // the rig's working copy holds: ACTION writes its settings into the scripts
 // while a set is played (2026-09-29, Speed Double's ~envelopeMax 0.05 turned
