@@ -692,3 +692,96 @@ TEST (FlightBreath, TheShipCatchesUpWithItsRabbit)
                0.1f)
         << "ship " << ch;
 }
+
+// Under three beats a bar the last beat is half the bar or all of it: that
+// is a stutter or a standstill, not a breath, so there is none.
+TEST (FlightBreath, NoBreathUnderThreeBeatsABar)
+{
+  EXPECT_FALSE (breathHolds (0.5, 1));
+  EXPECT_FALSE (breathHolds (1.5, 2));
+  EXPECT_TRUE (breathHolds (2.5, 3));
+}
+
+// The key is tapped whenever the DJ likes, but a stop is a whole beat on the
+// grid or it is not a breath: a switch made inside beat 4 waits for the one.
+TEST (FlightBreath, SwitchedOnInsideBeatFourItWaitsForTheOne)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, allPatrolling (), {}, ticksIn (3.5));
+  world.setBreathing (true);
+  EXPECT_TRUE (world.breathing ()) << "the key says what was asked for";
+
+  auto const before = world.ship (0).p;
+  run (world, allPatrolling (), {}, ticksIn (0.5), 3.5);
+  EXPECT_NE (world.ship (0).p, before) << "no stop cut short";
+
+  run (world, allPatrolling (), {}, ticksIn (3.), 4.);
+  auto const held = world.ship (0).p;
+  run (world, allPatrolling (), {}, ticksIn (1.), 7.);
+  EXPECT_EQ (world.ship (0).p, held) << "the next bar's beat 4 is a stop";
+}
+
+TEST (FlightBreath, SwitchedOffInsideBeatFourItHoldsToTheOne)
+{
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  launchAll (world);
+  run (world, allPatrolling (), {}, ticksIn (3.5));
+  auto const held = world.ship (0).p;
+  world.setBreathing (false);
+  EXPECT_FALSE (world.breathing ());
+
+  run (world, allPatrolling (), {}, ticksIn (0.5), 3.5);
+  EXPECT_EQ (world.ship (0).p, held) << "the stop runs to the one";
+  run (world, allPatrolling (), {}, 1, 4.);
+  EXPECT_NE (world.ship (0).p, held);
+
+  run (world, allPatrolling (), {}, ticksIn (3.), 4. + tickBeats ());
+  auto const before = world.ship (0).p;
+  run (world, allPatrolling (), {}, ticksIn (1.), 7. + tickBeats ());
+  EXPECT_NE (world.ship (0).p, before) << "off means beat 4 flies again";
+}
+
+// A ship put into the air inside a stop waits there for the one, like the
+// others, rather than starting a bar of its own.
+TEST (FlightBreath, ALaunchInsideAStopWaitsForTheOne)
+{
+  FlightTuning const tuning;
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  run (world, allPatrolling (), {}, ticksIn (3.5));
+  auto const at = rabbitAt (3.5, 0, fourFour, tuning).at;
+  world.launch (0, at, 3.5, fourFour);
+
+  run (world, allPatrolling (), {}, ticksIn (0.5), 3.5);
+  EXPECT_EQ (world.ship (0).p, at);
+  run (world, allPatrolling (), {}, 1, 4.);
+  EXPECT_NE (world.ship (0).p, at);
+}
+
+// An escort keeps its group through the stops: captured, and circling it,
+// with the breath on as without.
+TEST (FlightBreath, AnEscortKeepsItsGroupAcrossTheStops)
+{
+  FlightTuning const tuning;
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  auto const path = run (world, shipZeroOn (FlightGoal::Escort, escortedId),
+                         oneGroup (), ticksIn (barsToBeats (8.f)));
+
+  auto const radius = escortRadius (2.f);
+  for (auto const &sample : captured (path))
+    {
+      auto const distance = sample.ships[0].p.getDistanceFrom (escorted);
+      ASSERT_GE (distance, 0.5f * radius) << "at beat " << sample.beats;
+      ASSERT_LE (distance, 1.6f * radius) << "at beat " << sample.beats;
+    }
+
+  // Standing still on every beat 4 of the captured stretch.
+  for (size_t i = 1; i < path.size (); ++i)
+    if (breathHolds (path[i].beats - tickBeats (), fourFour))
+      ASSERT_EQ (path[i].ships[0].p, path[i - 1].ships[0].p)
+          << "at beat " << path[i].beats;
+}

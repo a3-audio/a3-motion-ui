@@ -35,7 +35,10 @@ namespace a3
 inline bool
 breathHolds (double beats, int beatsPerBar)
 {
-  if (beatsPerBar <= 0 || beats < 0.)
+  // Under three beats a bar the last beat is half the bar or all of it: a
+  // stutter or a standstill, not a breath.
+  constexpr int fewestBeatsToBreathe = 3;
+  if (beatsPerBar < fewestBeatsToBreathe || beats < 0.)
     return false;
   auto const inBar = std::fmod (beats, static_cast<double> (beatsPerBar));
   return inBar >= static_cast<double> (beatsPerBar - 1);

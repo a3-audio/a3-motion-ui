@@ -424,7 +424,7 @@ TEST (FlightEngine, ABreathingOrbitChannelStandsStillOnBeatFour)
     {
       auto const inBar = samples[i].tick % ticksPerBar;
       auto const step = degreesBetween (samples[i - 1].orbit, samples[i].orbit);
-      if (inBar > ticksPerBar - ticksPerBeat) // past the first tick of beat 4
+      if (inBar >= ticksPerBar - ticksPerBeat) // every tick of beat 4
         {
           EXPECT_EQ (samples[i].orbit, samples[i - 1].orbit)
               << "moved on beat 4 at tick " << samples[i].tick;

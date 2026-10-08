@@ -136,7 +136,10 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
 
   // All ships hold together, so a held tick is simply not stepped: nobody
   // moves, nobody pushes another away, every velocity is kept.
-  if (_breathing && breathHolds (beats, beatsPerBar))
+  auto const inTheStop = breathHolds (beats, beatsPerBar);
+  if (!inTheStop)
+    _breathing = _breathWanted;
+  if (_breathing && inTheStop)
     return;
 
   // Every ship's pulls are taken from where the others were before this

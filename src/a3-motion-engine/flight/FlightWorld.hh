@@ -73,9 +73,13 @@ public:
 
   /** The breath (see Breath.hh): while on, every ship stands still through
    *  the last beat of each bar, velocity kept, and its rabbit runs on, so
-   *  the restart on the one is a short chase. Off by default. */
-  void setBreathing (bool on) { _breathing = on; }
-  bool breathing () const { return _breathing; }
+   *  the restart on the one is a short chase. Off by default.
+   *
+   *  A switch made inside a stop waits for the one, so no stop is ever cut
+   *  short or started late: a stop is a whole beat on the grid or it is not
+   *  a breath. breathing() says what was asked for. */
+  void setBreathing (bool on) { _breathWanted = on; }
+  bool breathing () const { return _breathWanted; }
 
 private:
   /** How ship `ch` circles the body it escorts, fixed at the first step
@@ -107,7 +111,8 @@ private:
   std::array<EscortLeg, flightShips> _escort{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
-  bool _breathing = false;
+  bool _breathWanted = false;
+  bool _breathing = false; // what step() goes by; follows _breathWanted outside a stop
 };
 
 }
