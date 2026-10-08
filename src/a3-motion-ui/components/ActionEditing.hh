@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/util/Types.hh>
 
@@ -96,6 +97,17 @@ bool errorsBlockSaving (juce::StringArray const &errors,
  *  it lands in holds -- "Set" in sessions/, "Clip" in clips/, "Action" in
  *  actions/. The fallback used to be "Action" whatever list was open. */
 juce::String copyBaseFor (juce::File const &from, juce::File const &folder);
+
+/** Where ACTION writes a turned value into the script `file` (maintainer,
+ *  2026-10-08): the file itself when it is the performer's, or when
+ *  developer mode lets the instrument's own be written; otherwise a copy in
+ *  `actionsFolder`'s user/ half, named after it ("Bloom 2"). The same rule
+ *  FILES keeps for Save (shippedFileMayBeOverwritten), so a factory action
+ *  is not changed by a knob while the same change typed in FILES is
+ *  refused. Only names the file; nothing is written here. */
+juce::File scriptFileToWrite (juce::File const &file,
+                              juce::File const &actionsFolder,
+                              ShippedClips shipped);
 
 /** Whether a file is an action a button can fire. The language manual,
  *  README.scd, sits beside the scripts with the same extension: readable in

@@ -1687,8 +1687,13 @@ line edit on the chosen button's script (`setScriptLine`/`unsetScriptLine` in `S
 the one `~name` line changes, comments and every other line stay; a commented line is uncommented,
 a missing one added under its section, a dice expression becomes the number. A double tap on a
 MOTION value or on "then" comments the line out ("as the clip is" / nothing after). The edit is
-in place, shipped scripts included, and reaches every button on every channel holding that file
-(`editShownScript` → `buttonsHoldingFile` → `runButtonScript`); the FILES editor showing it takes
+in place and reaches every button on every channel holding that file (`editShownScript` →
+`buttonsHoldingFile` → `runButtonScript`). **A shipped script with developer mode off is not
+written** (maintainer, 2026-10-08, the rule FILES keeps for Save): the first turn writes a copy
+into `actions/user/`, named after it ("Bloom 2", `scriptFileToWrite` in `ActionEditing.hh`), every
+button that held the factory script holds the copy from then on, and the FILES editor showing it
+moves to the copy; the set names the copy once it is saved. With developer mode on, shipped scripts
+are written in place as before; the FILES editor showing it takes
 the same line change even while it holds unsaved typing (`ScriptPanel::applyEdit`). The file is
 written ~300 ms after the last change (`PendingScriptWrites`, through `writeTextFile` — JUCE's
 `replaceWithText` would write CRLF), flushed before a set load, before FILES reads a file, and on

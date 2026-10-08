@@ -265,3 +265,58 @@ TEST (CueClip, ACueWithOnlyItsClipLinePutsTheClipAsItIs)
   EXPECT_EQ (cuedClipSettings ("~clip = \"Warmup Halo\";\n", aCuedClip (), 1),
              aCuedClip ());
 }
+
+// Where a turn on ACTION is written (maintainer, 2026-10-08): into the
+// script itself when it is the performer's, or when developer mode lets the
+// instrument's own be written; into a copy beside it in user/ when it is
+// one of the instrument's own and developer mode is off, the same rule FILES
+// keeps for Save.
+namespace
+{
+juce::File
+anActionsDirHolding (juce::StringArray const &system,
+                     juce::StringArray const &user)
+{
+  auto const dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("a3-action-writes");
+  dir.deleteRecursively ();
+  for (auto const &[half, names] :
+       { std::pair{ "system", system }, std::pair{ "user", user } })
+    {
+      dir.getChildFile (half).createDirectory ();
+      for (auto const &n : names)
+        dir.getChildFile (half).getChildFile (n + ".scd").replaceWithText ("");
+    }
+  return dir;
+}
+}
+
+TEST (ScriptToWrite, ThePerformersOwnIsWrittenInPlace)
+{
+  auto const dir = anActionsDirHolding ({}, { "Mine" });
+  auto const mine = dir.getChildFile ("user").getChildFile ("Mine.scd");
+  EXPECT_EQ (scriptFileToWrite (mine, dir, ShippedClips::Protected), mine);
+}
+
+TEST (ScriptToWrite, AShippedOneIsCopiedIntoUser)
+{
+  auto const dir = anActionsDirHolding ({ "Bloom" }, {});
+  auto const bloom = dir.getChildFile ("system").getChildFile ("Bloom.scd");
+  auto const target = scriptFileToWrite (bloom, dir, ShippedClips::Protected);
+  EXPECT_EQ (target, dir.getChildFile ("user").getChildFile ("Bloom 2.scd"));
+}
+
+TEST (ScriptToWrite, TheCopyTakesTheNextFreeName)
+{
+  auto const dir = anActionsDirHolding ({ "Bloom" }, { "Bloom 2" });
+  auto const bloom = dir.getChildFile ("system").getChildFile ("Bloom.scd");
+  EXPECT_EQ (scriptFileToWrite (bloom, dir, ShippedClips::Protected),
+             dir.getChildFile ("user").getChildFile ("Bloom 3.scd"));
+}
+
+TEST (ScriptToWrite, DeveloperModeWritesTheShippedOneInPlace)
+{
+  auto const dir = anActionsDirHolding ({ "Bloom" }, {});
+  auto const bloom = dir.getChildFile ("system").getChildFile ("Bloom.scd");
+  EXPECT_EQ (scriptFileToWrite (bloom, dir, ShippedClips::Writable), bloom);
+}
