@@ -242,3 +242,19 @@ TEST (BaseOrbit, ALapOfZeroOrLessStandsTheRabbitStill)
       EXPECT_EQ (rabbitAt (100., 1, fourFour, t).velocity, Vec2{});
     }
 }
+
+// ~swell (phase B) breathes the path: the rabbit runs on the same ellipse,
+// scaled about the room's middle.
+TEST (BaseOrbit, AScaledRabbitRunsOnAScaledEllipse)
+{
+  FlightTuning const tuning;
+  for (auto const beats : { 0., 3.25, 11.5 })
+    {
+      auto const plain = rabbitAt (beats, 1, fourFour, tuning);
+      auto const half = rabbitAt (beats, 1, fourFour, tuning, 0.f, 0.5f);
+      EXPECT_NEAR (half.at.x, plain.at.x * 0.5f, 1e-5f) << beats;
+      EXPECT_NEAR (half.at.y, plain.at.y * 0.5f, 1e-5f) << beats;
+      EXPECT_NEAR (half.velocity.x, plain.velocity.x * 0.5f, 1e-5f) << beats;
+      EXPECT_NEAR (half.velocity.y, plain.velocity.y * 0.5f, 1e-5f) << beats;
+    }
+}

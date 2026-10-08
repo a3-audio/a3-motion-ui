@@ -132,10 +132,12 @@ rabbitSlotPhase (double beats, int channel, int beatsPerBar,
 
 OrbitPoint
 rabbitAt (double beats, int channel, int beatsPerBar,
-          FlightTuning const &tuning, float phaseOffset)
+          FlightTuning const &tuning, float phaseOffset, float radiusScale)
 {
   auto const lap = lapBeats (beatsPerBar, tuning);
-  auto const ellipse = ellipseAt (beats, beatsPerBar, tuning);
+  auto ellipse = ellipseAt (beats, beatsPerBar, tuning);
+  ellipse.longAxis *= radiusScale;
+  ellipse.shortAxis *= radiusScale;
   auto const phase = wrapPhase (static_cast<double> (
       rabbitSlotPhase (beats, channel, beatsPerBar, tuning) + phaseOffset));
   auto const theta = static_cast<float> (twoPi) * phase;

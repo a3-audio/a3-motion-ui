@@ -43,14 +43,16 @@ struct OrbitPoint
  *
  *  `phaseOffset` (laps) moves the rabbit along its lap: a ship launched
  *  mid-flight starts its rabbit at the phase nearest to it rather than at its
- *  channel's slot. */
+ *  channel's slot. `radiusScale` scales the ellipse about the room's middle
+ *  (an action's ~swell, phase B); 1 is the path as tuned. */
 /** The lap phase (0..1) channel `channel`'s rabbit has at `beats` without
  *  an offset: its slot, a quarter lap behind channel n-1. */
 float rabbitSlotPhase (double beats, int channel, int beatsPerBar,
                        FlightTuning const &tuning);
 
 OrbitPoint rabbitAt (double beats, int channel, int beatsPerBar,
-                     FlightTuning const &tuning, float phaseOffset = 0.f);
+                     FlightTuning const &tuning, float phaseOffset = 0.f,
+                     float radiusScale = 1.f);
 
 /** The lap phase (0..1) on the ellipse nearest `p` at time `beats`.
  *  No allocation: safe on the clock thread. */

@@ -25,6 +25,7 @@
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
+#include <algorithm>
 #include <cmath>
 
 namespace a3
@@ -99,6 +100,14 @@ withoutBody (FlightBodies const &bodies, int left)
   return others;
 }
 
+Vec2
+turnedBy (Vec2 v, float angle)
+{
+  auto const c = std::cos (angle);
+  auto const s = std::sin (angle);
+  return { c * v.x - s * v.y, s * v.x + c * v.y };
+}
+
 }
 
 FlightWorld::FlightWorld (juce::int64 seed, FlightTuning const &tuning)
@@ -125,6 +134,10 @@ FlightWorld::launch (int ch, Vec2 p, double beats, int beatsPerBar)
                                     : Vec2{ cruise, 0.f };
   _ships[index (ch)] = { p, velocity };
   _escort[index (ch)] = {};
+  // Launched undriven: a ship that takes off under a running action eases
+  // into it like any other, instead of starting at full hold.
+  _motionWeight[index (ch)] = 0.f;
+  _motion[index (ch)] = {};
 }
 
 void
@@ -133,6 +146,12 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
                    float pulse, float dt)
 {
   redrawWanderOnANewBar (beats, beatsPerBar);
+
+  // Before the breath: how far an action has hold of a ship is the action's,
+  // not the floor's, and it takes hold on its own beat.
+  for (auto ch = 0; ch < flightShips; ++ch)
+    if (orders[index (ch)].flying)
+      easeMotion (ch, orders[index (ch)], dt);
 
   // All ships hold together, so a held tick is simply not stepped: nobody
   // moves, nobody pushes another away, every velocity is kept.
@@ -145,11 +164,13 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   // Every ship's pulls are taken from where the others were before this
   // tick, so the order the four are stepped in does not matter.
   std::array<ShipForces, flightShips> forces{};
+  std::array<bool, flightShips> patrolling{};
   for (auto ch = 0; ch < flightShips; ++ch)
     {
       if (!orders[index (ch)].flying)
         continue;
       auto const escorted = followOrders (ch, orders[index (ch)], bodies, beats);
+      patrolling[index (ch)] = escorted < 0;
       auto const &ship = _ships[index (ch)];
       FlightBodies const pulling
           = escorted < 0 ? bodies : withoutBody (bodies, escorted);
@@ -163,12 +184,67 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
     if (orders[index (ch)].flying)
       _ships[index (ch)]
           = stepShip (_ships[index (ch)], forces[index (ch)], dt, _tuning);
+
+  // An action's floor keys move only a patrolling ship: an escort's order is
+  // its circle (phase B, decision 12).
+  for (auto ch = 0; ch < flightShips; ++ch)
+    if (orders[index (ch)].flying && patrolling[index (ch)])
+      carry (ch, beatsPerBar, dt);
 }
 
 ShipState const &
 FlightWorld::ship (int ch) const
 {
   return _ships[index (juce::jlimit (0, flightShips - 1, ch))];
+}
+
+float
+FlightWorld::motionWeight (int ch) const
+{
+  return _motionWeight[index (juce::jlimit (0, flightShips - 1, ch))];
+}
+
+FlightMotion const &
+FlightWorld::motion (int ch) const
+{
+  return _motion[index (juce::jlimit (0, flightShips - 1, ch))];
+}
+
+void
+FlightWorld::easeMotion (int ch, ShipOrders const &orders, float dt)
+{
+  auto &weight = _motionWeight[index (ch)];
+  if (orders.driven)
+    _motion[index (ch)] = orders.motion;
+  auto const step = _tuning.motionRampBeats > 0.f ? dt / _tuning.motionRampBeats : 1.f;
+  weight = orders.driven ? std::min (1.f, weight + step)
+                         : std::max (0.f, weight - step);
+  if (weight <= 0.f)
+    _motion[index (ch)] = {};
+}
+
+void
+FlightWorld::carry (int ch, int beatsPerBar, float dt)
+{
+  auto const weight = _motionWeight[index (ch)];
+  if (weight <= 0.f)
+    return;
+  auto const extra
+      = weight
+        * (wantedLapsPerBeat (_motion[index (ch)], beatsPerBar, _tuning)
+           - baseLapsPerBeat (beatsPerBar, _tuning));
+  auto const laps = extra * dt;
+  if (juce::exactlyEqual (laps, 0.f))
+    return;
+
+  auto const angle = 2.f * pi<float> () * laps;
+  auto &ship = _ships[index (ch)];
+  ship.p = turnedBy (ship.p, angle);
+  ship.v = turnedBy (ship.v, angle);
+  // The rabbit goes round with it, or the steering would pull the ship back.
+  auto &offset = _phaseOffset[index (ch)];
+  offset += laps;
+  offset -= std::floor (offset);
 }
 
 int
@@ -223,7 +299,14 @@ FlightWorld::goalFor (int ch, FlightBodies const &bodies, int escortedIndex,
     return escortGoal (ch, bodies.body[static_cast<size_t> (escortedIndex)],
                        beats, beatsPerBar);
 
-  auto goal = rabbitAt (beats, ch, beatsPerBar, _tuning, _phaseOffset[index (ch)]);
+  auto const weight = _motionWeight[index (ch)];
+  auto const scale
+      = 1.f
+        + weight
+              * (swellScale (_motion[index (ch)], beats, beatsPerBar, _tuning)
+                 - 1.f);
+  auto goal = rabbitAt (beats, ch, beatsPerBar, _tuning,
+                        _phaseOffset[index (ch)], scale);
   goal.at += _wander[index (ch)];
   return goal;
 }

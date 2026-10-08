@@ -796,3 +796,169 @@ TEST (FlightBreath, AnEscortKeepsItsGroupAcrossTheStops)
       ASSERT_EQ (path[i].ships[0].p, path[i - 1].ships[0].p)
           << "at beat " << path[i].beats;
 }
+
+// -- An action on a flying ship (phase B) ------------------------------------
+
+namespace
+{
+std::array<ShipOrders, 4>
+shipZeroDrivenBy (FlightMotion const &motion, bool driven = true)
+{
+  auto orders = allPatrolling ();
+  orders[0].motion = motion;
+  orders[0].driven = driven;
+  return orders;
+}
+
+/** How far ship `ch` went round the room's middle along `path`, in degrees,
+ *  counter-clockwise positive. */
+double
+turnedRound (std::vector<Sample> const &path, int ch)
+{
+  auto turned = 0.;
+  for (size_t i = 1; i < path.size (); ++i)
+    {
+      auto const a = path[i - 1].ships[static_cast<size_t> (ch)].p;
+      auto const b = path[i].ships[static_cast<size_t> (ch)].p;
+      turned += std::remainder (std::atan2 (static_cast<double> (b.y), static_cast<double> (b.x))
+                                    - std::atan2 (static_cast<double> (a.y), static_cast<double> (a.x)),
+                                2. * pi<double> ());
+    }
+  return turned * 180. / pi<double> ();
+}
+
+double
+meanRadius (std::vector<Sample> const &path, int ch, size_t from, size_t to)
+{
+  auto sum = 0.;
+  for (auto i = from; i < to; ++i)
+    sum += static_cast<double> (path[i].ships[static_cast<size_t> (ch)].p.getDistanceFromOrigin ());
+  return sum / static_cast<double> (to - from);
+}
+
+FlightMotion
+spinOf (int step)
+{
+  FlightMotion motion;
+  motion.spin = step;
+  return motion;
+}
+}
+
+TEST (FlightMotionWorld, AnUndrivenMotionChangesNothing)
+{
+  FlightWorld plain (aSeed);
+  FlightWorld waiting (aSeed);
+  launchAll (plain);
+  launchAll (waiting);
+  auto const a = run (plain, allPatrolling (), oneGroup (), ticksIn (8.));
+  auto const b = run (waiting, shipZeroDrivenBy (spinOf (8), false), oneGroup (), ticksIn (8.));
+  for (size_t i = 0; i < a.size (); ++i)
+    for (auto ch = 0; ch < 4; ++ch)
+      ASSERT_EQ (a[i].ships[static_cast<size_t> (ch)].p, b[i].ships[static_cast<size_t> (ch)].p)
+          << "tick " << i << ", ship " << ch;
+}
+
+TEST (FlightMotionWorld, TheActionTakesHoldOverOneBeatAndLetsGoOverOne)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, shipZeroDrivenBy (spinOf (6)), {}, ticksIn (0.5));
+  EXPECT_NEAR (world.motionWeight (0), 0.5f, 2.f * tickBeats ());
+  EXPECT_FLOAT_EQ (world.motionWeight (1), 0.f) << "only the ship it was fired at";
+  run (world, shipZeroDrivenBy (spinOf (6)), {}, ticksIn (1.), 0.5);
+  EXPECT_FLOAT_EQ (world.motionWeight (0), 1.f);
+  run (world, shipZeroDrivenBy ({}, false), {}, ticksIn (0.5), 1.5);
+  EXPECT_NEAR (world.motionWeight (0), 0.5f, 2.f * tickBeats ());
+  EXPECT_TRUE (world.motion (0).spin.has_value ()) << "kept while it lets go";
+  run (world, shipZeroDrivenBy ({}, false), {}, ticksIn (1.), 2.);
+  EXPECT_FLOAT_EQ (world.motionWeight (0), 0.f);
+  EXPECT_FALSE (world.motion (0).any ());
+}
+
+// A lap a bar against the path's four: the other way round (a positive spin
+// turns as a clip's does) and four times as far.
+TEST (FlightMotionWorld, ASpinCarriesAPatrollingShipRound)
+{
+  FlightWorld plain (aSeed);
+  FlightWorld spun (aSeed);
+  launchAll (plain);
+  launchAll (spun);
+  auto const free = turnedRound (run (plain, allPatrolling (), {}, ticksIn (16.)), 0);
+  auto const carried = turnedRound (run (spun, shipZeroDrivenBy (spinOf (6)), {}, ticksIn (16.)), 0);
+  EXPECT_GT (free, 250.) << "the path's own lap";
+  EXPECT_LT (carried, -1100.) << "four laps the other way, less the beat it took to take hold";
+}
+
+TEST (FlightMotionWorld, APaceDoublesTheLap)
+{
+  FlightWorld plain (aSeed);
+  FlightWorld paced (aSeed);
+  launchAll (plain);
+  launchAll (paced);
+  FlightMotion faster;
+  faster.speedLog2 = -1;
+  auto const free = turnedRound (run (plain, allPatrolling (), {}, ticksIn (16.)), 0);
+  auto const quick = turnedRound (run (paced, shipZeroDrivenBy (faster), {}, ticksIn (16.)), 0);
+  EXPECT_GT (quick / free, 1.7);
+  EXPECT_LT (quick / free, 2.3);
+}
+
+TEST (FlightMotionWorld, ASwellBreathesThePathIn)
+{
+  FlightWorld plain (aSeed);
+  FlightWorld breathing (aSeed);
+  launchAll (plain);
+  launchAll (breathing);
+  FlightMotion in;
+  in.swell = -5; // a breath in two bars
+  auto const a = run (plain, allPatrolling (), {}, ticksIn (8.));
+  auto const b = run (breathing, shipZeroDrivenBy (in), {}, ticksIn (8.));
+  // Around the breath's deepest point, beat 4.
+  EXPECT_LT (meanRadius (b, 0, ticksIn (3.), ticksIn (6.)),
+             0.75 * meanRadius (a, 0, ticksIn (3.), ticksIn (6.)));
+}
+
+// Decision 12: an escort's order is its circle.
+TEST (FlightMotionWorld, AnEscortIgnoresTheFloorKeys)
+{
+  FlightWorld plain (aSeed);
+  FlightWorld driven (aSeed);
+  launchAll (plain);
+  launchAll (driven);
+  auto escorting = allPatrolling ();
+  escorting[0].goal = FlightGoal::Escort;
+  escorting[0].bodyId = oneGroup ().body[0].id;
+  auto drivenEscort = escorting;
+  FlightMotion everything = spinOf (8);
+  everything.swell = 8;
+  everything.speedLog2 = -7;
+  drivenEscort[0].motion = everything;
+  drivenEscort[0].driven = true;
+  auto const a = run (plain, escorting, oneGroup (), ticksIn (8.));
+  auto const b = run (driven, drivenEscort, oneGroup (), ticksIn (8.));
+  for (size_t i = 0; i < a.size (); ++i)
+    ASSERT_EQ (a[i].ships[0].p, b[i].ships[0].p) << "tick " << i;
+}
+
+// Decision 11: the breath holds the floor, an action's carry included.
+TEST (FlightMotionWorld, TheBreathHoldsADrivenShip)
+{
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  launchAll (world);
+  run (world, shipZeroDrivenBy (spinOf (7)), {}, ticksIn (3.));
+  auto const before = world.ship (0);
+  run (world, shipZeroDrivenBy (spinOf (7)), {}, ticksIn (1.), 3.);
+  EXPECT_EQ (world.ship (0).p, before.p);
+}
+
+TEST (FlightMotionWorld, ALaunchStartsUndriven)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, shipZeroDrivenBy (spinOf (6)), {}, ticksIn (2.));
+  ASSERT_FLOAT_EQ (world.motionWeight (0), 1.f);
+  world.launch (0, world.ship (0).p, 2., fourFour);
+  EXPECT_FLOAT_EQ (world.motionWeight (0), 0.f);
+}
