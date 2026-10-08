@@ -1434,8 +1434,9 @@ A3MotionUIComponent::createMainUI ()
       = [this] (int ch) { return _vuLevels.channel (ch, vuNowMs ()); };
   addChildComponent (*_fpvStrips);
   _statusBar->onViewKeyTapped = [this] { setView (toggled (_view)); };
-  // The breath is the engine's, for the session: the A/B against the planets
-  // the MJ lab asked for (2026-10-08), so nothing is saved.
+  // The breath is the engine's, on from the start (2026-10-08); the key
+  // switches it for the session, so nothing is saved.
+  _statusBar->setBreathing (_engine.getFlightBreath ());
   _statusBar->onBreathKeyTapped = [this] {
     auto const on = !_engine.getFlightBreath ();
     _engine.setFlightBreath (on);

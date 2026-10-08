@@ -32,6 +32,11 @@ namespace a3
  *  18): a stop on the grid makes the restart an event for the whole floor.
  *  One whole beat, because a shorter stop is under the ~336 ms the ear
  *  integrates over; once a bar, because two stops a bar are a stutter. */
+/** The ships breathe from the start. The maintainer's verdict after the device
+ *  A/B against the planets (2026-10-08), the lab's recommendation; the BREATH
+ *  key switches it off for the session. */
+constexpr bool flightBreathAtStart = true;
+
 inline bool
 breathHolds (double beats, int beatsPerBar)
 {
