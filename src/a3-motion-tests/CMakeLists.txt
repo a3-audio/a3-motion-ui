@@ -125,6 +125,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/CleanSkin.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorScroll.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinSections.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/StemdeckSkin.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinPanelLayout.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinPanel.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GlobalSettingsLayout.cc"
