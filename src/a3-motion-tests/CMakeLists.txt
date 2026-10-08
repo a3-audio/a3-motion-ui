@@ -74,6 +74,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChannelValueReset.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/CrossingWindow.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingIndicator.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClockModeTempo.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecordingName.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LibraryKeys.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionEditing.cc"
