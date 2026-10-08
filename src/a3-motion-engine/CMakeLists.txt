@@ -55,6 +55,7 @@ target_sources("a3-motion-engine" PRIVATE
     Measure.cc
     Measure.hh
     ActionScript.cc
+    PilotOrder.cc
     ScriptLine.cc
     ActionMotion.cc
     ClipFile.cc
@@ -70,6 +71,7 @@ target_sources("a3-motion-engine" PRIVATE
     RecordingSeam.cc
     PlaybackRate.cc
     ActionScript.hh
+    PilotOrder.hh
     ActionMotion.hh
     ClipFile.hh
     ClipMigration.hh

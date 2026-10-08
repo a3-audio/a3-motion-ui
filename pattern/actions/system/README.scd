@@ -181,6 +181,35 @@
 //                            nothing follows. ACTION's "then" key writes it.
 //
 //
+// ---- PILOT: what the channel's ship is asked to play (FPV only) ----------
+//
+// FULL ignores this section; it is read when the button is pressed in FPV.
+// It asks the channel's pilot for a game -- a figure the ship flies against
+// the guests on the floor. The games arrive with the pilots' next phase;
+// until then a game asked for waits on the ship and nothing flies
+// differently. Every shipped script carries the three lines commented out.
+//
+//   ~game                    \none  \fakeout  \formation  \hideseek
+//                            \callresponse
+//                            which game. \none calls off one still waiting.
+//   ~target                  \nearest  \group1 .. \group8  \crowd  \hotspot
+//                            whom it is played against: the nearest guest
+//                            group, the group labelled G1..G8 on the floor,
+//                            or the nearest crowd or hotspot.
+//   ~with                    \self  \nearest  \all
+//                            which ships the game takes: this channel's
+//                            alone, it and the nearest free ship, or every
+//                            free ship. A ship taken goes back to what it
+//                            was doing when the game ends.
+//
+// On a flying ship (ORBIT) the Motion keys mean flight, not figure, for as
+// long as the action's accent lasts: ~spin the bars per lap and the way
+// round, ~speedLog2 the pace, ~swell the path breathing out or in, ~sway the
+// height swinging, ~tilt and ~roll the plane leant, ~tswp and ~rswp that
+// lean turning round. The squeezes, ~rotate and the elevation keys mean
+// nothing to a ship; the accent's 3d, freq and Q work as everywhere.
+//
+//
 // ---- Writing one ----------------------------------------------------------
 //
 // Dial a clip until it sounds the way the button should make it sound, then

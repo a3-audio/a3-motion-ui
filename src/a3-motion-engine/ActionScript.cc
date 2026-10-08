@@ -504,6 +504,13 @@ findField (juce::String const &name)
   return nullptr;
 }
 
+/** The three lines of the Pilot section: not settings, read like `then`. */
+bool
+isPilotName (juce::String const &name)
+{
+  return name == "game" || name == "target" || name == "with";
+}
+
 // ── Working an expression out ────────────────────────────────────────────
 
 class Evaluator
@@ -699,6 +706,60 @@ private:
   juce::Random &_random;
 };
 
+/** The right-hand side of `~name = …;` and the end of its line. */
+Value
+assignedValue (Reader &reader, ClipSettings const &soFar, juce::Random &random)
+{
+  reader.expect ('=');
+  Evaluator evaluator (reader, soFar, random);
+  auto const value = evaluator.expression ();
+  reader.takeIf (';');
+  if (!reader.atEnd ())
+    fail ("more on the line than one assignment");
+  return value;
+}
+
+/** What a Pilot line may say, from the annotation every script carries. */
+juce::String
+pilotChoices (juce::String const &name)
+{
+  for (auto const &note : actionScriptNotes ())
+    if (name == note.name)
+      return note.hint;
+  return {};
+}
+
+/** One Pilot line into the order. A number, text or an unknown word is
+ *  refused with the list of what the line takes. */
+void
+setPilotLine (PilotOrder &order, juce::String const &name, Value const &value)
+{
+  auto const refusal = "~" + name + " takes " + pilotChoices (name);
+  if (value.kind != Value::Kind::Symbol)
+    fail (refusal);
+
+  if (name == "game")
+    {
+      auto const game = pilotGameNamed (value.symbol);
+      if (!game)
+        fail (refusal);
+      order.game = *game;
+      return;
+    }
+  if (name == "target")
+    {
+      auto const target = pilotTargetNamed (value.symbol);
+      if (!target)
+        fail (refusal);
+      order.target = *target;
+      return;
+    }
+  auto const with = pilotRecruitNamed (value.symbol);
+  if (!with)
+    fail (refusal);
+  order.with = *with;
+}
+
 }
 
 // ── The whole file ───────────────────────────────────────────────────────
@@ -751,12 +812,7 @@ runActionScript (juce::String const &source, ClipSettings const &current,
           // comes next, not how this one plays.
           if (name == "then")
             {
-              reader.expect ('=');
-              Evaluator evaluator (reader, out.settings, random);
-              auto const value = evaluator.expression ();
-              reader.takeIf (';');
-              if (!reader.atEnd ())
-                fail ("more on the line than one assignment");
+              auto const value = assignedValue (reader, out.settings, random);
               if (value.kind != Value::Kind::Number || !value.whole
                   || value.number < 1 || value.number > numActionButtons)
                 fail ("~then takes a button, 1..6");
@@ -765,21 +821,24 @@ runActionScript (juce::String const &source, ClipSettings const &current,
               continue;
             }
 
+          // The Pilot section (FPV phase B): what the channel's pilot is
+          // asked to play. Kept with the action; FULL ignores it.
+          if (isPilotName (name))
+            {
+              setPilotLine (out.pilot, name,
+                            assignedValue (reader, out.settings, random));
+              out.assigned.addIfNotAlreadyThere (name);
+              continue;
+            }
+
           auto const *field = findField (name);
           if (field == nullptr)
             fail ("no such name: ~" + name);
 
-          reader.expect ('=');
-
           // Against what the script has made of things so far, not against
           // what came in: two lines about one value read top to bottom like
           // every other line in the file.
-          Evaluator evaluator (reader, out.settings, random);
-          auto const value = evaluator.expression ();
-
-          reader.takeIf (';');
-          if (!reader.atEnd ())
-            fail ("more on the line than one assignment");
+          auto const value = assignedValue (reader, out.settings, random);
 
           auto const directionBefore = out.settings.direction;
           field->set (out.settings, value);
@@ -867,6 +926,11 @@ actionScriptNotes ()
     { "qMax", "Accent", "0..1", "0 is off" },
     { "act", "Accent", "", "\\oneshot \\hold" },
     { "then", "Accent", "1..6", "fires that button when the accent is over" },
+
+    { "game", "Pilot", "",
+      "\\none \\fakeout \\formation \\hideseek \\callresponse" },
+    { "target", "Pilot", "", "\\nearest \\group1..\\group8 \\crowd \\hotspot" },
+    { "with", "Pilot", "", "\\self \\nearest \\all" },
   };
 
   return list;
@@ -914,6 +978,18 @@ fieldNamed (juce::String const &name)
   return nullptr;
 }
 
+/** What a Pilot line says when it is offered, commented: a fresh order's. */
+juce::String
+pilotDefaultWord (juce::String const &name)
+{
+  PilotOrder const fresh;
+  if (name == "game")
+    return pilotWord (PilotGame::None);
+  if (name == "target")
+    return pilotWord (fresh.target);
+  return pilotWord (fresh.with);
+}
+
 /** The body both writers share: every parameter under its heading, the
  *  annotation in one column, and each line either live or commented out.
  *
@@ -930,7 +1006,8 @@ renderScript (ClipSettings const &settings, bool commented)
       auto const *field = fieldNamed (note.name);
       auto const isClip = juce::String (note.name) == "clip";
       auto const isThen = juce::String (note.name) == "then";
-      if (field == nullptr && !isClip && !isThen)
+      auto const isPilot = isPilotName (note.name);
+      if (field == nullptr && !isClip && !isThen && !isPilot)
         continue;
 
       if (heading != note.heading)
@@ -946,10 +1023,12 @@ renderScript (ClipSettings const &settings, bool commented)
       // A clip line has no value in a ClipSettings to write: it is offered,
       // commented out, as the line a Cue uncomments.
       auto assignment
-          = isClip   ? juce::String ("//~clip = \"\";")
-            : isThen ? juce::String ("//~then = 1;")
-                     : juce::String (commented ? "//~" : "~") + note.name
-                           + " = " + writtenValue (field->get (settings)) + ";";
+          = isClip    ? juce::String ("//~clip = \"\";")
+            : isThen  ? juce::String ("//~then = 1;")
+            : isPilot ? "//~" + juce::String (note.name) + " = \\"
+                            + pilotDefaultWord (note.name) + ";"
+                      : juce::String (commented ? "//~" : "~") + note.name
+                            + " = " + writtenValue (field->get (settings)) + ";";
 
       while (assignment.length () < scriptAnnotationColumn)
         assignment += " ";
@@ -1004,6 +1083,10 @@ actionScriptNames ()
     names.add (field.name);
   // Not a setting, but a line a script may write (2026-09-29).
   names.add ("then");
+  // The Pilot section (FPV phase B): lines a script may write, not settings.
+  names.add ("game");
+  names.add ("target");
+  names.add ("with");
 
   names.sort (false);
   return names;

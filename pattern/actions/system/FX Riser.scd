@@ -47,3 +47,8 @@
 ~qMax = 0.6;             // 0..1    0 is off
 ~act = \hold;            //         \oneshot \hold
 //~then = 1;             // 1..6    fires that button when the accent is over
+
+// ---- Pilot -----------------------------------------------------------
+//~game = \none;         //         \none \fakeout \formation \hideseek \callresponse
+//~target = \nearest;    //         \nearest \group1..\group8 \crowd \hotspot
+//~with = \self;         //         \self \nearest \all
