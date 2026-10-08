@@ -77,7 +77,7 @@ public:
   std::function<void ()> onClockKeyTapped;
   /** The FULL/FPV key, right of CLOCK. */
   std::function<void ()> onViewKeyTapped;
-  /** BREATH, right of the view key, in FPV only: the ships' breath on or
+  /** BREATH, right of the view key, in both views: the ships' breath on or
    *  off. */
   std::function<void ()> onBreathKeyTapped;
   /** Whether the ships breathe, so BREATH can wear it. */

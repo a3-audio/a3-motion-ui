@@ -1434,7 +1434,7 @@ A3MotionUIComponent::createMainUI ()
     auto const on = !_engine.getFlightBreath ();
     _engine.setFlightBreath (on);
     _statusBar->setBreathing (on);
-    updateControlReadout (on ? "BREATH ON" : "BREATH OFF");
+    updateControlReadout (on ? "-- BREATH ON" : "-- BREATH OFF");
   };
 
   // Hidden: no longer part of the visible layout (see resized()), but these

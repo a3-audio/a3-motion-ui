@@ -64,7 +64,8 @@ struct StatusBarLayout
   /** The clock mode's key, leading the row. */
   juce::Rectangle<int> clockKey;
   juce::Rectangle<int> viewKey;
-  /** FPV only: the breath on or off, right of the view key. Empty in FULL. */
+  /** The breath on or off, right of the view key, in both views: a breath
+   *  switched on in FPV keeps the ships breathing in FULL, so FULL shows it. */
   juce::Rectangle<int> breathKey;
   /** Over to StemDeck's workspace, and the arrow that lists all of the
    *  rig's workspaces -- at the right end, where StemDeck has its switch. */
@@ -103,6 +104,16 @@ clockModeName (int mode)
  *  like CLEAN or MENU at the header size. */
 constexpr int statusKeyWidthOfHeight = 2;
 
+/** The narrowest the beat display gets when it gives way to the readings, in
+ *  row heights: four beats, each a square. */
+constexpr int statusTickMinWidthOfHeight = 4;
+
+/** What a label needs for `text`: the text at JUCE's strongest squash (0.7,
+ *  what Label draws with when it is given no other) plus the label's own air
+ *  either side. Text given this much is drawn whole. */
+int statusLabelWidth (juce::Font const &font, juce::String const &text,
+                      int air);
+
 /** The beat display's height, as a share of the row. */
 constexpr float statusTickHeightOfRow = 3.f / 5.f;
 
@@ -111,8 +122,12 @@ constexpr float statusTickHeightOfRow = 3.f / 5.f;
  *  `row` is the band the bar lays out in -- padded top and bottom, whole: the
  *  keys at its ends are this function's to place. `barWidth` is the bar's full
  *  width, because the beat display is centred on the bar and not on the row.
- *  `padding` is the air the labels are held off the bar's ends by. */
+ *  `padding` is the air the labels are held off the bar's ends by.
+ *  `bpmWidth` and `readoutWidth` are what the two readings need (see
+ *  statusLabelWidth): the beat display gives way to them, still centred, down
+ *  to statusTickMinWidthOfHeight row heights, and the tempo is served first. */
 StatusBarLayout statusBarLayout (juce::Rectangle<int> row, int barWidth,
-                                 int padding, bool fpv = false);
+                                 int padding, int bpmWidth = 0,
+                                 int readoutWidth = 0);
 
 }

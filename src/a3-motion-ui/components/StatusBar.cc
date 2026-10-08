@@ -181,8 +181,14 @@ StatusBar::resized ()
   // Everything on the bar comes out of one calculation with a test of its
   // own, the keys at its ends included: paint() then draws into the
   // rectangles the test checked.
+  // The readings say how wide they need to be at the size just set: the
+  // tempo whole, and the readout at least as long as BREATH's own answer.
+  auto const font = _labelBPM.getFont ();
+  auto const air = _labelBPM.getBorderSize ().getLeftAndRight ();
   _layout = statusBarLayout (bounds, getWidth (),
-                             juce::roundToInt (theme ().paddingSmall), _fpv);
+                             juce::roundToInt (theme ().paddingSmall),
+                             statusLabelWidth (font, "BPM 000.0", air),
+                             statusLabelWidth (font, "-- BREATH OFF", air));
 
   _labelBPM.setBounds (_layout.bpm);
   _labelReadout.setBounds (_layout.readout);
@@ -570,8 +576,6 @@ StatusBar::setView (AppView view)
   if (fpv == _fpv)
     return;
   _fpv = fpv;
-  // FPV lays out one key more, which the readings make room for.
-  resized ();
   repaint ();
 }
 
