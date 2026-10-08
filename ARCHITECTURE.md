@@ -351,17 +351,22 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
   a `set.json` beside the takes. A folder with a set and the takes it names is a gig on a stick,
   which is the whole reason it is a file of its own rather than something in the app's settings.
 
-  **A take is recorded into its clip, band and all** (decided 2026-10-07, #66). It starts with every
-  setting of the clip the slot held and, by the rec mode, its path: TOUCH overdubs (an untouched
-  tick keeps the clip's), WRITE replaces the whole pass. The exceptions are 3D, FREQ and Q, which
-  belong to the actions: no take records them and no lane carries them (`TakeRecording`). Keeping
-  the elevation band means a finger can point where the clip cannot play — with the base off the
-  pole the band does not reach up to it. `HeightMapSphere::mapTo2D(…, ElevationParams)` therefore
-  answers with the *nearest playable* direction (same azimuth, colatitude clamped to the band's
-  nearer edge) and is exact everywhere inside the band, and the engine puts the blob on that round
-  trip while recording (`MotionEngine::takePosition2D/3D`), so what is heard during the take is what
-  it plays back. Before, the blob followed the finger out of the band and the take came back as one
-  ring at `1 - base`.
+  **A take is recorded into its clip's settings, but over the whole sphere** (decided 2026-10-07,
+  #66; band changed 2026-10-08). It starts with every setting of the clip the slot held and, by the
+  rec mode, its path: TOUCH overdubs (an untouched tick keeps the clip's), WRITE replaces the whole
+  pass. The exceptions are 3D, FREQ and Q, which belong to the actions: no take records them and no
+  lane carries them (`TakeRecording`) -- and the elevation band. A clip's band grows south from its
+  base, so with the base at ear height only the lower half was playable, and with the camera
+  looking from above every finger was held on the equator. So a take's band is the whole sphere:
+  base at the north pole, reach 1, no clips, no sway or swell, no elevation lanes
+  (`openToTheWholeSphere`, `TakeSeed`). At the downbeat `MotionEngine::openTakeToTheWholeSphere`
+  moves the clip's path into that band where it was heard, tick by tick through the clip's own band,
+  lanes and sweeps at each tick's first-pass phase, so untouched parts play where they did. The take
+  keeps the whole sphere, so what is heard during the take is what it plays back; the bar's
+  elevation knobs show it from the downbeat on. `HeightMapSphere::mapTo2D(…, ElevationParams)`
+  still answers with the *nearest playable* direction for a band that does not cover a direction --
+  a knob turned during the take narrows the band again, and then a finger outside it is held on its
+  edge as before.
 
   The same goes for the rest of what playback does to a tick (decided 2026-10-07): the clip's
   squeeze and turn — rotate plus the spin's phase, the squeezes swept by their stretch — and the
