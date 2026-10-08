@@ -69,7 +69,14 @@ escortableBody (ShipOrders const &orders, FlightBodies const &bodies)
 }
 
 /** `bodies` without body `left`. The escorted body's pull is what the escort
- *  orbit stands for, so only the others tug at an escorting ship. */
+ *  orbit stands for, so only the others tug at an escorting ship.
+ *
+ *  Tried with the pull added (2026-10-08, captureRadius 0.3): away from the
+ *  walls the circle holds either way, but next to the rim the part of the
+ *  circle outside the room is cut off, the rim pushes the ship inwards and
+ *  the group swallows it. Seen from the centre the escort then sweeps 10-13
+ *  deg (parked) instead of 58-81 deg (FlightWorld test
+ *  AnEscortNearTheRimIsHeardAsACircle). */
 FlightBodies
 withoutBody (FlightBodies const &bodies, int left)
 {

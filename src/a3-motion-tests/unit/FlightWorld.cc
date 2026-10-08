@@ -350,6 +350,39 @@ TEST (FlightWorld, ACapturedShipCirclesIt)
   EXPECT_LE (worstReversal, 0.3f);
 }
 
+// An escort has to be heard as a circle, not as a source parked over the
+// group: seen from the room's centre it must sweep >= 30 deg (research B2).
+// Near the rim that is where it fails if the escorted group's own pull is
+// added on top of the circle: the part of the circle outside the room is cut
+// off, the rim pushes the ship inwards, and the group swallows it: 10 and 13
+// deg for these two with the group's own pull, 58 and 81 deg without it.
+TEST (FlightWorld, AnEscortNearTheRimIsHeardAsACircle)
+{
+  constexpr float audibleSweep = 30.f * pi<float> () / 180.f;
+  for (auto const &group : { FlightBody{ { 0.75f, 0.f }, 1.f },
+                             FlightBody{ { 0.6f, -0.5f }, 2.f } })
+    {
+      FlightBodies bodies;
+      bodies.body[0] = group;
+      bodies.count = 1;
+      auto const path = captured (
+          flyShipZero (shipZeroOn (FlightGoal::Escort, 0), bodies, 8.f));
+
+      auto const facing = std::atan2 (group.at.y, group.at.x);
+      auto narrowest = 0.f, widest = 0.f;
+      for (auto const &sample : path)
+        {
+          auto const p = sample.ships[0].p;
+          auto const off = std::remainder (std::atan2 (p.y, p.x) - facing, twoPi);
+          narrowest = std::min (narrowest, off);
+          widest = std::max (widest, off);
+        }
+      EXPECT_GE (widest - narrowest, audibleSweep)
+          << "a group of mass " << group.mass << " at " << group.at.x << ", "
+          << group.at.y;
+    }
+}
+
 TEST (FlightWorld, OtherGroupsStillTug)
 {
   auto alone = oneGroup ();
