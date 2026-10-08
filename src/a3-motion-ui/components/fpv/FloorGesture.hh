@@ -81,6 +81,7 @@ private:
   };
 
   bool heldLongEnough (double ms) const;
+  bool pastTheSlop (juce::Point<float> at) const;
 
   State _state = State::Idle;
   juce::Point<float> _start;

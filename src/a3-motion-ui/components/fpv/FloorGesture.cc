@@ -32,11 +32,16 @@ FloorGesture::down (juce::Point<float> at, double ms, std::optional<int> body)
   _body = body;
 }
 
+bool
+FloorGesture::pastTheSlop (juce::Point<float> at) const
+{
+  return at.getDistanceFrom (_start) > slopOfBlob * _blobDiameter;
+}
+
 FloorAction
 FloorGesture::move (juce::Point<float> at, double)
 {
-  if (_state == State::Undecided
-      && at.getDistanceFrom (_start) > slopOfBlob * _blobDiameter)
+  if (_state == State::Undecided && pastTheSlop (at))
     _state = _body ? State::Drag : State::Camera;
 
   if (_state == State::Drag)
@@ -47,9 +52,11 @@ FloorGesture::move (juce::Point<float> at, double)
 }
 
 FloorAction
-FloorGesture::up (juce::Point<float>, double ms)
+FloorGesture::up (juce::Point<float> at, double ms)
 {
-  auto const undecided = _state == State::Undecided;
+  // A swipe can reach the lift with no move event on the way: what the
+  // finger travelled is asked here too, or it would read as a tap.
+  auto const undecided = _state == State::Undecided && !pastTheSlop (at);
   _state = State::Idle;
   if (!undecided)
     return FloorAction::None;

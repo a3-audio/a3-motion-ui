@@ -170,3 +170,14 @@ TEST (FloorGesture, ANewTouchStartsAfresh)
   EXPECT_FALSE (g.body ().has_value ());
   EXPECT_EQ (g.up ({ 10.f, 10.f }, 1100.), FloorAction::Place);
 }
+
+TEST (FloorGesture, ASwipeLiftedBeforeAnyMoveIsNotATap)
+{
+  // A fast finger can reach the lift with no move event in between.
+  auto g = gesture ();
+  g.down ({ 0.f, 0.f }, 0., std::nullopt);
+  EXPECT_EQ (g.up ({ 100.f, 0.f }, 80.), FloorAction::None);
+
+  g.down ({ 0.f, 0.f }, 0., body);
+  EXPECT_EQ (g.up ({ 100.f, 0.f }, 80.), FloorAction::None);
+}
