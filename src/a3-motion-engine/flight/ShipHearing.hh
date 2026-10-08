@@ -30,7 +30,8 @@ namespace a3
  *  through its clip's band -- swung in height by the action's sway and leant
  *  by its tilt and roll, eased in by `weight` (0..1, smoothstep) the short way
  *  round. Without motion, at weight 0 or for an invalid `mapped` it is
- *  `mapped` exactly. No allocation: safe on the clock thread. */
+ *  `mapped` exactly. A direction: unit length once eased in; a 180 degree
+ *  lean flips at mid-ease, and limitTurn smooths it. No allocation: safe on the clock thread. */
 Pos heardShip (Pos const &mapped, FlightMotion const &motion, float weight,
                double beats, int beatsPerBar, FlightTuning const &tuning);
 
@@ -44,8 +45,8 @@ struct TurnLimited
 };
 
 /** From `from` towards `to` along the great circle, at most `maxDegrees`.
- *  `to` itself when it is that close or `from` is invalid; `from` when the two
- *  are opposite, which has no one great circle (the next tick moves on). */
+ *  `to` itself when it is that close or `from` is invalid; a step along a fixed
+ *  great circle when the two are opposite, which have no one of their own. */
 TurnLimited limitTurn (Pos const &from, Pos const &to, float maxDegrees);
 
 }

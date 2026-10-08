@@ -48,6 +48,40 @@ swungInHeight (Pos const &direction, float degrees)
   return Pos::fromSpherical (direction.azimuth (), elevation, direction.distance ());
 }
 
+/** Where `from` ends up turned by `radians` about a great circle that leaves it
+ *  in a fixed, arbitrary direction -- for opposite directions, which have no
+ *  one great circle of their own. About from x up, or from x front near a pole. */
+Pos
+turnedAboutSomeGreatCircle (Pos const &from, double radians, float distance)
+{
+  auto const length = static_cast<double> (from.distance ());
+  double const v[3] = { from.x () / length, from.y () / length, from.z () / length };
+  auto axis = [&v] (double const (&about)[3], double (&k)[3])
+  {
+    k[0] = v[1] * about[2] - v[2] * about[1];
+    k[1] = v[2] * about[0] - v[0] * about[2];
+    k[2] = v[0] * about[1] - v[1] * about[0];
+    return std::sqrt (k[0] * k[0] + k[1] * k[1] + k[2] * k[2]);
+  };
+  double k[3];
+  double const up[3] = { 0., 0., 1. };
+  double const front[3] = { 1., 0., 0. };
+  auto norm = axis (up, k);
+  if (norm < 1e-3)
+    norm = axis (front, k);
+  for (auto &component : k)
+    component /= norm;
+  // k is perpendicular to v, so Rodrigues' rotation is cos v + sin (k x v).
+  auto const c = std::cos (radians);
+  auto const s = std::sin (radians);
+  auto const kxv0 = k[1] * v[2] - k[2] * v[1];
+  auto const kxv1 = k[2] * v[0] - k[0] * v[2];
+  auto const kxv2 = k[0] * v[1] - k[1] * v[0];
+  return Pos::fromCartesian (static_cast<float> ((c * v[0] + s * kxv0) * distance),
+                             static_cast<float> ((c * v[1] + s * kxv1) * distance),
+                             static_cast<float> ((c * v[2] + s * kxv2) * distance));
+}
+
 double
 dot (Pos const &a, Pos const &b)
 {
@@ -84,7 +118,7 @@ limitTurn (Pos const &from, Pos const &to, float maxDegrees)
 
   auto const sine = std::sin (angle);
   if (sine < noGreatCircle)
-    return { from, false };
+    return { turnedAboutSomeGreatCircle (from, limit, to.distance ()), false };
 
   // Spherical interpolation by exactly `limit`, on the unit sphere, then back
   // at `to`'s distance.

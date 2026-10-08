@@ -138,3 +138,29 @@ TEST (ShipHearing, EvenEverythingAtOnceStaysUnderTheCap)
     }
   EXPECT_LE (widest, static_cast<double> (perTick) * 1.001);
 }
+
+// A lean of 180 degrees puts the heard ship opposite where it flies, where no
+// one great circle leads there: a standing ship must still get round.
+TEST (ShipHearing, AStandingShipTakesAnAntipodalLean)
+{
+  FlightTuning const tuning;
+  FlightMotion flip;
+  flip.tilt = 2.f;
+  flip.roll = 2.f;
+  auto const standing = Pos::fromSpherical (37.f, 0.f, 1.f);
+  auto const target = heardShip (standing, flip, 1.f, 3., fourFour, tuning);
+  ASSERT_GT (degreesBetween (standing, target), 179.) << "the premise: an antipode";
+
+  auto const ticksPerBeat = static_cast<double> (TempoClock::getTicksPerBeat ());
+  auto const perTick = tuning.angularCapDegreesPerBeat / static_cast<float> (ticksPerBeat);
+  auto heard = standing;
+  auto widest = 0.;
+  for (auto tick = 0; tick < static_cast<int> (1.1 * ticksPerBeat); ++tick)
+    {
+      auto const next = limitTurn (heard, heardShip (standing, flip, 1.f, 3., fourFour, tuning), perTick).heard;
+      widest = std::max (widest, degreesBetween (heard, next));
+      heard = next;
+    }
+  EXPECT_LE (widest, static_cast<double> (perTick) * 1.001);
+  EXPECT_LT (degreesBetween (heard, target), 0.5);
+}
