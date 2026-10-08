@@ -361,14 +361,14 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
   base at the north pole, reach 1, no clips, no sway or swell, no elevation lanes
   (`openToTheWholeSphere`, `TakeSeed`; the knobs are `isTakeBandKnob`). What is heard during the
   take is what it plays back, and the bar's elevation knobs show the whole sphere from the moment
-  REC is pressed.
+  the take is set up -- ▶ after REC PAUSE, or the panel's REC + Play|Pause -- not at REC PAUSE.
 
   - **Laid out when it is asked for.** `MotionEngine::recordPattern` prepares the take on the
     caller's thread before scheduling it (`prepareTake`): its ticks, its lanes, and the clip's path
     moved into the whole sphere where it was heard -- tick by tick through the clip's own band,
     lanes and sweeps at each tick's first-pass phase, in each tick's own play direction. Untouched
     parts play where they did. The move costs a 64-bar take some 43 ms, and that lands on the
-    message thread at REC, not on the clock at the downbeat (eleven ticks at 120 BPM). The seed and
+    message thread when the take is set up, not on the clock at the downbeat (eleven ticks at 120 BPM). The seed and
     the pass length are taken at the press. A `KnobLane` keeps a bit per written tick (and one per
     word) so `at()` finds the last value in a few word reads; walking back over a lane read from a
     file, which holds only where it changes, was quadratic and took 47 s for a 64-bar take.
