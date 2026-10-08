@@ -208,3 +208,166 @@ TEST (FlightWorld, LaunchStartsWhereTheChannelIs)
   EXPECT_GE (speed, tuning.speedMin - speedSlack);
   EXPECT_LE (speed, tuning.speedMax + speedSlack);
 }
+
+// ---- Escort: a group captures the ship (Task 7) ----
+
+namespace
+{
+
+Vec2 const escorted{ 0.3f, -0.2f };
+
+FlightBodies
+oneGroup (float mass = 2.f)
+{
+  FlightBodies bodies;
+  bodies.body[0] = { escorted, mass };
+  bodies.count = 1;
+  return bodies;
+}
+
+std::array<ShipOrders, 4>
+shipZeroOn (FlightGoal goal, int body)
+{
+  std::array<ShipOrders, 4> orders;
+  orders[0] = { true, goal, body };
+  return orders;
+}
+
+/** Ship 0, launched on its rabbit, flown for `bars` under `orders`. */
+std::vector<Sample>
+flyShipZero (std::array<ShipOrders, 4> const &orders, FlightBodies const &bodies,
+             float bars)
+{
+  FlightTuning const tuning;
+  FlightWorld world (aSeed);
+  world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  return run (world, orders, bodies, ticksIn (barsToBeats (bars)));
+}
+
+float
+escortRadius (float mass)
+{
+  return FlightTuning{}.captureRadius * std::sqrt (mass);
+}
+
+/** The samples from bar 3 to bar 8: the ship has had time to be captured. */
+std::vector<Sample>
+captured (std::vector<Sample> const &path)
+{
+  return { path.begin () + static_cast<long> (ticksIn (barsToBeats (3.f))),
+           path.begin () + static_cast<long> (ticksIn (barsToBeats (8.f))) };
+}
+
+float
+widestFrom (std::vector<Sample> const &path, Vec2 centre)
+{
+  auto widest = 0.f;
+  for (auto const &sample : path)
+    widest = std::max (widest, sample.ships[0].p.getDistanceFrom (centre));
+  return widest;
+}
+
+bool
+sameFlight (std::vector<Sample> const &a, std::vector<Sample> const &b)
+{
+  return a.size () == b.size ()
+         && std::memcmp (a.data (), b.data (), a.size () * sizeof (Sample)) == 0;
+}
+
+}
+
+TEST (FlightWorld, AnEscortedGroupCapturesTheShip)
+{
+  auto const path = captured (
+      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), oneGroup (), 8.f));
+  auto const radius = escortRadius (2.f);
+  for (auto const &sample : path)
+    {
+      auto const distance = sample.ships[0].p.getDistanceFrom (escorted);
+      ASSERT_GE (distance, 0.5f * radius) << "at beat " << sample.beats;
+      ASSERT_LE (distance, 1.6f * radius) << "at beat " << sample.beats;
+    }
+}
+
+TEST (FlightWorld, ACapturedShipCirclesIt)
+{
+  auto const path = captured (
+      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), oneGroup (), 8.f));
+
+  auto angleOf = [] (Sample const &s) {
+    auto const d = s.ships[0].p - escorted;
+    return std::atan2 (d.y, d.x);
+  };
+  // Unwrap the angle round the group, then judge it in the direction it
+  // mostly turns: one whole turn at least, and never a swing back.
+  std::vector<float> turned{ 0.f };
+  for (size_t i = 1; i < path.size (); ++i)
+    turned.push_back (turned.back ()
+                      + std::remainder (angleOf (path[i]) - angleOf (path[i - 1]),
+                                        twoPi));
+  auto const direction = turned.back () >= 0.f ? 1.f : -1.f;
+  EXPECT_GE (direction * turned.back (), twoPi);
+
+  auto furthest = 0.f;
+  auto worstReversal = 0.f;
+  for (auto const angle : turned)
+    {
+      furthest = std::max (furthest, direction * angle);
+      worstReversal = std::max (worstReversal, furthest - direction * angle);
+    }
+  EXPECT_LE (worstReversal, 0.3f);
+}
+
+TEST (FlightWorld, OtherGroupsStillTug)
+{
+  auto alone = oneGroup ();
+  auto withANeighbour = oneGroup ();
+  withANeighbour.body[1] = { escorted + Vec2{ 0.3f, -0.15f }, 2.f };
+  withANeighbour.count = 2;
+
+  auto const orders = shipZeroOn (FlightGoal::Escort, 0);
+  auto const quiet = widestFrom (captured (flyShipZero (orders, alone, 8.f)), escorted);
+  auto const tugged
+      = widestFrom (captured (flyShipZero (orders, withANeighbour, 8.f)), escorted);
+  EXPECT_GT (tugged, quiet);
+}
+
+TEST (FlightWorld, EscortingADeadZoneIsPatrol)
+{
+  auto const deadZone = oneGroup (-2.f);
+  EXPECT_TRUE (sameFlight (
+      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), deadZone, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), deadZone, 4.f)));
+}
+
+TEST (FlightWorld, EscortingAMissingBodyIsPatrol)
+{
+  auto const bodies = oneGroup ();
+  EXPECT_TRUE (sameFlight (
+      flyShipZero (shipZeroOn (FlightGoal::Escort, 3), bodies, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), bodies, 4.f)));
+  EXPECT_TRUE (sameFlight (
+      flyShipZero (shipZeroOn (FlightGoal::Escort, -1), bodies, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), bodies, 4.f)));
+}
+
+TEST (FlightWorld, ABodyRemovedMidEscortLetsTheShipGo)
+{
+  FlightTuning const tuning;
+  FlightWorld world (aSeed);
+  world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  auto const orders = shipZeroOn (FlightGoal::Escort, 0);
+  auto const removedAt = barsToBeats (4.f);
+  run (world, orders, oneGroup (), ticksIn (removedAt));
+  ASSERT_LE (world.ship (0).p.getDistanceFrom (escorted), 1.6f * escortRadius (2.f));
+
+  auto const after = run (world, orders, FlightBodies{},
+                          ticksIn (barsToBeats (4.f)), removedAt);
+  for (auto const &sample : after)
+    ASSERT_TRUE (std::isfinite (sample.ships[0].p.x) && std::isfinite (sample.ships[0].p.y)
+                 && std::isfinite (sample.ships[0].v.x) && std::isfinite (sample.ships[0].v.y));
+  auto const &last = after.back ();
+  EXPECT_LE (last.ships[0].p.getDistanceFrom (
+                 rabbitAt (last.beats, 0, fourFour, tuning).at),
+             0.15f);
+}

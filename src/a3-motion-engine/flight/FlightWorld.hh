@@ -71,7 +71,22 @@ public:
   ShipState const &ship (int ch) const;
 
 private:
-  OrbitPoint goalFor (int ch, double beats, int beatsPerBar) const;
+  /** How ship `ch` circles the body it escorts, fixed at the first step
+   *  after the order: from the angle it is at, in the sense it is flying. */
+  struct EscortLeg
+  {
+    int body = -1; // -1: patrolling
+    float startAngle = 0.f;
+    float direction = 1.f; // +1 counter-clockwise, -1 clockwise
+    double startBeats = 0.;
+  };
+
+  void followOrders (int ch, ShipOrders const &orders,
+                     FlightBodies const &bodies, double beats);
+  OrbitPoint goalFor (int ch, FlightBodies const &bodies, double beats,
+                      int beatsPerBar) const;
+  OrbitPoint escortGoal (int ch, FlightBody const &body, double beats,
+                         int beatsPerBar) const;
   Vec2 separationOf (int ch,
                      std::array<ShipOrders, flightShips> const &orders) const;
   void redrawWanderOnANewBar (double beats, int beatsPerBar);
@@ -80,6 +95,7 @@ private:
   std::array<ShipState, flightShips> _ships{};
   std::array<float, flightShips> _phaseOffset{}; // set by launch: rabbit starts at the nearest phase
   std::array<Vec2, flightShips> _wander{};
+  std::array<EscortLeg, flightShips> _escort{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
 };

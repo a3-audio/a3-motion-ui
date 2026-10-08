@@ -67,6 +67,34 @@ pointInDisc (juce::Random &dice, float radius)
   return { distance * std::cos (angle), distance * std::sin (angle) };
 }
 
+/** The body a ship may escort under `orders`, or -1: a dead zone, or an
+ *  index that is no body (any more), means PATROL. */
+int
+escortableBody (ShipOrders const &orders, FlightBodies const &bodies)
+{
+  if (orders.goal != FlightGoal::Escort)
+    return -1;
+  if (orders.body < 0 || orders.body >= bodies.count
+      || orders.body >= maxFlightBodies)
+    return -1;
+  if (bodies.body[static_cast<size_t> (orders.body)].mass <= 0.f)
+    return -1;
+  return orders.body;
+}
+
+/** `bodies` without body `left`. The escorted body's pull is what the escort
+ *  orbit stands for, so only the others tug at an escorting ship. */
+FlightBodies
+withoutBody (FlightBodies const &bodies, int left)
+{
+  FlightBodies others;
+  for (auto i = 0; i < bodies.count && i < maxFlightBodies; ++i)
+    if (i != left)
+      others.body[static_cast<size_t> (others.count++)]
+          = bodies.body[static_cast<size_t> (i)];
+  return others;
+}
+
 }
 
 FlightWorld::FlightWorld (juce::int64 seed)
@@ -91,6 +119,7 @@ FlightWorld::launch (int ch, Vec2 p, double beats, int beatsPerBar)
   auto const velocity = speed > 0.f ? tangent * (cruise / speed)
                                     : Vec2{ cruise, 0.f };
   _ships[index (ch)] = { p, velocity };
+  _escort[index (ch)] = {};
 }
 
 void
@@ -107,9 +136,13 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
     {
       if (!orders[index (ch)].flying)
         continue;
+      followOrders (ch, orders[index (ch)], bodies, beats);
       auto const &ship = _ships[index (ch)];
-      forces[index (ch)] = { goalFor (ch, beats, beatsPerBar),
-                             gravityAt (ship.p, bodies, pulse, _tuning),
+      auto const escorted = _escort[index (ch)].body;
+      FlightBodies const pulling
+          = escorted < 0 ? bodies : withoutBody (bodies, escorted);
+      forces[index (ch)] = { goalFor (ch, bodies, beats, beatsPerBar),
+                             gravityAt (ship.p, pulling, pulse, _tuning),
                              separationOf (ch, orders) };
     }
 
@@ -125,9 +158,53 @@ FlightWorld::ship (int ch) const
   return _ships[index (juce::jlimit (0, flightShips - 1, ch))];
 }
 
-OrbitPoint
-FlightWorld::goalFor (int ch, double beats, int beatsPerBar) const
+void
+FlightWorld::followOrders (int ch, ShipOrders const &orders,
+                           FlightBodies const &bodies, double beats)
 {
+  auto &leg = _escort[index (ch)];
+  auto const body = escortableBody (orders, bodies);
+  if (body == leg.body)
+    return;
+  if (body < 0)
+    {
+      leg = {};
+      return;
+    }
+
+  auto const &ship = _ships[index (ch)];
+  auto const fromBody = ship.p - bodies.body[static_cast<size_t> (body)].at;
+  auto const cross = fromBody.x * ship.v.y - fromBody.y * ship.v.x;
+  leg = { body, std::atan2 (fromBody.y, fromBody.x), cross < 0.f ? -1.f : 1.f,
+          beats };
+}
+
+OrbitPoint
+FlightWorld::escortGoal (int ch, FlightBody const &body, double beats,
+                         int beatsPerBar) const
+{
+  auto const &leg = _escort[index (ch)];
+  auto const radius = _tuning.captureRadius * std::sqrt (body.mass);
+  auto const lap = static_cast<double> (_tuning.captureLapBars) * beatsPerBar;
+  auto const turns = (beats - leg.startBeats) / lap;
+  auto const angle = leg.startAngle
+                     + leg.direction * 2.f * pi<float> ()
+                           * static_cast<float> (turns - std::floor (turns));
+  auto const rate = leg.direction * 2.f * pi<float> () / static_cast<float> (lap);
+  Vec2 const out{ std::cos (angle), std::sin (angle) };
+  Vec2 const along{ -out.y, out.x };
+  return { body.at + out * radius, along * (radius * rate) };
+}
+
+OrbitPoint
+FlightWorld::goalFor (int ch, FlightBodies const &bodies, double beats,
+                      int beatsPerBar) const
+{
+  auto const escorted = _escort[index (ch)].body;
+  if (escorted >= 0 && beatsPerBar > 0)
+    return escortGoal (ch, bodies.body[static_cast<size_t> (escorted)], beats,
+                       beatsPerBar);
+
   auto goal = rabbitAt (beats, ch, beatsPerBar, _tuning, _phaseOffset[index (ch)]);
   goal.at += _wander[index (ch)];
   return goal;
