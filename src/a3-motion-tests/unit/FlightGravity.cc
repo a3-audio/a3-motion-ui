@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/BeatPulse.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-engine/flight/ShipDynamics.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -30,6 +31,7 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <optional>
 #include <vector>
 
 // The reason for this phase: the guest groups on the floor, acting as
@@ -85,10 +87,12 @@ bodiesOf (std::initializer_list<FlightBody> list)
   return bodies;
 }
 
-/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity at a fixed
- *  `pulse`, from the rabbit's own place and pace. One sample a tick. */
+/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity, from the
+ *  rabbit's own place and pace. One sample a tick. The gravity's pulse is the
+ *  one the engine plays (the gate: pulling only on the one), unless a fixed
+ *  `pulse` is given. */
 std::vector<Sample>
-fly (float bars, FlightBodies const &bodies, float pulse = 1.f)
+fly (float bars, FlightBodies const &bodies, std::optional<float> pulse = {})
 {
   FlightTuning const tuning;
   auto const dt = tickBeats ();
@@ -98,8 +102,12 @@ fly (float bars, FlightBodies const &bodies, float pulse = 1.f)
   for (size_t i = 0; i < ticksIn (beatsIn (bars)); ++i)
     {
       auto const now = static_cast<double> (i) * dt;
+      auto const pulling
+          = pulse ? *pulse
+                  : gravityPulse (Measure (0, 0, static_cast<int> (i)), fourFour,
+                                  tuning);
       ShipForces const forces{ rabbitAt (now, 0, fourFour, tuning),
-                               gravityAt (ship.p, bodies, pulse, tuning)
+                               gravityAt (ship.p, bodies, pulling, tuning)
                                    + deadZonePush (ship.p, bodies, tuning),
                                {} };
       ship = stepShip (ship, forces, dt, tuning);
@@ -314,7 +322,7 @@ TEST (FlightGravity, ACrowdNearThePathBendsItAudibly)
   auto const empty = fly (8.f, {});
   for (auto const beats : eightPlacesRoundThePath ())
     {
-      FlightBody const crowd{ besideThePath (beats, -0.1f), 2.f };
+      FlightBody const crowd{ besideThePath (beats, -0.1f), FlightTuning{}.crowdMass };
       EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ crowd })), empty), audibleBend)
           << "a crowd just inside the path where the rabbit is at beat " << beats;
     }
@@ -326,13 +334,15 @@ TEST (FlightGravity, ACrowdNearThePathBendsItAudibly)
 TEST (FlightGravity, ACrowdOrAHotspotOnThePathSlingsTheShipOnMostPasses)
 {
   constexpr int mostOfSixteen = 12;
-  EXPECT_GE (audibleSlingshots (2.f), mostOfSixteen) << "a crowd";
-  EXPECT_GE (audibleSlingshots (3.f), mostOfSixteen) << "a hotspot";
+  FlightTuning const t;
+  EXPECT_GE (audibleSlingshots (t.crowdMass), mostOfSixteen) << "a crowd";
+  EXPECT_GE (audibleSlingshots (t.hotspotMass), mostOfSixteen) << "a hotspot";
 }
 
 TEST (FlightGravity, AHotspotOutsideTheRoomNeverPinsTheShipToTheRim)
 {
-  auto const path = fly (8.f, bodiesOf ({ { { -0.8f, -0.8f }, 3.f } }));
+  auto const path
+      = fly (8.f, bodiesOf ({ { { -0.8f, -0.8f }, FlightTuning{}.hotspotMass } }));
   EXPECT_LE (longestOnTheRim (path), parkedBeats);
   // eight bars are two laps of the path (and a quarter of its precession)
   EXPECT_GE (lapsRoundTheRoom (path), 1.75f);
@@ -349,7 +359,8 @@ TEST (FlightGravity, ADeadZoneOnThePathKeepsTheShipOut)
   for (auto const beats : eightPlacesRoundThePath ())
     {
       auto const deadZone = rabbitOf (beats);
-      auto const path = fly (8.f, bodiesOf ({ { deadZone, -2.f } }));
+      auto const path
+          = fly (8.f, bodiesOf ({ { deadZone, tuning.deadZoneMass } }));
       EXPECT_GE (closestApproach (path, deadZone),
                  mostOfTheClearance * tuning.deadZoneClearance)
           << "placed where the rabbit is at beat " << beats;
@@ -360,7 +371,8 @@ TEST (FlightGravity, TwoLapsAreNotTheSameWithAGroupThere)
 {
   auto const empty = lapTwoAgainstLapThree (fly (16.f, {}));
   auto const withAGroup
-      = lapTwoAgainstLapThree (fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, 1.f } })));
+      = lapTwoAgainstLapThree (
+          fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, FlightTuning{}.groupMass } })));
   EXPECT_LT (empty, 0.05f) << "the empty room repeats itself, as it should";
   EXPECT_GT (withAGroup, 0.05f);
 }

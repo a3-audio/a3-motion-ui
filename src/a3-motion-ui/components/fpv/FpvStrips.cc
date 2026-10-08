@@ -20,6 +20,7 @@
 
 #include "FpvStrips.hh"
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -40,7 +41,7 @@ constexpr float pillOfSection = 0.8f;    // the pill's height in the header
 constexpr float targetOfClip = 0.45f;    // PATROL / G3's share of the clip row
 constexpr float nameOfTarget = 0.75f;    // the clip name, smaller after the target
 constexpr float discOfText = 1.f;        // the heaviest escort disc, to a line of text
-constexpr float heaviestMass = 3.f;      // a hotspot fills discOfText
+float const heaviestMass = FlightTuning{}.hotspotMass; // a hotspot fills discOfText
 
 constexpr char const *potLabels[3] = { "3D", "FREQ", "Q" };
 

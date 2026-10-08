@@ -282,7 +282,7 @@ flyShipZero (std::array<ShipOrders, 4> const &orders, FlightBodies const &bodies
 float
 escortRadius (float mass)
 {
-  return FlightTuning{}.captureRadius * std::sqrt (mass);
+  return a3::escortRadius (mass, FlightTuning{});
 }
 
 /** The samples from bar 3 to bar 8: the ship has had time to be captured. */

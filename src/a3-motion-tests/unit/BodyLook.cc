@@ -24,6 +24,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -33,16 +34,29 @@ using namespace a3;
 
 TEST (BodyLook, HeavierIsBiggerButNotLinear)
 {
+  FlightTuning const t;
   auto const blob = 40.f;
-  EXPECT_GT (bodyRadius (3.f, blob), bodyRadius (2.f, blob));
-  EXPECT_GT (bodyRadius (2.f, blob), bodyRadius (1.f, blob));
-  EXPECT_LT (bodyRadius (3.f, blob), 3.f * bodyRadius (1.f, blob));
-  EXPECT_FLOAT_EQ (bodyRadius (1.f, blob), bodyRadiusOfBlob * blob);
+  EXPECT_GT (bodyRadius (t.hotspotMass, blob), bodyRadius (t.crowdMass, blob));
+  EXPECT_GT (bodyRadius (t.crowdMass, blob), bodyRadius (t.groupMass, blob));
+  EXPECT_LT (bodyRadius (t.hotspotMass, blob), 3.f * bodyRadius (t.groupMass, blob));
+  EXPECT_FLOAT_EQ (bodyRadius (t.groupMass, blob), bodyRadiusOfBlob * blob);
+}
+
+// The planets got lighter (2026-10-08), the drawing did not shrink: a group
+// is drawn at a blob's size, a crowd sqrt(2) and a hotspot sqrt(3) of it.
+TEST (BodyLook, LighterPlanetsAreDrawnAsBefore)
+{
+  FlightTuning const t;
+  auto const blob = 40.f;
+  auto const group = bodyRadius (t.groupMass, blob);
+  EXPECT_FLOAT_EQ (bodyRadius (t.crowdMass, blob), group * std::sqrt (2.f));
+  EXPECT_FLOAT_EQ (bodyRadius (t.hotspotMass, blob), group * std::sqrt (3.f));
 }
 
 TEST (BodyLook, ADeadZoneIsTheSameSizeAsACrowd)
 {
-  EXPECT_FLOAT_EQ (bodyRadius (-2.f, 40.f), bodyRadius (2.f, 40.f));
+  FlightTuning const t;
+  EXPECT_FLOAT_EQ (bodyRadius (t.deadZoneMass, 40.f), bodyRadius (t.crowdMass, 40.f));
 }
 
 TEST (BodyLook, ThePulseGrowsTheDiscLessThanThePull)
@@ -173,9 +187,11 @@ TEST (BodyLookPaint, EveryWeightAndTheHoldPaint)
     float mass;
     float hold;
   };
-  for (auto look : { Look{ "group", 1.f, 0.f }, Look{ "crowd", 2.f, 0.f },
-                     Look{ "hotspot", 3.f, 0.f }, Look{ "deadzone", -2.f, 0.f },
-                     Look{ "held", 2.f, 0.6f } })
+  FlightTuning const t;
+  for (auto look : { Look{ "group", t.groupMass, 0.f }, Look{ "crowd", t.crowdMass, 0.f },
+                     Look{ "hotspot", t.hotspotMass, 0.f },
+                     Look{ "deadzone", t.deadZoneMass, 0.f },
+                     Look{ "held", t.crowdMass, 0.6f } })
     {
       auto const image = p.paint (look.mass, 1.f, look.hold);
       EXPECT_GT (pixelsAwayFromBackground (image), 0) << look.name;

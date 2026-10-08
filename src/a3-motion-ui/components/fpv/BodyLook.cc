@@ -20,6 +20,7 @@
 
 #include "BodyLook.hh"
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <cmath>
@@ -93,7 +94,11 @@ bodyColour (BodyRole role)
 float
 bodyWeightScale (float mass)
 {
-  return std::sqrt (std::abs (mass));
+  // Relative to a group, so lighter planets are drawn as before; a dead zone
+  // is drawn a crowd's size whatever its push.
+  FlightTuning const tuning;
+  auto const drawn = mass < 0.f ? tuning.crowdMass : mass;
+  return std::sqrt (drawn / tuning.groupMass);
 }
 
 float

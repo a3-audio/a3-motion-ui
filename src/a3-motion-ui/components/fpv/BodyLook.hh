@@ -42,11 +42,12 @@ BodyRole bodyRole (float mass);
  *  accent is close to a channel's colour on more than one skin. */
 ThemeColour bodyColour (BodyRole role);
 
-/** How much bigger a weight is drawn: the square root of |mass|, so a
- *  hotspot (3) is not three times a group but reads as heavier. */
+/** How much bigger a weight is drawn than a group: the square root of its
+ *  mass over a group's, so a hotspot (three groups) is not three times a
+ *  group but reads as heavier. A dead zone is drawn a crowd's size. */
 float bodyWeightScale (float mass);
 
-/** bodyRadiusOfBlob * sqrt(|mass|) * blob; a dead zone is a crowd's size. */
+/** bodyRadiusOfBlob * bodyWeightScale(mass) * blob. */
 float bodyRadius (float mass, float blobDiameter);
 
 /** The disc breathes with the gravity's pulse, but less than the pull, so a

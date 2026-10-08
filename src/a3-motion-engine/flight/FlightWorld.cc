@@ -199,7 +199,7 @@ FlightWorld::escortGoal (int ch, FlightBody const &body, double beats,
                          int beatsPerBar) const
 {
   auto const &leg = _escort[index (ch)];
-  auto const radius = _tuning.captureRadius * std::sqrt (body.mass);
+  auto const radius = escortRadius (body.mass, _tuning);
   auto const lap = static_cast<double> (_tuning.captureLapBars) * beatsPerBar;
   // no lap (<= 0 bars): the goal stands where the ship came in, as a
   // rabbit stands at its slot when orbitLapBars is not positive

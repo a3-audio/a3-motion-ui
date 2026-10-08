@@ -2087,7 +2087,7 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
 
       auto const ring = bodyRole (body.mass) == BodyRole::Repel
                             ? tuning.deadZoneClearance
-                            : tuning.captureRadius * bodyWeightScale (body.mass);
+                            : escortRadius (body.mass, tuning);
 
       BodyPaint paint;
       paint.centre = *centre;

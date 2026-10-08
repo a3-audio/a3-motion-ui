@@ -21,6 +21,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 namespace a3
 {
@@ -61,7 +62,8 @@ struct FlightTuning
   float speedMax = 0.9f;
   float rimSoft = 0.9f;      // [guess, plan]
   float rimStiffness = 4.f;  // [guess, plan]
-  // escort: the circle round a group is captureRadius * sqrt(mass). At 0.15
+  // escort: the circle round a group is captureRadius * sqrt(mass), see
+  // escortRadius below. At 0.15
   // it was a small circle near the group, heard as parked [lab + research B2].
   float captureRadius = 0.3f;
   float captureLapBars = 2.f; // <= 0: the escort goal stands still [lab, weak]
@@ -78,11 +80,29 @@ struct FlightTuning
   // flightSofteningFloor [lab: the lab used the gravity's 0.08 for it]
   float separationSoftening = 0.08f;
   float wanderRadius = 0.12f; // ~10 deg a bar: "life", below a heard bend [research B2]
-  // the beat. Harmless, but under 1 deg of wobble at any depth: nothing may
-  // rely on it being heard [lab]; research B5 suggests half bars instead.
+  // the beat. The gate: gravity pulls only during beat 1 of each bar, so the
+  // bends land on the one [lab: pulseMode = gate]. Off, it breathes on every
+  // beat by the two depths below, under 1 deg of wobble at any depth: nothing
+  // may rely on that being heard [lab]. The floor draws the depths either way.
+  bool gravityOnlyOnTheOne = true;
   float pulseDepth = 0.3f;
   float pulseDownbeatDepth = 0.6f;
+  // the planets' masses: light, half the plan's 1/2/3. With the breath on
+  // every body cost attention in the model; light ones cost least [lab]. A
+  // dead zone's push is the plan's; its wall above does most of the work.
+  float groupMass = 0.5f;
+  float crowdMass = 1.f;
+  float hotspotMass = 1.5f;
+  float deadZoneMass = -2.f;
 };
+
+/** The radius of an escort's circle round a group of `mass`: wider for a
+ *  heavier one. The engine flies it and the floor draws it, from here. */
+inline float
+escortRadius (float mass, FlightTuning const &tuning)
+{
+  return tuning.captureRadius * std::sqrt (std::max (mass, 0.f));
+}
 
 /** The smallest softening the field uses. A softening of 0 would divide
  *  0 by 0 for a ship exactly on a body (or on another ship); this floor keeps

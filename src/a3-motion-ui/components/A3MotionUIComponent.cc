@@ -2062,7 +2062,7 @@ A3MotionUIComponent::refreshFlightDisplay ()
               .escort;
   constexpr int guidePoints = 96;
   display.guide = orbitGuidePoints (beats, beatsPerBar, guidePoints, tuning);
-  display.pulse = gravityPulse (_now, beatsPerBar, tuning);
+  display.pulse = drawnPulse (_now, beatsPerBar, tuning);
   _motionComponent->setFlightDisplay (std::move (display));
 }
 

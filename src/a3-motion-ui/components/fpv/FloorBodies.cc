@@ -20,6 +20,8 @@
 
 #include "FloorBodies.hh"
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
+
 #include <algorithm>
 #include <utility>
 
@@ -39,18 +41,19 @@ insideTheRoom (Vec2 at)
 float
 massOf (BodyWeight weight)
 {
+  FlightTuning const tuning;
   switch (weight)
     {
     case BodyWeight::Group:
-      return 1.f;
+      return tuning.groupMass;
     case BodyWeight::Crowd:
-      return 2.f;
+      return tuning.crowdMass;
     case BodyWeight::Hotspot:
-      return 3.f;
+      return tuning.hotspotMass;
     case BodyWeight::DeadZone:
-      return -2.f;
+      return tuning.deadZoneMass;
     }
-  return 1.f;
+  return tuning.groupMass;
 }
 
 BodyWeight

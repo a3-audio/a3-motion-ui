@@ -37,7 +37,7 @@ enum class BodyWeight
   DeadZone, // "not here"
 };
 
-float massOf (BodyWeight weight);     // 1, 2, 3, -2
+float massOf (BodyWeight weight);     // FlightTuning: 0.5, 1, 1.5, -2
 BodyWeight nextWeight (BodyWeight weight); // G -> C -> H -> X -> G
 
 /** The groups the DJ has placed on the floor. Message thread only; the engine

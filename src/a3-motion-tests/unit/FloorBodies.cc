@@ -48,11 +48,6 @@ TEST (FloorBodies, TheWeightCyclesThroughTheDeadZoneAndBack)
   EXPECT_EQ (nextWeight (BodyWeight::Hotspot), BodyWeight::DeadZone);
   EXPECT_EQ (nextWeight (BodyWeight::DeadZone), BodyWeight::Group);
 
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Group), 1.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Crowd), 2.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Hotspot), 3.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::DeadZone), -2.f);
-
   FloorBodies bodies;
   auto const id = *bodies.add ({});
   for (auto want : { BodyWeight::Crowd, BodyWeight::Hotspot,
@@ -94,7 +89,7 @@ TEST (FloorBodies, RemovingShiftsTheRestDownAndKeepsTheirIds)
   EXPECT_EQ (s.body[0].id, a);
   EXPECT_EQ (s.body[1].id, c);
   EXPECT_EQ (s.body[1].at, (Vec2{ 0.3f, 0.f }));
-  EXPECT_FLOAT_EQ (s.body[1].mass, 2.f);
+  EXPECT_FLOAT_EQ (s.body[1].mass, massOf (BodyWeight::Crowd));
   EXPECT_FALSE (bodies.contains (b));
   EXPECT_TRUE (bodies.contains (c));
 }
@@ -135,7 +130,7 @@ TEST (FloorBodies, AnUnknownIdChangesNothing)
   auto const s = bodies.snapshot ();
   ASSERT_EQ (s.count, 1);
   EXPECT_EQ (s.body[0].at, (Vec2{ 0.5f, 0.f }));
-  EXPECT_FLOAT_EQ (s.body[0].mass, 1.f);
+  EXPECT_FLOAT_EQ (s.body[0].mass, massOf (BodyWeight::Group));
 }
 
 TEST (FloorBodies, TheSnapshotCarriesMassesInOrder)
@@ -151,11 +146,21 @@ TEST (FloorBodies, TheSnapshotCarriesMassesInOrder)
 
   auto const s = bodies.snapshot ();
   ASSERT_EQ (s.count, 3);
-  EXPECT_FLOAT_EQ (s.body[0].mass, 1.f);
-  EXPECT_FLOAT_EQ (s.body[1].mass, 2.f);
+  EXPECT_FLOAT_EQ (s.body[0].mass, 0.5f);
+  EXPECT_FLOAT_EQ (s.body[1].mass, 1.f);
   EXPECT_FLOAT_EQ (s.body[2].mass, -2.f);
   EXPECT_EQ (s.body[0].id, a);
   EXPECT_EQ (s.body[1].id, b);
   EXPECT_EQ (s.body[2].id, c);
   EXPECT_EQ (s.body[2].at, (Vec2{ 0.3f, 0.f }));
+}
+
+// The MJ lab (2026-10-08): light planets, half the plan's masses. With the
+// breath on, every body cost attention in the model; light ones cost least.
+TEST (FloorBodies, PlanetsAreLight)
+{
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Group), 0.5f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Crowd), 1.f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Hotspot), 1.5f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::DeadZone), -2.f);
 }
