@@ -334,6 +334,18 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
   return plateaus;
 }
 
+/** Where the run that is still going at the end of the ring started: the
+ *  first of the ticks at the end that never leave the last tick's spot. */
+static size_t
+landingBeforeTheWrap (std::vector<Pos> const &ticks)
+{
+  auto start = ticks.size () - 1;
+  while (start > 0 && ticks[start - 1].isValid ()
+         && distance (ticks[start - 1], ticks.back ()) < holdDistance)
+    --start;
+  return start;
+}
+
 std::vector<TrajectoryHit>
 trajectoryHits (std::vector<Pos> const &ticks)
 {
@@ -348,12 +360,28 @@ trajectoryHits (std::vector<Pos> const &ticks)
   // landed on at 0, and then it stays, even where the last hit is the same
   // place: two landings, not one held place.
   auto const carriesOn
-      = hits.size () > 1 && hits.front ().tick == 0 && ticks.front ().isValid ()
+      = !hits.empty () && hits.front ().tick == 0 && ticks.front ().isValid ()
         && ticks.back ().isValid ()
         && distance (ticks.back (), ticks.front ()) < holdDistance;
-  if (carriesOn)
-    hits.erase (hits.begin ());
+  if (!carriesOn)
+    return hits;
 
+  // Read the ring from where that run was landed on, so it is one run and not
+  // two pieces -- the piece at the end is too short to count when the hit
+  // falls on the very last tick -- and give each hit its tick back.
+  auto const landed = landingBeforeTheWrap (ticks);
+  std::vector<Pos> fromLanding (ticks.begin () + static_cast<long> (landed),
+                                ticks.end ());
+  fromLanding.insert (fromLanding.end (), ticks.begin (),
+                      ticks.begin () + static_cast<long> (landed));
+
+  hits = heldRuns (fromLanding, plateauMinTicks);
+  for (auto &hit : hits)
+    hit.tick = (hit.tick + landed) % ticks.size ();
+  std::sort (hits.begin (), hits.end (),
+             [] (TrajectoryHit const &a, TrajectoryHit const &b) {
+               return a.tick < b.tick;
+             });
   return hits;
 }
 

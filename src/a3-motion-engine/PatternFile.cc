@@ -525,6 +525,9 @@ placeTimedDots (std::vector<std::pair<float,float>> const &jumpDots,
                 std::vector<std::size_t> const &rawHitTicks,
                 std::size_t numTicks, std::vector<Pos> &outTicks)
 {
+  if (numTicks == 0)
+    return;
+
   // A time past the clip's end comes round, as the generator's do.
   std::vector<std::size_t> hitTicks;
   for (auto const at : rawHitTicks)
@@ -849,7 +852,8 @@ PatternFile::load (juce::File const &file)
   auto ppqn = xml->getIntAttribute ("data-ppqn",
                                      TempoClock::getTicksPerBeat ());
 
-  if (lengthBeats <= 0)
+  // No beats or no ticks to a beat is no clip; a timed dot would divide by it.
+  if (lengthBeats <= 0 || ppqn <= 0)
     return nullptr;
 
   std::string pathData;

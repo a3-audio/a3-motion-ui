@@ -422,3 +422,52 @@ TEST (PatternFileJumps, HitsOutOfOrderPlayInTimeOrder)
   EXPECT_NEAR (loaded->getTick (320).x (), 1.f, 1e-4f);
   file.deleteFile ();
 }
+
+// A file whose ticks per beat are zero has no ticks to place its hits on; it
+// is refused like a file of zero beats, not divided by.
+TEST (PatternFileJumps, AFileWithNoTicksPerBeatIsRefused)
+{
+  auto const file = tempSvg ("a3-no-ppqn.svg");
+  file.replaceWithText (
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-1 -1 2 2\" "
+      "data-name=\"Hand\" data-beats=\"4\" data-ppqn=\"0\">"
+      "<circle cx=\"-1\" cy=\"0\" r=\"0.05\" data-at=\"64\"/>"
+      "<circle cx=\"1\" cy=\"0\" r=\"0.05\" data-at=\"320\"/></svg>");
+  EXPECT_EQ (PatternFile::load (file), nullptr);
+  file.deleteFile ();
+}
+
+// A hit landed on the clip's very last tick holds round the loop into the
+// next pass: it is one hit, landed at the end, and the file keeps it.
+TEST (PatternFileJumps, AHitOnTheLastTickIsKept)
+{
+  auto const ticks = static_cast<index_t> (TempoClock::getTicksPerBeat () * 4);
+  auto const half = ticks / 2;
+  auto const left = Pos::fromCartesian (-0.6f, 0.f, 0.5f);
+  auto const right = Pos::fromCartesian (0.6f, 0.f, 0.5f);
+
+  auto pattern = std::make_shared<Pattern> ();
+  pattern->setName ("Last tick");
+  pattern->resize (ticks);
+  for (index_t t = 0; t < ticks; ++t)
+    pattern->setTick (t, t < half - 1 ? right : left);
+  pattern->setTick (half - 1, Pos::invalid);
+  pattern->setTick (ticks - 2, Pos::invalid);
+  pattern->setTick (ticks - 1, right);
+
+  auto const file = tempSvg ("a3-last-tick-hit.svg");
+  ASSERT_TRUE (PatternFile::save (pattern, file));
+
+  auto const xml = juce::XmlDocument::parse (file);
+  ASSERT_NE (xml, nullptr);
+  std::vector<int> ats;
+  for (auto *child : xml->getChildWithTagNameIterator ("circle"))
+    ats.push_back (child->getIntAttribute ("data-at", -1));
+  EXPECT_EQ (ats, (std::vector<int> { static_cast<int> (half),
+                                      static_cast<int> (ticks - 1) }));
+
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+  expectSameRhythm (*pattern, *loaded, "a hit on the last tick");
+  file.deleteFile ();
+}
