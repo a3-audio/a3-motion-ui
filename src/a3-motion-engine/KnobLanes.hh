@@ -23,6 +23,7 @@
 #include <a3-motion-engine/RecMode.hh>
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -104,7 +105,18 @@ public:
                                     long long ticks);
 
 private:
+  /** The last tick written at or before `tick`, without wrapping; -1 for
+   *  none. */
+  long long lastWrittenAtOrBefore (long long tick) const;
+
   std::vector<float> _values;
+  // Which ticks are written: a bit each, and a bit per word of those for
+  // whether it has any. at() finds the last value written in a few word
+  // reads rather than by walking back -- a lane from a file holds only where
+  // it changes, and a walk back over a 64-bar take at every tick took 47 s
+  // on the clock thread (2026-10-08).
+  std::vector<std::uint64_t> _written;
+  std::vector<std::uint64_t> _wordsWritten;
 };
 
 /** Writes one knob into its lane during a take, by the rule the path is
