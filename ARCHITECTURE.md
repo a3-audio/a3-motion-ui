@@ -348,7 +348,7 @@ CLIP ships keep the action's clip meaning; 3D/FREQ/Q accents are unchanged.
 
 | Key | On a flying ship | Where |
 |---|---|---|
-| `~spin` | bars per lap off the TempoLfo table, sign the clip's sense (`spinPosition`), 0 stands the orbit | carried: ship and rabbit turned round the room's middle (`FlightWorld::carry`), not steered, so steering and gravity stay as tuned |
+| `~spin` | bars per lap off the TempoLfo table, sign the clip's sense (`spinPosition`), 0 stands the orbit | carried: the ship rides its ellipse along with the rabbit (`BaseOrbit::carryAlongOrbit`), not steered, so steering and gravity stay as tuned |
 | `~speedLog2` | the lap × 2^−speedLog2 | carried |
 | `~swell` | the base ellipse breathes out (long axis to 0.95) or in (to 0.4) on `lfoTravel` | the rabbit (`rabbitAt`'s `radiusScale`) |
 | `~sway` | the heard height swings ±30°, positive down first | `ShipHearing::heardShip` |
@@ -360,7 +360,7 @@ CLIP ships keep the action's clip meaning; 3D/FREQ/Q accents are unchanged.
   latest press wins for both.
 - **Caps** (`FlightTuning`): every rate under 180°/beat round the listener (one lap per two
   beats, about 360°/s at 120 BPM; direction stops being heard as a path near 900°/s, Feron 2010),
-  height under 90°/beat; and while an action drives a ship the heard direction may turn at most
+  `~sway`'s height under 90°/beat (tilt and roll sweeps and swell are held only by the turn limit below); and while an action drives a ship the heard direction may turn at most
   180°/beat (`limitTurn`), which holds even for every key at once. A FREQ-dependent cap is not
   built: what FREQ means in Hz is not measured yet.
 - **The breath holds the floor:** the carry pauses in the stop; sway and lean keep turning.

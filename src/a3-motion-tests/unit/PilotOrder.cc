@@ -39,7 +39,7 @@ TEST (PilotOrder, EveryGameIsReadBackFromItsWord)
     }
 }
 
-TEST (PilotOrder, TheGamesAreSpelledAsTheSpecWritesThem)
+TEST (PilotOrder, TheGamesAreSpelledAsAScriptWritesThem)
 {
   EXPECT_EQ (pilotWord (PilotGame::None), "none");
   EXPECT_EQ (pilotWord (PilotGame::FakeOut), "fakeout");

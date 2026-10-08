@@ -99,8 +99,10 @@ struct FlightTuning
   // Every rate it asks for is held under what a room can follow: a turn round
   // the listener at most 180 deg a beat, one lap per two beats (about 360 deg/s
   // at 120 BPM; direction stops being heard as a path near 900 deg/s, Feron
-  // 2010), height at most half that (vertical localisation is coarser than
-  // horizontal; the factor is a design choice).
+  // 2010). Only ~sway's height is capped lower, at half that (vertical
+  // localisation is coarser than horizontal; the factor is a design choice);
+  // tilt/roll sweeps and swell are held only by the 180 deg/beat turn limit
+  // on the heard direction.
   float angularCapDegreesPerBeat = 180.f;
   float verticalCapDegreesPerBeat = 90.f;
   // ~sway swings the heard height this far, the crowd's design minimum for a

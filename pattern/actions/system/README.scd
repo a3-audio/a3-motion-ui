@@ -185,9 +185,8 @@
 //
 // FULL ignores this section; it is read when the button is pressed in FPV.
 // It asks the channel's pilot for a game -- a figure the ship flies against
-// the guests on the floor. The games arrive with the pilots' next phase;
-// until then a game asked for waits on the ship and nothing flies
-// differently. Every shipped script carries the three lines commented out.
+// the guests on the floor. No game is played yet: a game asked for
+// waits on the ship and nothing flies differently. Every shipped script carries the three lines commented out.
 //
 //   ~game                    \none  \fakeout  \formation  \hideseek
 //                            \callresponse
