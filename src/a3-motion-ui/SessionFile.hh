@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/MotionEngine.hh>
 // For numSpeedButtons, as in SettingsPersistence.hh.
 #include <a3-motion-ui/components/ClipSettingsLayout.hh>
 
@@ -139,6 +140,14 @@ struct Session
     float threeD = 0.f;
     float freq = 0.f;
     float q = 0.f;
+
+    /** Whether the channel's ship flies ORBIT (true) or CLIP (false).
+     *
+     *  Optional like `speedButtonLog2`: a session written before the field
+     *  existed has none, and loading it must leave a ship that is already on
+     *  ORBIT where it is rather than call it back to CLIP. */
+    std::optional<bool> orbit;
+
     std::vector<Slot> slots;
     std::array<ActionEntry, numActionButtons> actions;
   };
@@ -162,6 +171,14 @@ struct Session
 Session loadSession (juce::File const &file, int numChannels, int numSlots);
 
 bool saveSession (juce::File const &file, Session const &set);
+
+/** Copies each channel's flight mode from the engine into the session. */
+void recordFlightModes (MotionEngine const &engine, Session &set);
+
+/** Gives the engine the modes the session names; channels it says nothing
+ *  about keep theirs. Called before the first flight tick that follows a
+ *  load, so a restored ORBIT ship launches the way a PAGE press does. */
+void restoreFlightModes (Session const &set, MotionEngine &engine);
 
 /** Move a `set.json` written before sessions had names to `current.json`.
  *

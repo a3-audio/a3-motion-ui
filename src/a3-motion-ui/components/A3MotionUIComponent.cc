@@ -2106,6 +2106,7 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
     case PageOutcome::None:
       return;
     }
+  scheduleSetSave ();
   updateControlReadout (fpvPageReadout (
       static_cast<int> (channel),
       flownOutcome (outcome, bodyId, _floorBodies.snapshot (_engine.getFlightTuning ())),
@@ -6131,6 +6132,10 @@ A3MotionUIComponent::applySet (juce::File const &file)
         _clipSettings->setSpeedButtons (_speedButtonLog2);
     }
 
+  // Before any clip is started below, so the first flight tick already sees
+  // the saved mode and launches an ORBIT ship as a PAGE press would.
+  restoreFlightModes (set, _engine);
+
   for (int ch = 0; ch < numChannels; ++ch)
     {
       auto const index = static_cast<index_t> (ch);
@@ -6352,6 +6357,7 @@ A3MotionUIComponent::buildSession ()
     }
 
   set.speedButtonLog2 = _speedButtonLog2;
+  recordFlightModes (_engine, set);
 
   return set;
 }
