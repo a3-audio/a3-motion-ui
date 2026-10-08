@@ -170,6 +170,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PlayPausePress.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionScript.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotOrder.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FiredAction.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptLine.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionMotion.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionMotionTile.cc"
