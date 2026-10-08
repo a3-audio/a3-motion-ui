@@ -76,6 +76,7 @@
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
+#include <a3-motion-ui/components/ClockModeTempo.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/theme/CleanSkin.hh>
 #include <a3-motion-ui/components/SceneLaunch.hh>
@@ -463,7 +464,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         return;
       }
 
-    _globalSettings->openPicker ();
+    _globalSettings->openPicker (
+        browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin }
+            ? GlobalSettingsComponent::PickerTap::previews
+            : GlobalSettingsComponent::PickerTap::chooses);
     updateOverlayButtons (); // the panel changed size; the strips follow
   };
 
@@ -529,6 +533,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _motionComponent->addChildComponent (*_colourPicker);
   _colourPicker->onColourChanged = [this] { applyPickedColour (); };
   _colourPicker->onDone = [this] { closeColourPicker (); };
+  _colourPicker->onCancel = [this] { closeColourPicker (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -1887,8 +1892,9 @@ A3MotionUIComponent::closeAllOverlays ()
 {
   updateControlReadout ("-- CLOSE");
 
+  // Out of a mask without keeping it, the picker too (#55).
   if (_colourPickerOpen)
-    closeColourPicker ();
+    _colourPicker->cancel ();
   // Out of everything at once, and out of a mask without keeping it -- the
   // same as Back and Escape. Keeping is Enter's.
   if (_skinEditorOpen && _skinEditor->isNaming ())
@@ -2025,9 +2031,10 @@ A3MotionUIComponent::toggleGlobalSettings ()
     }
 
   // Back leaves a mask without keeping what was in it, the way Escape does:
-  // keeping is Enter's, or a tap on the value in a list.
+  // keeping is Enter's, or a tap on the value in a list -- and the picker's
+  // done (#55).
   if (_colourPickerOpen)
-    closeColourPicker ();
+    _colourPicker->cancel ();
   else if (_skinEditorOpen && _skinEditor->isNaming ())
     _skinEditor->cancelNaming ();
   else if (_skinEditorOpen)
@@ -7361,6 +7368,9 @@ A3MotionUIComponent::closeGlobalSettings ()
   // The editor is a page of this menu, so closing the menu leaves it first —
   // that is also what saves the edited skin.
   closeSkinEditor ();
+  // A skin being looked at goes back to the running one: closing is not
+  // keeping.
+  _globalSettings->cancelPicker ();
 
   _globalSettingsOpen = false;
   _globalSettingsValueFieldSelected = false;
@@ -7486,15 +7496,13 @@ A3MotionUIComponent::applyClockMode (int mode)
   if (mode == _clockMode)
     return;
 
+  _internalBPM = internalTempoKept (_clockMode, mode, _internalBPM,
+                                    _engine.getTempoBPM ());
   _clockMode = mode;
   _beatArrival.follow.store (_clockMode != 0);
 
   if (_clockMode != 0)
-    {
-      if (std::abs (_internalBPM) < 0.0001f)
-        _internalBPM = _engine.getTempoBPM ();
-      _engine.resetTempo ();
-    }
+    _engine.resetTempo ();
   else
     {
       if (_internalBPM > 0.f)
@@ -8116,9 +8124,9 @@ A3MotionUIComponent::previewSkin (int index)
   if (index < 0 || index >= _skinNames.size ())
     return;
 
-  // Shown while the encoder is still turning, so a skin is chosen by
+  // Shown on a tap or an arrow in the skin list, so a skin is chosen by
   // looking at it rather than by reading its name. Nothing is written —
-  // the press is what makes it the one that is running.
+  // the second tap is what makes it the one that is running.
   auto const file = skinFile (getConfigFile ().getParentDirectory (),
                               _skinNames[index]);
   auto const loaded = loadTheme (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())));
@@ -9424,22 +9432,27 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         // The fill is the take and only the take: one recording runs at a
         // time and it writes over something that does not come back, so it
         // keeps a shape of its own rather than becoming a fifth mark to
-        // count in the dark.
-        auto const armed = _engine.getScheduledForRecordingPattern ();
-        auto const isArmedForThis = armed != nullptr && armed == pattern;
-
+        // count in the dark. It shows the take wherever it runs, not only
+        // when its clip is the one open (#16), in that channel's colour --
+        // which is how the eye tells whose take it is.
         // Three states from one rule, so the bar and any later reader cannot
         // disagree about which of them is on. See RecordingIndicator.hh.
-        auto const indicator
-            = recordingIndicatorFor (isArmedForThis, isRecordingThis);
+        auto const take = takeOnTheBar (
+            _patterns, _engine.isRecording (), recording,
+            _engine.getScheduledForRecordingPattern ());
+        auto const indicator = take.indicator;
+        auto const takeColour
+            = _channelUIStates[static_cast<std::size_t> (barColourChannel (
+                                   take.channel, static_cast<int> (channel)))]
+                  ->colour;
 
         _statusBar->setCountingIn (indicator == RecordingIndicator::CountIn,
-                                   _channelUIStates[channel]->colour);
+                                   takeColour);
         _statusBar->setRecordingProgress (
             indicator == RecordingIndicator::Running
                 ? _engine.getRecordingProgress ()
                 : -1.f,
-            _channelUIStates[channel]->colour);
+            takeColour);
 
         updateChannelProgress ();
       }

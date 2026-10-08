@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <UiSource.hh>
+
 #include <JuceHeader.h>
 
 // Read from the source, as ChannelValueReset and DeviceHello do: these live
@@ -30,13 +32,7 @@ namespace
 juce::String
 bodyOf (juce::String const &signature)
 {
-  auto const ui = juce::File (A3_UI_SOURCE_DIR)
-                      .getChildFile ("components/A3MotionUIComponent.cc");
-  auto const text = ui.loadFileAsString ();
-  EXPECT_TRUE (text.isNotEmpty ()) << ui.getFullPathName ();
-
-  return text.fromFirstOccurrenceOf (signature, false, false)
-      .upToFirstOccurrenceOf ("\n}\n", false, false);
+  return a3::test::uiComponentBodyOf (signature);
 }
 }
 

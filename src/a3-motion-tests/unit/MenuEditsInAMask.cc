@@ -29,6 +29,8 @@
 #include <gtest/gtest.h>
 
 #include <ShippedSkin.hh>
+#include <SourceCode.hh>
+#include <UiSource.hh>
 
 #include <a3-motion-ui/components/FingerLatch.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -503,6 +505,108 @@ TEST (MenuMain, ADragInALongListScrollsItAndChoosesNothing)
   EXPECT_TRUE (m.menu.isPickerOpen ());
 }
 
+// The skin list is chosen by looking (#54): without a keyboard the arrows were
+// the only way to see a skin before keeping it. A tap shows it, a second tap
+// on the same one keeps it, Back goes back.
+TEST (MenuSkinPreview, ATapShowsASkinWithoutChoosingIt)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  auto controls = controlsFor (m.menu, 5);
+  ASSERT_NE (controls.name, nullptr);
+  controls.name->onTap (5, -1);
+
+  EXPECT_EQ (m.browsed, std::vector<int>{ 5 });
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_TRUE (m.menu.isPickerOpen ());
+  EXPECT_EQ (m.menu.getSelectedValueIndex (), 5);
+}
+
+TEST (MenuSkinPreview, ASecondTapOnTheSameSkinKeepsIt)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+  EXPECT_FALSE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, ATapOnAnotherSkinShowsThatOneInstead)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 7).name->onTap (7, -1);
+
+  EXPECT_EQ (m.browsed, (std::vector<int>{ 5, 7 }));
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_TRUE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, ADoubleTapKeepsAtOnce)
+{
+  // The second tap of a double tap arrives as onDoubleTap, not as a tap.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 5).name->onDoubleTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+}
+
+TEST (MenuSkinPreview, ATapOnTheRunningSkinKeepsIt)
+{
+  // The list opens on the running skin, so it is already the one shown.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 2).name->onTap (2, -1);
+
+  EXPECT_TRUE (m.browsed.empty ());
+  EXPECT_EQ (m.chosen, std::vector<int>{ 2 });
+}
+
+TEST (MenuSkinPreview, PreviewThenBackChoosesNothing)
+{
+  // Choosing is the only way to a write: the owner applies and saves in
+  // onPickerChosen, while a preview only paints.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  m.menu.cancelPicker ();
+
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_EQ (m.cancelled, 1) << "so the owner puts the running skin back";
+  EXPECT_FALSE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, OtherListsStillChooseOnTheFirstTap)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+  m.menu.cancelPicker ();
+
+  m.menu.openPicker ();
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+  EXPECT_TRUE (m.browsed.empty ());
+}
+
 // Two fingers scroll a menu list as one: every scrollable hit area on the menu
 // pages shares one FingerLatch, or the second finger would scroll it again.
 TEST (MenuTwoFingers, EveryListAreaSharesOneLatch)
@@ -606,4 +710,62 @@ TEST (MenuScroll, TheMainMenusListOfValuesMovesOneRowPerRowOfFinger)
         ++checked;
       }
   EXPECT_GT (checked, 0);
+}
+
+// The main component's half of #54, read from its source (it cannot be built
+// in a test): Back with a skin shown, and the menu closing with one shown,
+// both put the running skin back -- closing is not keeping -- and showing a
+// skin writes nothing. Read as code (codeOf): no comments, no spacing, so a
+// reformat cannot turn these red and a call left in a comment cannot keep
+// them green.
+namespace
+{
+juce::String
+uiBody (juce::String const &signature)
+{
+  return codeOf (a3::test::uiComponentBodyOf (signature));
+}
+}
+
+TEST (MenuSkinPreviewWiring, BackWithAListOpenCancelsIt)
+{
+  auto const body = uiBody ("A3MotionUIComponent::toggleGlobalSettings ()");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_globalSettings->isPickerOpen())"
+                              "_globalSettings->cancelPicker();"));
+}
+
+TEST (MenuSkinPreviewWiring, ClosingTheMenuCancelsTheList)
+{
+  auto const body = uiBody ("A3MotionUIComponent::closeGlobalSettings ()");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_globalSettings->cancelPicker();"));
+}
+
+TEST (MenuSkinPreviewWiring, ACancelledListShowsTheRunningSkinAgain)
+{
+  auto const handler
+      = uiCode ("components/A3MotionUIComponent.cc")
+            .fromFirstOccurrenceOf ("_globalSettings->onPickerCancelled=[this]{",
+                                    false, false)
+            .upToFirstOccurrenceOf ("};", false, false);
+  ASSERT_TRUE (handler.isNotEmpty ());
+  EXPECT_TRUE (handler.contains ("previewSkin(_skinIndex);"));
+  EXPECT_FALSE (handler.contains ("applySkin")) << "cancelling keeps nothing";
+}
+
+// Showing a skin is only drawing it: no write of config.json (that is
+// applySkin's writeActiveSkin) and no write of a skin file. This reads
+// previewSkin's own body; a write moved into a helper it calls would not be
+// seen here.
+TEST (MenuSkinPreviewWiring, ShowingASkinWritesNothing)
+{
+  auto const body = uiBody ("A3MotionUIComponent::previewSkin (int index)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  for (auto const *write : { "writeActiveSkin", "writeTextFile", "replaceWithText",
+                             "saveEditedSkin", "appendText", ".create()" })
+    EXPECT_FALSE (body.contains (write)) << write;
+
+  auto const apply = uiBody ("A3MotionUIComponent::applySkin (int index)");
+  EXPECT_TRUE (apply.contains ("writeActiveSkin")) << "the check reads the right body";
 }

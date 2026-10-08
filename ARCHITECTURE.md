@@ -1242,7 +1242,7 @@ What "open" does depends on the row:
 
 | Row | Mask |
 |---|---|
-| main menu, a row with values (Skin, Sphere in Menu) | the list of its values replaces the rows (`GlobalSettingsComponent::openPicker`); the arrows walk it and the skin previews, a tap or Enter chooses, Escape or Back puts it back |
+| main menu, a row with values (Skin, Sphere in Menu) | the list of its values replaces the rows (`GlobalSettingsComponent::openPicker`); the arrows walk it and the skin previews, a tap or Enter chooses, Escape or Back puts it back; in the Skin list (`PickerTap::previews`, #54) a tap previews and a second tap on the same skin keeps it, and closing the menu puts the running skin back |
 | main menu, a row that leads somewhere | that page |
 | a number or text | the typing mask and the bar keyboard; Enter keeps, Escape, Back and Close undo |
 | a skin number | the same, plus **− / +** keys (and the arrows) that step it live — dialling while watching the sphere lives here now |

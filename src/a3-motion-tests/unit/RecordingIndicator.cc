@@ -20,7 +20,15 @@
 
 #include <gtest/gtest.h>
 
+#include <JuceHeader.h>
+
 #include <a3-motion-ui/components/RecordingIndicator.hh>
+#include <a3-motion-ui/components/StatusBar.hh>
+
+#include <SourceCode.hh>
+
+#include <memory>
+#include <vector>
 
 using namespace a3;
 
@@ -51,4 +59,170 @@ TEST (RecordingIndicator, ARunningTakeEndsTheCountIn)
              RecordingIndicator::Running);
   EXPECT_EQ (recordingIndicatorFor (true, true), RecordingIndicator::Running)
       << "a take scheduled behind a running one must not reopen the count-in";
+}
+
+// The bar shows the take wherever it runs, not only when its clip is the one
+// on screen: one take runs at a time and it writes over something that does
+// not come back, so "am I recording?" must not depend on which clip is open.
+// The channel is found by the row that holds the take, and its colour is what
+// tells the eye which channel it is.
+TEST (RecordingIndicator, TheTakeIsFoundOnWhicheverChannelHoldsIt)
+{
+  auto const take = std::make_shared<int> (0);
+  std::vector<std::vector<std::shared_ptr<int> > > rows (4);
+  for (auto &row : rows)
+    row = { std::make_shared<int> (1), nullptr, std::make_shared<int> (2) };
+  rows[2][1] = take;
+
+  EXPECT_EQ (channelHoldingTake (rows, take), 2);
+}
+
+// No take, or a take no row holds any more (its slot was cleared under it):
+// no channel, so the bar shows nothing rather than a colour that is wrong.
+TEST (RecordingIndicator, NoTakeOrAnUnheldTakeHasNoChannel)
+{
+  std::vector<std::vector<std::shared_ptr<int> > > rows (4);
+  for (auto &row : rows)
+    row = { std::make_shared<int> (1), nullptr };
+
+  EXPECT_EQ (channelHoldingTake (rows, std::shared_ptr<int>{}), -1)
+      << "an empty slot must not match an absent take";
+  EXPECT_EQ (channelHoldingTake (rows, std::make_shared<int> (3)), -1);
+}
+
+// What the bar shows, decided once for the component (takeOnTheBar): a
+// running take wins over one armed on another channel, and the colour is the
+// take's channel's, not the open clip's.
+namespace
+{
+using Rows = std::vector<std::vector<std::shared_ptr<int> > >;
+
+Rows
+fourRows ()
+{
+  Rows rows (4);
+  for (auto &row : rows)
+    row = { std::make_shared<int> (1) };
+  return rows;
+}
+}
+
+TEST (RecordingIndicator, ARunningTakeWinsOverAnArmedOne)
+{
+  auto rows = fourRows ();
+  auto const running = rows[1][0];
+  auto const armed = rows[3][0];
+
+  auto const shown = takeOnTheBar (rows, true, running, armed);
+  EXPECT_EQ (shown.channel, 1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Running);
+}
+
+TEST (RecordingIndicator, AnArmedTakeAloneCountsInOnItsChannel)
+{
+  auto rows = fourRows ();
+  auto const shown
+      = takeOnTheBar (rows, false, std::shared_ptr<int>{}, rows[2][0]);
+  EXPECT_EQ (shown.channel, 2);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::CountIn);
+}
+
+TEST (RecordingIndicator, NoTakeShowsNothing)
+{
+  auto rows = fourRows ();
+  auto const shown = takeOnTheBar (rows, false, std::shared_ptr<int>{},
+                                   std::shared_ptr<int>{});
+  EXPECT_EQ (shown.channel, -1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Off);
+}
+
+// The engine keeps its last take after it has finished; a take that is no
+// longer recording is not running, so the bar does not keep filling for it.
+TEST (RecordingIndicator, AFinishedTakeIsNotRunning)
+{
+  auto rows = fourRows ();
+  auto const shown
+      = takeOnTheBar (rows, false, rows[1][0], std::shared_ptr<int>{});
+  EXPECT_EQ (shown.channel, -1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Off);
+}
+
+TEST (RecordingIndicator, TheColourIsTheTakesChannelsNotTheOpenClips)
+{
+  EXPECT_EQ (barColourChannel (3, 0), 3) << "a take on 3 while 1 is open";
+  EXPECT_EQ (barColourChannel (-1, 0), 0) << "no take: the open channel";
+}
+
+namespace
+{
+// Pixels of the painted bar that are clearly the take's colour: its own
+// channel's colour is what tells the eye which channel is recording, so the
+// paint is checked for that colour rather than for "something changed".
+int
+pixelsNear (juce::Image const &image, juce::Colour colour)
+{
+  auto count = 0;
+  for (auto y = 0; y < image.getHeight (); ++y)
+    for (auto x = 0; x < image.getWidth (); ++x)
+      {
+        auto const p = image.getPixelAt (x, y);
+        auto const hueDistance
+            = std::abs (p.getHue () - colour.getHue ());
+        if (p.getSaturation () > 0.4f
+            && juce::jmin (hueDistance, 1.f - hueDistance) < 0.03f)
+          ++count;
+      }
+  return count;
+}
+
+juce::Image
+paintedBar (float progress, juce::Colour colour)
+{
+  juce::Value bpm{ 120.0 };
+  StatusBar bar{ bpm };
+  bar.setBounds (0, 0, 768, bar.preferredHeight ());
+  bar.setRecordingProgress (progress, colour);
+  return bar.createComponentSnapshot (bar.getLocalBounds ());
+}
+}
+
+// The fill paints in the colour it is handed -- the recording channel's --
+// and grows with the take. A second channel's colour lands as that colour,
+// which is the whole of "which channel is recording" on the bar.
+TEST (RecordingIndicator, TheFillPaintsInTheTakesChannelColour)
+{
+  auto const magenta = juce::Colour (0xffff00ff);
+  auto const green = juce::Colour (0xff00ff00);
+
+  auto const none = pixelsNear (paintedBar (-1.f, magenta), magenta);
+  auto const half = pixelsNear (paintedBar (0.5f, magenta), magenta);
+  auto const full = pixelsNear (paintedBar (1.f, magenta), magenta);
+
+  EXPECT_EQ (none, 0) << "no take, no fill";
+  EXPECT_GT (half, 0);
+  EXPECT_GT (full, half) << "the fill grows with the take";
+
+  EXPECT_GT (pixelsNear (paintedBar (1.f, green), green), 0)
+      << "another channel's take paints in that channel's colour";
+  EXPECT_EQ (pixelsNear (paintedBar (1.f, green), magenta), 0);
+}
+
+// The component asks these two and nothing of its own (it cannot be built in
+// a test, so its code is read, without comments or spacing, as DeviceHello
+// reads it), and hands over whether the engine is still recording.
+TEST (RecordingIndicator, TheBarIsDecidedByTakeOnTheBar)
+{
+  auto const ui = uiCode ("components/A3MotionUIComponent.cc");
+  ASSERT_TRUE (ui.isNotEmpty ());
+  EXPECT_TRUE (ui.contains ("autoconsttake=takeOnTheBar(_patterns,_engine.isRecording(),"));
+  EXPECT_TRUE (ui.contains ("barColourChannel(take.channel,"));
+  EXPECT_FALSE (ui.contains ("channelHoldingTake(_patterns"))
+      << "the precedence is takeOnTheBar's alone";
+}
+
+// The code reader itself: comments go, spacing goes, strings stay.
+TEST (SourceCode, ReadsCodeNotCommentsOrSpacing)
+{
+  EXPECT_EQ (codeOf ("a (b,\n     c); // d ()\n/* e (); */ f ();"), "a(b,c);f();");
+  EXPECT_EQ (codeOf ("g (\"x // y\");"), "g(\"x // y\");");
 }

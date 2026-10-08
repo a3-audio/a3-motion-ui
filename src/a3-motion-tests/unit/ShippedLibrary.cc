@@ -22,8 +22,14 @@
 
 #include <JuceHeader.h>
 
+#include <cmath>
+#include <vector>
+
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/PatternFile.hh>
+#include <a3-motion-engine/PlaybackRate.hh>
+#include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-ui/components/ActionEditing.hh>
 #include <a3-motion-ui/SessionFile.hh>
 
@@ -145,12 +151,13 @@ TEST (ShippedLibrary, EveryShippedSetIsOneClipAndSixActionsPerChannel)
     }
 }
 
-/** The library ships fifty shapes and, since 2026-10-03, fourteen sets: the
- *  ten of 2026-09-28 and four moods built like Groove (Tribal, Acid, Ambient,
- *  Tension) -- five clips per phase, so seventy, and seventy-one actions.
+/** The library ships fifty shapes and, since 2026-10-08, fifteen sets: the
+ *  ten of 2026-09-28, four moods built like Groove (Tribal, Acid, Ambient,
+ *  Tension) and Space, the motion jockey's set -- five clips per phase, so
+ *  seventy-five, and seventy-seven actions.
  *  Each clip draws a shape that ships -- a clip naming a missing one loads as
  *  nothing. */
-TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFourteenSets)
+TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFifteenSets)
 {
   juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -173,11 +180,11 @@ TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFourteenSets)
   });
 
   EXPECT_EQ (shapeFiles.size (), 50);
-  EXPECT_EQ (clipFiles.size (), 70);
-  EXPECT_EQ (actionFiles.size (), 71);
+  EXPECT_EQ (clipFiles.size (), 75);
+  EXPECT_EQ (actionFiles.size (), 77);
   EXPECT_EQ (sets.findChildFiles (juce::File::findFiles, false, "*.json")
                  .size (),
-             14);
+             15);
 
   juce::StringArray shapeNames;
   for (auto const &file : shapeFiles)
@@ -198,20 +205,20 @@ namespace
 juce::StringArray const phases{ "Warmup", "Groove", "Build",   "Peak",
                                 "Drop",   "Break",  "Dub",     "Deep",
                                 "Float",  "Closing", "Tribal", "Acid",
-                                "Ambient", "Tension" };
+                                "Ambient", "Tension", "Space" };
 }
 
-// Seventy clips, each named by the phase of the night it belongs to, each
+// Seventy-five clips, each named by the phase of the night it belongs to, each
 // drawing a shape that ships. Default stays beside them: the shapeless
 // fallback every empty channel gets (ruling 1 of the plan).
-TEST (ShippedLibrary, SeventyClipsNamedByTheirPhaseAndTheFallback)
+TEST (ShippedLibrary, SeventyFiveClipsNamedByTheirPhaseAndTheFallback)
 {
   auto files = juce::File (A3_PATTERN_CLIPS_DIR)
                    .findChildFiles (juce::File::findFiles, false, "*.json");
   files.removeIf ([] (juce::File const &f) {
     return f.getFileNameWithoutExtension () == "Default";
   });
-  EXPECT_EQ (files.size (), 70);
+  EXPECT_EQ (files.size (), 75);
 
   juce::StringArray shapes;
   for (auto const &f : juce::File (A3_PATTERN_SYSTEM_DIR)
@@ -275,11 +282,11 @@ shippedActionFiles ()
 }
 }
 
-// Seventy-one actions, each named by what it does.
-TEST (ShippedLibrary, SeventyOneActionsNamedByWhatTheyDo)
+// Seventy-seven actions, each named by what it does.
+TEST (ShippedLibrary, SeventySevenActionsNamedByWhatTheyDo)
 {
   auto const files = shippedActionFiles ();
-  EXPECT_EQ (files.size (), 71);
+  EXPECT_EQ (files.size (), 77);
   for (auto const &f : files)
     EXPECT_TRUE (startsWithOneOf (f.getFileNameWithoutExtension (), kinds))
         << f.getFileName ();
@@ -331,17 +338,17 @@ TEST (ShippedLibrary, EveryCueNamesAClipThatShipsAndNothingElse)
       EXPECT_EQ ("Cue " + *r.clip, name) << "a Cue is named after its clip";
       EXPECT_TRUE (cueClipFor (r.clip, clips).error.isEmpty ()) << name;
     }
-  EXPECT_EQ (cues, 13);
+  EXPECT_EQ (cues, 14);
 }
 
-// Fourteen sets, one for each phase of the night, laid out the same way: the four
+// Fifteen sets, one for each phase of the night, laid out the same way: the four
 // clips carry the set's own phase, A5 is the FX, A6 the Cue into what comes
 // next, and A1..A4 only move.
-TEST (ShippedLibrary, FourteenSetsOnePerPhaseLaidOutTheSameWay)
+TEST (ShippedLibrary, FifteenSetsOnePerPhaseLaidOutTheSameWay)
 {
   auto const files = juce::File (A3_PATTERN_SESSIONS_DIR)
                          .findChildFiles (juce::File::findFiles, false, "*.json");
-  EXPECT_EQ (files.size (), 14);
+  EXPECT_EQ (files.size (), 15);
   for (auto const &f : files)
     {
       auto const set = loadSession (f, 4, 1);
@@ -363,6 +370,179 @@ TEST (ShippedLibrary, FourteenSetsOnePerPhaseLaidOutTheSameWay)
                 << name << " A" << (b + 1) << " " << script (b);
         }
     }
+}
+
+// ── Space: the motion jockey's set (2026-10-08) ─────────────────────────
+//
+// Built on .claude/notes/auditory-motion-research.md: motion a room can
+// actually hear. These are the numbers that note derives, held here so a
+// later edit to the set cannot quietly drift past them.
+
+namespace
+{
+juce::String const spaceSet = "Space";
+
+float
+shapeBeats (juce::String const &shapeName)
+{
+  for (auto const &f : juce::File (A3_PATTERN_SYSTEM_DIR)
+                           .findChildFiles (juce::File::findFiles, false, "*.svg"))
+    {
+      auto const peeked = PatternFile::peek (f);
+      if (juce::String (peeked.name) == shapeName)
+        return static_cast<float> (peeked.lengthBeats);
+    }
+  return 0.f;
+}
+
+/** One lap of the clip's own figure, in beats. */
+float
+lapBeats (Clip const &clip)
+{
+  return playbackLengthBeats (shapeBeats (clip.svg), clip.settings.speedLog2);
+}
+
+bool
+isPowerOfTwo (float beats)
+{
+  auto const exponent = std::log2 (beats);
+  return beats > 0.f && std::abs (exponent - std::round (exponent)) < 1e-4f;
+}
+
+/** How far apart two standing angles are, in revolutions, the short way. */
+float
+turnBetween (float a, float b)
+{
+  auto const d = std::fmod (std::abs (a - b), 1.f);
+  return std::min (d, 1.f - d);
+}
+
+std::vector<Clip>
+spaceClips ()
+{
+  std::vector<Clip> clips;
+  for (auto const &f : juce::File (A3_PATTERN_CLIPS_DIR)
+                           .findChildFiles (juce::File::findFiles, false, "*.json"))
+    if (f.getFileNameWithoutExtension ().startsWith (spaceSet + " "))
+      if (auto clip = ClipFile::load (f))
+        clips.push_back (*clip);
+  return clips;
+}
+}
+
+/** Every lap a whole power of two of beats, between two bars (90 deg/s at
+ *  120 BPM, far under the 900 deg/s where direction is lost -- Feron 2010)
+ *  and sixteen; the spin adds at most a turn per four bars; and a sweep of
+ *  the height is at most half as fast as the lap, because the ear follows
+ *  vertical movement slower than horizontal (Saberi & Perrott 1990). No
+ *  squeeze sweeps: one movement per clip, not three at once. */
+TEST (ShippedLibrary, SpaceClipsMoveAtSpeedsARoomCanFollow)
+{
+  auto const clips = spaceClips ();
+  ASSERT_EQ (clips.size (), 5u);
+
+  for (auto const &clip : clips)
+    {
+      auto const lap = lapBeats (clip);
+      auto const &s = clip.settings;
+      EXPECT_TRUE (isPowerOfTwo (lap)) << clip.name << ": " << lap;
+      EXPECT_GE (lap, 8.f) << clip.name;
+      EXPECT_LE (lap, 64.f) << clip.name;
+      EXPECT_LE (std::abs (s.spin), 4) << clip.name;
+      EXPECT_EQ (s.squeezeXLfo, 0) << clip.name;
+      EXPECT_EQ (s.squeezeYLfo, 0) << clip.name;
+      EXPECT_EQ (s.tiltLfo, 0) << clip.name;
+      EXPECT_EQ (s.rollLfo, 0) << clip.name;
+      for (auto const sweep : { s.elevationLfo, s.reachLfo })
+        if (sweep != 0)
+          EXPECT_GE (lfoBarsPerCycle (sweep) * 4.f, 2.f * lap)
+              << clip.name << ": the height moves faster than half the lap";
+    }
+}
+
+/** Few things moving at once (4DSOUND, "less becomes far more"): at most two
+ *  channels carry a clear 3d, and the anchor -- the deck with the bassline --
+ *  barely moves, because below ~150 Hz a club hears no direction at all. */
+TEST (ShippedLibrary, SpaceMovesTwoThingsAndKeepsAnAnchor)
+{
+  auto const file = juce::File (A3_PATTERN_SESSIONS_DIR)
+                        .getChildFile (spaceSet + ".json");
+  ASSERT_TRUE (file.existsAsFile ());
+  auto const set = loadSession (file, 4, 1);
+
+  int clear = 0;
+  bool anchored = false;
+  for (auto const &channel : set.channels)
+    {
+      clear += channel.threeD >= 0.3f ? 1 : 0;
+      if (juce::String (channel.slots[0].clipFile) == "Space Anchor")
+        {
+          anchored = true;
+          EXPECT_LE (channel.threeD, 0.2f);
+        }
+    }
+  EXPECT_LE (clear, 2);
+  EXPECT_TRUE (anchored);
+
+  auto const anchor = ClipFile::load (
+      juce::File (A3_PATTERN_CLIPS_DIR).getChildFile ("Space Anchor.json"));
+  ASSERT_TRUE (anchor.has_value ());
+  EXPECT_GE (lapBeats (*anchor), 64.f);
+  EXPECT_LE (std::abs (anchor->settings.reach), 0.2f);
+  EXPECT_EQ (anchor->settings.spin, 0);
+}
+
+/** What each of Space's buttons does to each of its clips stays audible and
+ *  stays a path: a turn of the figure is at least 30 degrees (the smallest
+ *  bend a crowd hears off-centre, Grantham 1986); a lap never shorter than
+ *  two beats (past that it is a texture); a move of the height at least 20
+ *  degrees and with the band brightened, because elevation is carried by
+ *  6-12 kHz (Langendijk & Bronkhorst 2002); and no button narrows the band --
+ *  under an octave a moving band stops moving (Yost & Zhong 2014). */
+TEST (ShippedLibrary, SpaceButtonsMakeChangesARoomCanHear)
+{
+  auto const file = juce::File (A3_PATTERN_SESSIONS_DIR)
+                        .getChildFile (spaceSet + ".json");
+  ASSERT_TRUE (file.existsAsFile ());
+  auto const set = loadSession (file, 4, 1);
+  auto const actions = juce::File (A3_PATTERN_ACTIONS_DIR);
+
+  for (auto const &clip : spaceClips ())
+    for (auto const &button : set.channels[0].actions)
+      {
+        auto const name = juce::String (button.script);
+        if (name.startsWith ("Cue "))
+          continue;
+        auto const r = runActionScript (
+            actions.getChildFile (name + ".scd").loadFileAsString (),
+            clip.settings, 1);
+        ASSERT_TRUE (r.errors.isEmpty ()) << name;
+        auto const &before = clip.settings;
+        auto const &after = r.settings;
+        auto const label = name + " on " + juce::String (clip.name);
+
+        if (after.rotate != before.rotate)
+          EXPECT_GE (turnBetween (after.rotate, before.rotate), 1.f / 12.f)
+              << label;
+        EXPECT_GE (playbackLengthBeats (shapeBeats (clip.svg), after.speedLog2),
+                   2.f)
+            << label;
+        EXPECT_LE (std::abs (after.spin), 6) << label;
+        if (after.elevationBase != before.elevationBase)
+          {
+            EXPECT_GE (std::abs (after.elevationBase - before.elevationBase),
+                       1.f / 9.f)
+                << label;
+            EXPECT_GT (after.freqMax, 0.f) << label << " lifts a dark band";
+          }
+        EXPECT_EQ (after.qMax, 0.f) << label << " narrows the band";
+      }
+
+  // The same six on every channel: the hands learn one panel.
+  for (auto const &channel : set.channels)
+    for (size_t b = 0; b < channel.actions.size (); ++b)
+      EXPECT_EQ (juce::String (channel.actions[b].script),
+                 juce::String (set.channels[0].actions[b].script));
 }
 
 // The library the tests hold to their promises is what is committed, not what

@@ -56,9 +56,15 @@ struct AppSettings
    *  what the device comes back with, and a set older than that leaves it
    *  alone.
    *
-   *  The default is the fixed four the keys used to carry, so a settings file
-   *  that predates this behaves exactly as the device did before it. */
-  std::array<int, numSpeedButtons> speedButtonLog2 = { 0, -3, -4, -6 };
+   *  A fresh device starts on four paths (2026-10-08): on a one-bar take they
+   *  lap in 4 bars, 2, 1 and 2 beats, all under the speed past which a room
+   *  cannot tell which way a sound turns -- see
+   *  .claude/notes/auditory-motion-research.md, B1. A settings file that
+   *  predates the keys being assignable gets legacySpeedButtonLog2 instead,
+   *  so that device behaves exactly as it did before. */
+  static constexpr std::array<int, numSpeedButtons> legacySpeedButtonLog2
+      = { 0, -3, -4, -6 };
+  std::array<int, numSpeedButtons> speedButtonLog2 = { 2, 1, 0, -1 };
 
   /** Lets Save write over the instrument's own clips -- how the factory clips
    *  are maintained. Off by default and in every file written before it, so no

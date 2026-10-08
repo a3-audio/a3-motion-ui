@@ -1,0 +1,133 @@
+{
+  "name": "Space",
+  "channels": [
+    {
+      "threeD": 0.15,
+      "freq": 0.55,
+      "q": 0.05,
+      "slots": [
+        {
+          "pattern": "Wander Drift",
+          "clip": "Space Anchor",
+          "recordLengthLog2": 4
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Bend"
+        },
+        {
+          "script": "Move Plain"
+        },
+        {
+          "script": "Lift Bright"
+        },
+        {
+          "script": "Speed Quarter"
+        },
+        {
+          "script": "FX Wide Climb"
+        },
+        {
+          "script": "Cue Space Lift"
+        }
+      ]
+    },
+    {
+      "threeD": 0.42,
+      "freq": 0.55,
+      "q": 0.05,
+      "slots": [
+        {
+          "pattern": "Orbit Circle",
+          "clip": "Space Orbit",
+          "recordLengthLog2": 2
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Bend"
+        },
+        {
+          "script": "Move Plain"
+        },
+        {
+          "script": "Lift Bright"
+        },
+        {
+          "script": "Speed Quarter"
+        },
+        {
+          "script": "FX Wide Climb"
+        },
+        {
+          "script": "Cue Space Lift"
+        }
+      ]
+    },
+    {
+      "threeD": 0.36,
+      "freq": 0.55,
+      "q": 0.05,
+      "slots": [
+        {
+          "pattern": "Orbit Pendulum",
+          "clip": "Space Pendulum",
+          "recordLengthLog2": 2
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Bend"
+        },
+        {
+          "script": "Move Plain"
+        },
+        {
+          "script": "Lift Bright"
+        },
+        {
+          "script": "Speed Quarter"
+        },
+        {
+          "script": "FX Wide Climb"
+        },
+        {
+          "script": "Cue Space Lift"
+        }
+      ]
+    },
+    {
+      "threeD": 0.26,
+      "freq": 0.55,
+      "q": 0.05,
+      "slots": [
+        {
+          "pattern": "Edge Square",
+          "clip": "Space Corners",
+          "recordLengthLog2": 1
+        }
+      ],
+      "actions": [
+        {
+          "script": "Move Bend"
+        },
+        {
+          "script": "Move Plain"
+        },
+        {
+          "script": "Lift Bright"
+        },
+        {
+          "script": "Speed Quarter"
+        },
+        {
+          "script": "FX Wide Climb"
+        },
+        {
+          "script": "Cue Space Lift"
+        }
+      ]
+    }
+  ]
+}
