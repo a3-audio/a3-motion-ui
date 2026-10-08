@@ -774,6 +774,15 @@ Three things are not obvious:
   throws `OSCFormatError` on an address it will not take), and on the wire it
   names what is missing; start-up prints every missing key. A listener the
   truth lacks is port -1: its socket does not open, and the log says so.
+- **One optional key: `stemdeck.ahead`**. StemDeck's
+  preview of the music, relayed by Core, is only *listened for*, so it has no
+  `/a3-osc-missing/` mark: `OscAddresses::stemdeckAhead` stays empty when the
+  truth lacks it, and `optionalOscAddressKeys()` keeps it out of
+  `missingOscKeys()`/`unusableOscTruth()` — an older Core's truth stays
+  usable. `OscMessageHandler::routePreview` reads `ssif` into a `MusicAhead`
+  (`a3-motion-engine/preview/MusicPreview.hh`), "none" clears it, anything
+  else is ignored; the UI keeps it in `_musicPreview`, which counts it absent
+  after four bars without a new one. Nothing acts on it yet.
 - **Channels count from 1 on the wire, from 0 in here.** `withChannelIndex()`
   is the one crossing, and says so in its name.
 - **One meter may feed two places.** The main sub is the sphere's glow *and*

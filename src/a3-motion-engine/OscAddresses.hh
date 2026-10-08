@@ -103,6 +103,11 @@ struct OscAddresses
   /** The beat clock coming in -- followed in EXT and PIO mode. The same
    *  address as beatOut; which one is in use follows the clock mode. */
   juce::String beatIn;
+  /** StemDeck's preview of the music, relayed by Core.
+   *  **Optional, and empty when the truth lacks it** -- the one
+   *  exception to "no default": it is only listened for, never sent, and a
+   *  truth from before it must stay usable (optionalOscAddressKeys). */
+  juce::String stemdeckAhead;
 };
 
 /** Whether juce::OSCMessage will accept this as an address.
@@ -119,6 +124,11 @@ juce::String withChannelIndex (juce::String const &pattern, int index);
 
 /** Every key of the truth's `addresses` Motion reads. */
 juce::StringArray oscAddressKeys ();
+
+/** Keys of the truth's `addresses` Motion reads if they are there. Not in
+ *  oscAddressKeys(): a truth without them is not "missing" anything, so
+ *  unusableOscTruth() and missingOscKeys() never name them. */
+juce::StringArray optionalOscAddressKeys ();
 
 /** Motion's addresses out of the truth. A key the truth lacks becomes
  *  "/a3-osc-missing/<key>": sendable, so nothing throws, and on the wire it

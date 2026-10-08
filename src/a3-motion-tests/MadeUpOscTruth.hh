@@ -40,7 +40,9 @@ inline OscTruth
 madeUpOscTruth (juce::StringArray const &leaveOut = {})
 {
   auto *addresses = new juce::DynamicObject ();
-  for (auto const &key : oscAddressKeys ())
+  auto keys = oscAddressKeys ();
+  keys.addArray (optionalOscAddressKeys ());
+  for (auto const &key : keys)
     if (!leaveOut.contains (key))
       {
         auto *entry = new juce::DynamicObject ();

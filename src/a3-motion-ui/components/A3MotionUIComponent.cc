@@ -7602,6 +7602,30 @@ A3MotionUIComponent::onMasterValue (int slot, float value)
 }
 
 void
+A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
+{
+  auto const now = juce::Time::getMillisecondCounterHiRes () / 1000.0;
+
+  if (!ahead)
+    {
+      _musicPreview.clear ();
+      return;
+    }
+
+  // One line when the section or the next one changes -- a few per set --
+  // so the smoke test can read in the journal what Motion holds.
+  auto const before = _musicPreview.current (now, _engine.getTempoBPM ());
+  _musicPreview.receive (*ahead, now);
+  if (before && before->ahead.section == ahead->section
+      && before->ahead.next == ahead->next)
+    return;
+
+  std::cerr << "A3 Motion: music preview " << wordOf (ahead->section)
+            << " -> " << (ahead->next ? wordOf (*ahead->next) : setEndsWord)
+            << " in " << ahead->barsUntilNext << " bars" << std::endl;
+}
+
+void
 A3MotionUIComponent::onFilterValue (int slot, float value)
 {
   // The one filter all four channels share. /fx/mode arrives as a number --

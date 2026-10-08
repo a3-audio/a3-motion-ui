@@ -92,6 +92,28 @@ OscMessageHandler::routeChannelSide (std::size_t channel, std::size_t side,
 }
 
 void
+OscMessageHandler::routePreview (juce::OSCMessage const &message)
+{
+  // "ssif", as the truth says; anything else is not StemDeck's preview.
+  if (message.size () != 4 || !message[0].isString ()
+      || !message[1].isString () || !message[2].isInt32 ()
+      || !message[3].isFloat32 ())
+    return;
+
+  auto const section = message[0].getString ().toStdString ();
+  if (isNoMusic (section))
+    {
+      _listener.onMusicPreview (std::nullopt);
+      return;
+    }
+
+  if (auto const ahead
+      = musicAheadFrom (section, message[1].getString ().toStdString (),
+                        message[2].getInt32 (), message[3].getFloat32 ()))
+    _listener.onMusicPreview (ahead);
+}
+
+void
 OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                                   int clockMode)
 {
@@ -129,6 +151,12 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
 
       _listener.onEnergyGrid (values.data (), energyGridPointCount);
 
+      return;
+    }
+
+  if (address == _addresses.stemdeckAhead)
+    {
+      routePreview (message);
       return;
     }
 
