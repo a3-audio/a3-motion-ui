@@ -25,6 +25,8 @@
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/components/StatusBar.hh>
 
+#include <SourceCode.hh>
+
 #include <memory>
 #include <vector>
 
@@ -111,7 +113,7 @@ TEST (RecordingIndicator, ARunningTakeWinsOverAnArmedOne)
   auto const running = rows[1][0];
   auto const armed = rows[3][0];
 
-  auto const shown = takeOnTheBar (rows, running, armed);
+  auto const shown = takeOnTheBar (rows, true, running, armed);
   EXPECT_EQ (shown.channel, 1);
   EXPECT_EQ (shown.indicator, RecordingIndicator::Running);
 }
@@ -120,7 +122,7 @@ TEST (RecordingIndicator, AnArmedTakeAloneCountsInOnItsChannel)
 {
   auto rows = fourRows ();
   auto const shown
-      = takeOnTheBar (rows, std::shared_ptr<int>{}, rows[2][0]);
+      = takeOnTheBar (rows, false, std::shared_ptr<int>{}, rows[2][0]);
   EXPECT_EQ (shown.channel, 2);
   EXPECT_EQ (shown.indicator, RecordingIndicator::CountIn);
 }
@@ -128,8 +130,19 @@ TEST (RecordingIndicator, AnArmedTakeAloneCountsInOnItsChannel)
 TEST (RecordingIndicator, NoTakeShowsNothing)
 {
   auto rows = fourRows ();
-  auto const shown = takeOnTheBar (rows, std::shared_ptr<int>{},
+  auto const shown = takeOnTheBar (rows, false, std::shared_ptr<int>{},
                                    std::shared_ptr<int>{});
+  EXPECT_EQ (shown.channel, -1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Off);
+}
+
+// The engine keeps its last take after it has finished; a take that is no
+// longer recording is not running, so the bar does not keep filling for it.
+TEST (RecordingIndicator, AFinishedTakeIsNotRunning)
+{
+  auto rows = fourRows ();
+  auto const shown
+      = takeOnTheBar (rows, false, rows[1][0], std::shared_ptr<int>{});
   EXPECT_EQ (shown.channel, -1);
   EXPECT_EQ (shown.indicator, RecordingIndicator::Off);
 }
@@ -195,15 +208,21 @@ TEST (RecordingIndicator, TheFillPaintsInTheTakesChannelColour)
 }
 
 // The component asks these two and nothing of its own (it cannot be built in
-// a test, so this is read from its source, as DeviceHello does).
+// a test, so its code is read, without comments or spacing, as DeviceHello
+// reads it), and hands over whether the engine is still recording.
 TEST (RecordingIndicator, TheBarIsDecidedByTakeOnTheBar)
 {
-  auto const ui = juce::File (A3_UI_SOURCE_DIR)
-                      .getChildFile ("components/A3MotionUIComponent.cc")
-                      .loadFileAsString ();
+  auto const ui = uiCode ("components/A3MotionUIComponent.cc");
   ASSERT_TRUE (ui.isNotEmpty ());
-  EXPECT_TRUE (ui.contains ("auto const take = takeOnTheBar ("));
-  EXPECT_TRUE (ui.contains ("barColourChannel (\n                                   take.channel"));
-  EXPECT_FALSE (ui.contains ("channelHoldingTake (_patterns"))
+  EXPECT_TRUE (ui.contains ("autoconsttake=takeOnTheBar(_patterns,_engine.isRecording(),"));
+  EXPECT_TRUE (ui.contains ("barColourChannel(take.channel,"));
+  EXPECT_FALSE (ui.contains ("channelHoldingTake(_patterns"))
       << "the precedence is takeOnTheBar's alone";
+}
+
+// The code reader itself: comments go, spacing goes, strings stay.
+TEST (SourceCode, ReadsCodeNotCommentsOrSpacing)
+{
+  EXPECT_EQ (codeOf ("a (b,\n     c); // d ()\n/* e (); */ f ();"), "a(b,c);f();");
+  EXPECT_EQ (codeOf ("g (\"x // y\");"), "g(\"x // y\");");
 }

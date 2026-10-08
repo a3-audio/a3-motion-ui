@@ -9438,8 +9438,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         // Three states from one rule, so the bar and any later reader cannot
         // disagree about which of them is on. See RecordingIndicator.hh.
         auto const take = takeOnTheBar (
-            _patterns,
-            _engine.isRecording () ? recording : std::shared_ptr<Pattern>{},
+            _patterns, _engine.isRecording (), recording,
             _engine.getScheduledForRecordingPattern ());
         auto const indicator = take.indicator;
         auto const takeColour
