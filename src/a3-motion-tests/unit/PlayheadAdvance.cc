@@ -499,3 +499,32 @@ TEST (PlayheadAdvance, AShorterLengthPutsTheLapBackInside)
   EXPECT_EQ (nextLapTick (7, 0), 0u);
   EXPECT_FLOAT_EQ (lapProgress (7, 0), 0.f);
 }
+
+// Where a paused clip comes back in (2026-10-08: "❚❚ resumes where it
+// stopped"): at the bar it was in, so a resume on the downbeat puts the
+// clip's bars back on the music's. A pause on the downbeat is already there,
+// up to the float error a pass of ticks collects.
+TEST (ResumePosition, APauseOnTheDownbeatComesBackWhereItStood)
+{
+  EXPECT_FLOAT_EQ (resumePosition (0.24999f, 1.f, 0.25f), 0.25f);
+  EXPECT_FLOAT_EQ (resumePosition (0.50001f, 1.f, 0.25f), 0.5f);
+}
+
+TEST (ResumePosition, APauseMidBarComesBackAtThatBarsStart)
+{
+  EXPECT_FLOAT_EQ (resumePosition (0.3f, 1.f, 0.25f), 0.25f);
+  // Walking backwards, the bar it was in starts above it.
+  EXPECT_FLOAT_EQ (resumePosition (0.3f, -1.f, 0.25f), 0.5f);
+}
+
+TEST (ResumePosition, TheEndOfTheTravelIsItsStart)
+{
+  EXPECT_FLOAT_EQ (resumePosition (0.99999f, 1.f, 0.25f), 0.f);
+  EXPECT_FLOAT_EQ (resumePosition (0.00001f, -1.f, 0.25f), 1.f);
+}
+
+TEST (ResumePosition, AClipShorterThanABarComesBackAtItsStart)
+{
+  EXPECT_FLOAT_EQ (resumePosition (0.6f, 1.f, 2.f), 0.f);
+  EXPECT_FLOAT_EQ (resumePosition (0.6f, -1.f, 2.f), 1.f);
+}

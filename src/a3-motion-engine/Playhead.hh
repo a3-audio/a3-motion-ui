@@ -159,6 +159,14 @@ Playhead advancePlayhead (Playhead current, float delta,
                           PlayDirection direction, EndAction endAction,
                           float randomPhase, bool stopAtEnd = false);
 
+/** Where a paused clip comes back in: the start of the bar of the clip it
+ *  was in, in the direction it was travelling. A pause on the downbeat is
+ *  already there, up to the float error a pass of ticks collects; one made at
+ *  once (Shift) goes back to its bar's start, so the resume -- on a downbeat --
+ *  puts the clip's bars back on the music's. `barShare` is one bar as a share
+ *  of a pass; a clip shorter than a bar comes back at its start. */
+float resumePosition (float position, float sign, float barShare);
+
 /** The lap one tick on: time through the clip's length, counted in whole
  *  ticks and wrapped at the length, whatever the playhead does. Random starts
  *  every pass at a random point, so the position is not time; this is. A

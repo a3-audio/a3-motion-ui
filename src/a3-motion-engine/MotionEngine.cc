@@ -647,6 +647,19 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::pausePattern (std::shared_ptr<Pattern> pattern,
+                            Measure timepoint)
+{
+  Message message;
+  message.command = Message::Command::Stop;
+  message.keepsPass = true;
+  message.pattern = pattern;
+  message.timepoint = timepoint;
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+void
 MotionEngine::stopPatternAtEnd (std::shared_ptr<Pattern> pattern)
 {
   Message message;
@@ -1201,7 +1214,7 @@ MotionEngine::handleStartStopMessages ()
           }
         case Message::Command::Stop:
           {
-            stop (message.pattern);
+            stop (message.pattern, message.keepsPass);
 
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Stopped, message.pattern);
@@ -1311,6 +1324,12 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   channel._patternScheduledForPlaying = nullptr;
   finishRecording ();
 
+  // After a pause the pass goes on where it was left; once.
+  if (pattern->resumesOnPlay ())
+    {
+      pattern->setResumesOnPlay (false);
+      return;
+    }
   beginPass (*pattern);
 }
 
@@ -1340,8 +1359,32 @@ MotionEngine::beginPass (Pattern &pattern)
 }
 
 void
-MotionEngine::stop (std::shared_ptr<Pattern> pattern)
+MotionEngine::stop (std::shared_ptr<Pattern> pattern, bool keepsPass)
 {
+  // A pause keeps the place, back to the start of the bar it was in, so the
+  // resume on a downbeat lands the clip's bars on the music's. Only a clip
+  // that was playing has a place to keep.
+  auto const wasPlaying
+      = pattern->getStatus () == Pattern::Status::Playing
+        || (pattern->getStatus () == Pattern::Status::ScheduledForIdle
+            && pattern->getLastStatus () == Pattern::Status::Playing);
+  if (keepsPass && wasPlaying)
+    {
+      auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+      auto const passTicks = Measure::convertToTicks (
+          pattern->getPlaybackLength (), beatsPerBar);
+      auto const barShare
+          = passTicks > 0 ? static_cast<float> (TempoClock::getTicksPerBeat ()
+                                                * beatsPerBar)
+                                / static_cast<float> (passTicks)
+                          : 1.f;
+      pattern->setPlayPosition (resumePosition (
+          pattern->getPlayPosition (), pattern->getPlaySign (), barShare));
+      pattern->setResumesOnPlay (true);
+    }
+  else
+    pattern->setResumesOnPlay (false);
+
   pattern->setStatus (Pattern::Status::Idle);
   // The lap it was asked to finish is over either way.
   pattern->setStopAtEnd (false);

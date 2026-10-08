@@ -1623,7 +1623,12 @@ gone from the panel and the screen. Internally the slot dimension still exists w
 `padFunctionByPadIndex` and `actionButtonForPad` say which of the eight is which, and
 `padIndexFor()` / `padIndexForAction()` go the other way — the screen's PLAY and ACT keys and the
 ACTION page's fields reach `handlePadPress()` through them, so there is one route to what a pad
-means. STOP on the screen is `stopChannel()`: the panel has none, SHIFT + Play|Pause stops at once.
+means. STOP on the screen is `stopChannel()`: the panel has none. **Play|Pause on a running clip
+pauses** (`MotionEngine::pausePattern`, since 2026-10-08): on the next downbeat, with SHIFT at once,
+and the next start goes on from the start of the bar of the clip it was in (`resumePosition()` in
+`Playhead.hh`, `Pattern::resumesOnPlay`) -- position, lap, direction and slow movements kept, so a
+resume on the downbeat puts the clip's bars back on the music's. ■ (`stopPattern`) stops and goes back
+to the top, a paused clip included.
 
 **A button is `ActionButton`** — file, source, dice seed, errors, and its **feel** (`ActionFeel`:
 the three envelopes and the act mode). The feel is what the script says (`actionFeelFrom` in

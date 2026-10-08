@@ -245,4 +245,27 @@ actModeFromName (juce::String const &name)
   return name == "hold" ? ActMode::Hold : ActMode::OneShot;
 }
 
+float
+resumePosition (float position, float sign, float barShare)
+{
+  if (barShare >= 1.f || barShare <= 0.f)
+    return sign < 0.f ? 1.f : 0.f;
+
+  // On a bar line already, give or take what a pass of float steps collects.
+  constexpr float onTheLine = 1e-3f;
+  auto const bars = position / barShare;
+  auto const nearest = std::round (bars);
+  auto const line = std::abs (bars - nearest) < onTheLine
+                        ? nearest
+                        : (sign < 0.f ? std::ceil (bars) : std::floor (bars));
+  auto const at = juce::jlimit (0.f, 1.f, line * barShare);
+
+  // The far end of the travel is its start again.
+  if (sign >= 0.f && at >= 1.f)
+    return 0.f;
+  if (sign < 0.f && at <= 0.f)
+    return 1.f;
+  return at;
+}
+
 }

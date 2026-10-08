@@ -426,6 +426,18 @@ Pattern::setStopAtEnd (bool stop)
   _stopAtEnd.store (stop);
 }
 
+bool
+Pattern::resumesOnPlay () const
+{
+  return _resumesOnPlay.load ();
+}
+
+void
+Pattern::setResumesOnPlay (bool resumes)
+{
+  _resumesOnPlay.store (resumes);
+}
+
 float
 Pattern::getRotate () const
 {

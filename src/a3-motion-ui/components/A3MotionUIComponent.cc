@@ -2365,7 +2365,11 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
             // On the next downbeat, like a start, and with Shift on the spot.
             // A pause that answered a lap later read as a key that does not
             // work (maintainer, 2026-09-25). The key blinks while it waits.
-            _engine.stopPattern (pattern, on);
+            //
+            // A pause, not a stop, since 2026-10-08 ("❚❚ resumes where it
+            // stopped"): the next ▶ goes on from the bar it was in. ■ is the
+            // way back to the top.
+            _engine.pausePattern (pattern, on);
           }
         else if (status == Pattern::Status::ScheduledForPlaying)
           {
@@ -2543,10 +2547,13 @@ A3MotionUIComponent::stopChannel (index_t channel)
 
   // Now, not on a beat. Stop is the way out of a thing that is going wrong,
   // and a way out that waits for the music is not one.
+  // A paused clip is standing still already; ■ still sends it back to the
+  // top, so the next ▶ starts the pass again.
   auto const status = pattern->getStatus ();
   if (status == Pattern::Status::Playing
       || status == Pattern::Status::Recording
-      || status == Pattern::Status::ScheduledForPlaying)
+      || status == Pattern::Status::ScheduledForPlaying
+      || (status == Pattern::Status::Idle && pattern->resumesOnPlay ()))
     _engine.stopPattern (pattern, _now);
 }
 
