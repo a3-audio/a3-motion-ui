@@ -77,6 +77,9 @@ loadSettings (juce::File const &file)
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
   // speed outside the range would sit on a key the drag cannot bring back.
+  // What the file does not name is what the device had before the keys were
+  // assignable, not what a fresh device starts on.
+  settings.speedButtonLog2 = AppSettings::legacySpeedButtonLog2;
   if (auto const *speeds = parsed["speedButtons"].getArray ())
     for (int i = 0; i < std::min (speeds->size (), numSpeedButtons); ++i)
       settings.speedButtonLog2[static_cast<size_t> (i)]

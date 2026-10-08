@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-ui/SettingsPersistence.hh>
 
@@ -140,11 +141,37 @@ TEST (SettingsPersistence, AFileWithoutDeveloperModeLeavesItOff)
 // The four speeds the Shape section's keys carry. A working habit, like the
 // rec mode beside them -- so they belong to the device rather than to a set,
 // which would change them under the performer at load time.
-TEST (SettingsPersistence, TheSpeedKeysStartWhereTheyAlwaysDid)
+//
+// A fresh device starts on four *paths* (2026-10-08, .claude/notes/
+// auditory-motion-research.md B1): on its first take, one bar long, they lap
+// in 4 bars, 2, 1 and 2 beats -- 45 to 360 deg/s at 120 BPM, every one under
+// the ~900 deg/s past which a room cannot tell which way a sound turns
+// (Feron 2010), each a doubling, which is what it takes to be heard as faster
+// (Carlile & Best 2002). The old four lapped a one-bar take in 1/2, 1/4 and
+// 1/16 of a beat: three effects and one path. They are still a drag away.
+TEST (SettingsPersistence, AFreshDeviceStartsOnFourPathsARoomCanFollow)
 {
   AppSettings const fresh;
   EXPECT_EQ (fresh.speedButtonLog2,
-             (std::array<int, numSpeedButtons>{ 0, -3, -4, -6 }));
+             (std::array<int, numSpeedButtons>{ 2, 1, 0, -1 }));
+
+  auto const firstTakeBeats = 4.f;
+  for (auto const key : fresh.speedButtonLog2)
+    {
+      auto const lap = playbackLengthBeats (firstTakeBeats, key);
+      EXPECT_GE (lap, 2.f) << key;
+      EXPECT_LE (lap, 16.f) << key;
+    }
+}
+
+// The same for a device that has no settings file at all yet.
+TEST (SettingsPersistence, AMissingFileStartsOnTheFreshFour)
+{
+  auto const file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                        .getChildFile ("a3-speed-keys-missing.json");
+  file.deleteFile ();
+  EXPECT_EQ (loadSettings (file).speedButtonLog2,
+             (std::array<int, numSpeedButtons>{ 2, 1, 0, -1 }));
 }
 
 TEST (SettingsPersistence, TheSpeedKeysSurviveARestart)
