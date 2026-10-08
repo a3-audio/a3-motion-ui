@@ -179,6 +179,8 @@ MotionEngine::createChannels (index_t const numChannels)
   _flightModeThisTick.assign (numChannels, FlightMode::Clip);
   _glideTicksLeft.assign (numChannels, 0);
   _glideFrom.assign (numChannels, Pos::invalid);
+  _glideInTicksLeft.assign (numChannels, 0);
+  _glideInFrom.assign (numChannels, Pos::invalid);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -1866,6 +1868,7 @@ MotionEngine::performFlight ()
         {
           _flightModeSeen[ch] = FlightMode::Clip;
           _glideTicksLeft[ch] = 0;
+          _glideInTicksLeft[ch] = 0;
           continue;
         }
 
@@ -1874,6 +1877,7 @@ MotionEngine::performFlight ()
           if (_flightModeSeen[ch] == FlightMode::Orbit)
             startGlide (ch);
           _flightModeSeen[ch] = FlightMode::Clip;
+          _glideInTicksLeft[ch] = 0;
           glideTowardsTheClip (ch);
           continue;
         }
@@ -1885,6 +1889,7 @@ MotionEngine::performFlight ()
               _channels[ch]->getPosition (), playing->getElevationParams ());
           _flight.launch (static_cast<int> (ch), onTheFloor (here), beats,
                           beatsPerBar);
+          startGlideIn (ch);
         }
       _flightModeSeen[ch] = FlightMode::Orbit;
 
@@ -1908,8 +1913,9 @@ MotionEngine::performFlight ()
       auto const heard
           = _heightMap.mapTo3D (Pos::fromCartesian (p.x, p.y, 0.f),
                                 flyingClip[ch]->getElevationParams ());
-      _channels[ch]->setPosition (heard);
-      _glideFrom[ch] = heard;
+      auto const written = glideIntoTheFlight (ch, heard);
+      _channels[ch]->setPosition (written);
+      _glideFrom[ch] = written;
     }
 }
 
@@ -1931,12 +1937,39 @@ MotionEngine::glideTowardsTheClip (index_t channel)
 
   // playTick has just put the clip's own position on the channel; the glide
   // writes over it. The first tick is still exactly where the ship was.
-  auto const ticksPerBeat = static_cast<float> (TempoClock::getTicksPerBeat ());
-  auto const progress = 1.f - static_cast<float> (left) / ticksPerBeat;
   auto const clipPosition = _channels[channel]->getPosition ();
   _channels[channel]->setPosition (
-      handover (_glideFrom[channel], clipPosition, smoothstep (progress)));
-  --left;
+      glideStep (_glideFrom[channel], clipPosition, left));
+}
+
+void
+MotionEngine::startGlideIn (index_t channel)
+{
+  // Where the channel is heard: the clip's played position, swept and leant.
+  // The ship flies its clip's plain band, so a leant clip's spot can lie
+  // outside it -- mapTo2D finds the nearest floor point, and the ship's
+  // first position would be heard tens of degrees away from it.
+  _glideInFrom[channel] = _channels[channel]->getPosition ();
+  _glideInTicksLeft[channel] = TempoClock::getTicksPerBeat ();
+}
+
+Pos
+MotionEngine::glideIntoTheFlight (index_t channel, Pos const &flown)
+{
+  auto &left = _glideInTicksLeft[channel];
+  if (left <= 0 || !_glideInFrom[channel].isValid ())
+    return flown;
+  return glideStep (_glideInFrom[channel], flown, left);
+}
+
+Pos
+MotionEngine::glideStep (Pos const &from, Pos const &to, int &ticksLeft)
+{
+  // One beat, eased at both ends; the first tick is still exactly `from`.
+  auto const ticksPerBeat = static_cast<float> (TempoClock::getTicksPerBeat ());
+  auto const progress = 1.f - static_cast<float> (ticksLeft) / ticksPerBeat;
+  --ticksLeft;
+  return handover (from, to, smoothstep (progress));
 }
 
 index_t

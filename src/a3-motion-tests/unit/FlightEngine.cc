@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <mutex>
 #include <vector>
 
@@ -140,8 +141,14 @@ private:
  *  one channel let through to it, the rest are in preview. */
 struct Flight
 {
-  explicit Flight (index_t sending = 99)
+  explicit Flight (index_t sending = 99,
+                   std::function<void (Pattern &)> const &shape = {})
   {
+    if (shape)
+      {
+        shape (*clip0);
+        shape (*clip1);
+      }
     auto owned = std::make_unique<OfflineBackend> ();
     backend = owned.get ();
     engine = std::make_unique<MotionEngine> (4, heightMap, std::move (owned));
@@ -247,6 +254,41 @@ TEST (FlightEngine, TheSwitchToOrbitDoesNotJump)
   EXPECT_GT (degreesBetween (samples.front ().orbit, samples.back ().orbit),
              jumpDegrees)
       << "it never left the spot, so there was nothing to jump";
+}
+
+/** The switch on a clip whose figure is leant or swept: the channel is heard
+ *  where playedPosition put it (band swept, plane turned), while the ship
+ *  flies its clip's plain band. It glides in from the one to the other. */
+void
+expectNoJumpIntoOrbit (std::function<void (Pattern &)> const &shape)
+{
+  Flight flight (99, shape);
+  ASSERT_TRUE (flight.playing ());
+  TickRecorder recorder (*flight.engine);
+  ASSERT_TRUE (waitUntil ([&] { return recorder.count () > 20; }));
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (500);
+
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  ASSERT_GE (firstIn (samples, FlightMode::Orbit), 1);
+  EXPECT_LT (widestStep (samples), jumpDegrees);
+}
+
+TEST (FlightEngine, TheSwitchToOrbitDoesNotJumpOnALeantClip)
+{
+  // Acid Infinity's lean.
+  expectNoJumpIntoOrbit (
+      [] (Pattern &clip) { clip.setKnobSetting (Knob::Tilt, 1.f); });
+}
+
+TEST (FlightEngine, TheSwitchToOrbitDoesNotJumpOnASweptClip)
+{
+  // Tension Helix's lean, swept round by its roll.
+  expectNoJumpIntoOrbit ([] (Pattern &clip) {
+    clip.setKnobSetting (Knob::Tilt, 1.f);
+    clip.setKnobSetting (Knob::RollSweep, 4.f);
+  });
 }
 
 TEST (FlightEngine, BackToClipGlidesOverOneBeat)

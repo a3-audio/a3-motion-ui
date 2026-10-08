@@ -622,6 +622,13 @@ private:
   bool positionTakenOver (index_t channel) const;
   void startGlide (index_t channel);
   void glideTowardsTheClip (index_t channel);
+  /** CLIP -> ORBIT: the channel is heard where its clip played it, leant and
+   *  swept, and the ship flies the clip's plain band -- one beat from the one
+   *  to the other, as the glide back. */
+  void startGlideIn (index_t channel);
+  Pos glideIntoTheFlight (index_t channel, Pos const &flown);
+  /** One tick of a one-beat glide; counts `ticksLeft` down. */
+  static Pos glideStep (Pos const &from, Pos const &to, int &ticksLeft);
 
   FlightTuning const _flightTuning{};
   /** The ships, the bodies as last read, and per channel what the clock
@@ -634,6 +641,9 @@ private:
   std::vector<int> _glideTicksLeft;
   /** Where each ship was last heard: what a glide back starts from. */
   std::vector<Pos> _glideFrom;
+  std::vector<int> _glideInTicksLeft;
+  /** Where the channel was heard when its ship launched. */
+  std::vector<Pos> _glideInFrom;
   /** Written from any thread, read by the clock thread. */
   std::vector<std::atomic<int>> _flightMode;
   std::vector<std::atomic<int>> _flightTarget;
