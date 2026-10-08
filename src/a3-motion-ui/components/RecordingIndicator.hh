@@ -70,4 +70,34 @@ channelHoldingTake (Rows const &rows, Pointer const &take)
   return -1;
 }
 
+/** What the bar shows of the take: whose it is, and which of the three. */
+struct TakeOnTheBar
+{
+  int channel = -1;
+  RecordingIndicator indicator = RecordingIndicator::Off;
+};
+
+/** From the running take and the armed one: the running take wins -- it is
+ *  the one writing over something -- and with neither, or one no row holds,
+ *  the bar shows nothing. */
+template <typename Rows, typename Pointer>
+TakeOnTheBar
+takeOnTheBar (Rows const &rows, Pointer const &running, Pointer const &armed)
+{
+  auto const channel
+      = channelHoldingTake (rows, running != nullptr ? running : armed);
+  if (channel < 0)
+    return {};
+  return { channel,
+           recordingIndicatorFor (armed != nullptr, running != nullptr) };
+}
+
+/** Whose colour the bar's take mark wears: the take's channel's, or, with
+ *  no take, the open one's. */
+constexpr int
+barColourChannel (int takeChannel, int shownChannel)
+{
+  return takeChannel < 0 ? shownChannel : takeChannel;
+}
+
 }

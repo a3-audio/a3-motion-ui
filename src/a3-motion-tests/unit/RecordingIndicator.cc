@@ -88,6 +88,58 @@ TEST (RecordingIndicator, NoTakeOrAnUnheldTakeHasNoChannel)
   EXPECT_EQ (channelHoldingTake (rows, std::make_shared<int> (3)), -1);
 }
 
+// What the bar shows, decided once for the component (takeOnTheBar): a
+// running take wins over one armed on another channel, and the colour is the
+// take's channel's, not the open clip's.
+namespace
+{
+using Rows = std::vector<std::vector<std::shared_ptr<int> > >;
+
+Rows
+fourRows ()
+{
+  Rows rows (4);
+  for (auto &row : rows)
+    row = { std::make_shared<int> (1) };
+  return rows;
+}
+}
+
+TEST (RecordingIndicator, ARunningTakeWinsOverAnArmedOne)
+{
+  auto rows = fourRows ();
+  auto const running = rows[1][0];
+  auto const armed = rows[3][0];
+
+  auto const shown = takeOnTheBar (rows, running, armed);
+  EXPECT_EQ (shown.channel, 1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Running);
+}
+
+TEST (RecordingIndicator, AnArmedTakeAloneCountsInOnItsChannel)
+{
+  auto rows = fourRows ();
+  auto const shown
+      = takeOnTheBar (rows, std::shared_ptr<int>{}, rows[2][0]);
+  EXPECT_EQ (shown.channel, 2);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::CountIn);
+}
+
+TEST (RecordingIndicator, NoTakeShowsNothing)
+{
+  auto rows = fourRows ();
+  auto const shown = takeOnTheBar (rows, std::shared_ptr<int>{},
+                                   std::shared_ptr<int>{});
+  EXPECT_EQ (shown.channel, -1);
+  EXPECT_EQ (shown.indicator, RecordingIndicator::Off);
+}
+
+TEST (RecordingIndicator, TheColourIsTheTakesChannelsNotTheOpenClips)
+{
+  EXPECT_EQ (barColourChannel (3, 0), 3) << "a take on 3 while 1 is open";
+  EXPECT_EQ (barColourChannel (-1, 0), 0) << "no take: the open channel";
+}
+
 namespace
 {
 // Pixels of the painted bar that are clearly the take's colour: its own
@@ -140,4 +192,18 @@ TEST (RecordingIndicator, TheFillPaintsInTheTakesChannelColour)
   EXPECT_GT (pixelsNear (paintedBar (1.f, green), green), 0)
       << "another channel's take paints in that channel's colour";
   EXPECT_EQ (pixelsNear (paintedBar (1.f, green), magenta), 0);
+}
+
+// The component asks these two and nothing of its own (it cannot be built in
+// a test, so this is read from its source, as DeviceHello does).
+TEST (RecordingIndicator, TheBarIsDecidedByTakeOnTheBar)
+{
+  auto const ui = juce::File (A3_UI_SOURCE_DIR)
+                      .getChildFile ("components/A3MotionUIComponent.cc")
+                      .loadFileAsString ();
+  ASSERT_TRUE (ui.isNotEmpty ());
+  EXPECT_TRUE (ui.contains ("auto const take = takeOnTheBar ("));
+  EXPECT_TRUE (ui.contains ("barColourChannel (\n                                   take.channel"));
+  EXPECT_FALSE (ui.contains ("channelHoldingTake (_patterns"))
+      << "the precedence is takeOnTheBar's alone";
 }

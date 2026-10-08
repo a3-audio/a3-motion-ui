@@ -9427,20 +9427,17 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         // count in the dark. It shows the take wherever it runs, not only
         // when its clip is the one open (#16), in that channel's colour --
         // which is how the eye tells whose take it is.
-        auto const running = _engine.isRecording () ? recording : nullptr;
-        auto const armed = _engine.getScheduledForRecordingPattern ();
-        auto const takeChannel
-            = channelHoldingTake (_patterns, running ? running : armed);
-
         // Three states from one rule, so the bar and any later reader cannot
         // disagree about which of them is on. See RecordingIndicator.hh.
-        auto const indicator
-            = takeChannel < 0 ? RecordingIndicator::Off
-                              : recordingIndicatorFor (armed != nullptr,
-                                                       running != nullptr);
+        auto const take = takeOnTheBar (
+            _patterns,
+            _engine.isRecording () ? recording : std::shared_ptr<Pattern>{},
+            _engine.getScheduledForRecordingPattern ());
+        auto const indicator = take.indicator;
         auto const takeColour
-            = takeChannel < 0 ? _channelUIStates[channel]->colour
-                              : _channelUIStates[takeChannel]->colour;
+            = _channelUIStates[static_cast<std::size_t> (barColourChannel (
+                                   take.channel, static_cast<int> (channel)))]
+                  ->colour;
 
         _statusBar->setCountingIn (indicator == RecordingIndicator::CountIn,
                                    takeColour);
