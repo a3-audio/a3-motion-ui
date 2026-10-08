@@ -35,4 +35,15 @@ class Pattern;
  *  pressed, so what is dialled before the downbeat is kept. */
 void seedTake (Pattern &take, Pattern const &from);
 
+/** A take's band: the whole sphere, top at the north pole, nothing clipped
+ *  and no sweep moving it (maintainer, 2026-10-08).
+ *
+ *  A clip's band grows south from its base, so a clip based at ear height can
+ *  only play the lower half -- and with the camera looking from above, every
+ *  finger on a take over it was held on the equator. A take records over the
+ *  whole sphere instead and keeps that band, so what is heard is still what
+ *  plays back (#66). Only these settings leave the clip's; the elevation
+ *  knobs' lanes go with them, since the path is moved into the new band. */
+void openToTheWholeSphere (Pattern &take);
+
 }

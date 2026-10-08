@@ -466,6 +466,7 @@ private:
 
   void performRecording ();
   void takePhasesAt (Pattern &take, index_t tick) const;
+  void openTakeToTheWholeSphere (Pattern &take);
   Pos heardInTake (Pos const &direction, Pattern &take, index_t tick) const;
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);

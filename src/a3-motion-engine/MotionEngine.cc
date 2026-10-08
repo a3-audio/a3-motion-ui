@@ -1343,6 +1343,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   // Over the clip the slot held: TOUCH then changes only what is touched.
   if (seed)
     seedTake (*_patternRecording, *seed);
+  openTakeToTheWholeSphere (*_patternRecording);
 
   _recordingPosition = Pos::invalid;
   _recordingPosition2D = Pos::invalid;
@@ -1563,6 +1564,36 @@ MotionEngine::takePhasesAt (Pattern &take, index_t tick) const
                  ticksPerBar);
 }
 
+/** The take's band becomes the whole sphere (openToTheWholeSphere), and
+ *  every point already in it -- the clip it started from -- is moved into the
+ *  new band where it was heard, tick by tick through the clip's own band,
+ *  lanes and sweeps at the phase its first pass reaches that tick with. */
+void
+MotionEngine::openTakeToTheWholeSphere (Pattern &take)
+{
+  auto const numTicks = take.getNumTicks ();
+  auto const ticks = take.getTicks ().positions;
+
+  std::vector<Pos> heard (numTicks, Pos::invalid);
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    if (ticks[tick].isValid ())
+      {
+        takePhasesAt (take, tick);
+        take.playKnobs (static_cast<double> (tick));
+        heard[tick] = playedPosition (_heightMap, ticks[tick], take);
+      }
+
+  openToTheWholeSphere (take);
+
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    if (heard[tick].isValid ())
+      {
+        takePhasesAt (take, tick);
+        take.playKnobs (static_cast<double> (tick));
+        take.setTick (tick, writtenPosition (_heightMap, heard[tick], take));
+      }
+}
+
 /** Where `direction` is heard once a take has written it at `tick`: the
  *  direction itself inside the take's band, its nearest playable neighbour
  *  outside it (#66). Leaves `take` at that tick's phases. */
@@ -1584,13 +1615,11 @@ MotionEngine::performRecording ()
 
       // Armed but still waiting for its downbeat: nothing is written yet, but
       // the finger already steers the blob, so that it is under the finger the
-      // moment the take does begin instead of jumping there.
-      // Held in the take's band already, or the blob would jump into it as
-      // the take begins.
+      // moment the take does begin instead of jumping there. The take records
+      // over the whole sphere, so the finger is where it will be heard.
       if (_patternScheduledForRecording && _recordingPosition.isValid ())
         _channels[_patternScheduledForRecording->getChannel ()]->setPosition (
-            heardInTake (_recordingPosition, *_patternScheduledForRecording,
-                         0));
+            _recordingPosition);
 
       return;
     }
