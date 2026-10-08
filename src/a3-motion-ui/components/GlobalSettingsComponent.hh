@@ -116,16 +116,25 @@ public:
   std::function<void (int option)> onRowTapped;
   /** A row was double tapped, or Enter pressed on it: open it. */
   std::function<void (int option)> onRowOpened;
-  /** The arrows moved through the list of values -- a candidate, not a
-   *  choice. The skin row previews it. */
+  /** The arrows, or a tap in a list opened with PickerTap::previews, moved
+   *  to a value -- a candidate, not a choice. The skin row previews it. */
   std::function<void (int value)> onPickerBrowsed;
   /** A value in the list was tapped or Entered. The list has closed. */
   std::function<void (int value)> onPickerChosen;
   /** The list was left without choosing. The owner undoes any preview. */
   std::function<void ()> onPickerCancelled;
 
+  /** What a tap on a value in the list does. A skin is chosen by looking at
+   *  it, so its list shows first and keeps on a second tap (#54); every
+   *  other list keeps on the first. */
+  enum class PickerTap
+  {
+    chooses,
+    previews
+  };
+
   /** The list of the selected row's values, opened on its active one. */
-  void openPicker ();
+  void openPicker (PickerTap tap = PickerTap::chooses);
   /** Leave the list without choosing; calls onPickerCancelled. */
   void cancelPicker ();
   bool isPickerOpen () const { return _valueFieldSelected; }
@@ -161,6 +170,8 @@ private:
 
   void rebuildRowTouch ();
   void choosePickerValue (int value);
+  void tapPickerValue (int value);
+  void browsePickerValue (int value);
   int pickerRowsShown () const;
   int pickerValueCount () const;
   void layOut ();
@@ -168,6 +179,7 @@ private:
   std::vector<Option> _options;
   int _optionIndex        = 0;
   int _selectedValueIndex = 0;
+  PickerTap _pickerTap    = PickerTap::chooses;
   bool _valueFieldSelected = false;
   int _pickerTop = 0;
 
