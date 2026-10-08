@@ -2077,13 +2077,11 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
     case PageOutcome::None:
       return;
     }
-  auto const &pattern = _patterns[channel][0];
-  auto const hasClip
-      = pattern && pattern->getStatus () == Pattern::Status::Playing;
   updateControlReadout (fpvPageReadout (
       static_cast<int> (channel),
       flownOutcome (outcome, bodyId, _floorBodies.snapshot ()),
-      _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId, hasClip));
+      _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId,
+      flightClipOf (_patterns[channel][0].get ())));
   refreshFpvStrips ();
   refreshFlightDisplay ();
 }

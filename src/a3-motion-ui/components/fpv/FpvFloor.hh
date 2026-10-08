@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-ui/components/AppView.hh>
 #include <a3-motion-ui/components/fpv/FpvPagePress.hh>
@@ -131,12 +132,24 @@ private:
   std::optional<int> _body;
 };
 
-/** An ORBIT toggle with `hasClip` false says "CH1 ORBIT . no clip": the ship
- *  cannot fly without a running clip.
+/** Whether a channel's clip lets its ship fly: none loaded, loaded but not
+ *  running, or running -- the engine's own question (passIsRunning), so a
+ *  clip asked to stop still flies until the stop lands. */
+enum class FlightClip
+{
+  None,
+  Stopped,
+  Running,
+};
+FlightClip flightClipOf (Pattern const *clip);
+
+/** An ORBIT toggle whose ship cannot fly says why: "CH1 ORBIT . no clip" or
+ *  "CH1 ORBIT . stopped".
  *  "CH1 ORBIT", "CH1 CLIP", "CH1 -> G3", "CH1 PATROL": the channel and what
  *  it does now. `orbitNow` is the mode after a toggle. */
 juce::String fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow,
-                             int bodyId, bool hasClip = true);
+                             int bodyId,
+                             FlightClip clip = FlightClip::Running);
 
 /** What an Escort release does to the ship: onto a dead zone the engine
  *  patrols, so that is what is reported. */

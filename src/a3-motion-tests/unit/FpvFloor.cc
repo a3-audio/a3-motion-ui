@@ -22,6 +22,8 @@
 
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
 
+#include <a3-motion-engine/Pattern.hh>
+
 using namespace a3;
 
 namespace
@@ -259,10 +261,39 @@ TEST (FpvFloor, ADeadZoneEscortIsReportedAsPatrol)
 
 TEST (FpvFloor, AnOrbitToggleWithoutAClipSaysSo)
 {
-  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId, false),
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId,
+                             FlightClip::None),
              juce::String::fromUTF8 ("CH1 ORBIT \xc2\xb7 no clip"));
-  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId, true),
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId,
+                             FlightClip::Running),
              "CH1 ORBIT");
-  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, false, noBodyId, false),
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, false, noBodyId,
+                             FlightClip::None),
              "CH1 CLIP");
+}
+
+TEST (FpvFloor, AnOrbitToggleOnAStoppedClipSaysStoppedNotNoClip)
+{
+  EXPECT_EQ (fpvPageReadout (1, PageOutcome::Toggle, true, noBodyId,
+                             FlightClip::Stopped),
+             juce::String::fromUTF8 ("CH2 ORBIT \xc2\xb7 stopped"));
+}
+
+TEST (FpvFloor, AClipFliesWhenTheEngineWouldRunItsPass)
+{
+  EXPECT_EQ (flightClipOf (nullptr), FlightClip::None);
+
+  Pattern clip;
+  EXPECT_EQ (flightClipOf (&clip), FlightClip::None) << "an empty slot";
+
+  clip.setStatus (Pattern::Status::Idle);
+  EXPECT_EQ (flightClipOf (&clip), FlightClip::Stopped);
+  clip.setStatus (Pattern::Status::ScheduledForPlaying);
+  EXPECT_EQ (flightClipOf (&clip), FlightClip::Stopped)
+      << "not flying until the bar it starts on";
+  clip.setStatus (Pattern::Status::Playing);
+  EXPECT_EQ (flightClipOf (&clip), FlightClip::Running);
+  clip.setStatus (Pattern::Status::ScheduledForIdle);
+  EXPECT_EQ (flightClipOf (&clip), FlightClip::Running)
+      << "a clip asked to stop plays on until the stop lands";
 }

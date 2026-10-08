@@ -152,7 +152,7 @@ FpvPageHold::clear ()
 
 juce::String
 fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow, int bodyId,
-                bool hasClip)
+                FlightClip clip)
 {
   auto const ch = "CH" + juce::String (channel + 1) + " ";
   switch (outcome)
@@ -167,8 +167,24 @@ fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow, int bodyId,
     }
   if (!orbitNow)
     return ch + "CLIP";
-  return hasClip ? ch + "ORBIT"
-                 : ch + juce::String::fromUTF8 ("ORBIT \xc2\xb7 no clip");
+  switch (clip)
+    {
+    case FlightClip::None:
+      return ch + juce::String::fromUTF8 ("ORBIT \xc2\xb7 no clip");
+    case FlightClip::Stopped:
+      return ch + juce::String::fromUTF8 ("ORBIT \xc2\xb7 stopped");
+    case FlightClip::Running:
+      break;
+    }
+  return ch + "ORBIT";
+}
+
+FlightClip
+flightClipOf (Pattern const *clip)
+{
+  if (clip == nullptr || clip->getStatus () == Pattern::Status::Empty)
+    return FlightClip::None;
+  return passIsRunning (*clip) ? FlightClip::Running : FlightClip::Stopped;
 }
 
 PageOutcome

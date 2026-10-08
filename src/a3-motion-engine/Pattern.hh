@@ -544,4 +544,10 @@ private:
   std::atomic<float> _flatElevation{ 0.5f };
 };
 
+/** Whether `pattern`'s pass moves its channel this tick: playing, or
+ *  playing on until a stop or a take scheduled over it lands. The engine's
+ *  playback and its ORBIT ships ask this, and so does the UI that says
+ *  whether a ship can fly. */
+bool passIsRunning (Pattern const &pattern);
+
 }

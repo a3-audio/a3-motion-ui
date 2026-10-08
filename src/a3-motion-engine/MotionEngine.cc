@@ -91,20 +91,6 @@ requireBackend (std::unique_ptr<SpatBackend> backend)
   return backend;
 }
 
-/** Whether `pattern`'s pass moves its channel this tick: playing, or
- *  playing on until a stop or a take scheduled over it lands. */
-bool
-passIsRunning (Pattern const &pattern)
-{
-  auto const status = pattern.getStatus ();
-  auto const statusLast = pattern.getLastStatus ();
-  return status == Pattern::Status::Playing
-         || (status == Pattern::Status::ScheduledForIdle
-             && statusLast == Pattern::Status::Playing)
-         || (status == Pattern::Status::ScheduledForRecording
-             && statusLast == Pattern::Status::Playing);
-}
-
 Vec2
 onTheFloor (Pos const &position2D)
 {
