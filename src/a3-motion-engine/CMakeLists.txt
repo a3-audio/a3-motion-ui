@@ -134,6 +134,10 @@ target_sources("a3-motion-engine" PRIVATE
     util/Slew.cc
     util/Slew.hh
     util/Helpers.cc
+    flight/FlightTuning.hh
+    flight/FlightVec.hh
+    flight/FlightField.cc
+    flight/FlightField.hh
 )
 
 target_include_directories("a3-motion-engine" PUBLIC

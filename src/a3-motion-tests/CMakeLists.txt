@@ -9,6 +9,7 @@ a3_precompile_juce_header("a3-motion-tests")
 target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/TestRunnerApp.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PositionPacer.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightField.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TruthKeeper.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"

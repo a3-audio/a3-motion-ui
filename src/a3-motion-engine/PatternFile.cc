@@ -39,6 +39,11 @@ namespace a3
 //  Helpers — simple 2D point for path building (no juce::Point in engine)
 // ---------------------------------------------------------------------------
 
+// File-local: the flight model has its own a3::Vec2, and two classes of one
+// name in one namespace are an ODR violation even in different files.
+namespace
+{
+
 struct Vec2
 {
   float x = 0.f, y = 0.f;
@@ -54,6 +59,8 @@ struct Vec2
     return std::sqrt (dx * dx + dy * dy);
   }
 };
+
+}
 
 static std::string
 fts (float v)
