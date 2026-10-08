@@ -210,3 +210,21 @@ TEST (TempoLfo, TheSweepStaysInRange)
           ASSERT_LE (v, 1.f);
         }
 }
+
+// A pause made at once goes back to the start of the bar it was in, and the
+// slow movements go back with the position, so the resumed bar sounds the bar
+// it replays (2026-10-08).
+TEST (TempoLfo, RewindingUndoesTheTicks)
+{
+  auto const ticksPerBar = 192.f;
+  for (auto const step : { -3, -1, 1, 2, 4 })
+    {
+      auto phase = 0.37f;
+      for (int tick = 0; tick < 300; ++tick)
+        phase = advanceLfoPhase (phase, step, ticksPerBar);
+      EXPECT_NEAR (rewoundLfoPhase (phase, step, 300.f, ticksPerBar), 0.37f,
+                   1e-3f)
+          << "step " << step;
+    }
+  EXPECT_FLOAT_EQ (rewoundLfoPhase (0.25f, 0, 50.f, ticksPerBar), 0.25f);
+}

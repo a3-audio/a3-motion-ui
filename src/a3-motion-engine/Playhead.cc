@@ -245,27 +245,39 @@ actModeFromName (juce::String const &name)
   return name == "hold" ? ActMode::Hold : ActMode::OneShot;
 }
 
-float
-resumePosition (float position, float sign, float barShare)
+std::optional<Playhead>
+rewoundPlayhead (Playhead current, index_t ticks, float delta,
+                 PlayDirection direction, EndAction endAction)
 {
-  if (barShare >= 1.f || barShare <= 0.f)
-    return sign < 0.f ? 1.f : 0.f;
+  if (ticks == 0)
+    return current;
 
-  // On a bar line already, give or take what a pass of float steps collects.
-  constexpr float onTheLine = 1e-3f;
-  auto const bars = position / barShare;
-  auto const nearest = std::round (bars);
-  auto const line = std::abs (bars - nearest) < onTheLine
-                        ? nearest
-                        : (sign < 0.f ? std::ceil (bars) : std::floor (bars));
-  auto const at = juce::jlimit (0.f, 1.f, line * barShare);
+  auto const loops = endAction == EndAction::Loop;
+  auto const back = static_cast<float> (ticks) * delta;
 
-  // The far end of the travel is its start again.
-  if (sign >= 0.f && at >= 1.f)
-    return 0.f;
-  if (sign < 0.f && at <= 0.f)
-    return 1.f;
-  return at;
+  if (direction == PlayDirection::Bounce)
+    {
+      // Unfolded into one round: out over [0, 1), back over [1, 2).
+      auto const round = current.sign > 0.f ? current.position
+                                            : 2.f - current.position;
+      auto earlier = round - back;
+      if (earlier < 0.f && !loops)
+        return std::nullopt;
+      earlier = std::fmod (earlier, 2.f);
+      if (earlier < 0.f)
+        earlier += 2.f;
+      if (earlier < 1.f)
+        return Playhead{ earlier, 1.f, false };
+      return Playhead{ 2.f - earlier, -1.f, false };
+    }
+
+  auto const sign = current.sign < 0.f ? -1.f : 1.f;
+  auto const earlier = current.position - sign * back;
+  if (earlier >= 0.f && earlier <= 1.f)
+    return Playhead{ earlier, sign, false };
+  if (!loops)
+    return std::nullopt;
+  return Playhead{ wrapIntoPass (earlier), sign, false };
 }
 
 }

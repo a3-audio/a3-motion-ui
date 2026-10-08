@@ -66,6 +66,10 @@ float advanceLfoPhase (float phase, int step, float ticksPerBar);
  *  where a sweep will be at a tick of a pass that has not been played yet. */
 float lfoPhaseAfter (int step, float ticks, float ticksPerBar);
 
+/** Where the cycle stood `ticks` ticks before `phase`, at `step`'s rate:
+ *  advanceLfoPhase() undone, for a pause that goes back to its bar's start. */
+float rewoundLfoPhase (float phase, int step, float ticks, float ticksPerBar);
+
 /** How far through its travel the cycle is: 0 at the start, 1 at the halfway
  *  point, 0 again at the end, on a raised cosine.
  *

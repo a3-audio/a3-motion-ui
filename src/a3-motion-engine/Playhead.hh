@@ -22,6 +22,8 @@
 
 #include <juce_core/juce_core.h>
 
+#include <optional>
+
 #include <a3-motion-engine/util/Types.hh>
 
 namespace a3
@@ -159,13 +161,22 @@ Playhead advancePlayhead (Playhead current, float delta,
                           PlayDirection direction, EndAction endAction,
                           float randomPhase, bool stopAtEnd = false);
 
-/** Where a paused clip comes back in: the start of the bar of the clip it
- *  was in, in the direction it was travelling. A pause on the downbeat is
- *  already there, up to the float error a pass of ticks collects; one made at
- *  once (Shift) goes back to its bar's start, so the resume -- on a downbeat --
- *  puts the clip's bars back on the music's. `barShare` is one bar as a share
- *  of a pass; a clip shorter than a bar comes back at its start. */
-float resumePosition (float position, float sign, float barShare);
+/** Where the playhead stood `ticks` ticks ago, travelling as it is now: what
+ *  a pause made at once goes back to (2026-10-08, "❚❚ resumes where it
+ *  stopped"), the start of the music's bar it was in, so the resume -- on a
+ *  downbeat -- plays that bar again.
+ *
+ *  Counted back in ticks, not snapped to the clip's bars: a pass that is not
+ *  whole bars long, Reverse, Bounce and a long pass whose float steps have
+ *  drifted all come back where they were, and a pause on the downbeat goes
+ *  back by nothing. A loop goes back over its seam and a bounce round its
+ *  ends -- home is the start of the outward leg. A pass that ends rather than
+ *  loops has nothing before its start: no place, and the clip starts again
+ *  from the top. Random is counted back as a straight line; its jumps are
+ *  not remembered. */
+std::optional<Playhead> rewoundPlayhead (Playhead current, index_t ticks,
+                                         float delta, PlayDirection direction,
+                                         EndAction endAction);
 
 /** The lap one tick on: time through the clip's length, counted in whole
  *  ticks and wrapped at the length, whatever the playhead does. Random starts
@@ -175,6 +186,14 @@ constexpr index_t
 nextLapTick (index_t tick, index_t length)
 {
   return length > 0 ? (tick + 1) % length : 0;
+}
+
+/** The lap `ticks` ticks ago, wrapped at the length: the lap goes back with
+ *  the place, or the progress bar runs ahead of the clip after a pause. */
+constexpr index_t
+rewoundLapTick (index_t tick, index_t ticks, index_t length)
+{
+  return length > 0 ? (tick + length - ticks % length) % length : 0;
 }
 
 /** How far through its length a lap is, 0 to 1. */

@@ -1358,32 +1358,86 @@ MotionEngine::beginPass (Pattern &pattern)
     pattern.setPlayPosition (from);
 }
 
+bool
+MotionEngine::rewindToTheBar (Pattern &pattern)
+{
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  auto const ticksPerBar = TempoClock::getTicksPerBeat () * beatsPerBar;
+  auto const passTicks
+      = Measure::convertToTicks (pattern.getPlaybackLength (), beatsPerBar);
+  if (passTicks <= 0 || ticksPerBar <= 0)
+    return false;
+
+  auto const now = Measure::convertToTicks (_now, beatsPerBar);
+  auto const intoTheBar = now % ticksPerBar;
+  auto const channel = pattern.getChannel ();
+  auto const played
+      = channel < _channels.size ()
+            ? now
+                  - Measure::convertToTicks (_channels[channel]->_playingStarted,
+                                             beatsPerBar)
+            : 0;
+  // Started inside this bar: there is no bar start of its own to go back to,
+  // and the top is where it began.
+  if (intoTheBar > played)
+    return false;
+
+  auto const ticks = static_cast<index_t> (intoTheBar);
+  auto const rewound = rewoundPlayhead (
+      { pattern.getPlayPosition (), pattern.getPlaySign (), false }, ticks,
+      1.f / static_cast<float> (passTicks), pattern.getPlayDirection (),
+      pattern.getEndAction ());
+  if (!rewound)
+    return false;
+
+  pattern.setPlayPosition (rewound->position);
+  pattern.setPlaySign (rewound->sign);
+  auto const lapLength = static_cast<index_t> (passTicks);
+  auto const lapTick
+      = rewoundLapTick (pattern.getLapTick (), ticks, lapLength);
+  pattern.setLap (lapTick, lapProgress (lapTick, lapLength));
+
+  // The slow movements go back with the place, at the rate their knobs stand
+  // at now: the replayed bar is the bar that was heard, as far as a knob that
+  // has not been turned since goes.
+  auto const back = static_cast<float> (ticks);
+  auto const perBar = static_cast<float> (ticksPerBar);
+  pattern.setSpinPhase (rewoundLfoPhase (
+      pattern.getSpinPhase (), pattern.getKnobStep (Knob::Spin), back, perBar));
+  pattern.setReachLfoPhase (
+      rewoundLfoPhase (pattern.getReachLfoPhase (),
+                       pattern.getKnobStep (Knob::Swell), back, perBar));
+  pattern.setElevationLfoPhase (
+      rewoundLfoPhase (pattern.getElevationLfoPhase (),
+                       pattern.getKnobStep (Knob::Sway), back, perBar));
+  pattern.setSqueezeXLfoPhase (
+      rewoundLfoPhase (pattern.getSqueezeXLfoPhase (),
+                       pattern.getKnobStep (Knob::StretchX), back, perBar));
+  pattern.setSqueezeYLfoPhase (
+      rewoundLfoPhase (pattern.getSqueezeYLfoPhase (),
+                       pattern.getKnobStep (Knob::StretchY), back, perBar));
+  pattern.setTiltLfoPhase (
+      rewoundLfoPhase (pattern.getTiltLfoPhase (),
+                       pattern.getKnobStep (Knob::TiltSweep), back, perBar));
+  pattern.setRollLfoPhase (
+      rewoundLfoPhase (pattern.getRollLfoPhase (),
+                       pattern.getKnobStep (Knob::RollSweep), back, perBar));
+  return true;
+}
+
 void
 MotionEngine::stop (std::shared_ptr<Pattern> pattern, bool keepsPass)
 {
-  // A pause keeps the place, back to the start of the bar it was in, so the
-  // resume on a downbeat lands the clip's bars on the music's. Only a clip
-  // that was playing has a place to keep.
+  // A pause keeps the place (2026-10-08). Made on the downbeat it keeps it
+  // as it is; made at once (Shift) it goes back by the ticks since the
+  // music's last downbeat, so the resume -- on a downbeat -- plays that bar
+  // again. Only a clip that was playing has a place to keep.
   auto const wasPlaying
       = pattern->getStatus () == Pattern::Status::Playing
         || (pattern->getStatus () == Pattern::Status::ScheduledForIdle
             && pattern->getLastStatus () == Pattern::Status::Playing);
-  if (keepsPass && wasPlaying)
-    {
-      auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
-      auto const passTicks = Measure::convertToTicks (
-          pattern->getPlaybackLength (), beatsPerBar);
-      auto const barShare
-          = passTicks > 0 ? static_cast<float> (TempoClock::getTicksPerBeat ()
-                                                * beatsPerBar)
-                                / static_cast<float> (passTicks)
-                          : 1.f;
-      pattern->setPlayPosition (resumePosition (
-          pattern->getPlayPosition (), pattern->getPlaySign (), barShare));
-      pattern->setResumesOnPlay (true);
-    }
-  else
-    pattern->setResumesOnPlay (false);
+  pattern->setResumesOnPlay (keepsPass && wasPlaying
+                             && rewindToTheBar (*pattern));
 
   pattern->setStatus (Pattern::Status::Idle);
   // The lap it was asked to finish is over either way.

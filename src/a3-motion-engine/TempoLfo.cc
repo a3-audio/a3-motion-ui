@@ -92,6 +92,16 @@ lfoPhaseAfter (int step, float ticks, float ticksPerBar)
 }
 
 float
+rewoundLfoPhase (float phase, int step, float ticks, float ticksPerBar)
+{
+  auto const rate = lfoCyclesPerBar (step);
+  if (rate == 0.f || ticksPerBar <= 0.f)
+    return phase;
+
+  return wrappedCycle (phase - rate * ticks / ticksPerBar);
+}
+
+float
 lfoTravel (float phase)
 {
   return 0.5f - 0.5f * std::cos (phase * juce::MathConstants<float>::twoPi);

@@ -1625,9 +1625,14 @@ gone from the panel and the screen. Internally the slot dimension still exists w
 ACTION page's fields reach `handlePadPress()` through them, so there is one route to what a pad
 means. STOP on the screen is `stopChannel()`: the panel has none. **Play|Pause on a running clip
 pauses** (`MotionEngine::pausePattern`, since 2026-10-08): on the next downbeat, with SHIFT at once,
-and the next start goes on from the start of the bar of the clip it was in (`resumePosition()` in
-`Playhead.hh`, `Pattern::resumesOnPlay`) -- position, lap, direction and slow movements kept, so a
-resume on the downbeat puts the clip's bars back on the music's. ■ (`stopPattern`) stops and goes back
+and the next start goes on from where it stood (`Pattern::resumesOnPlay`). A pause on the downbeat
+keeps the place as it is; one made at once goes back by the ticks since the music's last downbeat
+(`MotionEngine::rewindToTheBar`, `rewoundPlayhead()` / `rewoundLapTick()` in `Playhead.hh`,
+`rewoundLfoPhase()`) -- place, lap and slow movements together -- so the resume on a downbeat plays
+that bar again. Counted in ticks rather than snapped to the clip's bars: a pass that is not whole
+bars, Reverse, Bounce (home is the start of the outward leg) and a long pass of drifting float steps
+all come back exactly. A clip started inside the bar, or a pass that ends and would have to go back
+before its start, starts from the top instead. ■ (`stopPattern`) stops and goes back
 to the top, a paused clip included.
 
 **A button is `ActionButton`** — file, source, dice seed, errors, and its **feel** (`ActionFeel`:

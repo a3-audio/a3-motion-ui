@@ -43,10 +43,10 @@ namespace
 {
 /** A four-bar clip walking once round the floor. */
 std::shared_ptr<Pattern>
-fourBarWalk ()
+walk (Measure length, PlayDirection direction = PlayDirection::Forward)
 {
   auto pattern = std::make_shared<Pattern> ();
-  auto const ticks = static_cast<index_t> (TempoClock::getTicksPerBeat () * 16);
+  auto const ticks = static_cast<index_t> (Measure::convertToTicks (length, 4));
   pattern->resize (ticks);
   for (index_t tick = 0; tick < ticks; ++tick)
     {
@@ -58,9 +58,34 @@ fourBarWalk ()
     }
   pattern->markComplete ();
   pattern->setChannel (0);
-  pattern->setPlaybackLength (Measure{ 4, 0, 0 });
+  pattern->setPlaybackLength (length);
+  pattern->setPlayDirection (direction);
   return pattern;
 }
+
+std::shared_ptr<Pattern>
+fourBarWalk ()
+{
+  return walk (Measure{ 4, 0, 0 });
+}
+
+int
+ticksIn (Measure length)
+{
+  return Measure::convertToTicks (length, 4);
+}
+
+/** Where a forward clip's place and its time through the lap agree: the
+ *  position is the lap's share, so neither went back without the other. */
+void
+expectPlaceMatchesLap (Pattern const &clip, Measure length)
+{
+  auto const lap = static_cast<float> (clip.getLapTick ())
+                   / static_cast<float> (ticksIn (length));
+  EXPECT_NEAR (clip.getPlayPosition (), lap, 1e-3f)
+      << "the place and the lap disagree";
+}
+
 
 struct Engine
 {
@@ -89,6 +114,21 @@ struct Engine
     return now;
   }
 };
+
+/** Starts `clip` on the next downbeat, and schedules a pause `bars` later. */
+Measure
+playThenPauseAfter (Engine &e, std::shared_ptr<Pattern> const &clip, int bars)
+{
+  EXPECT_TRUE (waitUntil ([&] { return e.current () != Measure{}; }));
+  auto const start = TempoClock::nextDownBeat (e.current ());
+  e.engine.playPattern (clip, start);
+  e.engine.pausePattern (clip, Measure{ start.bar () + bars, 0, 0 });
+  EXPECT_TRUE (waitUntil (
+      [&] { return clip->getStatus () == Pattern::Status::Playing; }));
+  EXPECT_TRUE (waitUntil (
+      [&] { return clip->getStatus () == Pattern::Status::Idle; }, 8000));
+  return start;
+}
 
 /** Plays `clip` from a downbeat past its first bar, then pauses it on a
  *  downbeat. Answers where it stands. */
@@ -165,4 +205,57 @@ TEST (PauseResumes, AStopWhilePlayingStillStartsFromTheTop)
   ASSERT_TRUE (waitUntil (
       [&] { return clip->getStatus () == Pattern::Status::Playing; }));
   EXPECT_LT (clip->getPlayPosition (), 0.1f);
+}
+
+// The reviewer's case: a pass that is not whole bars (six beats). Paused on
+// the downbeat two bars in, it is a third of the way through -- the old snap
+// to the clip's bars put it back at the top.
+TEST (PauseResumes, ADownbeatPauseInAnOddLengthClipStaysPut)
+{
+  Engine e;
+  Measure const sixBeats{ 1, 2, 0 };
+  auto clip = walk (sixBeats);
+  playThenPauseAfter (e, clip, 2);
+
+  EXPECT_EQ (static_cast<int> (clip->getLapTick ()),
+             2 * TempoClock::getTicksPerBeat ())
+      << "two bars in is two beats into the second pass";
+  expectPlaceMatchesLap (*clip, sixBeats);
+  EXPECT_TRUE (clip->resumesOnPlay ());
+}
+
+// Shift: at once, then back to the start of the bar of the music it was in --
+// place and lap together, so the progress bar does not run a bar ahead.
+TEST (PauseResumes, AShiftPauseGoesBackToItsBarPlaceAndLapAlike)
+{
+  Engine e;
+  auto clip = fourBarWalk ();
+  ASSERT_TRUE (waitUntil ([&] { return e.current () != Measure{}; }));
+  e.engine.playPattern (clip, TempoClock::nextDownBeat (e.current ()));
+  ASSERT_TRUE (waitUntil ([&] { return clip->getPlayPosition () > 0.3f; }));
+  e.engine.pausePattern (clip, Measure{});
+  ASSERT_TRUE (waitUntil (
+      [&] { return clip->getStatus () == Pattern::Status::Idle; }));
+
+  auto const ticksPerBar = 4 * TempoClock::getTicksPerBeat ();
+  EXPECT_EQ (static_cast<int> (clip->getLapTick ()) % ticksPerBar, 0)
+      << "the lap went back to its bar's start";
+  EXPECT_GE (static_cast<int> (clip->getLapTick ()), ticksPerBar);
+  expectPlaceMatchesLap (*clip, Measure{ 4, 0, 0 });
+}
+
+// A one-bar bounce is home every second bar, arriving with its sign still
+// turned. Paused there, it has to set out again, not come back from the far
+// end.
+TEST (PauseResumes, ABouncePausedAtHomeSetsOutAgain)
+{
+  Engine e;
+  auto clip = walk (Measure{ 1, 0, 0 }, PlayDirection::Bounce);
+  playThenPauseAfter (e, clip, 2);
+  EXPECT_LT (clip->getPlayPosition (), 0.05f) << "two bars in is home";
+
+  e.engine.playPattern (clip, Measure{});
+  ASSERT_TRUE (waitUntil ([&] { return clip->getPlayPosition () > 0.05f; }));
+  EXPECT_GT (clip->getPlaySign (), 0.f) << "it came back from the far end";
+  EXPECT_LT (clip->getPlayPosition (), 0.5f);
 }
