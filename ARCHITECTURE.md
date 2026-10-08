@@ -253,6 +253,7 @@ Groups live for the session only. Plan: `.claude/notes/fpv-phase-2-plan.md` in t
 | beat pulse | Gravity is `1 + depth*(1 - beatFraction)^2`: hardest on the beat, hardest of all on the one |
 | escort | The goal becomes a circle round one body; its own pull is left out so the ship holds the circle |
 | dead zone | A soft wall at `deadZoneClearance`, because capped repulsion lost against the steering |
+| breath | Off by default. When on, every ship stands still through the last beat of each bar, velocity kept, while its rabbit runs on; it restarts on the one (`Breath.hh`, `MotionEngine::setFlightBreath`) |
 
 Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The plane is the clip's
 floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
@@ -289,11 +290,17 @@ newest wins. No new OSC address.
 | Page held + tap empty floor | that ship back to PATROL |
 | drag outside any group, pinch | camera, as phase 1 |
 | double tap | resets the view only outside the floor disc |
+| BREATH (status bar, FPV only) | the breath on or off for the session, readout `BREATH ON`/`OFF` |
 | Play, action pads | as phase 1 |
 
 `FpvFloor` decides who gets a finger (`fpvFingerDown`) and what a Page release means
 (`FpvPageHold`, `fpvPagePress`). Group ids are the lowest free 0..7, so G-labels stay stable while
 a group lives and are reused after its removal.
+
+**The breath is an A/B, not a decision.** The MJ lab (2026-10-08) found that a one-beat stop on
+beat 4 of every bar, not gravity, is what keeps the ships from sounding like they only circle, and
+that with it the planets cost attention. The maintainer's direction is planets (masses 1/2/3); the
+breath sits beside them as a key, off at start-up and never saved, so both can be heard on the rig.
 
 **Where it lives.**
 
