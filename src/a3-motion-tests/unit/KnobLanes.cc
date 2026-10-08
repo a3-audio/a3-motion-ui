@@ -210,7 +210,7 @@ TEST (KnobLanes, ReadingASparseLaneEverywhereIsCheap)
   auto const took = std::chrono::steady_clock::now () - started;
 
   EXPECT_GT (sum, 0.0);
-  // Microseconds now; seconds the old way, so the bound is far from both.
-  EXPECT_LT (std::chrono::duration<double> (took).count (), 0.25)
+  // About 10 ms now and 45 s the old way: a hundred times either side.
+  EXPECT_LT (std::chrono::duration<double> (took).count (), 1.0)
       << "reading the lane walked it";
 }

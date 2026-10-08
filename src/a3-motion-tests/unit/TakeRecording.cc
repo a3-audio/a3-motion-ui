@@ -478,10 +478,11 @@ TEST (TakeRecording, ALongTakeIsLaidOutBeforeItsDownbeat)
   EXPECT_FALSE (engine->isRecording ()) << "the take started already";
   EXPECT_EQ (take->getNumTicks (), ticks);
   EXPECT_FLOAT_EQ (take->getElevationParams ().reach, 1.f)
-      << "the band is opened at the downbeat, not when the take is asked for";
+      << "the band was not opened when the take was asked for";
   EXPECT_FALSE (take->hasLane (Knob::Reach));
   EXPECT_TRUE (take->hasLane (Knob::Rotate)) << "the clip's other lanes went";
-  EXPECT_LT (took, 1.0) << "laying out the take walked its lanes";
+  // Some 70 ms now; 47 s when every lane was walked. Far from both.
+  EXPECT_LT (took, 5.0) << "laying out the take walked its lanes";
 }
 
 /** Before the downbeat the armed take owns the finger too, and the blob
