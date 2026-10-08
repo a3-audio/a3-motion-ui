@@ -48,8 +48,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/ElevationDisplay.hh
     components/DirectivityComponent.cc
     components/DirectivityComponent.hh
-    components/ColourPickerComponent.cc
-    components/ColourPickerComponent.hh
     components/MixerControls.hh
     tests/TempoEstimatorTest.cc
     tests/TempoEstimatorTest.hh
@@ -307,6 +305,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/MixerStripComponent.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
+    components/ColourPickerComponent.cc
+    components/ColourPickerComponent.hh
     components/FittedFont.cc
     components/FittedFont.hh
     ConfigFileWatcher.cc

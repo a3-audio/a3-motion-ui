@@ -41,6 +41,8 @@ constexpr float step = 0.01f;
 ColourPickerComponent::ColourPickerComponent ()
 {
   setInterceptsMouseClicks (true, true);
+  // For Escape; openColourPicker brings it to the front with the focus.
+  setWantsKeyboardFocus (true);
 
   // Only the colourspace: no sliders, no swatches, no alpha, no colour at the
   // top -- we draw the swatch beside the title ourselves. See the header for
@@ -64,7 +66,8 @@ ColourPickerComponent::setColour (juce::Colour colour,
                                   juce::String const &title)
 {
   _colour = colour;
-  _title = title;
+  _openedWith = colour;
+  _title = colourPickerTitle (title);
   _index = 0;
   _editing = false;
 
@@ -72,6 +75,49 @@ ColourPickerComponent::setColour (juce::Colour colour,
     _selector->setCurrentColour (colour, juce::dontSendNotification);
 
   repaint ();
+}
+
+void
+ColourPickerComponent::cancel ()
+{
+  // The edit box's contract (#55): leaving without keeping puts back what
+  // was there. The skin is told first, so the sphere shows the old colour
+  // before the card goes.
+  _colour = _openedWith;
+  if (_selector)
+    _selector->setCurrentColour (_colour, juce::dontSendNotification);
+  repaint ();
+
+  if (onColourChanged)
+    onColourChanged ();
+  if (onCancel)
+    onCancel ();
+}
+
+bool
+ColourPickerComponent::keyPressed (juce::KeyPress const &key)
+{
+  if (key != juce::KeyPress::escapeKey)
+    return false;
+
+  cancel ();
+  return true;
+}
+
+juce::String
+colourPickerTitle (juce::String const &path)
+{
+  // The file counts channels from zero, the panel from one.
+  if (!path.startsWith ("channels."))
+    return path;
+
+  auto const rest = path.fromFirstOccurrenceOf ("channels.", false, false);
+  auto const number = rest.upToFirstOccurrenceOf (".", false, false);
+  if (number.isEmpty () || !number.containsOnly ("0123456789"))
+    return path;
+
+  return "channel " + juce::String (number.getIntValue () + 1)
+         + rest.fromFirstOccurrenceOf (number, false, false);
 }
 
 void
