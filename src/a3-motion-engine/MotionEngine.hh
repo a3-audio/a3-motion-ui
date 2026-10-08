@@ -318,6 +318,10 @@ public:
    *  owned, with isRecording() stuck and REC dead (2026-10-08). */
   void cancelScheduledRecording (std::shared_ptr<Pattern> pattern);
 
+  /** How many takes the engine has announced as recording -- started, not
+   *  merely asked for. A called-off take is never announced (2026-10-08). */
+  unsigned recordingAnnouncements () const;
+
   /** Whether that has been asked for and has not happened yet.
    *
    *  The clip goes on playing meanwhile -- the status stays Playing, because
@@ -458,7 +462,9 @@ private:
                             Measure timepoint);
   void scheduledForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
-  void startRecording (std::shared_ptr<Pattern> pattern, Measure length,
+  /** @returns whether the take started: it does only while it is still the
+   *  one scheduled. */
+  bool startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                        std::shared_ptr<Pattern> const &seed);
   void startPlaying (std::shared_ptr<Pattern> pattern);
   /** A pass from the top: the play position, the lap and every slow
@@ -530,6 +536,7 @@ private:
   bool _recordingHasTouched = false;
   /** The knobs' own touch histories for the take that is running. */
   KnobRecorders _knobRecorders;
+  std::atomic<unsigned> _recordingAnnouncements{ 0 };
   std::atomic<bool> _takeWrote{ false };
   Pos _recordingHeldDirection = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */

@@ -225,3 +225,46 @@ TEST (TakeBand, ATakeCalledOffBeforeItsDownbeatNeverStarts)
   EXPECT_FALSE (engine.isRecordingOrScheduled ());
   EXPECT_FALSE (take->wasRecording ());
 }
+
+/** The same once the take has started -- REC again on the very downbeat, the
+ *  start and the call-off in one tick: the call-off stops it, so no take
+ *  records on that nobody owns. */
+TEST (TakeBand, ATakeCalledOffAfterItsStartStops)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+  engine.setRecordingMode (MotionEngine::RecordingMode::Loop);
+
+  auto take = std::make_shared<Pattern> ();
+  take->setChannel (0);
+  engine.recordPattern (take, Measure{}, Measure{ 1, 0, 0 });
+  ASSERT_TRUE (waitUntil ([&] { return engine.isRecording (); }));
+
+  engine.cancelScheduledRecording (take);
+  EXPECT_TRUE (waitUntil ([&] { return !engine.isRecordingOrScheduled (); }))
+      << "the take went on recording after it was called off";
+  EXPECT_NE (take->getStatus (), Pattern::Status::Recording);
+}
+
+/** A take called off before its downbeat is never announced as recording --
+ *  the strip would turn red and stay red. */
+TEST (TakeBand, ATakeCalledOffIsNeverAnnouncedAsRecording)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  engine.setPreviewMode (0, true);
+  engine.setTempoBPM (240.f);
+  engine.setRecordingMode (MotionEngine::RecordingMode::Loop);
+
+  auto const announced = engine.recordingAnnouncements ();
+  auto take = std::make_shared<Pattern> ();
+  take->setChannel (0);
+  engine.recordPattern (take, Measure{ 0, 2, 0 }, Measure{ 1, 0, 0 });
+  ASSERT_TRUE (waitUntil ([&] { return engine.isRecordingOrScheduled (); }));
+  engine.cancelScheduledRecording (take);
+
+  juce::Thread::sleep (1200);
+  EXPECT_EQ (engine.recordingAnnouncements (), announced);
+}

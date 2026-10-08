@@ -722,6 +722,12 @@ MotionEngine::cancelScheduledPlay (std::shared_ptr<Pattern> pattern)
   submitFifoMessage (message);
 }
 
+unsigned
+MotionEngine::recordingAnnouncements () const
+{
+  return _recordingAnnouncements.load (std::memory_order_relaxed);
+}
+
 void
 MotionEngine::cancelScheduledRecording (std::shared_ptr<Pattern> pattern)
 {
@@ -1159,13 +1165,23 @@ MotionEngine::handleFifoMessage (Message const &message)
     case Message::Command::CancelScheduledRecording:
       {
         // As CancelScheduledPlay: the pointer startRecording() checks goes,
-        // and the start still queued finds nothing to start.
-        if (!message.pattern
-            || _patternScheduledForRecording != message.pattern)
+        // and the start still queued finds nothing to start. Already started
+        // -- REC again on the very downbeat, or a slot filled as the take
+        // began -- it is stopped: either way nobody owns it any more.
+        if (!message.pattern)
           break;
 
-        _patternScheduledForRecording = nullptr;
-        message.pattern->restoreStatus ();
+        if (_patternScheduledForRecording == message.pattern)
+          {
+            _patternScheduledForRecording = nullptr;
+            message.pattern->restoreStatus ();
+          }
+        else if (_patternRecording == message.pattern)
+          {
+            stop (message.pattern, false);
+            notifyPatternStatusListeners (
+                PatternStatusMessage::Status::Stopped, message.pattern);
+          }
         break;
       }
     case Message::Command::StopAtEnd:
@@ -1277,7 +1293,11 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::StartRecording:
           {
-            startRecording (message.pattern, message.length, message.seed);
+            // A take called off or replaced starts nothing, so nothing is
+            // announced and no stop is scheduled for it.
+            if (!startRecording (message.pattern, message.length,
+                                 message.seed))
+              break;
 
             // one-shot recording: schedule stop right away
             if (_recordingMode == RecordingMode::OneShot)
@@ -1288,6 +1308,7 @@ MotionEngine::handleStartStopMessages ()
                 stopPattern (message.pattern, timepointStop);
               }
 
+            _recordingAnnouncements.fetch_add (1, std::memory_order_relaxed);
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Recording, message.pattern);
             break;
@@ -1327,17 +1348,17 @@ MotionEngine::takeWroteSomething () const
   return _takeWrote.load (std::memory_order_relaxed);
 }
 
-void
+bool
 MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                               std::shared_ptr<Pattern> const &seed)
 {
   if (!pattern)
-    return;
+    return false;
 
   // A start whose take is no longer the one scheduled: called off, or
   // replaced by a later REC (see scheduledForRecording()).
   if (_patternScheduledForRecording != pattern)
-    return;
+    return false;
 
   // Stop any currently recording pattern
   if (_patternRecording && _patternRecording != pattern)
@@ -1390,6 +1411,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
     {
       _patternScheduledForRecording = nullptr;
     }
+  return true;
 }
 
 void
