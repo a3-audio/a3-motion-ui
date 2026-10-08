@@ -77,6 +77,7 @@
 #include <a3-motion-engine/TextFile.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/components/PlayPausePress.hh>
 #include <a3-motion-ui/theme/CleanSkin.hh>
 #include <a3-motion-ui/components/SceneLaunch.hh>
 #include <a3-motion-ui/components/GlobalSettingsComponent.hh>
@@ -2340,44 +2341,51 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         if (!pattern)
           break;
 
-        // **On the next downbeat**, and with Shift on the spot -- which,
-        // since the panel lost its Stop pads (2026-09-27), is also how a
-        // running clip is stopped now.
+        // **On the next downbeat**; Shift means now and from the top, the
+        // panel's only way back to the top since it lost its Stop pads
+        // (2026-09-27) -- see playPausePress().
         //
-        // This used to be the next beat, on the reasoning that a bar is up to
-        // a metre's worth of beats away and a clip starting that late reads as
-        // a button that did not work. What that reasoning was missing is that
-        // a figure which does not begin on the one runs the whole pass against
-        // the music -- and it was written before the key blinked while it
-        // waited, which is what makes the wait legible rather than dead.
-        auto const on = isButtonPressed (Button::Shift)
-                            ? _now
-                            : TempoClock::nextDownBeat (_now);
-
-        auto const status = pattern->getStatus ();
-        if (status == Pattern::Status::Idle)
+        // The downbeat used to be the next beat, on the reasoning that a bar
+        // is up to a metre's worth of beats away and a clip starting that
+        // late reads as a button that did not work. What that reasoning was
+        // missing is that a figure which does not begin on the one runs the
+        // whole pass against the music -- and it was written before the key
+        // blinked while it waited, which is what makes the wait legible
+        // rather than dead.
+        auto const downbeat = TempoClock::nextDownBeat (_now);
+        switch (playPausePress (pattern->getStatus (),
+                                isButtonPressed (Button::Shift)))
           {
+          case PlayPausePress::Start:
+            // A paused clip goes on from where it stood; the engine knows.
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
-            _engine.playPattern (pattern, on);
-          }
-        else if (status == Pattern::Status::Playing)
-          {
-            // On the next downbeat, like a start, and with Shift on the spot.
-            // A pause that answered a lap later read as a key that does not
-            // work (maintainer, 2026-09-25). The key blinks while it waits.
-            //
+            _engine.playPattern (pattern, downbeat);
+            break;
+          case PlayPausePress::StartFromTheTopNow:
+            // A pause forgotten before the start reads it: the engine only
+            // looks at it when the start lands.
+            pattern->setResumesOnPlay (false);
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+            _engine.playPattern (pattern, _now);
+            break;
+          case PlayPausePress::Pause:
             // A pause, not a stop, since 2026-10-08 ("❚❚ resumes where it
-            // stopped"): the next ▶ goes on from the bar it was in. ■ is the
-            // way back to the top.
-            _engine.pausePattern (pattern, on);
-          }
-        else if (status == Pattern::Status::ScheduledForPlaying)
-          {
+            // stopped"): the next ▶ goes on from there. The key blinks while
+            // it waits for the downbeat (maintainer, 2026-09-25).
+            _engine.pausePattern (pattern, downbeat);
+            break;
+          case PlayPausePress::StopToTheTop:
+            _engine.stopPattern (pattern, _now);
+            break;
+          case PlayPausePress::CancelStart:
             // Not started yet, so there is no lap to finish: this is calling
             // off the start that is waiting for the downbeat. Taken back
             // rather than stopped -- a stop scheduled on top of a start is
             // still a start, see cancelScheduledPlay().
             _engine.cancelScheduledPlay (pattern);
+            break;
+          case PlayPausePress::Nothing:
+            break;
           }
         break;
       }
@@ -2547,13 +2555,9 @@ A3MotionUIComponent::stopChannel (index_t channel)
 
   // Now, not on a beat. Stop is the way out of a thing that is going wrong,
   // and a way out that waits for the music is not one.
-  // A paused clip is standing still already; ■ still sends it back to the
-  // top, so the next ▶ starts the pass again.
-  auto const status = pattern->getStatus ();
-  if (status == Pattern::Status::Playing
-      || status == Pattern::Status::Recording
-      || status == Pattern::Status::ScheduledForPlaying
-      || (status == Pattern::Status::Idle && pattern->resumesOnPlay ()))
+  // A paused clip, or one waiting to pause, goes back to the top too, so the
+  // next ▶ starts the pass again -- see stopReachesClip().
+  if (stopReachesClip (pattern->getStatus (), pattern->resumesOnPlay ()))
     _engine.stopPattern (pattern, _now);
 }
 

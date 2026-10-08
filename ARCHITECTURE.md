@@ -1623,17 +1623,23 @@ gone from the panel and the screen. Internally the slot dimension still exists w
 `padFunctionByPadIndex` and `actionButtonForPad` say which of the eight is which, and
 `padIndexFor()` / `padIndexForAction()` go the other way — the screen's PLAY and ACT keys and the
 ACTION page's fields reach `handlePadPress()` through them, so there is one route to what a pad
-means. STOP on the screen is `stopChannel()`: the panel has none. **Play|Pause on a running clip
-pauses** (`MotionEngine::pausePattern`, since 2026-10-08): on the next downbeat, with SHIFT at once,
-and the next start goes on from where it stood (`Pattern::resumesOnPlay`). A pause on the downbeat
-keeps the place as it is; one made at once goes back by the ticks since the music's last downbeat
-(`MotionEngine::rewindToTheBar`, `rewoundPlayhead()` / `rewoundLapTick()` in `Playhead.hh`,
-`rewoundLfoPhase()`) -- place, lap and slow movements together -- so the resume on a downbeat plays
-that bar again. Counted in ticks rather than snapped to the clip's bars: a pass that is not whole
-bars, Reverse, Bounce (home is the start of the outward leg) and a long pass of drifting float steps
-all come back exactly. A clip started inside the bar, or a pass that ends and would have to go back
-before its start, starts from the top instead. ■ (`stopPattern`) stops and goes back
-to the top, a paused clip included.
+means. STOP on the screen is `stopChannel()`: the panel has none.
+
+**Play|Pause on a running clip pauses** (`MotionEngine::pausePattern`, since 2026-10-08) on the next
+downbeat, and the next start goes on from where it stood (`Pattern::resumesOnPlay`); a paused ▶
+blinks slowly. **SHIFT means now and from the top** (`playPausePress()` in `PlayPausePress.hh`): on a
+running clip, or a pause still waiting, it stops and goes back to the top -- the panel's only way
+there -- and on a still clip it starts from the top at once, a pause forgotten. ■ (`stopPattern`)
+goes back to the top as well, a paused clip and a pending pause included (`stopReachesClip()`).
+
+A pause on the downbeat keeps the place as it is. One made off the downbeat -- the engine allows it,
+no key asks for it since SHIFT stops instead -- goes back by the ticks since the music's last
+downbeat (`MotionEngine::rewindToTheBar`; `rewoundPlayhead()` / `rewoundLapTick()` in
+`Playhead.hh`, `rewoundLfoPhase()`), place, lap and slow movements together, so a resume on a
+downbeat plays that bar again. Counted in ticks rather than snapped to the clip's bars: a pass that
+is not whole bars, Reverse, Bounce (home is the start of the outward leg) and a long pass of
+drifting float steps all come back exactly. A clip started inside the bar, or a pass that ends and
+would have to go back before its start, starts from the top instead.
 
 **A button is `ActionButton`** — file, source, dice seed, errors, and its **feel** (`ActionFeel`:
 the three envelopes and the act mode). The feel is what the script says (`actionFeelFrom` in
