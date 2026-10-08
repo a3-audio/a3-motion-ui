@@ -100,14 +100,6 @@ withoutBody (FlightBodies const &bodies, int left)
   return others;
 }
 
-Vec2
-turnedBy (Vec2 v, float angle)
-{
-  auto const c = std::cos (angle);
-  auto const s = std::sin (angle);
-  return { c * v.x - s * v.y, s * v.x + c * v.y };
-}
-
 }
 
 FlightWorld::FlightWorld (juce::int64 seed, FlightTuning const &tuning)
@@ -189,7 +181,7 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   // its circle (phase B, decision 12).
   for (auto ch = 0; ch < flightShips; ++ch)
     if (orders[index (ch)].flying && patrolling[index (ch)])
-      carry (ch, beatsPerBar, dt);
+      carry (ch, beats + dt, beatsPerBar, dt);
 }
 
 ShipState const &
@@ -224,7 +216,7 @@ FlightWorld::easeMotion (int ch, ShipOrders const &orders, float dt)
 }
 
 void
-FlightWorld::carry (int ch, int beatsPerBar, float dt)
+FlightWorld::carry (int ch, double beats, int beatsPerBar, float dt)
 {
   auto const weight = _motionWeight[index (ch)];
   if (weight <= 0.f)
@@ -237,10 +229,11 @@ FlightWorld::carry (int ch, int beatsPerBar, float dt)
   if (juce::exactlyEqual (laps, 0.f))
     return;
 
-  auto const angle = 2.f * pi<float> () * laps;
+  // Along the ellipse, as the rabbit's phase moves: a rigid turn about the
+  // middle would leave the ship off the path and the steering pulling back.
   auto &ship = _ships[index (ch)];
-  ship.p = turnedBy (ship.p, angle);
-  ship.v = turnedBy (ship.v, angle);
+  ship.p = carryAlongOrbit (ship.p, beats, beatsPerBar, _tuning, laps);
+  ship.v = carryAlongOrbit (ship.v, beats, beatsPerBar, _tuning, laps);
   // The rabbit goes round with it, or the steering would pull the ship back.
   auto &offset = _phaseOffset[index (ch)];
   offset += laps;

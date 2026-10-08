@@ -155,6 +155,23 @@ rabbitAt (double beats, int channel, int beatsPerBar,
            rotate (alongPath + withTurn, ellipse.turn) };
 }
 
+Vec2
+carryAlongOrbit (Vec2 v, double beats, int beatsPerBar,
+                 FlightTuning const &tuning, float laps)
+{
+  // R(turn) S R(angle) S^-1 R(-turn), S = diag(long, short): into the
+  // ellipse's frame, onto the unit circle, round, and back. A radiusScale
+  // scales S and cancels against S^-1, so it is not needed here.
+  auto const ellipse = ellipseAt (beats, beatsPerBar, tuning);
+  if (ellipse.longAxis <= 0.f || ellipse.shortAxis <= 0.f)
+    return rotate (v, static_cast<float> (twoPi) * laps);
+  auto const local = rotate (v, -ellipse.turn);
+  Vec2 const onCircle{ local.x / ellipse.longAxis, local.y / ellipse.shortAxis };
+  auto const turned = rotate (onCircle, static_cast<float> (twoPi) * laps);
+  return rotate ({ turned.x * ellipse.longAxis, turned.y * ellipse.shortAxis },
+                 ellipse.turn);
+}
+
 float
 nearestOrbitPhase (Vec2 p, double beats, int beatsPerBar,
                    FlightTuning const &tuning)

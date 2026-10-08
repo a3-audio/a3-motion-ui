@@ -54,6 +54,13 @@ OrbitPoint rabbitAt (double beats, int channel, int beatsPerBar,
                      FlightTuning const &tuning, float phaseOffset = 0.f,
                      float radiusScale = 1.f);
 
+/** `v` carried `laps` along the path as it stands at `beats`: the map that
+ *  takes the ellipse onto itself, every point `laps` further round, as the
+ *  rabbit's phase moves (phase B, an action's spin and pace). Linear, so it
+ *  carries a position and a velocity alike; the same at every radiusScale. */
+Vec2 carryAlongOrbit (Vec2 v, double beats, int beatsPerBar,
+                      FlightTuning const &tuning, float laps);
+
 /** The lap phase (0..1) on the ellipse nearest `p` at time `beats`.
  *  No allocation: safe on the clock thread. */
 float nearestOrbitPhase (Vec2 p, double beats, int beatsPerBar,

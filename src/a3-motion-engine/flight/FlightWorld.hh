@@ -118,10 +118,11 @@ private:
                      std::array<ShipOrders, flightShips> const &orders) const;
   void redrawWanderOnANewBar (double beats, int beatsPerBar);
   void easeMotion (int ch, ShipOrders const &orders, float dt);
-  /** Turns patrolling ship `ch` and its rabbit round the room's middle by
-   *  the laps its action adds to the path's own (spin, pace). The ship is
-   *  carried, not steered: the steering and gravity balance stay as tuned. */
-  void carry (int ch, int beatsPerBar, float dt);
+  /** Carries patrolling ship `ch` and its rabbit along the path as it stands
+   *  at `beats` by the laps its action adds to the path's own (spin, pace).
+   *  The ship is carried, not steered: the steering and gravity balance stay
+   *  as tuned. */
+  void carry (int ch, double beats, int beatsPerBar, float dt);
 
   FlightTuning _tuning;
   std::array<ShipState, flightShips> _ships{};

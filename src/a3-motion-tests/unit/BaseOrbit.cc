@@ -258,3 +258,31 @@ TEST (BaseOrbit, AScaledRabbitRunsOnAScaledEllipse)
       EXPECT_NEAR (half.velocity.y, plain.velocity.y * 0.5f, 1e-5f) << beats;
     }
 }
+
+// An action's spin carries a ship along the path, not round a circle: a
+// point on the ellipse goes where the rabbit goes by the same laps, and the
+// rabbit's velocity turns into the rabbit's velocity there.
+TEST (BaseOrbit, ACarryMovesAPointOnThePathAsTheRabbitMoves)
+{
+  FlightTuning const tuning;
+  for (auto const beats : { 0., 3.25, 11.5 })
+    for (auto const offset : { 0.f, 0.1f, 0.3f, 0.65f })
+      for (auto const laps : { 0.01f, -0.2f, 0.37f })
+        {
+          auto const from = rabbitAt (beats, 0, fourFour, tuning, offset);
+          auto const to = rabbitAt (beats, 0, fourFour, tuning, offset + laps);
+          auto const at = carryAlongOrbit (from.at, beats, fourFour, tuning, laps);
+          EXPECT_NEAR (at.x, to.at.x, 1e-5f) << beats << " " << offset << " " << laps;
+          EXPECT_NEAR (at.y, to.at.y, 1e-5f) << beats << " " << offset << " " << laps;
+        }
+}
+
+TEST (BaseOrbit, ACarryIsTheSameOnABreathingPath)
+{
+  FlightTuning const tuning;
+  auto const from = rabbitAt (5., 2, fourFour, tuning, 0.2f, 0.6f);
+  auto const to = rabbitAt (5., 2, fourFour, tuning, 0.45f, 0.6f);
+  auto const at = carryAlongOrbit (from.at, 5., fourFour, tuning, 0.25f);
+  EXPECT_NEAR (at.x, to.at.x, 1e-5f);
+  EXPECT_NEAR (at.y, to.at.y, 1e-5f);
+}

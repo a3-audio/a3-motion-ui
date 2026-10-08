@@ -962,3 +962,47 @@ TEST (FlightMotionWorld, ALaunchStartsUndriven)
   world.launch (0, world.ship (0).p, 2., fourFour);
   EXPECT_FLOAT_EQ (world.motionWeight (0), 0.f);
 }
+
+namespace
+{
+/** How far `p` is off the path as it stands at `beats`. */
+float
+offThePath (Vec2 p, double beats, FlightTuning const &tuning)
+{
+  auto const phase = nearestOrbitPhase (p, beats, fourFour, tuning);
+  auto const onPath = rabbitAt (beats, 0, fourFour, tuning,
+                                phase - rabbitSlotPhase (beats, 0, fourFour, tuning)).at;
+  return (p - onPath).getDistanceFromOrigin ();
+}
+
+float
+furthestOffThePath (std::vector<Sample> const &path, FlightTuning const &tuning)
+{
+  auto furthest = 0.f;
+  for (auto const &sample : path)
+    furthest = std::max (furthest, offThePath (sample.ships[0].p, sample.beats, tuning));
+  return furthest;
+}
+}
+
+// Decision 4: carried, not steered. A ship alone on its path, without the
+// wander, stays on the path under the fastest spin: the carry moves it
+// along the ellipse with its rabbit, so the steering has nothing to undo.
+TEST (FlightMotionWorld, ACarriedShipStaysOnThePath)
+{
+  FlightTuning tuning;
+  tuning.wanderRadius = 0.f;
+  std::array<ShipOrders, 4> alone{};
+  alone[0].flying = true;
+  auto driven = alone;
+  driven[0].motion = spinOf (8);
+  driven[0].driven = true;
+
+  FlightWorld plain (aSeed, tuning);
+  FlightWorld spun (aSeed, tuning);
+  plain.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  spun.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  auto const free = furthestOffThePath (run (plain, alone, {}, ticksIn (16.)), tuning);
+  auto const carried = furthestOffThePath (run (spun, driven, {}, ticksIn (16.)), tuning);
+  EXPECT_LT (carried, free + 0.01f) << "free " << free;
+}
