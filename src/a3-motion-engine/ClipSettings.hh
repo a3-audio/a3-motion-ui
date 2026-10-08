@@ -303,18 +303,19 @@ ElevationParams sweptElevation (ElevationParams params,
  */
 float defaultReach (float current);
 
-/** Where a double tap puts the elevation line: ear height, 0° elevation
- *  (maintainer, 2026-10-08).
+/** Where a double tap puts the elevation line: the figure centred on ear
+ *  height, 0° elevation (maintainer, 2026-10-08).
  *
- *  It used to be the middle of whatever band the clips left, which was a
- *  different height for every clip; ear height is what a hand reaching for
- *  "neutral" mid-set means. The clip default of zero is straight overhead,
- *  which is a place to put a sound rather than a place to come back to.
+ *  The line is the figure's top, not its middle -- the cone grows down from
+ *  it (up with a negative reach) -- so the rest depends on `reach`: see
+ *  elevationBaseCentring(). Putting the top at ear height left the whole
+ *  figure below it, its middle straight down. The middle of whatever band the
+ *  clips left, before that, was a different height for every clip.
  *
  *  The clips bound it, ordered the way sweptElevation() orders them, so a
  *  double tap never puts the line somewhere the sound may not go: where they
- *  take ear height away, it goes as near to it as they allow.
+ *  take the centred rest away, it goes as near to it as they allow.
  */
-float defaultElevationBase (float clipTop, float clipBottom);
+float defaultElevationBase (float clipTop, float clipBottom, float reach);
 
 }

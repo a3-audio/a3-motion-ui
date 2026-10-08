@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/TempoLfo.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 namespace a3
 {
@@ -234,16 +235,16 @@ defaultReach (float current)
 }
 
 float
-defaultElevationBase (float clipTop, float clipBottom)
+defaultElevationBase (float clipTop, float clipBottom, float reach)
 {
-  // Ear height, held inside the clips the way sweptElevation() holds the
-  // base: a height, not a share of whatever band the clips leave.
+  // The figure centred on ear height, held inside the clips the way
+  // sweptElevation() holds the base.
   constexpr float earHeight = 0.5f;
   auto const ceiling = std::clamp (clipTop, 0.f, 1.f);
   auto const floor = 1.f - std::clamp (clipBottom, 0.f, 1.f);
 
-  return std::clamp (earHeight, std::min (ceiling, floor),
-                     std::max (ceiling, floor));
+  return std::clamp (elevationBaseCentring (earHeight, reach),
+                     std::min (ceiling, floor), std::max (ceiling, floor));
 }
 
 bool

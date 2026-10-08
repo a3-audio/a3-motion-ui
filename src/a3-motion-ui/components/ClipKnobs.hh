@@ -68,8 +68,9 @@ elevationKnobSpec (int sub)
   if (sub == 2)
     return { -lfoMaxStep, lfoMaxStep, 1.0, 0.0, true, false, caption::sway };
 
-  // Where the middle of the trajectory sits, bottom to top. Two taps are the
-  // page's rule (ear height, held inside the clips: defaultElevationBase),
+  // Where the figure's top sits, bottom to top: the cone grows down from it
+  // (up with a negative reach). Two taps are the page's rule -- the figure
+  // centred on ear height, held inside the clips: defaultElevationBase() --
   // not a number in the table.
   if (sub == 3)
     return { 0.0, 1.0, 0.0, 0.5, false, false, caption::elevation };

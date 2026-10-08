@@ -24,6 +24,10 @@
 
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
+
+#include <algorithm>
+#include <cmath>
 
 #include "ClipSettingsFields.hh"
 
@@ -413,39 +417,72 @@ TEST (ClipSettings, TwoTapsOnTheReachGoToTwelveOClock)
 
 // ── Where a double tap puts the elevation line ──────────────────────────
 
-/** The middle of the range the control actually has.
- *
- *  That is the rule the rest of the bar's knobs already follow, and for the
- *  elevation line the range is the circle it is drawn in: its middle is the
- *  equator, ear height, which is also the one height a hand reaching for
- *  "neutral" mid-set means. Not the clip default of zero -- that is straight
- *  overhead, which is a place to put a sound, not a place to come back to.
- */
-TEST (ClipSettings, TheElevationLineGoesBackToEarHeight)
+namespace
 {
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.f, 0.f), 0.5f);
+/** The heights a figure's ring plays at `base`: the pad from the edge of its
+ *  middle run (a third of the pattern range, see HeightMapSphere's
+ *  originFold) out to the drawn circle, sampled. */
+std::pair<float, float>
+ringHeights (float base, float reach)
+{
+  HeightMapSphere sphere;
+  ElevationParams params;
+  params.elevationBase = base;
+  params.reach = reach;
+  auto lowest = 1.f;
+  auto highest = 0.f;
+  for (auto r = 0.5f; r <= 1.0001f; r += 0.05f)
+    {
+      auto const direction
+          = sphere.mapTo3D (Pos::fromCartesian (r, 0.f, 0.f), params);
+      auto const frac
+          = std::acos (std::clamp (direction.z (), -1.f, 1.f)) / 3.14159265f;
+      lowest = std::min (lowest, frac);
+      highest = std::max (highest, frac);
+    }
+  return { lowest, highest };
+}
 }
 
-/** Ear height whatever the clips leave around it (maintainer, 2026-10-08):
- *  the middle of the clip band was a different height for every clip, and
- *  the knob's rest is a height, not a share of the band. */
-TEST (ClipSettings, TheElevationLineGoesBackToEarHeightInsideTheClips)
+/** A double tap on elv centres the figure on ear height (maintainer,
+ *  2026-10-08). The knob sets the figure's top -- the cone grows down from
+ *  it -- so putting the top at ear height left the whole figure hanging below
+ *  it, its middle straight down: the recording of 2026-09-29. Where the rest
+ *  sits depends on how far the figure reaches. */
+TEST (ClipSettings, ADoubleTapCentresTheFigureOnEarHeight)
 {
-  // Ceiling a third down, floor a fifth up: ear height is still in the room.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.3f, 0.2f), 0.5f);
-  // Clips pushed past each other leave the range between them, ear height
-  // included, the same rule sweptElevation() holds the base by.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.8f, 0.6f), 0.5f);
+  for (auto const reach : { 0.5f, 0.3f, 0.7f, -0.5f })
+    {
+      auto const [lowest, highest]
+          = ringHeights (defaultElevationBase (0.f, 0.f, reach), reach);
+      EXPECT_NEAR ((lowest + highest) * 0.5f, 0.5f, 0.02f)
+          << "reach " << reach << ": " << lowest << " to " << highest;
+    }
 }
 
-/** Where the clips take ear height away, as near to it as the sound may go,
- *  so a double tap never puts the line somewhere the sound may not go. */
-TEST (ClipSettings, WithoutEarHeightTheLineGoesAsNearAsItMay)
+TEST (ClipSettings, AtTheDefaultReachTheFigureNoLongerHangsBelow)
 {
-  // Floor raised past ear height: the band is the upper part of the room.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.f, 0.6f), 0.4f);
-  // Ceiling lowered past it: the lower part.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.7f, 0.f), 0.7f);
+  auto const reach = ClipSettings{}.reach;
+  auto const [lowest, highest]
+      = ringHeights (defaultElevationBase (0.f, 0.f, reach), reach);
+  EXPECT_LT (lowest, 0.5f) << "nothing of it is above ear height";
+  EXPECT_GT (highest, 0.5f);
+}
+
+/** The clips still bound it, ordered the way sweptElevation() orders them, so
+ *  a double tap never puts the line somewhere the sound may not go: where
+ *  they take the centred rest away, it goes as near to it as they allow. */
+TEST (ClipSettings, TheRestStaysInsideTheClips)
+{
+  auto const free = defaultElevationBase (0.f, 0.f, 0.5f);
+  // A ceiling below the rest holds it there.
+  EXPECT_NEAR (defaultElevationBase (free + 0.1f, 0.f, 0.5f), free + 0.1f,
+               1e-5f);
+  // A floor above it, likewise.
+  EXPECT_NEAR (defaultElevationBase (0.f, 1.f - (free - 0.1f), 0.5f),
+               free - 0.1f, 1e-5f);
+  // Clips crossed: the range between them, the same rule as the base.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.8f, 0.6f, 0.5f), 0.4f);
 }
 
 /** A hand-set reach stands as long as it fits. */

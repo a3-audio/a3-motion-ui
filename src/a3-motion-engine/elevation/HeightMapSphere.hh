@@ -27,6 +27,14 @@
 namespace a3
 {
 
+/** The elevation base that centres a figure's ring on `height` (0 north, 1
+ *  south): the band the pad plays between the edge of its middle run and the
+ *  drawn circle. The base is the figure's top -- the cone grows down from it,
+ *  or up with a negative reach -- so the base that centres it depends on how
+ *  far the figure reaches. Clamped to the sphere; the clips are the caller's.
+ */
+float elevationBaseCentring (float height, float reach);
+
 class HeightMapSphere : public HeightMap
 {
 public:
