@@ -21,10 +21,9 @@
 #include "FpvStrips.hh"
 
 #include <a3-motion-ui/components/FittedFont.hh>
+#include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
-
-#include <cmath>
 
 namespace a3
 {
@@ -100,8 +99,9 @@ paintEscortDisc (juce::Graphics &g, juce::Rectangle<int> box, float mass)
   auto const full = static_cast<float> (box.getHeight ()) * textOfSection
                     * discOfText;
   auto const diameter
-      = full * std::sqrt (juce::jlimit (0.f, 1.f, mass / heaviestMass));
-  g.setColour (toColour (theme ().textPrimary, theme ().alphaActive));
+      = full
+        * juce::jmin (1.f, bodyWeightScale (mass) / bodyWeightScale (heaviestMass));
+  g.setColour (toColour (bodyColour (BodyRole::Attract), theme ().alphaActive));
   g.fillEllipse (box.toFloat ()
                      .withWidth (full)
                      .withSizeKeepingCentre (diameter, diameter));
