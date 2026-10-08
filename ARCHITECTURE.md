@@ -247,13 +247,13 @@ Groups live for the session only. Plan: `.claude/notes/fpv-phase-2-plan.md` in t
 
 | Part | What it does |
 |---|---|
-| bodies | Up to 8 points on the floor with a mass: G +1, C +2, H +3, X (dead zone) -2 |
+| bodies | Up to 8 points on the floor with a mass: G +0.5, C +1, H +1.5, X (dead zone) -2 (`FlightTuning`). Drawn relative to a group, so the sizes did not change with the masses |
 | big path | `BaseOrbit`: an ellipse that precesses once per 32 bars; a "rabbit" runs on it, locked to the bar |
 | ship | `a = steer + gravity + separation + wander - damping*v`, stepped one tick at a time |
-| beat pulse | Gravity is `1 + depth*(1 - beatFraction)^2`: hardest on the beat, hardest of all on the one |
+| beat pulse | The gate (default, `gravityOnlyOnTheOne`): gravity pulls only during beat 1 of each bar, so every bend lands on the one. Off, it is `1 + depth*(1 - beatFraction)^2` on every beat. The floor draws `drawnPulse`: the discs swell on the one and rest at their size otherwise |
 | escort | The goal becomes a circle round one body; its own pull is left out so the ship holds the circle |
 | dead zone | A soft wall at `deadZoneClearance`, because capped repulsion lost against the steering |
-| breath | Off by default. When on, every ship stands still through the last beat of each bar, velocity kept, while its rabbit runs on; it restarts on the one (`Breath.hh`, `MotionEngine::setFlightBreath`). The switch guarantees no partial stop, it is not quantised to the downbeat: made inside a stop it waits for the one, so no stop is cut short or started late; made outside one it acts at once, so switched on in beats 1-3 this bar's beat 4 already holds. Under three beats a bar there is no breath |
+| breath | On by default (`flightBreathAtStart`). When on, every ship stands still through the last beat of each bar, velocity kept, while its rabbit runs on; it restarts on the one (`Breath.hh`, `MotionEngine::setFlightBreath`). The switch guarantees no partial stop, it is not quantised to the downbeat: made inside a stop it waits for the one, so no stop is cut short or started late; made outside one it acts at once, so switched on in beats 1-3 this bar's beat 4 already holds. Under three beats a bar there is no breath |
 
 Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The plane is the clip's
 floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
@@ -297,10 +297,13 @@ newest wins. No new OSC address.
 (`FpvPageHold`, `fpvPagePress`). Group ids are the lowest free 0..7, so G-labels stay stable while
 a group lives and are reused after its removal.
 
-**The breath is an A/B, not a decision.** The MJ lab (2026-10-08) found that a one-beat stop on
-beat 4 of every bar, not gravity, is what keeps the ships from sounding like they only circle, and
-that with it the planets cost attention. The maintainer's direction is planets (masses 1/2/3); the
-breath sits beside them as a key, off at start-up and never saved, so both can be heard on the rig.
+**The breath and light planets are the defaults.** The MJ lab (2026-10-08) found that a one-beat
+stop on beat 4 of every bar, not gravity, is what keeps the ships from sounding like they only
+circle, and that with it the planets cost attention. After the A/B on the rig the maintainer chose
+the lab's set (2026-10-08): the breath on at start-up (the key switches it off for the session,
+never saved), planets at half the plan's masses (0.5/1/1.5), gravity gated to beat 1. The planets
+say *where* the sound goes; the breath keeps it alive. The lab's fourth point, two ships moving
+rather than four, is a way to play (playbook rule 13), not an engine rule: nothing stops four.
 
 **Where it lives.**
 
@@ -313,7 +316,10 @@ breath sits beside them as a key, off at start-up and never saved, so both can b
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
 and tagged as lab value, research value or guess. The rig changes values there; no test changes.
 Known compromises: the steer and gravity caps are 1.1, not the lab's 0.6, because 0.6 slings
-only ~1.4x; a single group (mass 1) bends the path only ~13-15 degrees.
+only ~1.4x. With light planets gated to the one, a crowd near the path bends it 0.05-0.17 (the
+audible bar is 0.30) and a hotspot slings audibly on 4 of 16 passes (bar 12): the three
+`FlightGravity` "what a guest hears" tests fail on purpose until the maintainer decides between
+the lab's quiet planets and audible bends (gravity x4 under the gate would pass them).
 
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
