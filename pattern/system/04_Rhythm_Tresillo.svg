@@ -2,7 +2,7 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Rhythm Tresillo"
      data-beats="4" data-ppqn="128">
-  <circle cx="-0.0000" cy="1.0000" r="0.05"/>
-  <circle cx="-0.8660" cy="-0.5000" r="0.05"/>
-  <circle cx="0.8660" cy="-0.5000" r="0.05"/>
+  <circle cx="-0.0000" cy="1.0000" r="0.05" data-at="0"/>
+  <circle cx="-0.8660" cy="-0.5000" r="0.05" data-at="192"/>
+  <circle cx="0.8660" cy="-0.5000" r="0.05" data-at="384"/>
 </svg>

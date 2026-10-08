@@ -2,6 +2,12 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Rhythm Shuffle"
      data-beats="4" data-ppqn="128">
-  <circle cx="0.0000" cy="1.0000" r="0.05"/>
-  <circle cx="0.0000" cy="-1.0000" r="0.05"/>
+  <circle cx="0.0000" cy="1.0000" r="0.05" data-at="0"/>
+  <circle cx="0.0000" cy="-1.0000" r="0.05" data-at="85"/>
+  <circle cx="0.0000" cy="1.0000" r="0.05" data-at="128"/>
+  <circle cx="0.0000" cy="-1.0000" r="0.05" data-at="213"/>
+  <circle cx="0.0000" cy="1.0000" r="0.05" data-at="256"/>
+  <circle cx="0.0000" cy="-1.0000" r="0.05" data-at="341"/>
+  <circle cx="0.0000" cy="1.0000" r="0.05" data-at="384"/>
+  <circle cx="0.0000" cy="-1.0000" r="0.05" data-at="469"/>
 </svg>

@@ -85,9 +85,11 @@ fts (float v)
 
 static std::string
 buildSvgPathData (std::vector<Pos> const &ticks,
-                  std::vector<std::pair<float,float>> &outJumpDots)
+                  std::vector<std::pair<float,float>> &outJumpDots,
+                  std::vector<std::size_t> &outHitTicks)
 {
   outJumpDots.clear ();
+  outHitTicks.clear ();
 
   if (ticks.empty ())
     return {};
@@ -188,25 +190,16 @@ buildSvgPathData (std::vector<Pos> const &ticks,
   // Decided on the shape of the tick data, not on how many ticks are missing
   // from it. The old test needed at least two segments, which only ever
   // happened while gaps were still in the data.
+  // One dot per hit, each with the tick it lands on (#61). Folding the hits
+  // that return to a place into one dot kept the picture and lost the
+  // rhythm: a gallop's twelve hits came back as three even ones.
   if (isTappedTrajectory (ticks))
     {
-      for (auto const &held : trajectoryPlateaus (ticks))
+      for (auto const &hit : trajectoryHits (ticks))
         {
-          float const nx = held.x () / scale;
-          float const ny = held.y () / scale;
-
-          bool duplicate = false;
-          for (auto const &d : outJumpDots)
-            {
-              if (std::abs (d.first - nx) < 0.05f
-                  && std::abs (d.second - ny) < 0.05f)
-                {
-                  duplicate = true;
-                  break;
-                }
-            }
-          if (!duplicate)
-            outJumpDots.push_back ({ nx, ny });
+          outJumpDots.push_back (
+              { hit.position.x () / scale, hit.position.y () / scale });
+          outHitTicks.push_back (hit.tick);
         }
       return {};
     }
@@ -299,6 +292,9 @@ static constexpr char const *kKindTake = "take";
 
 /** On a take's path: the tick each subpath starts at, in order. */
 static constexpr char const *kTicksAttribute = "data-ticks";
+
+/** On a shape's circle: the tick it is landed on (#61). */
+static constexpr char const *kAtAttribute = "data-at";
 
 /** A take's path: one vertex per tick, a subpath per run.
  *
@@ -527,14 +523,66 @@ flattenQuadratic (Vec2 p0, Vec2 p1, Vec2 p2,
 //  to produce an identical polyline, then resamples at uniform arc-length.
 // ---------------------------------------------------------------------------
 
+/** Dots that say when they are landed on (#61): each holds from its tick to
+ *  the next one's, the last round the loop to the first, and the tick before
+ *  each landing is left empty -- the same gap the even spread leaves, so a
+ *  jump is still a jump. */
+static void
+placeTimedDots (std::vector<std::pair<float,float>> const &jumpDots,
+                std::vector<std::size_t> const &rawHitTicks,
+                std::size_t numTicks, std::vector<Pos> &outTicks)
+{
+  if (numTicks == 0)
+    return;
+
+  // A time past the clip's end comes round, as the generator's do.
+  std::vector<std::size_t> hitTicks;
+  for (auto const at : rawHitTicks)
+    hitTicks.push_back (at % numTicks);
+
+  std::vector<std::size_t> order (jumpDots.size ());
+  for (std::size_t i = 0; i < order.size (); ++i)
+    order[i] = i;
+  std::stable_sort (order.begin (), order.end (),
+                    [&hitTicks] (std::size_t a, std::size_t b) {
+                      return hitTicks[a] < hitTicks[b];
+                    });
+
+  auto const landsOn = [&] (std::size_t tick) {
+    return std::any_of (hitTicks.begin (), hitTicks.end (),
+                        [tick] (std::size_t at) { return at == tick; });
+  };
+
+  auto current = order.back ();
+  std::size_t next = 0;
+  for (std::size_t t = 0; t < numTicks; ++t)
+    {
+      while (next < order.size () && hitTicks[order[next]] <= t)
+        current = order[next++];
+
+      if (landsOn ((t + 1) % numTicks))
+        outTicks.push_back (Pos::invalid);
+      else
+        outTicks.push_back (Pos::fromCartesian (jumpDots[current].first,
+                                                jumpDots[current].second, 0.f));
+    }
+}
+
 static void
 sampleSvgPathToTicks (std::string const &pathData,
                       std::vector<std::pair<float,float>> const &jumpDots,
+                      std::vector<std::size_t> const &hitTicks,
                       std::size_t numTicks,
                       std::vector<Pos> &outTicks)
 {
   outTicks.clear ();
   outTicks.reserve (numTicks);
+
+  if (!jumpDots.empty () && hitTicks.size () == jumpDots.size ())
+    {
+      placeTimedDots (jumpDots, hitTicks, numTicks, outTicks);
+      return;
+    }
 
   if (!jumpDots.empty ())
     {
@@ -728,9 +776,11 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
   // tick for tick where it plays (#68).
   auto const isTake = pattern->isTake ();
   std::vector<std::pair<float,float>> jumpDots;
+  std::vector<std::size_t> hitTicks;
   std::vector<std::size_t> runStarts;
   auto pathData = isTake ? buildTakePathData (ticks.positions, runStarts)
-                         : buildSvgPathData (ticks.positions, jumpDots);
+                         : buildSvgPathData (ticks.positions, jumpDots,
+                                             hitTicks);
   if (isTake)
     jumpDots = takeTapDots (ticks.positions);
 
@@ -773,12 +823,17 @@ PatternFile::save (std::shared_ptr<Pattern> const &pattern,
       pathEl->setAttribute ("stroke", "black");
     }
 
-  for (auto const &dot : jumpDots)
+  auto const timed = hitTicks.size () == jumpDots.size ();
+  for (std::size_t i = 0; i < jumpDots.size (); ++i)
     {
+      auto const &dot = jumpDots[i];
       auto *circleEl = svg->createNewChildElement ("circle");
       circleEl->setAttribute ("cx", juce::String (dot.first, 4));
       circleEl->setAttribute ("cy", juce::String (dot.second, 4));
       circleEl->setAttribute ("r", "0.05");
+      if (timed)
+        circleEl->setAttribute (
+            kAtAttribute, juce::String (static_cast<juce::int64> (hitTicks[i])));
     }
 
   file.getParentDirectory ().createDirectory ();
@@ -804,12 +859,15 @@ PatternFile::load (juce::File const &file)
   auto ppqn = xml->getIntAttribute ("data-ppqn",
                                      TempoClock::getTicksPerBeat ());
 
-  if (lengthBeats <= 0)
+  // No beats or no ticks to a beat is no clip; a timed dot would divide by it.
+  if (lengthBeats <= 0 || ppqn <= 0)
     return nullptr;
 
   std::string pathData;
   juce::String runStarts;
   std::vector<std::pair<float,float>> jumpDots;
+  std::vector<std::size_t> hitTicks;
+  auto everyDotTimed = true;
 
   for (auto *child : xml->getChildIterator ())
     {
@@ -827,8 +885,19 @@ PatternFile::load (juce::File const &file)
           auto cx = child->getStringAttribute ("cx").getFloatValue ();
           auto cy = child->getStringAttribute ("cy").getFloatValue ();
           jumpDots.push_back ({ cx, cy });
+          // A time that is not a whole number of ticks is no time.
+          auto const at = child->getStringAttribute (kAtAttribute).trim ();
+          auto const isTime
+              = at.isNotEmpty () && at.containsOnly ("0123456789");
+          everyDotTimed = everyDotTimed && isTime;
+          hitTicks.push_back (
+              isTime ? static_cast<std::size_t> (at.getLargeIntValue ()) : 0u);
         }
     }
+
+  // Half a timing is no timing: such a file is read the old way.
+  if (!everyDotTimed)
+    hitTicks.clear ();
 
   auto pattern = std::make_shared<Pattern> ();
   pattern->setName (name);
@@ -850,7 +919,7 @@ PatternFile::load (juce::File const &file)
   if (isTake)
     sampled = readTakeTicks (juce::String (pathData), runStarts, numTicks);
   else
-    sampleSvgPathToTicks (pathData, jumpDots, numTicks, sampled);
+    sampleSvgPathToTicks (pathData, jumpDots, hitTicks, numTicks, sampled);
 
   for (index_t t = 0; t < numTicks && t < sampled.size (); ++t)
     pattern->setTick (t, sampled[t]);

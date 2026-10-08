@@ -40,8 +40,14 @@ namespace a3
  *   <svg xmlns="..." viewBox="-1 -1 2 2"
  *        data-name="Circle" data-beats="16" data-ppqn="128">
  *     <path d="M ... C ..." fill="none" stroke="black"/>
- *     <circle cx="0.5" cy="0.3" r="0.05"/>  <!-- jump-dot patterns -->
+ *     <circle cx="0.5" cy="0.3" r="0.05" data-at="0"/>  <!-- jump dots -->
  *   </svg>
+ *
+ * A jump dot is one hit (#61): data-at is the tick (of data-ppqn) it is
+ * landed on, it holds until the next one, and the tick before each landing
+ * stays empty. A dot is written per hit, so a place landed on twice has two.
+ * Dots without data-at -- every file written before #61, and any file where
+ * only some carry it -- are spread evenly over the clip, as they always were.
  *
  * Continuous patterns are stored with Catmull-Rom→Bézier curves
  * and a palindrome (forward+backward) approach for seamless loops.

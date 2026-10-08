@@ -2,6 +2,8 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Rhythm Offbeat"
      data-beats="4" data-ppqn="128">
-  <circle cx="1.0000" cy="0.0000" r="0.05"/>
-  <circle cx="-1.0000" cy="0.0000" r="0.05"/>
+  <circle cx="-1.0000" cy="0.0000" r="0.05" data-at="64"/>
+  <circle cx="1.0000" cy="0.0000" r="0.05" data-at="192"/>
+  <circle cx="-1.0000" cy="0.0000" r="0.05" data-at="320"/>
+  <circle cx="1.0000" cy="0.0000" r="0.05" data-at="448"/>
 </svg>

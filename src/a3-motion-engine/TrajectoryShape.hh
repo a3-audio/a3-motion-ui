@@ -71,6 +71,19 @@ bool isTappedTrajectory (std::vector<Pos> const &ticks);
  *  the repeats that hold them. */
 std::vector<Pos> trajectoryPlateaus (std::vector<Pos> const &ticks);
 
+/** A place landed on, and the tick it was landed on. */
+struct TrajectoryHit
+{
+  Pos position;
+  size_t tick;
+};
+
+/** Every landing, in tick order, with its tick -- what a rhythm needs and the
+ *  plateaus throw away (#61). Unlike them, a place landed on twice is two
+ *  hits, and a rest still going at the end of the ring counts from where it
+ *  began there, not from tick 0. */
+std::vector<TrajectoryHit> trajectoryHits (std::vector<Pos> const &ticks);
+
 /** Each step's jump threshold, one per tick: the step from tick i to the
  *  next is a jump when it is longer than element i. Measured against the pace
  *  of the hand around that step rather than the whole take, so a fast stroke

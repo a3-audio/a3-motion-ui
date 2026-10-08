@@ -2,9 +2,12 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Rhythm Echo"
      data-beats="16" data-ppqn="128">
-  <circle cx="1.0000" cy="1.0000" r="0.05"/>
-  <circle cx="0.0000" cy="0.0000" r="0.05"/>
-  <circle cx="0.5000" cy="0.5000" r="0.05"/>
-  <circle cx="0.2500" cy="0.2500" r="0.05"/>
-  <circle cx="0.1250" cy="0.1250" r="0.05"/>
+  <circle cx="1.0000" cy="1.0000" r="0.05" data-at="0"/>
+  <circle cx="0.0000" cy="0.0000" r="0.05" data-at="256"/>
+  <circle cx="0.5000" cy="0.5000" r="0.05" data-at="512"/>
+  <circle cx="0.0000" cy="0.0000" r="0.05" data-at="768"/>
+  <circle cx="0.2500" cy="0.2500" r="0.05" data-at="1024"/>
+  <circle cx="0.0000" cy="0.0000" r="0.05" data-at="1280"/>
+  <circle cx="0.1250" cy="0.1250" r="0.05" data-at="1536"/>
+  <circle cx="0.0000" cy="0.0000" r="0.05" data-at="1792"/>
 </svg>

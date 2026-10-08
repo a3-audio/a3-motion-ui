@@ -264,15 +264,14 @@ isTappedTrajectory (std::vector<Pos> const &ticks)
   return places >= 1 && places <= maxTappedPositions;
 }
 
-std::vector<Pos>
-trajectoryPlateaus (std::vector<Pos> const &ticks)
+/** Every run of at least `minRun` ticks that never leaves its spot, with the
+ *  tick it starts on, in tick order. A run that is still going at the end of
+ *  the ring is cut there; whether it carries on at tick 0 is the caller's
+ *  question. */
+static std::vector<TrajectoryHit>
+heldRuns (std::vector<Pos> const &ticks, size_t minRun)
 {
-  std::vector<Pos> plateaus;
-
-  auto const minRun = std::max (
-      plateauMinTicks,
-      static_cast<size_t> (static_cast<float> (ticks.size ())
-                           * plateauMinFraction));
+  std::vector<TrajectoryHit> runs;
 
   // A run of consecutive ticks that never leaves the spot it started on. Only
   // a run long enough to be a rest is a place; the rest of the ticks are the
@@ -283,7 +282,7 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
   auto const closeRun = [&] (size_t runEnd) {
     if (!inRun || runEnd - runStart < minRun)
       return;
-    plateaus.push_back (ticks[runStart]);
+    runs.push_back ({ ticks[runStart], runStart });
   };
 
   for (size_t i = 0; i < ticks.size (); ++i)
@@ -310,6 +309,22 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
     }
   closeRun (ticks.size ());
 
+  return runs;
+}
+
+std::vector<Pos>
+trajectoryPlateaus (std::vector<Pos> const &ticks)
+{
+  // A place is held for a share of the clip, so a long clip's passing
+  // touches are not counted as places.
+  auto const minRun = std::max (
+      plateauMinTicks,
+      static_cast<size_t> (static_cast<float> (ticks.size ())
+                           * plateauMinFraction));
+  std::vector<Pos> plateaus;
+  for (auto const &run : heldRuns (ticks, minRun))
+    plateaus.push_back (run.position);
+
   // The loop's last held position and its first are one and the same when the
   // take was still sitting on its opening tap as it came round.
   if (plateaus.size () > 1
@@ -317,6 +332,57 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
     plateaus.pop_back ();
 
   return plateaus;
+}
+
+/** Where the run that is still going at the end of the ring started: the
+ *  first of the ticks at the end that never leave the last tick's spot. */
+static size_t
+landingBeforeTheWrap (std::vector<Pos> const &ticks)
+{
+  auto start = ticks.size () - 1;
+  while (start > 0 && ticks[start - 1].isValid ()
+         && distance (ticks[start - 1], ticks.back ()) < holdDistance)
+    --start;
+  return start;
+}
+
+std::vector<TrajectoryHit>
+trajectoryHits (std::vector<Pos> const &ticks)
+{
+  // A hit is a landing however short, at any length of clip: a sixteen-bar
+  // gallop's sixteenths are shorter than a place's 1/64 of the clip, and
+  // were dropped when hits were read with the places' threshold.
+  auto hits = heldRuns (ticks, plateauMinTicks);
+
+  // A hit is where a place is landed on, so a run that tick 0 merely carries
+  // on from the end of the ring is the last hit, landed on before the loop
+  // came round -- not a hit on tick 0. Only a run that does not carry on is
+  // landed on at 0, and then it stays, even where the last hit is the same
+  // place: two landings, not one held place.
+  auto const carriesOn
+      = !hits.empty () && hits.front ().tick == 0 && ticks.front ().isValid ()
+        && ticks.back ().isValid ()
+        && distance (ticks.back (), ticks.front ()) < holdDistance;
+  if (!carriesOn)
+    return hits;
+
+  // Read the ring from where that run was landed on, so it is one run and not
+  // two pieces -- the piece at the end is too short to count when the hit
+  // falls on the very last tick -- and give each hit its tick back.
+  auto const landed = landingBeforeTheWrap (ticks);
+  std::vector<Pos> fromLanding (ticks.begin () + static_cast<long> (landed),
+                                ticks.end ());
+  fromLanding.insert (fromLanding.end (), ticks.begin (),
+                      ticks.begin () + static_cast<long> (landed));
+
+  hits = heldRuns (fromLanding, plateauMinTicks);
+  for (auto &hit : hits)
+    hit.tick = (hit.tick + landed) % ticks.size ();
+  std::sort (hits.begin (), hits.end (),
+             [] (TrajectoryHit const &a, TrajectoryHit const &b) {
+               return a.tick < b.tick;
+             });
+  return hits;
 }
 
 std::vector<Pos>
