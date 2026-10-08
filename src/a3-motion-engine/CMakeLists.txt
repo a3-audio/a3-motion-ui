@@ -155,6 +155,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/FlightMotion.hh
     flight/ShipHearing.cc
     flight/ShipHearing.hh
+    flight/PilotDesk.cc
+    flight/PilotDesk.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh
