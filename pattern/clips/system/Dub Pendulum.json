@@ -16,6 +16,7 @@
   "freqDecay": 3,
   "freqMax": 0.0,
   "mirrorSouth": false,
+  "mood": "a pendulum swinging near and far",
   "name": "Dub Pendulum",
   "qAttack": 2,
   "qDecay": 3,

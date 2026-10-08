@@ -16,6 +16,7 @@
   "freqDecay": 3,
   "freqMax": 0.0,
   "mirrorSouth": false,
+  "mood": "a slow halo overhead, gently breathing",
   "name": "Warmup Halo",
   "qAttack": 2,
   "qDecay": 3,

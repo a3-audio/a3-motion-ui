@@ -16,6 +16,7 @@
   "freqDecay": 3,
   "freqMax": 0.0,
   "mirrorSouth": false,
+  "mood": "jumps on 3+3+2, turning slowly",
   "name": "Groove Tresillo",
   "qAttack": 2,
   "qDecay": 3,

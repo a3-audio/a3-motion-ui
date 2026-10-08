@@ -1848,6 +1848,9 @@ and 10 sets:
 - **Only FX changes the sound:** every other action writes all three ceilings as 0, and
   `ShippedLibrary.OnlyFXChangesTheSound` holds it.
 - **Every set's buttons stand the same way:** A5 is the FX and A6 the Cue into the next phase.
+- **Every clip says what it is for:** a `mood` line in its file, like an action's `// Mood:`
+  line (`ShippedLibrary.EveryClipSaysWhatItIsFor`). It is on `Clip`, so a device save keeps it;
+  a3-doc's clip table is rendered from it by a3-core `tools/render_library.py`.
 - **The content is generated:** by `tools/library-v2/{clips,actions,sets}.py` from the tables in
   the spec, and the shapes by `a3-pattern-gen`, whose table is the source of their names.
 

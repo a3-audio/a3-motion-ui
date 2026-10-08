@@ -474,6 +474,47 @@ TEST (ClipFile, SavingKeepsWhatIsNotASetting)
   file.deleteFile ();
 }
 
+// A clip says what it is for, the way an action's Mood: line does, and the
+// library's table is written from it. A device save rebuilds the file from
+// the fields it knows, so a field it doesn't know would be gone on the first
+// save after a knob was turned.
+TEST (ClipFile, AClipKeepsItsMood)
+{
+  Clip clip;
+  clip.name = "Warmup Halo";
+  clip.svg = "Orbit Circle";
+  clip.mood = "a slow halo overhead, gently breathing";
+
+  auto const file = tempClip ("a3-clip-mood.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  Pattern pattern;
+  pattern.setSpin (2);
+  ASSERT_TRUE (saveClipSettings (pattern, file));
+
+  auto const read = ClipFile::load (file);
+  ASSERT_TRUE (read.has_value ());
+  EXPECT_EQ (read->mood, "a slow halo overhead, gently breathing");
+
+  file.deleteFile ();
+}
+
+TEST (ClipFile, AClipWithoutAMoodWritesNone)
+{
+  Clip clip;
+  clip.name = "Take 3";
+  clip.svg = "Orbit Circle";
+
+  auto const file = tempClip ("a3-clip-no-mood.json");
+  ASSERT_TRUE (ClipFile::save (clip, file));
+
+  EXPECT_FALSE (file.loadFileAsString ().contains ("\"mood\""))
+      << "a take recorded on the device has no mood to tell";
+  EXPECT_EQ (ClipFile::load (file)->mood, "");
+
+  file.deleteFile ();
+}
+
 TEST (ClipFile, SavingIntoNothingFails)
 {
   Pattern pattern;

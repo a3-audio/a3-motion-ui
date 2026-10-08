@@ -249,6 +249,23 @@ TEST (ShippedLibrary, EveryPhaseHasFiveClips)
     }
 }
 
+// A clip says what it is for in one short line, like an action's Mood: line;
+// the library page's clip table is rendered from these (a3-core
+// tools/render_library.py), so a clip without one is a hole in that table.
+TEST (ShippedLibrary, EveryClipSaysWhatItIsFor)
+{
+  for (auto const &f : juce::File (A3_PATTERN_CLIPS_DIR)
+                           .findChildFiles (juce::File::findFiles, false, "*.json"))
+    {
+      auto const name = f.getFileNameWithoutExtension ();
+      if (name == "Default")
+        continue;
+      auto const mood = juce::JSON::parse (f.loadFileAsString ())["mood"].toString ();
+      EXPECT_TRUE (mood.isNotEmpty ()) << name << " has no mood";
+      EXPECT_LE (mood.length (), 60) << name << ": a mood is a line, not a paragraph";
+    }
+}
+
 namespace
 {
 juce::StringArray const kinds{ "Move", "Lift", "Width", "Speed", "Dub", "FX", "Cue" };
