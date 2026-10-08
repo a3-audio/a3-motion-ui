@@ -14,7 +14,6 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..', '..', 'pattern')
-DIR = os.path.join(ROOT, 'sessions', 'system')
 
 SETS = [  # name, its four clips (without the prefix), six actions, 3d, q
     ('Warmup',  ['Halo', 'Breath', 'Sunrise', 'Horizon'],
@@ -28,26 +27,25 @@ SETS = [  # name, its four clips (without the prefix), six actions, 3d, q
     ('Drop',    ['Impact', 'Warehouse', 'Strobe', 'Whirlwind'],
      ['Speed Stutter', 'Speed Halt', 'Width Full', 'Width Point', 'FX Punch', 'Cue Break Standstill'], 0.55, 0.30),
     ('Break',   ['Standstill', 'Collapse', 'Monolith', 'Suspend'],
-     ['Lift Overhead', 'Move Freeze', 'Width Breathe', 'Width Point', 'FX Sweep', 'Cue Build Pulse'], 0.30, 0.10),
+     ['Lift Overhead', 'Move Freeze', 'Width Open', 'Width Point', 'FX Sweep', 'Cue Build Pulse'], 0.30, 0.10),
     ('Dub',     ['Echo', 'Pendulum', 'Tunnel', 'Kepler'],
      ['Dub Spring', 'Dub Stitch', 'Dub Bounce Back', 'Dub Echo Throw', 'FX Sweep', 'Cue Deep Undertow'], 0.40, 0.20),
     ('Deep',    ['Undertow', 'Sub', 'Fog', 'Lurk'],
      ['Lift Sway', 'Lift Floor', 'Move Rock', 'Lift Down', 'FX Resonate', 'Cue Float Aurora'], 0.35, 0.25),
     ('Float',   ['Aurora', 'Canopy', 'Blossom', 'Lullaby'],
-     ['Lift Overhead', 'Width Close', 'Width Breathe', 'Move Unwind', 'FX Swell', 'Cue Closing Sunset'], 0.30, 0.10),
+     ['Lift Overhead', 'Width Breathe', 'Lift Sway', 'Move Unwind', 'FX Swell', 'Cue Closing Sunset'], 0.30, 0.10),
     ('Closing', ['Sunset', 'Farewell', 'Tide', 'Ember'],
      ['Lift Up', 'Lift Down', 'Width Open', 'Speed Tape Stop', 'FX Swell', 'Cue Warmup Halo'], 0.25, 0.10),
 ]
 SPREAD = [-0.04, 0.0, 0.02, 0.04]
 
 
-def main():
+def main(root=ROOT):
+    sets_dir = os.path.join(root, 'sessions', 'system')
     clips = {os.path.basename(p)[:-5]: json.load(open(p)).get('svg')
-             for p in glob.glob(os.path.join(ROOT, 'clips', 'system', '*.json'))}
+             for p in glob.glob(os.path.join(root, 'clips', 'system', '*.json'))}
     actions = {os.path.basename(p)[:-4]
-               for p in glob.glob(os.path.join(ROOT, 'actions', 'system', '*.scd'))}
-    for path in glob.glob(os.path.join(DIR, '*.json')):
-        os.remove(path)
+               for p in glob.glob(os.path.join(root, 'actions', 'system', '*.scd'))}
     for name, names, acts, threeD, q in SETS:
         for a in acts:
             assert a in actions, a
@@ -59,10 +57,10 @@ def main():
                              'slots': [{'pattern': clips[clip], 'clip': clip,
                                         'recordLengthLog2': 3}],
                              'actions': [{'script': a} for a in acts]})
-        with open(os.path.join(DIR, name + '.json'), 'w') as f:
+        with open(os.path.join(sets_dir, name + '.json'), 'w') as f:
             json.dump({'name': name, 'channels': channels}, f, indent=2)
             f.write('\n')
-    print('10 sets written')
+    print(f'{len(SETS)} sets written; the hand-made mood sets beside them are left alone')
 
 
 if __name__ == '__main__':
