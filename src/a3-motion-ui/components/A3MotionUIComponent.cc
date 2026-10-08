@@ -1608,7 +1608,12 @@ A3MotionUIComponent::blankLEDs ()
 void
 A3MotionUIComponent::paint (juce::Graphics &g)
 {
-  juce::ignoreUnused (g);
+  // FPV leaves air between the sphere and the strips. Unpainted, it showed
+  // the window's stock JUCE grey, which no skin can reach. FULL is left as it
+  // is: its clip bar is drawn at panelOpacity, so a ground here would show
+  // through it and change FULL in every skin.
+  if (_view == AppView::Fpv)
+    g.fillAll (toColour (theme ().background));
 }
 
 void
@@ -1950,6 +1955,7 @@ A3MotionUIComponent::setView (AppView view)
       refreshFlightDisplay ();
     }
   resized ();
+  repaint (); // the ground under FPV is painted in one view only
   updateControlReadout (fpv ? "-- FPV" : "-- FULL");
   persistSettings ();
 }
@@ -8118,6 +8124,8 @@ A3MotionUIComponent::applyTheme ()
   // and not merely a repaint, and it is this component that hands the bar
   // its bounds, so telling the bar alone would change nothing.
   resized ();
+  // FPV's ground is this component's own paint, from the skin.
+  repaint ();
 }
 
 void

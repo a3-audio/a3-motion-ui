@@ -205,6 +205,13 @@ fpvModePill (juce::Rectangle<int> header)
                               area.getHeight () * pillOfSection);
 }
 
+FpvStrips::FpvStrips ()
+{
+  // It fills every pixel it owns, and it is redrawn at the meters' rate: a
+  // see-through component would drag its parent into each of those repaints.
+  setOpaque (true);
+}
+
 void
 FpvStrips::setChannels (std::array<FpvChannel, 4> const &channels)
 {
@@ -235,6 +242,10 @@ FpvStrips::strips () const
 void
 FpvStrips::paint (juce::Graphics &g)
 {
+  // The ground between and around the strips. Left unpainted, it was JUCE's
+  // stock window grey showing through, which no skin can reach.
+  g.fillAll (toColour (theme ().background));
+
   for (size_t ch = 0; ch < _strips.size (); ++ch)
     {
       auto const &strip = _strips[ch];

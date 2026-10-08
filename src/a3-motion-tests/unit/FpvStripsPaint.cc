@@ -90,22 +90,33 @@ TEST (FpvStripsPaint, TheStripsAreTheLayoutsRowAtOrigin)
   EXPECT_EQ (f.strips.strips ()[0].whole.getHeight (), 250);
 }
 
+namespace
+{
+int
+rgbDistance (juce::Colour a, juce::Colour b)
+{
+  return std::abs (a.getRed () - b.getRed ())
+         + std::abs (a.getGreen () - b.getGreen ())
+         + std::abs (a.getBlue () - b.getBlue ());
+}
+}
+
 // Probe: just inside the strip's top-left corner, past the rounded corner and
-// before the header text, which starts a padding in.
+// before the header text, which starts a padding in. The strip stands on the
+// skin's ground, so wearing its colour means: nearer the channel than the
+// ground is.
 TEST (FpvStripsPaint, EachStripWearsItsChannelsColour)
 {
   Fixture f;
   auto const image = f.paint ();
+  auto const ground = toColour (theme ().background);
   for (int ch : { 0, 2 })
     {
       auto const &whole = f.strips.strips ()[static_cast<size_t> (ch)].whole;
       auto const inset = whole.reduced (whole.getHeight () / 8).getTopLeft ();
       auto const pixel = image.getPixelAt (inset.x, inset.y);
       auto const want = toColour (theme ().channel[ch]);
-      if (want.getRed () > want.getBlue ())
-        EXPECT_GT (pixel.getRed (), pixel.getBlue ()) << ch;
-      else
-        EXPECT_GT (pixel.getBlue (), pixel.getRed ()) << ch;
+      EXPECT_LT (rgbDistance (pixel, want), rgbDistance (ground, want)) << ch;
     }
 }
 
@@ -143,6 +154,22 @@ TEST (FpvStripsPaint, TheMeterShowsItsSignal)
     for (int x = m.getX (); x < m.getRight (); ++x)
       differ += loud.getPixelAt (x, y) != silent.getPixelAt (x, y) ? 1 : 0;
   EXPECT_GT (differ, 0);
+}
+
+// The row used to be see-through, and what showed through between the
+// strips was JUCE's stock window grey, which no skin can reach -- every
+// skin's FPV stood on the same grey (F1 in the stemdeck-look audit).
+TEST (FpvStripsPaint, TheRowStandsOnTheSkinsGround)
+{
+  Fixture f;
+  EXPECT_TRUE (f.strips.isOpaque ());
+  auto const image = f.paint ();
+  auto const &left = f.strips.strips ()[0].whole;
+  auto const &right = f.strips.strips ()[1].whole;
+  ASSERT_LT (left.getRight (), right.getX ()) << "the probe needs a gap";
+  auto const gap = (left.getRight () + right.getX ()) / 2;
+  EXPECT_EQ (image.getPixelAt (gap, left.getCentreY ()),
+             toColour (theme ().background));
 }
 
 TEST (FpvStripsPaint, ASkinChangeRepaintsWithoutCrashing)

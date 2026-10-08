@@ -55,6 +55,8 @@ juce::Rectangle<float> fpvModePill (juce::Rectangle<int> header);
 class FpvStrips : public juce::Component, public ThemedComponent
 {
 public:
+  FpvStrips ();
+
   void setChannels (std::array<FpvChannel, 4> const &channels);
   /** The engine's flight tuning: the escort disc is sized by its masses. */
   void setFlightTuning (FlightTuning const &tuning) { _tuning = tuning; }
