@@ -30,26 +30,44 @@ namespace a3
  *  of its own. Lengths are floor units: the room's edge is at radius 1. */
 struct FlightTuning
 {
-  // gravity
-  float gravity = 0.02f;   // G
-  float softening = 0.08f; // epsilon, floor units
-  float gravityMax = 1.5f; // |a| cap, floor units per beat^2
+  // gravity, steering: tuned together against unit/FlightGravity.cc
+  // (2026-10-08). The plan's start values let a crowd just outside the room
+  // pin the ship to the rim for good; three things set the values below.
+  //
+  // - gravityMax == steerMax. The pull can match the steering but never beat
+  //   it at full error, so every capture on PATROL lets go: a ship that a
+  //   group holds falls behind its rabbit until the steering wins (a crowd
+  //   right on the path holds it ~1 bar). Below that, gravity beats the
+  //   *linear* steering (kSteer * error) near a body, which is what bends.
+  // - A small softening (0.045) makes the field steep: strong within ~0.15
+  //   of a body (slingshots, the dead zone's wall), weak at 0.3 (a group
+  //   off the path only nudges). A wider core reached the far ship as well.
+  // - cSteer low (damping ratio ~0.4): the velocity term pulls the speed
+  //   back to the rabbit's, so a high one swallowed every slingshot.
+  //
+  // The audible bars these meet, from the research notes (B1, B2): a
+  // slingshot speeds the ship up >= 1.5x (smaller is not heard as faster),
+  // and a group's bend pulls the closest pass >= 0.1 nearer.
+  float gravity = 0.03f;     // G
+  float softening = 0.045f;  // epsilon, floor units
+  float gravityMax = 2.f;    // |a| cap, floor units per beat^2
   // the big path
   float orbitRadius = 0.7f;
   float orbitEccentricity = 0.2f;
   float orbitLapBars = 4.f;
   float orbitPrecessionBars = 32.f;
   // steering
-  // kSteer and cSteer: a PD loop without feed-forward of the rabbit's turn
-  // lags it by about (centripetal acceleration / kSteer). The path's tightest
-  // bend needs ~0.13 floor units/beat^2, so 0.6 left the ship 0.24 behind;
-  // 2 keeps it within ~0.07. cSteer = 2 * 0.78 * sqrt (kSteer): just under
-  // critically damped, so it settles onto the path without ringing.
-  float steerStiffness = 2.f; // kSteer, per beat^2
-  float steerDamping = 2.2f;  // cSteer, per beat
-  float steerMax = 0.3f;
+  // kSteer: a PD loop without feed-forward of the rabbit's turn lags it by
+  // about (centripetal acceleration / kSteer). The path's tightest bend needs
+  // ~0.13 floor units/beat^2, so 0.6 left the ship 0.24 behind; 2.5 keeps it
+  // within ~0.07.
+  float steerStiffness = 2.5f; // kSteer, per beat^2
+  float steerDamping = 1.3f;   // cSteer, per beat
+  float steerMax = 2.f;        // == gravityMax, see above
   float damping = 0.05f;  // per beat
   float speedMin = 0.08f; // floor units per beat
+  // 0.9 a beat is ~150 deg/s round the path at 120 BPM: well under the
+  // ~360 deg/s where a path turns into a swirl (research notes, B1).
   float speedMax = 0.9f;
   float rimSoft = 0.9f;
   float rimStiffness = 4.f;
