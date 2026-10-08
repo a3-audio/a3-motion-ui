@@ -26,6 +26,9 @@
 #include <a3-motion-engine/PatternFile.hh>
 
 #include "ClipSettingsFields.hh"
+#include <OfflineBackend.hh>
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
+#include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-ui/SessionFile.hh>
 
 using namespace a3;
@@ -659,5 +662,68 @@ TEST (SessionFile, AnOlderSetWithTurnedValuesStillLoadsItsScripts)
   EXPECT_EQ (read.channels[0].actions[0].script, "Speed Halt");
   EXPECT_EQ (read.channels[0].actions[1].script, "Width Point");
   EXPECT_EQ (read.channels[0].actions[2].script, "Lift Up");
+  file.deleteFile ();
+}
+
+// ── Flight mode per channel ──────────────────────────────────────────────
+
+namespace
+{
+struct BareEngine
+{
+  BareEngine ()
+  {
+    engine = std::make_unique<MotionEngine> (
+        numChannels, heightMap, std::make_unique<OfflineBackend> ());
+  }
+  HeightMapSphere heightMap;
+  std::unique_ptr<MotionEngine> engine;
+};
+}
+
+// ORBIT on two of four ships has to come back as exactly that.
+TEST (SessionFile, TheFlightModeSurvivesARoundTrip)
+{
+  BareEngine bare;
+  bare.engine->setFlightMode (1, FlightMode::Orbit);
+  bare.engine->setFlightMode (3, FlightMode::Orbit);
+
+  Session written;
+  written.channels.resize (numChannels);
+  recordFlightModes (*bare.engine, written);
+
+  auto const file = tempSet ("a3-session-flight.json");
+  ASSERT_TRUE (saveSession (file, written));
+  auto const read = loadSession (file, numChannels, numSlots);
+
+  BareEngine restored;
+  restoreFlightModes (read, *restored.engine);
+  EXPECT_EQ (restored.engine->getFlightMode (0), FlightMode::Clip);
+  EXPECT_EQ (restored.engine->getFlightMode (1), FlightMode::Orbit);
+  EXPECT_EQ (restored.engine->getFlightMode (2), FlightMode::Clip);
+  EXPECT_EQ (restored.engine->getFlightMode (3), FlightMode::Orbit);
+
+  file.deleteFile ();
+}
+
+// A session written before the field existed is all CLIP, and says nothing
+// that would take a ship out of ORBIT on a later load.
+TEST (SessionFile, AnOlderSessionHasNoFlightModeAndLoadsAsClip)
+{
+  auto const file = tempSet ("a3-session-no-flight.json");
+  file.replaceWithText (R"({"channels":[{"threeD":0.5,"slots":[]}]})");
+
+  auto const read = loadSession (file, numChannels, numSlots);
+  EXPECT_FALSE (read.channels[0].orbit.has_value ());
+
+  BareEngine bare;
+  restoreFlightModes (read, *bare.engine);
+  EXPECT_EQ (bare.engine->getFlightMode (0), FlightMode::Clip);
+
+  // Loading it later leaves a ship that is already on ORBIT alone.
+  bare.engine->setFlightMode (0, FlightMode::Orbit);
+  restoreFlightModes (read, *bare.engine);
+  EXPECT_EQ (bare.engine->getFlightMode (0), FlightMode::Orbit);
+
   file.deleteFile ();
 }

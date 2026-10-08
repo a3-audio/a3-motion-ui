@@ -302,6 +302,8 @@ loadSession (juce::File const &file, int numChannels, int numSlots)
           channel.threeD = static_cast<float> (entry["threeD"]);
           channel.freq = static_cast<float> (entry["freq"]);
           channel.q = static_cast<float> (entry["q"]);
+          if (entry.hasProperty ("orbit"))
+            channel.orbit = static_cast<bool> (entry["orbit"]);
 
           if (auto const *slots = entry["slots"].getArray ())
             for (auto const &slotEntry : *slots)
@@ -344,6 +346,8 @@ saveSession (juce::File const &file, Session const &set)
       entry->setProperty ("threeD", channel.threeD);
       entry->setProperty ("freq", channel.freq);
       entry->setProperty ("q", channel.q);
+      if (channel.orbit)
+        entry->setProperty ("orbit", *channel.orbit);
 
       juce::Array<juce::var> slots;
       for (auto const &slot : channel.slots)
@@ -407,6 +411,24 @@ saveSession (juce::File const &file, Session const &set)
   return writeTextFile (file, juce::JSON::toString (juce::var (root)));
 }
 
+
+void
+recordFlightModes (MotionEngine const &engine, Session &set)
+{
+  for (size_t ch = 0; ch < set.channels.size (); ++ch)
+    set.channels[ch].orbit
+        = engine.getFlightMode (static_cast<index_t> (ch))
+          == FlightMode::Orbit;
+}
+
+void
+restoreFlightModes (Session const &set, MotionEngine &engine)
+{
+  for (size_t ch = 0; ch < set.channels.size (); ++ch)
+    if (auto const &orbit = set.channels[ch].orbit)
+      engine.setFlightMode (static_cast<index_t> (ch),
+                            *orbit ? FlightMode::Orbit : FlightMode::Clip);
+}
 
 bool
 migrateSetToCurrent (juce::File const &root)
