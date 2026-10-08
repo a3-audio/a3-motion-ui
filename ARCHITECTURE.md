@@ -335,6 +335,52 @@ towards, slings out, stays out), except one determinism test. Engines in tests t
 **Open.** FULL's pad readout does not yet say `CH n ORBIT`. Whether bodies need a floor shadow is
 judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
 
+#### FPV: actions drive pilots
+
+> One action library for FULL and FPV: the same script turns a clip, flies an orbit, and asks a
+> pilot for a game.
+
+**An action fired at an ORBIT ship moves the flight.** Only the keys its script assigns
+(`ActionScriptResult::assigned`) fly; a clip's own spin or lean never steers an orbit, so a ship
+with no action flies exactly as the gravity flight above. The flight meaning follows the ship's
+*mode*, in either view, because ORBIT is engine state and the sound must not change with a screen.
+CLIP ships keep the action's clip meaning; 3D/FREQ/Q accents are unchanged.
+
+| Key | On a flying ship | Where |
+|---|---|---|
+| `~spin` | bars per lap off the TempoLfo table, sign the clip's sense (`spinPosition`), 0 stands the orbit | carried: ship and rabbit turned round the room's middle (`FlightWorld::carry`), not steered, so steering and gravity stay as tuned |
+| `~speedLog2` | the lap × 2^−speedLog2 | carried |
+| `~swell` | the base ellipse breathes out (long axis to 0.95) or in (to 0.4) on `lfoTravel` | the rabbit (`rabbitAt`'s `radiusScale`) |
+| `~sway` | the heard height swings ±30°, positive down first | `ShipHearing::heardShip` |
+| `~tilt`, `~roll`, `~tswp`, `~rswp` | the heard plane leant and turned, as a clip's `SpaceTurn` | `heardShip` |
+| squeezes, `~rotate`, elevation keys | nothing: a flying ship maps through its clip's own band (`flightBand`, the accent's restore point) | |
+
+- **Lifetime:** as long as the action's accent runs, eased in and out over `motionRampBeats` (one
+  beat). Taken at the press with the clip settings, in the same `SetChannelAction` message, so the
+  latest press wins for both.
+- **Caps** (`FlightTuning`): every rate under 180°/beat round the listener (one lap per two
+  beats, about 360°/s at 120 BPM; direction stops being heard as a path near 900°/s, Feron 2010),
+  height under 90°/beat; and while an action drives a ship the heard direction may turn at most
+  180°/beat (`limitTurn`), which holds even for every key at once. A FREQ-dependent cap is not
+  built: what FREQ means in Hz is not measured yet.
+- **The breath holds the floor:** the carry pauses in the stop; sway and lean keep turning.
+  **An escort ignores the floor keys**; its circle is its order.
+
+**The Pilot section** (`// ---- Pilot ----`: `~game`, `~target`, `~with`; `PilotOrder`) is read
+with the script and kept with the press (`FiredAction`). In FPV a named game is posted to the
+channel's ship (`MotionEngine::requestGame`, message thread only) and waits on the clock thread's
+`PilotDesk`, newest wins, `\none` calls one off; the readout says `CHn An GAME X`. FULL ignores
+the section (`pilotOrderAtPress`), because the games are played on the floor FPV shows. No game
+plays a request yet: one will take it with `PilotDesk::take`, recruit with `recruit()` and send a
+ship back by its `ShipResume`. Every shipped script carries the section commented out;
+`pattern/actions/system/README.scd` is its manual.
+
+**One route:** the bar's ACT, the pads and a chain all go through `sendFiredAction`; nothing else
+calls `setChannelAction` (asserted from the source by `ActionReach`).
+
+Tests: `PilotOrder`, `ActionScript`, `FlightMotion`, `FiredAction`, `FlightMotionWorld`,
+`BaseOrbit`, `ShipHearing`, `PilotDesk`, `FlightEngine`, `ClipSettings`, `ActionReach`.
+
 ### Engine (`src/a3-motion-engine`)
 
 - `MotionEngine` is the core: owns `Channel`s, a `TempoClock`, and an `AsyncCommandQueue`. It

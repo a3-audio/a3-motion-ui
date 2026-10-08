@@ -186,10 +186,11 @@ public:
    *  thread takes whatever was written last, without a queue. */
   void setFlightBodies (FlightBodies const &bodies);
 
-  /** An action's Pilot section asked `channel`'s pilot for a game, from any
-   *  thread: queued, and kept on the clock thread as the ship's pending
-   *  request until a game takes it. A game of None calls off one still
-   *  waiting. Channels beyond the ships are ignored. */
+  /** An action's Pilot section asked `channel`'s pilot for a game, from the
+   *  message thread only (the queue it goes through has a single producer):
+   *  kept on the clock thread as the ship's pending request until a game
+   *  takes it. A game of None calls off one still waiting. Channels beyond
+   *  the ships are ignored. */
   void requestGame (index_t channel, PilotOrder const &order);
   /** The game waiting on `channel`'s ship, from any thread; empty: none. */
   std::optional<PilotGame> pendingGame (index_t channel) const;

@@ -213,6 +213,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FloorGesture.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FpvPagePress.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FpvFloor.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionReach.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BodyLook.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShipShape.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/AppView.cc"
