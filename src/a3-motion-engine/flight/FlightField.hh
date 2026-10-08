@@ -30,12 +30,19 @@ namespace a3
 
 constexpr int maxFlightBodies = 8;
 
+/** The id of no body: what an order names when it escorts nothing. */
+constexpr int noBodyId = -1;
+
 /** A group of guests on the floor, acting as a planet: a gravity well at `at`.
- *  A negative mass is a dead zone, which pushes instead of pulls. */
+ *  A negative mass is a dead zone, which pushes instead of pulls.
+ *
+ *  `id` is the floor's name for it and stays the same while it lives: bodies
+ *  after a removed one move down an index, so an escort holds on to the id. */
 struct FlightBody
 {
   Vec2 at;
   float mass = 1.f;
+  int id = noBodyId;
 };
 
 /** Fixed size, so the clock thread can hold a copy without allocating. Only

@@ -41,12 +41,13 @@ enum class FlightGoal
   Escort
 };
 
-/** One channel's orders, as the engine reads them each tick. */
+/** One channel's orders, as the engine reads them each tick. `bodyId` is
+ *  the escorted body's FlightBody::id, never its index. */
 struct ShipOrders
 {
   bool flying = false;
   FlightGoal goal = FlightGoal::Patrol;
-  int body = -1;
+  int bodyId = noBodyId;
 };
 
 /** The four ships in one gravity field.
@@ -57,7 +58,7 @@ struct ShipOrders
 class FlightWorld
 {
 public:
-  explicit FlightWorld (juce::int64 seed);
+  explicit FlightWorld (juce::int64 seed, FlightTuning const &tuning = {});
 
   /** Put ship `ch` into the air at `p` (CLIP -> ORBIT): velocity along the
    *  path's tangent at cruise speed, rabbit at the nearest phase. */
@@ -75,16 +76,18 @@ private:
    *  after the order: from the angle it is at, in the sense it is flying. */
   struct EscortLeg
   {
-    int body = -1; // -1: patrolling
+    int bodyId = noBodyId; // noBodyId: patrolling
     float startAngle = 0.f;
     float direction = 1.f; // +1 counter-clockwise, -1 clockwise
     double startBeats = 0.;
   };
 
-  void followOrders (int ch, ShipOrders const &orders,
-                     FlightBodies const &bodies, double beats);
-  OrbitPoint goalFor (int ch, FlightBodies const &bodies, double beats,
-                      int beatsPerBar) const;
+  /** Starts, keeps or ends ship `ch`'s escort leg; returns the index of
+   *  the body it escorts this tick, or -1. */
+  int followOrders (int ch, ShipOrders const &orders,
+                    FlightBodies const &bodies, double beats);
+  OrbitPoint goalFor (int ch, FlightBodies const &bodies, int escortedIndex,
+                      double beats, int beatsPerBar) const;
   OrbitPoint escortGoal (int ch, FlightBody const &body, double beats,
                          int beatsPerBar) const;
   Vec2 separationOf (int ch,

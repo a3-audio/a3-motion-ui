@@ -53,19 +53,29 @@ pointInDisc (juce::Random &dice, float radius)
   return { distance * std::cos (angle), distance * std::sin (angle) };
 }
 
-/** The body a ship may escort under `orders`, or -1: a dead zone, or an
- *  index that is no body (any more), means PATROL. */
+/** The index of the body with `id`, or -1 when there is none (any more). */
+int
+indexOfBody (FlightBodies const &bodies, int id)
+{
+  if (id == noBodyId)
+    return -1;
+  for (auto i = 0; i < bodies.count && i < maxFlightBodies; ++i)
+    if (bodies.body[static_cast<size_t> (i)].id == id)
+      return i;
+  return -1;
+}
+
+/** The index of the body a ship may escort under `orders`, or -1: a dead
+ *  zone, or an id that names no body (any more), means PATROL. */
 int
 escortableBody (ShipOrders const &orders, FlightBodies const &bodies)
 {
   if (orders.goal != FlightGoal::Escort)
     return -1;
-  if (orders.body < 0 || orders.body >= bodies.count
-      || orders.body >= maxFlightBodies)
+  auto const index = indexOfBody (bodies, orders.bodyId);
+  if (index < 0 || bodies.body[static_cast<size_t> (index)].mass <= 0.f)
     return -1;
-  if (bodies.body[static_cast<size_t> (orders.body)].mass <= 0.f)
-    return -1;
-  return orders.body;
+  return index;
 }
 
 /** `bodies` without body `left`. The escorted body's pull is what the escort
@@ -90,7 +100,8 @@ withoutBody (FlightBodies const &bodies, int left)
 
 }
 
-FlightWorld::FlightWorld (juce::int64 seed)
+FlightWorld::FlightWorld (juce::int64 seed, FlightTuning const &tuning)
+    : _tuning (tuning)
 {
   for (auto ch = 0; ch < flightShips; ++ch)
     _dice[index (ch)].setSeed (spreadSeed (seed + ch));
@@ -129,12 +140,11 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
     {
       if (!orders[index (ch)].flying)
         continue;
-      followOrders (ch, orders[index (ch)], bodies, beats);
+      auto const escorted = followOrders (ch, orders[index (ch)], bodies, beats);
       auto const &ship = _ships[index (ch)];
-      auto const escorted = _escort[index (ch)].body;
       FlightBodies const pulling
           = escorted < 0 ? bodies : withoutBody (bodies, escorted);
-      forces[index (ch)] = { goalFor (ch, bodies, beats, beatsPerBar),
+      forces[index (ch)] = { goalFor (ch, bodies, escorted, beats, beatsPerBar),
                              gravityAt (ship.p, pulling, pulse, _tuning)
                                  + deadZonePush (ship.p, bodies, _tuning),
                              separationOf (ch, orders) };
@@ -152,25 +162,27 @@ FlightWorld::ship (int ch) const
   return _ships[index (juce::jlimit (0, flightShips - 1, ch))];
 }
 
-void
+int
 FlightWorld::followOrders (int ch, ShipOrders const &orders,
                            FlightBodies const &bodies, double beats)
 {
   auto &leg = _escort[index (ch)];
   auto const body = escortableBody (orders, bodies);
-  if (body == leg.body)
-    return;
   if (body < 0)
     {
       leg = {};
-      return;
+      return -1;
     }
+  auto const &escorted = bodies.body[static_cast<size_t> (body)];
+  if (escorted.id == leg.bodyId)
+    return body;
 
   auto const &ship = _ships[index (ch)];
-  auto const fromBody = ship.p - bodies.body[static_cast<size_t> (body)].at;
+  auto const fromBody = ship.p - escorted.at;
   auto const cross = fromBody.x * ship.v.y - fromBody.y * ship.v.x;
-  leg = { body, std::atan2 (fromBody.y, fromBody.x), cross < 0.f ? -1.f : 1.f,
-          beats };
+  leg = { escorted.id, std::atan2 (fromBody.y, fromBody.x),
+          cross < 0.f ? -1.f : 1.f, beats };
+  return body;
 }
 
 OrbitPoint
@@ -180,24 +192,27 @@ FlightWorld::escortGoal (int ch, FlightBody const &body, double beats,
   auto const &leg = _escort[index (ch)];
   auto const radius = _tuning.captureRadius * std::sqrt (body.mass);
   auto const lap = static_cast<double> (_tuning.captureLapBars) * beatsPerBar;
-  auto const turns = (beats - leg.startBeats) / lap;
+  // no lap (<= 0 bars): the goal stands where the ship came in, as a
+  // rabbit stands at its slot when orbitLapBars is not positive
+  auto const turns = lap > 0. ? (beats - leg.startBeats) / lap : 0.;
   auto const angle = leg.startAngle
                      + leg.direction * 2.f * pi<float> ()
                            * static_cast<float> (turns - std::floor (turns));
-  auto const rate = leg.direction * 2.f * pi<float> () / static_cast<float> (lap);
+  auto const rate = lap > 0. ? leg.direction * 2.f * pi<float> ()
+                                   / static_cast<float> (lap)
+                             : 0.f;
   Vec2 const out{ std::cos (angle), std::sin (angle) };
   Vec2 const along{ -out.y, out.x };
   return { body.at + out * radius, along * (radius * rate) };
 }
 
 OrbitPoint
-FlightWorld::goalFor (int ch, FlightBodies const &bodies, double beats,
-                      int beatsPerBar) const
+FlightWorld::goalFor (int ch, FlightBodies const &bodies, int escortedIndex,
+                      double beats, int beatsPerBar) const
 {
-  auto const escorted = _escort[index (ch)].body;
-  if (escorted >= 0 && beatsPerBar > 0)
-    return escortGoal (ch, bodies.body[static_cast<size_t> (escorted)], beats,
-                       beatsPerBar);
+  if (escortedIndex >= 0 && beatsPerBar > 0)
+    return escortGoal (ch, bodies.body[static_cast<size_t> (escortedIndex)],
+                       beats, beatsPerBar);
 
   auto goal = rabbitAt (beats, ch, beatsPerBar, _tuning, _phaseOffset[index (ch)]);
   goal.at += _wander[index (ch)];

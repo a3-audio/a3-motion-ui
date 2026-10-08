@@ -247,21 +247,22 @@ namespace
 {
 
 Vec2 const escorted{ 0.3f, -0.2f };
+constexpr int escortedId = 5; // ids are the floor's, not indices
 
 FlightBodies
 oneGroup (float mass = 2.f)
 {
   FlightBodies bodies;
-  bodies.body[0] = { escorted, mass };
+  bodies.body[0] = { escorted, mass, escortedId };
   bodies.count = 1;
   return bodies;
 }
 
 std::array<ShipOrders, 4>
-shipZeroOn (FlightGoal goal, int body)
+shipZeroOn (FlightGoal goal, int bodyId)
 {
   std::array<ShipOrders, 4> orders;
-  orders[0] = { true, goal, body };
+  orders[0] = { true, goal, bodyId };
   return orders;
 }
 
@@ -311,7 +312,7 @@ sameFlight (std::vector<Sample> const &a, std::vector<Sample> const &b)
 TEST (FlightWorld, AnEscortedGroupCapturesTheShip)
 {
   auto const path = captured (
-      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), oneGroup (), 8.f));
+      flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), oneGroup (), 8.f));
   auto const radius = escortRadius (2.f);
   for (auto const &sample : path)
     {
@@ -324,7 +325,7 @@ TEST (FlightWorld, AnEscortedGroupCapturesTheShip)
 TEST (FlightWorld, ACapturedShipCirclesIt)
 {
   auto const path = captured (
-      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), oneGroup (), 8.f));
+      flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), oneGroup (), 8.f));
 
   auto angleOf = [] (Sample const &s) {
     auto const d = s.ships[0].p - escorted;
@@ -359,14 +360,14 @@ TEST (FlightWorld, ACapturedShipCirclesIt)
 TEST (FlightWorld, AnEscortNearTheRimIsHeardAsACircle)
 {
   constexpr float audibleSweep = 30.f * pi<float> () / 180.f;
-  for (auto const &group : { FlightBody{ { 0.75f, 0.f }, 1.f },
-                             FlightBody{ { 0.6f, -0.5f }, 2.f } })
+  for (auto const &group : { FlightBody{ { 0.75f, 0.f }, 1.f, escortedId },
+                             FlightBody{ { 0.6f, -0.5f }, 2.f, escortedId } })
     {
       FlightBodies bodies;
       bodies.body[0] = group;
       bodies.count = 1;
       auto const path = captured (
-          flyShipZero (shipZeroOn (FlightGoal::Escort, 0), bodies, 8.f));
+          flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), bodies, 8.f));
 
       auto const facing = std::atan2 (group.at.y, group.at.x);
       auto narrowest = 0.f, widest = 0.f;
@@ -390,10 +391,11 @@ TEST (FlightWorld, OtherGroupsStillTug)
   // beyond the escort circle, between it and the room's centre
   auto const towardsTheCentre = -escorted / escorted.getDistanceFromOrigin ();
   withANeighbour.body[1]
-      = { escorted + towardsTheCentre * (1.5f * escortRadius (2.f)), 2.f };
+      = { escorted + towardsTheCentre * (1.5f * escortRadius (2.f)), 2.f,
+          escortedId + 1 };
   withANeighbour.count = 2;
 
-  auto const orders = shipZeroOn (FlightGoal::Escort, 0);
+  auto const orders = shipZeroOn (FlightGoal::Escort, escortedId);
   auto const quiet = widestFrom (captured (flyShipZero (orders, alone, 8.f)), escorted);
   auto const tugged
       = widestFrom (captured (flyShipZero (orders, withANeighbour, 8.f)), escorted);
@@ -404,19 +406,19 @@ TEST (FlightWorld, EscortingADeadZoneIsPatrol)
 {
   auto const deadZone = oneGroup (-2.f);
   EXPECT_TRUE (sameFlight (
-      flyShipZero (shipZeroOn (FlightGoal::Escort, 0), deadZone, 4.f),
-      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), deadZone, 4.f)));
+      flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), deadZone, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, noBodyId), deadZone, 4.f)));
 }
 
 TEST (FlightWorld, EscortingAMissingBodyIsPatrol)
 {
   auto const bodies = oneGroup ();
   EXPECT_TRUE (sameFlight (
-      flyShipZero (shipZeroOn (FlightGoal::Escort, 3), bodies, 4.f),
-      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), bodies, 4.f)));
+      flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId + 1), bodies, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, noBodyId), bodies, 4.f)));
   EXPECT_TRUE (sameFlight (
-      flyShipZero (shipZeroOn (FlightGoal::Escort, -1), bodies, 4.f),
-      flyShipZero (shipZeroOn (FlightGoal::Patrol, -1), bodies, 4.f)));
+      flyShipZero (shipZeroOn (FlightGoal::Escort, noBodyId), bodies, 4.f),
+      flyShipZero (shipZeroOn (FlightGoal::Patrol, noBodyId), bodies, 4.f)));
 }
 
 TEST (FlightWorld, ABodyRemovedMidEscortLetsTheShipGo)
@@ -424,7 +426,7 @@ TEST (FlightWorld, ABodyRemovedMidEscortLetsTheShipGo)
   FlightTuning const tuning;
   FlightWorld world (aSeed);
   world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
-  auto const orders = shipZeroOn (FlightGoal::Escort, 0);
+  auto const orders = shipZeroOn (FlightGoal::Escort, escortedId);
   auto const removedAt = barsToBeats (4.f);
   run (world, orders, oneGroup (), ticksIn (removedAt));
   ASSERT_LE (world.ship (0).p.getDistanceFrom (escorted), 1.6f * escortRadius (2.f));
@@ -439,3 +441,74 @@ TEST (FlightWorld, ABodyRemovedMidEscortLetsTheShipGo)
                  rabbitAt (last.beats, 0, fourFour, tuning).at),
              0.15f);
 }
+
+// The floor removes bodies (a long press), and the ones after it move down
+// an index. An escort is keyed by the body's id, so the ship stays with its
+// group and its circle goes on where it was: no new leg, no jump.
+TEST (FlightWorld, AnEscortStaysWithItsGroupWhenAnEarlierOneIsRemoved)
+{
+  FlightBodies both;
+  both.body[0] = { { -0.5f, 0.4f }, 1.f, escortedId + 1 };
+  both.body[1] = { escorted, 2.f, escortedId };
+  both.count = 2;
+  FlightBodies justIt;
+  justIt.body[0] = both.body[1];
+  justIt.count = 1;
+
+  FlightTuning const tuning;
+  FlightWorld world (aSeed);
+  world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+  auto const orders = shipZeroOn (FlightGoal::Escort, escortedId);
+  auto const removedAt = barsToBeats (4.f);
+  auto path = run (world, orders, both, ticksIn (removedAt));
+  path.erase (path.begin (), path.end () - static_cast<long> (ticksIn (barsToBeats (1.f))));
+  auto const after = run (world, orders, justIt, ticksIn (barsToBeats (4.f)), removedAt);
+  path.insert (path.end (), after.begin (), after.end ());
+
+  auto const radius = escortRadius (2.f);
+  auto angleOf = [] (Sample const &s) {
+    auto const d = s.ships[0].p - escorted;
+    return std::atan2 (d.y, d.x);
+  };
+  auto const direction
+      = std::remainder (angleOf (path[1]) - angleOf (path[0]), twoPi) >= 0.f ? 1.f : -1.f;
+  auto turned = 0.f, furthest = 0.f, worstReversal = 0.f;
+  for (size_t i = 1; i < path.size (); ++i)
+    {
+      auto const distance = path[i].ships[0].p.getDistanceFrom (escorted);
+      ASSERT_GE (distance, 0.5f * radius) << "at beat " << path[i].beats;
+      ASSERT_LE (distance, 1.6f * radius) << "at beat " << path[i].beats;
+      turned += direction
+                * std::remainder (angleOf (path[i]) - angleOf (path[i - 1]), twoPi);
+      furthest = std::max (furthest, turned);
+      worstReversal = std::max (worstReversal, furthest - turned);
+    }
+  EXPECT_LE (worstReversal, 0.3f);
+}
+
+// A capture lap of 0 bars (or less) leaves the escort goal standing at the
+// side the ship came in from: still finite, still next to the group.
+TEST (FlightWorld, AnEscortWithoutACaptureLapStandsBesideItsGroup)
+{
+  for (auto const lapBars : { 0.f, -2.f })
+    {
+      FlightTuning tuning;
+      tuning.captureLapBars = lapBars;
+      FlightWorld world (aSeed, tuning);
+      world.launch (0, rabbitAt (0., 0, fourFour, tuning).at, 0., fourFour);
+      for (auto const &sample : run (world, shipZeroOn (FlightGoal::Escort, escortedId),
+                                     oneGroup (), ticksIn (barsToBeats (4.f))))
+        {
+          auto const &ship = sample.ships[0];
+          ASSERT_TRUE (std::isfinite (ship.p.x) && std::isfinite (ship.p.y)
+                       && std::isfinite (ship.v.x) && std::isfinite (ship.v.y))
+              << "lap " << lapBars << " at beat " << sample.beats;
+          ASSERT_LE (ship.p.getDistanceFromOrigin (), 1.f + speedSlack);
+          ASSERT_LE (ship.v.getDistanceFromOrigin (), tuning.speedMax + speedSlack);
+          if (sample.beats >= barsToBeats (2.f))
+            ASSERT_LE (ship.p.getDistanceFrom (escorted), 1.6f * escortRadius (2.f))
+                << "lap " << lapBars << " at beat " << sample.beats;
+        }
+    }
+}
+
