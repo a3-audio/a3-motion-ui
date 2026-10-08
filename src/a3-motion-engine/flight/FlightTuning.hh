@@ -97,12 +97,15 @@ struct FlightTuning
   float deadZoneMass = -2.f;
   // An action on a flying ship (FPV).
   // Every rate it asks for is held under what a room can follow: a turn round
-  // the listener at most 180 deg a beat, one lap per two beats [research B1,
-  // mj-defaults], height at most half that [research B3].
+  // the listener at most 180 deg a beat, one lap per two beats (about 360 deg/s
+  // at 120 BPM; direction stops being heard as a path near 900 deg/s, Feron
+  // 2010), height at most half that (vertical localisation is coarser than
+  // horizontal; the factor is a design choice).
   float angularCapDegreesPerBeat = 180.f;
   float verticalCapDegreesPerBeat = 90.f;
   // ~sway swings the heard height this far, the crowd's design minimum for a
-  // bend that is heard [research B2].
+  // bend that is heard (the minimum audible movement angle is about 5 deg
+  // in front and grows to the sides, Grantham).
   float swayTravelDegrees = 30.f;
   // ~swell breathes the base path: in to this share of its size [guess], out
   // until its long axis stands here, inside the soft wall's reach [guess].

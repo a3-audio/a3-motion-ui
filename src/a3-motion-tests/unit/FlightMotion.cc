@@ -29,7 +29,8 @@
 using namespace a3;
 
 // An action's Motion keys on a flying ship (FPV): rates in beats,
-// each held under what a room can follow (research B1, B3; mj-defaults).
+// each held under what a room can follow (one lap per two beats; height at
+// most half as fast).
 
 namespace
 {
@@ -111,7 +112,7 @@ TEST (FlightMotion, ThePaceScalesTheLap)
   EXPECT_FLOAT_EQ (wantedLapsPerBeat (faster, fourFour, tuning), base * 2.f);
 }
 
-// B1: past one lap per two beats a room stops hearing a path.
+// Past one lap per two beats a room stops hearing a path.
 TEST (FlightMotion, TheLapNeverOutrunsTheEar)
 {
   FlightTuning const tuning;
@@ -150,7 +151,7 @@ TEST (FlightMotion, APositiveSwayGoesDownFirst)
   EXPECT_NEAR (swayDegrees (sway, 4., fourFour, tuning), tuning.swayTravelDegrees, 1e-3);
 }
 
-// B3: height moves at most half as fast as a turn.
+// Height moves at most half as fast as a turn.
 TEST (FlightMotion, TheSwayStaysUnderTheVerticalCap)
 {
   FlightTuning const tuning;
