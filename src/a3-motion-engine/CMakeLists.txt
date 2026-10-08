@@ -153,6 +153,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/FlightWorld.hh
     flight/FlightMotion.cc
     flight/FlightMotion.hh
+    flight/ShipHearing.cc
+    flight/ShipHearing.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh
