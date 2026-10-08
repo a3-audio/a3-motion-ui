@@ -19,6 +19,8 @@
 */
 #include <gtest/gtest.h>
 
+#include <limits>
+
 #include <a3-motion-engine/preview/MusicPreview.hh>
 
 using namespace a3;
@@ -145,4 +147,20 @@ TEST (MusicPreview, AClockGoingBackIsAgeZero)
   MusicPreview preview;
   preview.receive (buildToDropIn (4), 100.0);
   EXPECT_DOUBLE_EQ (preview.current (99.0, 120.0)->ageBars, 0.0);
+}
+
+TEST (MusicPreview, ANumberThatIsNotANumberIsNoPreview)
+{
+  auto const nan = std::numeric_limits<float>::quiet_NaN ();
+  auto const inf = std::numeric_limits<float>::infinity ();
+  EXPECT_FALSE (musicAheadFrom ("drop", "end", 1, nan).has_value ());
+  EXPECT_FALSE (musicAheadFrom ("drop", "end", 1, inf).has_value ());
+  EXPECT_FALSE (musicAheadFrom ("drop", "end", 1, -inf).has_value ());
+}
+
+TEST (MusicPreview, NothingBelowMinusOneMeansAnything)
+{
+  EXPECT_FALSE (musicAheadFrom ("drop", "end", -2, 0.5f).has_value ());
+  EXPECT_TRUE (musicAheadFrom ("drop", "end", -1, 0.5f).has_value ());
+  EXPECT_TRUE (musicAheadFrom ("drop", "end", 0, 0.5f).has_value ());
 }

@@ -20,6 +20,7 @@
 #include "MusicPreview.hh"
 
 #include <algorithm>
+#include <cmath>
 
 namespace a3
 {
@@ -65,6 +66,11 @@ std::optional<MusicAhead>
 musicAheadFrom (std::string const &section, std::string const &next,
                 int barsUntilNext, float energy)
 {
+  // A non-finite energy is a malformed word, not a loud one; -1 is the
+  // lowest bar count that means anything (a loop holds the change off).
+  if (!std::isfinite (energy) || barsUntilNext < -1)
+    return std::nullopt;
+
   auto const now = musicSectionFromWord (section);
   if (!now)
     return std::nullopt;

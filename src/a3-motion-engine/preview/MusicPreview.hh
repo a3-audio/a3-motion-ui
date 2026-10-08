@@ -67,7 +67,10 @@ bool isNoMusic (std::string const &section);
 /** The last preview and how old it is. StemDeck sends one on every
  *  downbeat, so one older than staleAfterBars bars was not followed by
  *  another: StemDeck is gone, or stopped without saying so, and the preview
- *  counts as absent. */
+ *  counts as absent.
+ *
+ *  Not thread-safe: the caller serialises access (the OSC receiver hands the
+ *  words to the message thread before calling receive()). */
 class MusicPreview
 {
 public:
