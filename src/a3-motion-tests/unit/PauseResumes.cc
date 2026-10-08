@@ -244,6 +244,26 @@ TEST (PauseResumes, AShiftPauseGoesBackToItsBarPlaceAndLapAlike)
   expectPlaceMatchesLap (*clip, Measure{ 4, 0, 0 });
 }
 
+// Play|Pause is now since 2026-10-08, and the resume is now too: the place
+// must stay exactly where the hand stopped it, not a bar's start before.
+TEST (PauseResumes, AnExactPauseKeepsThePlaceOffTheBar)
+{
+  Engine e;
+  auto clip = fourBarWalk ();
+  ASSERT_TRUE (waitUntil ([&] { return e.current () != Measure{}; }));
+  e.engine.playPattern (clip, TempoClock::nextDownBeat (e.current ()));
+  ASSERT_TRUE (waitUntil ([&] { return clip->getPlayPosition () > 0.3f; }));
+  e.engine.pausePattern (clip, Measure{}, PausePlace::Exact);
+  ASSERT_TRUE (waitUntil (
+      [&] { return clip->getStatus () == Pattern::Status::Idle; }));
+
+  auto const ticksPerBar = 4 * TempoClock::getTicksPerBeat ();
+  EXPECT_NE (static_cast<int> (clip->getLapTick ()) % ticksPerBar, 0)
+      << "the lap stayed where it was, mid-bar";
+  EXPECT_TRUE (clip->resumesOnPlay ());
+  expectPlaceMatchesLap (*clip, Measure{ 4, 0, 0 });
+}
+
 // A one-bar bounce is home every second bar, arriving with its sign still
 // turned. Paused there, it has to set out again, not come back from the far
 // end.

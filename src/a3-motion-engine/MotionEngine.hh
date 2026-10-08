@@ -43,6 +43,13 @@ class Channel;
 class Pattern;
 class HeightMap;
 
+/** Where a pause leaves the place when it is made off the downbeat. */
+enum class PausePlace
+{
+  BackToTheBar, ///< to the start of the music's bar, so a downbeat resume lines up
+  Exact,        ///< exactly where it stood
+};
+
 /** Who moves a channel: its clip (CLIP), or its ship in the gravity field
  *  (ORBIT). Engine state, not the view's: the sound does not change because
  *  a screen did. */
@@ -274,9 +281,13 @@ public:
   /** Out of playback and back to the top: the next start begins the pass
    *  again. Forgets a pause. */
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
-  /** Out of playback, keeping the place: the next start goes on from the bar
-   *  the music's bar the clip was in (see rewoundPlayhead()). What ❚❚ does since 2026-10-08. */
-  void pausePattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+  /** Out of playback, keeping the place: the next start goes on from there.
+   *  What ❚❚ does since 2026-10-08. A pause off the downbeat is by default
+   *  taken back to the start of the music's bar it was in
+   *  (see rewoundPlayhead()); `PausePlace::Exact` leaves it where it is,
+   *  which is what a pause at once wants when the resume is at once too. */
+  void pausePattern (std::shared_ptr<Pattern> pattern, Measure timepoint,
+                     PausePlace place = PausePlace::BackToTheBar);
 
   /** Finish the lap, then stop -- whatever the end action says.
    *
@@ -426,6 +437,8 @@ private:
     /** A Stop that keeps the pass, for the next start to go on from: a
      *  pause. */
     bool keepsPass = false;
+    /** A pause that stays exactly where it is, not taken back to the bar. */
+    bool keepsExactPlace = false;
     Pos position;
     Pos position2D;  // original 2D position (for recording ticks)
     std::shared_ptr<Pattern> pattern;
@@ -480,7 +493,8 @@ private:
   /** Where one tick of `playing` at `playPosition` puts the channel, and the
    *  slow movements one tick on. */
   void playTick (index_t channel, Pattern &playing, float playPosition);
-  void stop (std::shared_ptr<Pattern> pattern, bool keepsPass = false);
+  void stop (std::shared_ptr<Pattern> pattern, bool keepsPass = false,
+             bool keepsExactPlace = false);
   /** A pause made at once, taken back to the start of the music's bar it was
    *  in: place, lap and slow movements alike. False when there is no such
    *  place to keep -- started inside this bar, or a pass that ends and would

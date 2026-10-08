@@ -28,33 +28,74 @@ namespace a3
 /** What a press on Play|Pause does to its clip. */
 enum class PlayPausePress
 {
-  Start,              ///< on the next downbeat; a paused clip goes on
+  StartNow,           ///< at once; a paused clip goes on from its place
+  StartOnTheDownbeat, ///< on the next downbeat; a paused clip goes on
   StartFromTheTopNow, ///< at once, from the top, a pause forgotten
-  Pause,              ///< on the next downbeat, keeping the place
+  PauseNow,           ///< at once, keeping the place exactly
+  PauseOnTheDownbeat, ///< on the next downbeat, keeping the place
   StopToTheTop,       ///< at once, back to the top
   CancelStart,        ///< a start still waiting for its downbeat, called off
   Nothing,
 };
 
+/** Two plain taps closer than this are a double tap: back to the top.
+ *  350 ms is under the 400-500 ms desktops give a double click, because a
+ *  tap on a pad is a shorter gesture than a click and a wider window would
+ *  turn a deliberate pause-then-play into a restart; and well above the
+ *  ~100 ms a thumb needs for two quick taps. */
+constexpr long doubleTapWindowMs = 350;
+
+/** Under X one touch arrives twice, as touch and emulated mouse, a couple of
+ *  milliseconds apart. A second press this soon is that twin, not a hand. */
+constexpr long twinWindowMs = 40;
+
+/** The press before this one on the same clip, as the route needs it. */
+struct PreviousPress
+{
+  long msAgo = 1L << 30; ///< far past: there was none
+  bool shift = false;
+};
+
+/** Whether a press at `previous` + now is the second tap of a double tap:
+ *  both plain, close together, and not the same touch twice. */
+constexpr bool
+isDoubleTap (bool shift, PreviousPress previous)
+{
+  return !shift && !previous.shift && previous.msAgo >= twinWindowMs
+         && previous.msAgo <= doubleTapWindowMs;
+}
+
 /** Play|Pause, plain and with Shift (maintainer, 2026-10-08).
  *
- *  Plain waits for the downbeat: ▶ starts -- a paused clip goes on from where
- *  it stood -- and ❚❚ pauses, keeping the place. **Shift means now and from
- *  the top**: on a running clip or a pause still waiting it stops and goes
- *  back to the top, on a still one it starts from the top at once. The panel
- *  has no ■ (2026-09-27), so Shift is its only way back to the top. */
+ *  Plain acts at once: ▶ starts -- a paused clip goes on from where it stood
+ *  -- and ❚❚ pauses, keeping the place. **Shift waits for the downbeat**, the
+ *  key blinking meanwhile. **Two plain taps go back to the top**: the first
+ *  already did its thing, so on a paused clip the second stops it to the top
+ *  and on a resumed one it starts it over -- the panel has no ■ (2026-09-27),
+ *  so this is its way back to the top. A press that is the twin of the
+ *  previous one does nothing. */
 constexpr PlayPausePress
-playPausePress (Pattern::Status status, bool shift)
+playPausePress (Pattern::Status status, bool shift,
+                PreviousPress previous = {})
 {
+  if (previous.msAgo < twinWindowMs)
+    return PlayPausePress::Nothing;
+
+  auto const again = isDoubleTap (shift, previous);
   switch (status)
     {
     case Pattern::Status::Idle:
-      return shift ? PlayPausePress::StartFromTheTopNow
-                   : PlayPausePress::Start;
+      if (again)
+        return PlayPausePress::StopToTheTop;
+      return shift ? PlayPausePress::StartOnTheDownbeat
+                   : PlayPausePress::StartNow;
     case Pattern::Status::Playing:
-      return shift ? PlayPausePress::StopToTheTop : PlayPausePress::Pause;
+      if (again)
+        return PlayPausePress::StartFromTheTopNow;
+      return shift ? PlayPausePress::PauseOnTheDownbeat
+                   : PlayPausePress::PauseNow;
     case Pattern::Status::ScheduledForIdle:
-      return shift ? PlayPausePress::StopToTheTop : PlayPausePress::Nothing;
+      return PlayPausePress::Nothing;
     case Pattern::Status::ScheduledForPlaying:
       return PlayPausePress::CancelStart;
     case Pattern::Status::Empty:

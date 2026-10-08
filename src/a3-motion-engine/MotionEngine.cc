@@ -677,11 +677,12 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 
 void
 MotionEngine::pausePattern (std::shared_ptr<Pattern> pattern,
-                            Measure timepoint)
+                            Measure timepoint, PausePlace place)
 {
   Message message;
   message.command = Message::Command::Stop;
   message.keepsPass = true;
+  message.keepsExactPlace = place == PausePlace::Exact;
   message.pattern = pattern;
   message.timepoint = timepoint;
   message.length = {};
@@ -1323,7 +1324,7 @@ MotionEngine::handleStartStopMessages ()
           }
         case Message::Command::Stop:
           {
-            stop (message.pattern, message.keepsPass);
+            stop (message.pattern, message.keepsPass, message.keepsExactPlace);
 
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Stopped, message.pattern);
@@ -1536,18 +1537,19 @@ MotionEngine::rewindToTheBar (Pattern &pattern)
 }
 
 void
-MotionEngine::stop (std::shared_ptr<Pattern> pattern, bool keepsPass)
+MotionEngine::stop (std::shared_ptr<Pattern> pattern, bool keepsPass,
+                    bool keepsExactPlace)
 {
   // A pause keeps the place (2026-10-08). Made on the downbeat it keeps it
-  // as it is; made at once (Shift) it goes back by the ticks since the
-  // music's last downbeat, so the resume -- on a downbeat -- plays that bar
-  // again. Only a clip that was playing has a place to keep.
+  // as it is; made off it, it goes back by the ticks since the music's last
+  // downbeat (so a resume on a downbeat plays that bar again) unless the
+  // caller wants it exactly. Only a clip that was playing has a place.
   auto const wasPlaying
       = pattern->getStatus () == Pattern::Status::Playing
         || (pattern->getStatus () == Pattern::Status::ScheduledForIdle
             && pattern->getLastStatus () == Pattern::Status::Playing);
   pattern->setResumesOnPlay (keepsPass && wasPlaying
-                             && rewindToTheBar (*pattern));
+                             && (keepsExactPlace || rewindToTheBar (*pattern)));
 
   pattern->setStatus (Pattern::Status::Idle);
   // The lap it was asked to finish is over either way.

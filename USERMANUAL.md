@@ -116,7 +116,7 @@ four:
 
 | Pad | What it does |
 |---|---|
-| Play/Pause | Idle → plays from the next downbeat; playing → stops on the next downbeat. With **Shift**, at once — which is also how a clip is stopped now: there is no Stop pad. |
+| Play/Pause | At once: a still clip plays (a paused one goes on from its place), a playing one pauses. With **Shift**, on the next downbeat (the key blinks while it waits). **Two quick taps** go back to the top — which is how a clip is stopped now: there is no Stop pad. |
 | PAGE | On another channel: selects it. On the shown channel: steps CLIP → MOTION → ACTION → CHMIX → REC (Shift: backwards). |
 | A1–A6 | Fires that button's action for as long as its accent lasts; a button with nothing on it does nothing. With **Shift** on a stopped clip: preview (chapter 6). |
 
@@ -158,8 +158,8 @@ bar, press SAVE or DISCARD first; on the panel, Record + Play pad works straight
 
 ## 6. Playback
 
-Play/Pause starts and stops a channel's clip on the next downbeat (chapter 4); Shift + Play/Pause
-does it at once. Loading a set stops everything and starts what the set says was running, on the
+Play/Pause starts and pauses a channel's clip at once (chapter 4); Shift + Play/Pause does it on
+the next downbeat, and a double tap goes back to the top. Loading a set stops everything and starts what the set says was running, on the
 next downbeat.
 
 ### Preview-and-Fire
