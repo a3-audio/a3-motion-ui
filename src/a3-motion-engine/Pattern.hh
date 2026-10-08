@@ -74,6 +74,14 @@ public:
   bool isTake () const;
   void markAsTake ();
 
+  /** Whether this pattern holds its elevation band against everything that
+   *  sets one -- a take from the moment it is laid out until it is saved or
+   *  thrown away: it records over the whole sphere and plays back where it
+   *  was heard, so no knob, accent or clip loaded onto it narrows the band
+   *  (maintainer, 2026-10-08). See applyClipSettings() and applyLanes(). */
+  bool isBandHeld () const;
+  void setBandHeld (bool held);
+
   void setChannel (index_t channel);
   index_t getChannel () const;
 
@@ -462,6 +470,7 @@ private:
   std::atomic<Status> _statusLast = Status::Empty;
   std::atomic<bool> _wasRecording{ false };
   std::atomic<bool> _isTake{ false };
+  std::atomic<bool> _bandHeld{ false };
 
   // for now patterns are fixed to a channel, this will probably
   // change later on.

@@ -243,8 +243,20 @@ public:
   std::shared_ptr<Pattern> getRecordingPattern ();
   std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
-  /** `seed`, if given, is the clip the take starts from -- see seedTake().
-   *  Read at the downbeat, so the clip may go on playing until then. */
+  /** A take, laid out here on the caller's thread and started on `timepoint`
+   *  (prepareTake(), 2026-10-08): its ticks and lanes, `seed` -- the clip it
+   *  starts from, see seedTake() -- copied in and moved into the whole
+   *  sphere, and its band held.
+   *
+   *  - `pattern` must be fresh: nobody else's, not scheduled, not playing.
+   *    It is written here, off the clock thread, before the engine has it.
+   *  - The seed is read now, not at the downbeat: REC over a clip that goes
+   *    on playing until then takes the clip as it was at the press. That
+   *    costs the caller some 43 ms for a 64-bar take.
+   *  - The sweeps are converted at the pass length, speed and bar length of
+   *    now. Changed between the press and the downbeat, the clip's sway and
+   *    swell are converted at the old ones -- the take is the clip as it
+   *    stood at REC. */
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length,
                       std::shared_ptr<Pattern> seed = nullptr);
@@ -299,6 +311,16 @@ public:
    *  Immediate, and deliberately: taking back a press is not a musical event.
    */
   void cancelScheduledPlay (std::shared_ptr<Pattern> pattern);
+
+  /** The same for a take asked for and not started: REC pressed again before
+   *  its downbeat. Its queued start then finds it no longer scheduled and
+   *  starts nothing -- before, it started anyway, a take in Loop nobody
+   *  owned, with isRecording() stuck and REC dead (2026-10-08). */
+  void cancelScheduledRecording (std::shared_ptr<Pattern> pattern);
+
+  /** How many takes the engine has announced as recording -- started, not
+   *  merely asked for. A called-off take is never announced (2026-10-08). */
+  unsigned recordingAnnouncements () const;
 
   /** Whether that has been asked for and has not happened yet.
    *
@@ -386,6 +408,7 @@ private:
       Stop,
       StopAtEnd,
       CancelScheduledPlay,
+      CancelScheduledRecording,
       /** A pad went down or came up. Queued like everything else rather than
        *  written where it was pressed: the accent state is the clock
        *  thread's, and it used to be written from the message thread while
@@ -439,7 +462,9 @@ private:
                             Measure timepoint);
   void scheduledForStop (std::shared_ptr<Pattern> pattern);
   void handleStartStopMessages ();
-  void startRecording (std::shared_ptr<Pattern> pattern, Measure length,
+  /** @returns whether the take started: it does only while it is still the
+   *  one scheduled. */
+  bool startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                        std::shared_ptr<Pattern> const &seed);
   void startPlaying (std::shared_ptr<Pattern> pattern);
   /** A pass from the top: the play position, the lap and every slow
@@ -466,6 +491,13 @@ private:
 
   void performRecording ();
   void takePhasesAt (Pattern &take, index_t tick) const;
+  static void firstPassPhasesAt (Pattern &take, index_t tick, int beatsPerBar,
+                                 int subSampling);
+  /** A take laid out before it is scheduled, on the caller's thread: its
+   *  ticks, its lanes, the clip it starts from moved into the whole sphere. */
+  void prepareTake (Pattern &take, Measure length, Pattern const *seed) const;
+  void openTakeToTheWholeSphere (Pattern &take, int beatsPerBar,
+                                 int subSampling) const;
   Pos heardInTake (Pos const &direction, Pattern &take, index_t tick) const;
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
@@ -504,6 +536,7 @@ private:
   bool _recordingHasTouched = false;
   /** The knobs' own touch histories for the take that is running. */
   KnobRecorders _knobRecorders;
+  std::atomic<unsigned> _recordingAnnouncements{ 0 };
   std::atomic<bool> _takeWrote{ false };
   Pos _recordingHeldDirection = Pos::invalid;
   /** Written on the clock thread each tick a take is running, read by the UI. */

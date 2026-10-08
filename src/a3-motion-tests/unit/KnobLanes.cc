@@ -20,6 +20,9 @@
 
 #include <a3-motion-engine/KnobLanes.hh>
 
+#include <chrono>
+#include <cmath>
+#include <random>
 #include <set>
 #include <string>
 
@@ -137,4 +140,77 @@ TEST (KnobLanes, EachKnobHasItsOwnName)
   for (int k = 0; k < numKnobs; ++k)
     names.insert (knobName (static_cast<Knob> (k)));
   EXPECT_EQ (names.size (), static_cast<std::size_t> (numKnobs));
+}
+
+// ── Reading a lane costs nothing (2026-10-08) ──────────────────────────────
+
+namespace
+{
+/** What at() answers, the slow and obvious way: back from the tick, round
+ *  the end, to the last written value. */
+std::optional<float>
+lastWrittenBefore (std::vector<std::optional<float> > const &written,
+                   long long tick)
+{
+  auto const size = static_cast<long long> (written.size ());
+  auto const here = ((tick % size) + size) % size;
+  for (long long back = 0; back < size; ++back)
+    if (auto const &v = written[static_cast<std::size_t> (
+            ((here - back) % size + size) % size)])
+      return v;
+  return {};
+}
+}
+
+/** Sparse, dense, at the ends and across the wrap: at() gives what the slow
+ *  walk back gives, everywhere. */
+TEST (KnobLanes, ALaneHoldsTheLastValueWrittenAnywhere)
+{
+  std::mt19937 random (7);
+  for (long long const ticks : { 1LL, 2LL, 63LL, 64LL, 65LL, 4096LL, 5000LL })
+    for (int const points : { 0, 1, 2, 7, 300 })
+      {
+        KnobLane lane (ticks);
+        std::vector<std::optional<float> > written (
+            static_cast<std::size_t> (ticks));
+        std::uniform_int_distribution<long long> where (0, ticks - 1);
+        for (int i = 0; i < points; ++i)
+          {
+            auto const tick = where (random);
+            auto const value = static_cast<float> (i) * 0.25f;
+            lane.write (tick, value);
+            written[static_cast<std::size_t> (tick)] = value;
+          }
+        for (long long tick = -ticks; tick < 2 * ticks; ++tick)
+          ASSERT_EQ (lane.at (static_cast<double> (tick) + 0.5),
+                     lastWrittenBefore (written, tick))
+              << ticks << " ticks, " << points << " points, tick " << tick;
+      }
+}
+
+/** A take converts its clip at the downbeat, on the clock, reading every
+ *  lane at every tick (MotionEngine::openTakeToTheWholeSphere). A lane read
+ *  from a file holds only where it changes, so a walk back to the last value
+ *  made that quadratic: 47 s for a 64-bar take on the rig. Here a lane the
+ *  size of a 64-bar take with two points, read at every tick eight times
+ *  over. */
+TEST (KnobLanes, ReadingASparseLaneEverywhereIsCheap)
+{
+  // 64 bars of 4 beats at the clock's 128 ticks a beat.
+  constexpr long long ticks = 64LL * 4 * 128;
+  KnobLane lane (ticks);
+  lane.write (10, 0.2f);
+  lane.write (ticks / 2, 0.7f);
+
+  auto const started = std::chrono::steady_clock::now ();
+  double sum = 0.0;
+  for (int round = 0; round < 8; ++round)
+    for (long long tick = 0; tick < ticks; ++tick)
+      sum += *lane.at (static_cast<double> (tick));
+  auto const took = std::chrono::steady_clock::now () - started;
+
+  EXPECT_GT (sum, 0.0);
+  // About 10 ms now and 45 s the old way: a hundred times either side.
+  EXPECT_LT (std::chrono::duration<double> (took).count (), 1.0)
+      << "reading the lane walked it";
 }

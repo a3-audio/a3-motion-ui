@@ -77,8 +77,13 @@ clipSettingsFrom (Pattern const &pattern)
 }
 
 void
-applyClipSettings (Pattern &pattern, ClipSettings const &settings)
+applyClipSettings (Pattern &pattern, ClipSettings const &given)
 {
+  // A take keeps the whole sphere: only its own band is put back.
+  auto const settings = pattern.isBandHeld ()
+                            ? withBandOf (given, clipSettingsFrom (pattern))
+                            : given;
+
   pattern.setSpeedLog2 (settings.speedLog2);
   pattern.setRotate (settings.rotate);
   pattern.setSqueezeX (settings.squeezeX);
@@ -280,6 +285,21 @@ withFeel (ClipSettings settings, ActionFeel const &feel)
   settings.qDecay = feel.qDecay;
   settings.qMax = feel.qMax;
   settings.actMode = feel.actMode;
+  return settings;
+}
+
+ClipSettings
+withBandOf (ClipSettings settings, ClipSettings const &from)
+{
+  settings.elevationBase = from.elevationBase;
+  settings.reach = from.reach;
+  settings.clipTop = from.clipTop;
+  settings.clipBottom = from.clipBottom;
+  settings.mirrorSouth = from.mirrorSouth;
+  settings.flat = from.flat;
+  settings.flatElevation = from.flatElevation;
+  settings.elevationLfo = from.elevationLfo;
+  settings.reachLfo = from.reachLfo;
   return settings;
 }
 

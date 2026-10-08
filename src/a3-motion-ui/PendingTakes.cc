@@ -54,6 +54,19 @@ PendingTakes::isPending (index_t channel, index_t slot) const
          && _before[channel * _numSlots + slot].has_value ();
 }
 
+std::optional<std::pair<index_t, index_t> >
+PendingTakes::pendingOtherThan (index_t channel, index_t slot) const
+{
+  for (std::size_t i = 0; i < _before.size (); ++i)
+    {
+      auto const here = std::make_pair (static_cast<index_t> (i / _numSlots),
+                                        static_cast<index_t> (i % _numSlots));
+      if (_before[i].has_value () && here != std::make_pair (channel, slot))
+        return here;
+    }
+  return std::nullopt;
+}
+
 bool
 PendingTakes::offersKeys (index_t channel, index_t slot,
                           bool takeUnderway) const

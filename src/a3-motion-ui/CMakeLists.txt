@@ -325,10 +325,12 @@ target_sources(a3-motion-ui-shared PRIVATE
     PatternDir.cc
     AppPaths.cc
     PendingTakes.cc
+    TakeUnderway.cc
     SessionFile.hh
     PatternDir.hh
     AppPaths.hh
     PendingTakes.hh
+    TakeUnderway.hh
     SettingsPersistence.hh
 )
 

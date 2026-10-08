@@ -271,7 +271,13 @@ ClipSettings actionOver (ClipSettings const &current,
                          ClipSettings const &action);
 
 ClipSettings clipSettingsFrom (Pattern const &pattern);
+/** Onto a pattern holding its band (Pattern::isBandHeld(), a take), every
+ *  setting except the band's. */
 void applyClipSettings (Pattern &pattern, ClipSettings const &settings);
+
+/** `settings` with the elevation band of `from`: where the figure sits, how
+ *  far it reaches, the clips, flat, and the sway and swell that move them. */
+ClipSettings withBandOf (ClipSettings settings, ClipSettings const &from);
 
 /** The elevation parameters a clip is actually projecting through right now:
  *  what it was set to, with its two slow sweeps laid over it.

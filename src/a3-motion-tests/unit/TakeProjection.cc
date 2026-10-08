@@ -67,7 +67,7 @@ fingersEverywhere ()
 }
 
 /** The colatitudes a clip can play, top and bottom, by running the forward
- *  map over the pad -- as TakeRecording's bandTopOf does. */
+ *  map over the pad. */
 std::pair<float, float>
 bandOf (HeightMapSphere const &heightMap, ElevationParams const &params)
 {

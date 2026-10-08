@@ -187,6 +187,11 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
                                  true, slider.getValue ())
             : sliderPosProportional * 2.f - 1.f;
 
+  // A knob that takes no hand is drawn the way every disabled control is:
+  // the whole of it at the skin's disabled alpha.
+  auto const enabled = slider.isEnabled ();
+  if (!enabled)
+    g.beginTransparencyLayer (theme ().alphaDisabled);
   paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
                 mixerControlMetrics (),
                 slider.findColour (juce::Slider::thumbColourId),
@@ -194,6 +199,8 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
                 knob->isActive (), knob->isSelected (), knob->reach (),
                 knob->wraps (), knob->isWriting (),
                 knob->isLaneDriven (), knob->isEncoderMarked ());
+  if (!enabled)
+    g.endTransparencyLayer ();
 }
 
 juce::Slider::SliderLayout

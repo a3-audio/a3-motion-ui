@@ -351,17 +351,57 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
   a `set.json` beside the takes. A folder with a set and the takes it names is a gig on a stick,
   which is the whole reason it is a file of its own rather than something in the app's settings.
 
-  **A take is recorded into its clip, band and all** (decided 2026-10-07, #66). It starts with every
-  setting of the clip the slot held and, by the rec mode, its path: TOUCH overdubs (an untouched
-  tick keeps the clip's), WRITE replaces the whole pass. The exceptions are 3D, FREQ and Q, which
-  belong to the actions: no take records them and no lane carries them (`TakeRecording`). Keeping
-  the elevation band means a finger can point where the clip cannot play — with the base off the
-  pole the band does not reach up to it. `HeightMapSphere::mapTo2D(…, ElevationParams)` therefore
-  answers with the *nearest playable* direction (same azimuth, colatitude clamped to the band's
-  nearer edge) and is exact everywhere inside the band, and the engine puts the blob on that round
-  trip while recording (`MotionEngine::takePosition2D/3D`), so what is heard during the take is what
-  it plays back. Before, the blob followed the finger out of the band and the take came back as one
-  ring at `1 - base`.
+  **A take is recorded into its clip's settings, but over the whole sphere** (decided 2026-10-07,
+  #66; band changed 2026-10-08). It starts with every setting of the clip the slot held and, by the
+  rec mode, its path: TOUCH overdubs (an untouched tick keeps the clip's), WRITE replaces the whole
+  pass. The exceptions are 3D, FREQ and Q, which belong to the actions: no take records them and no
+  lane carries them (`TakeRecording`) -- and the elevation band. A clip's band grows south from its
+  base, so with the base at ear height only the lower half was playable, and with the camera
+  looking from above every finger was held on the equator. So a take's band is the whole sphere:
+  base at the north pole, reach 1, no clips, no sway or swell, no elevation lanes
+  (`openToTheWholeSphere`, `TakeSeed`; the knobs are `isTakeBandKnob`). What is heard during the
+  take is what it plays back, and the bar's elevation knobs show the whole sphere from the moment
+  the take is set up -- ▶ after REC PAUSE, or the panel's REC + Play|Pause -- not at REC PAUSE.
+
+  - **Laid out when it is asked for.** `MotionEngine::recordPattern` prepares the take on the
+    caller's thread before scheduling it (`prepareTake`): its ticks, its lanes, and the clip's path
+    moved into the whole sphere where it was heard -- tick by tick through the clip's own band,
+    lanes and sweeps at each tick's first-pass phase, in each tick's own play direction. Untouched
+    parts play where they did. The move costs a 64-bar take some 43 ms, and that lands on the
+    message thread when the take is set up, not on the clock at the downbeat (eleven ticks at 120 BPM). The seed and
+    the pass length are taken at the press. A `KnobLane` keeps a bit per written tick (and one per
+    word) so `at()` finds the last value in a few word reads; walking back over a lane read from a
+    file, which holds only where it changes, was quadratic and took 47 s for a 64-bar take.
+  - **One lap, as baked** (maintainer, 2026-10-08). A clip whose sway or swell runs slower than the
+    take is long is moved at the phases of the take's *first* lap. Played back, the take repeats
+    that lap, so where the clip's sweep had not come round by the lap's end, the take jumps at the
+    loop seam. Accepted: the take is one lap of what was heard.
+  - **The band is held** from the take being laid out until it is saved or discarded:
+    `Pattern::isBandHeld()`, set by `prepareTake`, cleared on Save; a discarded take is gone. Every
+    way settings reach a pattern spares a held band -- `applyClipSettings` keeps its own band and
+    `applyLanes` drops the band's lanes -- so an ACT accent on a take (and the restore when it
+    lets go, even one taken from the clip before REC), or a clip without a figure loaded onto it
+    from FILES, the browser or a Cue, lands everything but the band. The bar draws the band's
+    knobs disabled and refuses them (`refusedWhileBandLocked`); a finger already on one is let go
+    of (`releaseTheBand`). `Pattern::recordKnobs` writes no lane for them, WRITE's pass over every
+    knob included.
+  - **How a take ends.** `TakeUnderway` holds the take from REC to its end: the slot, the take
+    and what the slot held. **One take at a time:** while one is scheduled or running anywhere, or
+    unsaved on another slot, REC is refused with `-- TAKE UNDERWAY ON CH n`
+    (`refusesANewTake`); again on an unsaved take's own slot it may, keeping the first's before.
+    REC again before the downbeat calls the take off in the engine (`cancelScheduledRecording`,
+    which also stops it if it started in the same tick; `startRecording` starts and announces
+    only the take still scheduled) and puts the old clip back only while the slot still holds the
+    take. Something else put into the slot -- a shape, a clip with its own figure -- ends the take
+    there through `dropPendingTake`: called off or stopped, nothing put back. A set load ends it
+    wherever it is, puts its slot's old clip back before the outgoing set is written, then loads.
+    A new figure in a take's slot gets the band the slot had before the take, not the take's
+    whole sphere (`settingsToCarry`).
+  - **Threads.** The band's fields on `Pattern` are each atomic; `prepareTake` sets them before the
+    take is the engine's, and with the band held nothing writes them during the take, so the
+    clock and the UI never race on them. `HeightMapSphere::mapTo2D(…, ElevationParams)` still
+    answers with the *nearest playable* direction for any band that does not cover a direction --
+    the flight engine relies on it.
 
   The same goes for the rest of what playback does to a tick (decided 2026-10-07): the clip's
   squeeze and turn — rotate plus the spin's phase, the squeezes swept by their stretch — and the

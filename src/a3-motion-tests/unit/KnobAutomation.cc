@@ -103,16 +103,18 @@ TEST (KnobAutomation, AHeldKnobIsRecordedIntoItsLane)
 {
   OneLap oneLap;
   auto &pattern = oneLap.pattern;
-  pattern.setReach (0.7f);
-  pattern.setKnobHeld (Knob::Reach, true);
+  // Not a band knob: those a take never records (2026-10-08).
+  pattern.setSqueezeX (0.7f);
+  pattern.setKnobHeld (Knob::SqueezeX, true);
 
   KnobRecorders recorders;
   recordLap (pattern, recorders, RecMode::Touch);
 
   auto const lanes = pattern.getLanes ();
-  auto const reach = lanes[static_cast<std::size_t> (Knob::Reach)].at (3.0);
-  ASSERT_TRUE (reach.has_value ());
-  EXPECT_FLOAT_EQ (*reach, 0.7f);
+  auto const squeeze
+      = lanes[static_cast<std::size_t> (Knob::SqueezeX)].at (3.0);
+  ASSERT_TRUE (squeeze.has_value ());
+  EXPECT_FLOAT_EQ (*squeeze, 0.7f);
   EXPECT_TRUE (lanes[static_cast<std::size_t> (Knob::Rotate)].empty ())
       << "a knob nobody held has nothing to play back";
 }
@@ -227,15 +229,15 @@ TEST (KnobAutomation, AKnobBeingWrittenSaysSo)
   auto &pattern = oneLap.pattern;
   KnobRecorders recorders;
 
-  pattern.setKnobHeld (Knob::Reach, true);
+  pattern.setKnobHeld (Knob::SqueezeX, true);
   EXPECT_TRUE (pattern.recordKnobs (recorders, RecMode::Touch, 0, lap))
       << "the take has to know it wrote something, or it is thrown away";
-  EXPECT_TRUE (pattern.isKnobWriting (Knob::Reach));
+  EXPECT_TRUE (pattern.isKnobWriting (Knob::SqueezeX));
   EXPECT_FALSE (pattern.isKnobWriting (Knob::Rotate));
 
-  pattern.setKnobHeld (Knob::Reach, false);
+  pattern.setKnobHeld (Knob::SqueezeX, false);
   EXPECT_FALSE (pattern.recordKnobs (recorders, RecMode::Touch, 1, lap));
-  EXPECT_FALSE (pattern.isKnobWriting (Knob::Reach));
+  EXPECT_FALSE (pattern.isKnobWriting (Knob::SqueezeX));
 }
 
 TEST (KnobAutomation, AFinishedTakeWritesNothingAnyMore)

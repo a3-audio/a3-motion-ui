@@ -47,4 +47,19 @@ seedTake (Pattern &take, Pattern const &from)
   applyLanes (take, from.getLanes ());
 }
 
+void
+openToTheWholeSphere (Pattern &take)
+{
+  take.setElevationBase (0.f);
+  take.setReach (1.f);
+  take.setClipTop (0.f);
+  take.setClipBottom (0.f);
+  take.setFlat (false);
+  take.setKnobSetting (Knob::Sway, 0.f);
+  take.setKnobSetting (Knob::Swell, 0.f);
+  for (int k = 0; k < numKnobs; ++k)
+    if (isTakeBandKnob (static_cast<Knob> (k)))
+      take.clearLane (static_cast<Knob> (k));
+}
+
 }

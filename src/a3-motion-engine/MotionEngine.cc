@@ -633,6 +633,17 @@ MotionEngine::recordPattern (std::shared_ptr<Pattern> pattern,
                              Measure timepoint, Measure length,
                              std::shared_ptr<Pattern> seed)
 {
+  // Laid out here, on the caller's thread, while the take is still nobody
+  // else's: its path over the clip it starts from, moved into the whole
+  // sphere. On the clock thread at the downbeat that cost a 64-bar take some
+  // 43 ms -- eleven ticks at 120 BPM (2026-10-08).
+  if (pattern)
+    {
+      // Fresh, so that nothing else reads it while it is laid out.
+      jassert (pattern->getStatus () == Pattern::Status::Empty);
+      prepareTake (*pattern, length, seed.get ());
+    }
+
   Message message;
   message.command = Message::Command::StartRecording;
   message.pattern = pattern;
@@ -706,6 +717,23 @@ MotionEngine::cancelScheduledPlay (std::shared_ptr<Pattern> pattern)
   Message message;
   message.command = Message::Command::CancelScheduledPlay;
   message.pattern = pattern;
+  message.timepoint = {};
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+unsigned
+MotionEngine::recordingAnnouncements () const
+{
+  return _recordingAnnouncements.load (std::memory_order_relaxed);
+}
+
+void
+MotionEngine::cancelScheduledRecording (std::shared_ptr<Pattern> pattern)
+{
+  Message message;
+  message.command = Message::Command::CancelScheduledRecording;
+  message.pattern = std::move (pattern);
   message.timepoint = {};
   message.length = {};
   submitFifoMessage (message);
@@ -1134,6 +1162,28 @@ MotionEngine::handleFifoMessage (Message const &message)
         message.pattern->restoreStatus ();
         break;
       }
+    case Message::Command::CancelScheduledRecording:
+      {
+        // As CancelScheduledPlay: the pointer startRecording() checks goes,
+        // and the start still queued finds nothing to start. Already started
+        // -- REC again on the very downbeat, or a slot filled as the take
+        // began -- it is stopped: either way nobody owns it any more.
+        if (!message.pattern)
+          break;
+
+        if (_patternScheduledForRecording == message.pattern)
+          {
+            _patternScheduledForRecording = nullptr;
+            message.pattern->restoreStatus ();
+          }
+        else if (_patternRecording == message.pattern)
+          {
+            stop (message.pattern, false);
+            notifyPatternStatusListeners (
+                PatternStatusMessage::Status::Stopped, message.pattern);
+          }
+        break;
+      }
     case Message::Command::StopAtEnd:
       {
         // Nothing is scheduled and nothing is queued: the moment is not a
@@ -1243,7 +1293,11 @@ MotionEngine::handleStartStopMessages ()
         {
         case Message::Command::StartRecording:
           {
-            startRecording (message.pattern, message.length, message.seed);
+            // A take called off or replaced starts nothing, so nothing is
+            // announced and no stop is scheduled for it.
+            if (!startRecording (message.pattern, message.length,
+                                 message.seed))
+              break;
 
             // one-shot recording: schedule stop right away
             if (_recordingMode == RecordingMode::OneShot)
@@ -1254,6 +1308,7 @@ MotionEngine::handleStartStopMessages ()
                 stopPattern (message.pattern, timepointStop);
               }
 
+            _recordingAnnouncements.fetch_add (1, std::memory_order_relaxed);
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Recording, message.pattern);
             break;
@@ -1293,12 +1348,17 @@ MotionEngine::takeWroteSomething () const
   return _takeWrote.load (std::memory_order_relaxed);
 }
 
-void
+bool
 MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                               std::shared_ptr<Pattern> const &seed)
 {
   if (!pattern)
-    return;
+    return false;
+
+  // A start whose take is no longer the one scheduled: called off, or
+  // replaced by a later REC (see scheduledForRecording()).
+  if (_patternScheduledForRecording != pattern)
+    return false;
 
   // Stop any currently recording pattern
   if (_patternRecording && _patternRecording != pattern)
@@ -1319,10 +1379,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   _recordingLap = 0;
   _recordingTicksAtLift = 0;
   _recordingFingerWasDown = false;
-  // A new take is new knob lanes too: they belong to the path they were
-  // turned over.
+  // A new take is new knob recorders too: what they remember is about this
+  // take. Its lanes were laid out with its path in prepareTake().
   _knobRecorders = KnobRecorders{};
-  pattern->clearLanes ();
   _takeWrote.store (false, std::memory_order_relaxed);
 
   // Calculate adaptive sub-sampling factor based on recording length
@@ -1331,18 +1390,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   juce::Logger::writeToLog ("Recording with sub-sampling factor: " + juce::String (_recordingSubSamplingFactor));
 #endif
 
-  auto const ticks
-      = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());
-  jassert (ticks >= 0);
-
-  _patternRecording->clear ();
-  // Allocate with adaptive sub-sampling for smooth playback at any speed
-  auto const ticksWithSubSampling = static_cast<std::size_t> (ticks) * _recordingSubSamplingFactor;
-  _patternRecording->resize (ticksWithSubSampling);
-
-  // Over the clip the slot held: TOUCH then changes only what is touched.
-  if (seed)
-    seedTake (*_patternRecording, *seed);
+  // Its ticks, the clip's path in them and its band were laid out when it
+  // was asked for -- prepareTake().
+  (void) seed;
 
   _recordingPosition = Pos::invalid;
   _recordingPosition2D = Pos::invalid;
@@ -1361,6 +1411,7 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
     {
       _patternScheduledForRecording = nullptr;
     }
+  return true;
 }
 
 void
@@ -1544,23 +1595,84 @@ MotionEngine::finishRecording ()
 void
 MotionEngine::takePhasesAt (Pattern &take, index_t tick) const
 {
-  auto const ticksPerBar
-      = static_cast<float> (TempoClock::getTicksPerBeat ())
-        * static_cast<float> (_tempoClock.getBeatsPerBar ());
+  firstPassPhasesAt (take, tick, _tempoClock.getBeatsPerBar (),
+                     _recordingSubSamplingFactor);
+}
+
+void
+MotionEngine::firstPassPhasesAt (Pattern &take, index_t tick, int beatsPerBar,
+                                 int subSampling)
+{
+  auto const ticksPerBar = static_cast<float> (TempoClock::getTicksPerBeat ())
+                           * static_cast<float> (beatsPerBar);
   auto const numTicks = take.getNumTicks ();
 
   // The pass is as long as the take plays, which is not always as long as it
   // records; a take with no playback length set plays at its own.
-  auto passTicks = static_cast<float> (Measure::convertToTicks (
-      take.getPlaybackLength (), _tempoClock.getBeatsPerBar ()));
+  auto passTicks = static_cast<float> (
+      Measure::convertToTicks (take.getPlaybackLength (), beatsPerBar));
   if (passTicks <= 0.f)
     passTicks = static_cast<float> (numTicks)
-                / static_cast<float> (std::max (_recordingSubSamplingFactor, 1));
+                / static_cast<float> (std::max (subSampling, 1));
 
   setPassPhases (take,
                  ticksIntoFirstPass (tick, numTicks, take.getPlayDirection (),
                                      passTicks),
                  ticksPerBar);
+}
+
+void
+MotionEngine::prepareTake (Pattern &take, Measure length,
+                           Pattern const *seed) const
+{
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  auto const subSampling = calculateSubSamplingFactor (length, beatsPerBar);
+  auto const ticks = Measure::convertToTicks (length, beatsPerBar);
+  jassert (ticks >= 0);
+
+  // A new take is new knob lanes too: they belong to the path they were
+  // turned over.
+  take.clearLanes ();
+  take.clear ();
+  take.resize (static_cast<std::size_t> (std::max<long long> (ticks, 0))
+               * static_cast<std::size_t> (subSampling));
+
+  // Over the clip the slot held: TOUCH then changes only what is touched.
+  if (seed)
+    seedTake (take, *seed);
+  openTakeToTheWholeSphere (take, beatsPerBar, subSampling);
+  take.setBandHeld (true);
+}
+
+/** The take's band becomes the whole sphere (openToTheWholeSphere), and
+ *  every point already in it -- the clip it started from -- is moved into the
+ *  new band where it was heard, tick by tick through the clip's own band,
+ *  lanes and sweeps at the phase its first pass reaches that tick with. */
+void
+MotionEngine::openTakeToTheWholeSphere (Pattern &take, int beatsPerBar,
+                                        int subSampling) const
+{
+  auto const numTicks = take.getNumTicks ();
+  auto const ticks = take.getTicks ().positions;
+
+  std::vector<Pos> heard (numTicks, Pos::invalid);
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    if (ticks[tick].isValid ())
+      {
+        firstPassPhasesAt (take, tick, beatsPerBar, subSampling);
+        take.playKnobs (static_cast<double> (tick));
+        heard[tick] = playedPosition (_heightMap, ticks[tick], take);
+      }
+
+  openToTheWholeSphere (take);
+
+  for (index_t tick = 0; tick < numTicks; ++tick)
+    if (heard[tick].isValid ())
+      {
+        firstPassPhasesAt (take, tick, beatsPerBar, subSampling);
+        take.playKnobs (static_cast<double> (tick));
+        take.setTick (tick, writtenPosition (_heightMap, heard[tick], take));
+      }
 }
 
 /** Where `direction` is heard once a take has written it at `tick`: the
@@ -1584,13 +1696,11 @@ MotionEngine::performRecording ()
 
       // Armed but still waiting for its downbeat: nothing is written yet, but
       // the finger already steers the blob, so that it is under the finger the
-      // moment the take does begin instead of jumping there.
-      // Held in the take's band already, or the blob would jump into it as
-      // the take begins.
+      // moment the take does begin instead of jumping there. The take records
+      // over the whole sphere, so the finger is where it will be heard.
       if (_patternScheduledForRecording && _recordingPosition.isValid ())
         _channels[_patternScheduledForRecording->getChannel ()]->setPosition (
-            heardInTake (_recordingPosition, *_patternScheduledForRecording,
-                         0));
+            _recordingPosition);
 
       return;
     }

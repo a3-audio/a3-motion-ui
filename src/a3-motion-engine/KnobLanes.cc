@@ -35,18 +35,70 @@ isWritten (float value)
 {
   return !std::isnan (value);
 }
+
+constexpr long long wordBits = 64;
+
+std::size_t
+wordsFor (std::size_t bits)
+{
+  return (bits + wordBits - 1) / wordBits;
+}
+
+/** The highest set bit of `word` at or below `bit`; -1 for none. */
+int
+highestSetAtOrBelow (std::uint64_t word, int bit)
+{
+  auto const mask = bit >= 63 ? ~std::uint64_t{ 0 }
+                              : (std::uint64_t{ 1 } << (bit + 1)) - 1;
+  auto const kept = word & mask;
+  return kept == 0 ? -1 : 63 - __builtin_clzll (kept);
+}
 }
 
 KnobLane::KnobLane (long long ticks)
-    : _values (static_cast<std::size_t> (ticks > 0 ? ticks : 0), unwritten)
+    : _values (static_cast<std::size_t> (ticks > 0 ? ticks : 0), unwritten),
+      _written (wordsFor (_values.size ()), 0),
+      _wordsWritten (wordsFor (_written.size ()), 0)
 {
+}
+
+long long
+KnobLane::lastWrittenAtOrBefore (long long tick) const
+{
+  if (tick < 0)
+    return -1;
+
+  auto word = tick / wordBits;
+  if (auto const bit = highestSetAtOrBelow (
+          _written[static_cast<std::size_t> (word)],
+          static_cast<int> (tick % wordBits));
+      bit >= 0)
+    return word * wordBits + bit;
+
+  // The words before, through the index of which ones hold anything.
+  for (auto before = word - 1; before >= 0;)
+    {
+      auto const group = before / wordBits;
+      auto const found = highestSetAtOrBelow (
+          _wordsWritten[static_cast<std::size_t> (group)],
+          static_cast<int> (before % wordBits));
+      if (found >= 0)
+        {
+          word = group * wordBits + found;
+          return word * wordBits
+                 + highestSetAtOrBelow (
+                     _written[static_cast<std::size_t> (word)], 63);
+        }
+      before = group * wordBits - 1;
+    }
+  return -1;
 }
 
 bool
 KnobLane::empty () const
 {
-  for (auto const value : _values)
-    if (isWritten (value))
+  for (auto const words : _wordsWritten)
+    if (words != 0)
       return false;
   return true;
 }
@@ -58,7 +110,13 @@ KnobLane::write (long long tick, float value)
     return;
 
   auto const size = static_cast<long long> (_values.size ());
-  _values[static_cast<std::size_t> (((tick % size) + size) % size)] = value;
+  auto const at = ((tick % size) + size) % size;
+  _values[static_cast<std::size_t> (at)] = value;
+  auto const word = at / wordBits;
+  _written[static_cast<std::size_t> (word)]
+      |= std::uint64_t{ 1 } << (at % wordBits);
+  _wordsWritten[static_cast<std::size_t> (word / wordBits)]
+      |= std::uint64_t{ 1 } << (word % wordBits);
 }
 
 std::optional<float>
@@ -72,14 +130,12 @@ KnobLane::at (double tick) const
       = ((static_cast<long long> (std::floor (tick)) % size) + size) % size;
 
   // Backwards from here, round the end: the last value written holds.
-  for (long long back = 0; back < size; ++back)
-    {
-      auto const value = _values[static_cast<std::size_t> (
-          ((here - back) % size + size) % size)];
-      if (isWritten (value))
-        return value;
-    }
-  return {};
+  auto written = lastWrittenAtOrBefore (here);
+  if (written < 0)
+    written = lastWrittenAtOrBefore (size - 1);
+  if (written < 0)
+    return {};
+  return _values[static_cast<std::size_t> (written)];
 }
 
 std::vector<std::pair<int, float> >

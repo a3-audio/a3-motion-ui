@@ -1009,6 +1009,20 @@ ClipSettingsComponent::setKnobsWriting (
 }
 
 void
+ClipSettingsComponent::setKnobsStill (std::array<bool, numKnobs> const &still)
+{
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const place = placeOf (static_cast<Knob> (k));
+      auto const s = static_cast<std::size_t> (place.section);
+      auto const sub = static_cast<std::size_t> (place.sub);
+      if (s < _controlKnob.size () && sub < _controlKnob[s].size ())
+        if (auto &knob = _controlKnob[s][sub])
+          knob->setEnabled (!still[static_cast<std::size_t> (k)]);
+    }
+}
+
+void
 ClipSettingsComponent::setMotionEnvelope (int attackStep, int decayStep)
 {
   auto const attack = juce::jlimit (0, envelopeMaxStep, attackStep);
