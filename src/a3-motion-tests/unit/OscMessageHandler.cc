@@ -945,7 +945,7 @@ TEST (OscMessageHandler, NoneSaysThePreviewIsGone)
   EXPECT_FALSE (listener.lastPreview.has_value ());
 }
 
-// Review Focus 5: a word Motion does not know, or the wrong types.
+// A word Motion does not know, or the wrong types.
 TEST (OscMessageHandler, APreviewOfTheWrongShapeIsLeftAlone)
 {
   HeightMapSphere heightMap;

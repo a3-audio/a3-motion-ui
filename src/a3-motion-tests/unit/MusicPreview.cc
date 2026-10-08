@@ -103,7 +103,7 @@ TEST (MusicPreview, HeldWithItsAgeInBars)
   EXPECT_NEAR (now->ageBars, 1.5, 1e-9);
 }
 
-// Review Focus 2: StemDeck gone without a word.
+// StemDeck gone without a word.
 TEST (MusicPreview, StaleAfterFourBarsWithoutANewOne)
 {
   MusicPreview preview;
