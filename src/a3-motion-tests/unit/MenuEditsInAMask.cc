@@ -503,6 +503,108 @@ TEST (MenuMain, ADragInALongListScrollsItAndChoosesNothing)
   EXPECT_TRUE (m.menu.isPickerOpen ());
 }
 
+// The skin list is chosen by looking (#54): without a keyboard the arrows were
+// the only way to see a skin before keeping it. A tap shows it, a second tap
+// on the same one keeps it, Back goes back.
+TEST (MenuSkinPreview, ATapShowsASkinWithoutChoosingIt)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  auto controls = controlsFor (m.menu, 5);
+  ASSERT_NE (controls.name, nullptr);
+  controls.name->onTap (5, -1);
+
+  EXPECT_EQ (m.browsed, std::vector<int>{ 5 });
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_TRUE (m.menu.isPickerOpen ());
+  EXPECT_EQ (m.menu.getSelectedValueIndex (), 5);
+}
+
+TEST (MenuSkinPreview, ASecondTapOnTheSameSkinKeepsIt)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+  EXPECT_FALSE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, ATapOnAnotherSkinShowsThatOneInstead)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 7).name->onTap (7, -1);
+
+  EXPECT_EQ (m.browsed, (std::vector<int>{ 5, 7 }));
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_TRUE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, ADoubleTapKeepsAtOnce)
+{
+  // The second tap of a double tap arrives as onDoubleTap, not as a tap.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  controlsFor (m.menu, 5).name->onDoubleTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+}
+
+TEST (MenuSkinPreview, ATapOnTheRunningSkinKeepsIt)
+{
+  // The list opens on the running skin, so it is already the one shown.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 2).name->onTap (2, -1);
+
+  EXPECT_TRUE (m.browsed.empty ());
+  EXPECT_EQ (m.chosen, std::vector<int>{ 2 });
+}
+
+TEST (MenuSkinPreview, PreviewThenBackChoosesNothing)
+{
+  // Choosing is the only way to a write: the owner applies and saves in
+  // onPickerChosen, while a preview only paints.
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+  m.menu.cancelPicker ();
+
+  EXPECT_TRUE (m.chosen.empty ());
+  EXPECT_EQ (m.cancelled, 1) << "so the owner puts the running skin back";
+  EXPECT_FALSE (m.menu.isPickerOpen ());
+}
+
+TEST (MenuSkinPreview, OtherListsStillChooseOnTheFirstTap)
+{
+  Menu m;
+  m.menu.setOptionIndex (0);
+  m.menu.openPicker (GlobalSettingsComponent::PickerTap::previews);
+  m.menu.cancelPicker ();
+
+  m.menu.openPicker ();
+  controlsFor (m.menu, 5).name->onTap (5, -1);
+
+  EXPECT_EQ (m.chosen, std::vector<int>{ 5 });
+  EXPECT_TRUE (m.browsed.empty ());
+}
+
 // Two fingers scroll a menu list as one: every scrollable hit area on the menu
 // pages shares one FingerLatch, or the second finger would scroll it again.
 TEST (MenuTwoFingers, EveryListAreaSharesOneLatch)

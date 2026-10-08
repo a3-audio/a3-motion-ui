@@ -463,7 +463,10 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
         return;
       }
 
-    _globalSettings->openPicker ();
+    _globalSettings->openPicker (
+        browsedMenuRow () == std::optional<MenuRow>{ MenuRow::Skin }
+            ? GlobalSettingsComponent::PickerTap::previews
+            : GlobalSettingsComponent::PickerTap::chooses);
     updateOverlayButtons (); // the panel changed size; the strips follow
   };
 
@@ -7361,6 +7364,9 @@ A3MotionUIComponent::closeGlobalSettings ()
   // The editor is a page of this menu, so closing the menu leaves it first —
   // that is also what saves the edited skin.
   closeSkinEditor ();
+  // A skin being looked at goes back to the running one: closing is not
+  // keeping.
+  _globalSettings->cancelPicker ();
 
   _globalSettingsOpen = false;
   _globalSettingsValueFieldSelected = false;
@@ -8116,9 +8122,9 @@ A3MotionUIComponent::previewSkin (int index)
   if (index < 0 || index >= _skinNames.size ())
     return;
 
-  // Shown while the encoder is still turning, so a skin is chosen by
+  // Shown on a tap or an arrow in the skin list, so a skin is chosen by
   // looking at it rather than by reading its name. Nothing is written —
-  // the press is what makes it the one that is running.
+  // the second tap is what makes it the one that is running.
   auto const file = skinFile (getConfigFile ().getParentDirectory (),
                               _skinNames[index]);
   auto const loaded = loadTheme (migrateSkinNames (juce::JSON::parse (file.loadFileAsString ())));

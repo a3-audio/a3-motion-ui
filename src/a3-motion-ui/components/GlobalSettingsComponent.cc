@@ -167,7 +167,7 @@ GlobalSettingsComponent::rebuildRowTouch ()
   for (int slot = 0; slot < 32; ++slot)
     {
       auto control = std::make_unique<TouchControl> ();
-      control->onTap = [this] (int value, int) { choosePickerValue (value); };
+      control->onTap = [this] (int value, int) { tapPickerValue (value); };
       control->onDoubleTap
           = [this] (int value, int) { choosePickerValue (value); };
       control->onDragIncrement
@@ -202,8 +202,9 @@ GlobalSettingsComponent::pickerRowsShown () const
 }
 
 void
-GlobalSettingsComponent::openPicker ()
+GlobalSettingsComponent::openPicker (PickerTap tap)
 {
+  _pickerTap = tap;
   setValueFieldSelected (true);
 }
 
@@ -233,6 +234,33 @@ GlobalSettingsComponent::choosePickerValue (int value)
 }
 
 void
+GlobalSettingsComponent::tapPickerValue (int value)
+{
+  // The value already shown is the one a second tap keeps; the list opens on
+  // the running one, so a tap there keeps what is running.
+  if (_pickerTap == PickerTap::previews && value != _selectedValueIndex)
+    browsePickerValue (value);
+  else
+    choosePickerValue (value);
+}
+
+void
+GlobalSettingsComponent::browsePickerValue (int value)
+{
+  if (!_valueFieldSelected || value < 0 || value >= pickerValueCount ()
+      || value == _selectedValueIndex)
+    return;
+
+  _selectedValueIndex = value;
+  _pickerTop = scrollToShow (_pickerTop, value, pickerRowsShown (),
+                             pickerValueCount ());
+  layOut ();
+  repaint ();
+  if (onPickerBrowsed)
+    onPickerBrowsed (value);
+}
+
+void
 GlobalSettingsComponent::scrollPicker (int steps)
 {
   if (!_valueFieldSelected)
@@ -253,18 +281,8 @@ GlobalSettingsComponent::keyPressed (juce::KeyPress const &key)
     {
       if (up || down)
         {
-          auto const next = juce::jlimit (0, pickerValueCount () - 1,
-                                          _selectedValueIndex + (down ? 1 : -1));
-          if (next != _selectedValueIndex)
-            {
-              _selectedValueIndex = next;
-              _pickerTop = scrollToShow (_pickerTop, next, pickerRowsShown (),
-                                         pickerValueCount ());
-              layOut ();
-              repaint ();
-              if (onPickerBrowsed)
-                onPickerBrowsed (next);
-            }
+          browsePickerValue (juce::jlimit (0, pickerValueCount () - 1,
+                                           _selectedValueIndex + (down ? 1 : -1)));
           return true;
         }
       if (key == juce::KeyPress::returnKey)
@@ -415,6 +433,8 @@ void
 GlobalSettingsComponent::setValueFieldSelected (bool selected)
 {
   _valueFieldSelected = selected;
+  if (!selected)
+    _pickerTap = PickerTap::chooses;
   if (selected && !_options.empty ())
     {
       _selectedValueIndex
