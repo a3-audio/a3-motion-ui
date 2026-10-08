@@ -26,26 +26,29 @@
 #include <a3-motion-engine/flight/FlightWorld.hh>
 
 #include <array>
+#include <cstddef>
 #include <optional>
 
 namespace a3
 {
 
-/** A game an action asked a pilot for (FPV phase B posts it, phase C plays
- *  it). `order.game` is set; `leader` is the channel whose action asked. */
+/** A game an action asked a pilot for (an action posts it, the game
+ *  that starts takes it). `order.game` is set; `leader` is the channel whose
+ *  action asked. */
 struct GameRequest
 {
   PilotOrder order;
   int leader = -1;
-  /** When it was posted, on the engine's beat count. */
+  /** When it was posted, on the engine's beat count. post() leaves it to the
+   *  caller to set. */
   double postedBeats = 0.;
   /** Counts posts, so a reader tells a new request from one it has seen. */
   unsigned serial = 0;
 };
 
 /** What a ship was doing when a game took it, so it can go back to it when
- *  the game ends (spec: "A recruited ship returns to what it was doing").
- *  Taken by phase C at the start of a game. */
+ *  the game ends (a recruited ship returns to what it was doing).
+ *  Taken by whoever starts the game. */
 struct ShipResume
 {
   bool orbiting = false;  // ORBIT, or flying its clip
@@ -64,7 +67,7 @@ struct Recruitment
  *  \nearest: the leader and the free ship nearest it on the floor (`where`,
  *  the lower channel on a tie); \all: the leader and every free ship. The
  *  leader always comes -- it is its own action; whether a leader already in
- *  a game may start another is phase C's rule. Pure. */
+ *  a game may start another is up to whoever starts the game. Pure. */
 Recruitment recruit (PilotRecruit with, int leader,
                      std::array<Vec2, flightShips> const &where,
                      std::array<bool, flightShips> const &free,
@@ -79,7 +82,7 @@ public:
    *  request without a game, or for a ship outside the four, is ignored. */
   void post (GameRequest request);
   std::optional<GameRequest> pending (int ship) const;
-  /** The pending request, removed -- what phase C calls when a game starts. */
+  /** The pending request, removed -- what whoever starts a game calls. */
   std::optional<GameRequest> take (int ship);
 
 private:

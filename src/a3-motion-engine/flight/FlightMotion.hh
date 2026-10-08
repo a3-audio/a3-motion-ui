@@ -28,7 +28,7 @@
 namespace a3
 {
 
-/** What an action's Motion keys mean to a ship in ORBIT (FPV phase B).
+/** What an action's Motion keys mean to a ship in ORBIT (FPV).
  *
  *  Only the keys the script assigned are set: a clip's own spin or sway never
  *  steers the orbit, so a ship with no action flies exactly as before. Steps

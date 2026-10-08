@@ -797,7 +797,7 @@ TEST (FlightBreath, AnEscortKeepsItsGroupAcrossTheStops)
           << "at beat " << path[i].beats;
 }
 
-// -- An action on a flying ship (phase B) ------------------------------------
+// -- An action on a flying ship ------------------------------------
 
 namespace
 {
@@ -919,7 +919,7 @@ TEST (FlightMotionWorld, ASwellBreathesThePathIn)
              0.75 * meanRadius (a, 0, ticksIn (3.), ticksIn (6.)));
 }
 
-// Decision 12: an escort's order is its circle.
+// An escort's order is its circle.
 TEST (FlightMotionWorld, AnEscortIgnoresTheFloorKeys)
 {
   FlightWorld plain (aSeed);
@@ -941,7 +941,7 @@ TEST (FlightMotionWorld, AnEscortIgnoresTheFloorKeys)
     ASSERT_EQ (a[i].ships[0].p, b[i].ships[0].p) << "tick " << i;
 }
 
-// Decision 11: the breath holds the floor, an action's carry included.
+// The breath holds the floor, an action's carry included.
 TEST (FlightMotionWorld, TheBreathHoldsADrivenShip)
 {
   FlightWorld world (aSeed);
@@ -985,7 +985,7 @@ furthestOffThePath (std::vector<Sample> const &path, FlightTuning const &tuning)
 }
 }
 
-// Decision 4: carried, not steered. A ship alone on its path, without the
+// Carried, not steered. A ship alone on its path, without the
 // wander, stays on the path under the fastest spin: the carry moves it
 // along the ellipse with its rabbit, so the steering has nothing to undo.
 TEST (FlightMotionWorld, ACarriedShipStaysOnThePath)

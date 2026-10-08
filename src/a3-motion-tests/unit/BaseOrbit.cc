@@ -243,7 +243,7 @@ TEST (BaseOrbit, ALapOfZeroOrLessStandsTheRabbitStill)
     }
 }
 
-// ~swell (phase B) breathes the path: the rabbit runs on the same ellipse,
+// ~swell breathes the path: the rabbit runs on the same ellipse,
 // scaled about the room's middle.
 TEST (BaseOrbit, AScaledRabbitRunsOnAScaledEllipse)
 {

@@ -27,7 +27,7 @@
 namespace a3
 {
 
-/** What one press of an action button does (FPV phase B): the settings the
+/** What one press of an action button does (FPV): the settings the
  *  clip wears for the accent, what a flying ship does meanwhile, and what the
  *  channel's pilot is asked to play. Worked out by one run of the script, so
  *  one throw of the dice lands all three. */

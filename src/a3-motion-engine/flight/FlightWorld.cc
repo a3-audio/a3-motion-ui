@@ -178,7 +178,7 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
           = stepShip (_ships[index (ch)], forces[index (ch)], dt, _tuning);
 
   // An action's floor keys move only a patrolling ship: an escort's order is
-  // its circle (phase B, decision 12).
+  // its circle.
   for (auto ch = 0; ch < flightShips; ++ch)
     if (orders[index (ch)].flying && patrolling[index (ch)])
       carry (ch, beats + dt, beatsPerBar, dt);

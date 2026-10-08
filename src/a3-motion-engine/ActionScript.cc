@@ -821,7 +821,7 @@ runActionScript (juce::String const &source, ClipSettings const &current,
               continue;
             }
 
-          // The Pilot section (FPV phase B): what the channel's pilot is
+          // The Pilot section (FPV): what the channel's pilot is
           // asked to play. Kept with the action; FULL ignores it.
           if (isPilotName (name))
             {
@@ -1083,7 +1083,7 @@ actionScriptNames ()
     names.add (field.name);
   // Not a setting, but a line a script may write (2026-09-29).
   names.add ("then");
-  // The Pilot section (FPV phase B): lines a script may write, not settings.
+  // The Pilot section (FPV): lines a script may write, not settings.
   names.add ("game");
   names.add ("target");
   names.add ("with");

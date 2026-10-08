@@ -26,7 +26,7 @@
 
 using namespace a3;
 
-// A press, worked out once (FPV phase B): what the clip wears, what a flying
+// A press, worked out once (FPV): what the clip wears, what a flying
 // ship does, what the pilot is asked. One run of the script, one throw of the
 // dice, so the three cannot disagree.
 
@@ -93,7 +93,7 @@ TEST (FiredAction, EveryFlyingKeyIsRead)
   EXPECT_EQ (fired.flight.speedLog2, std::optional<int> (-1));
 }
 
-// The spec: no sensible flight sense.
+// No sensible flight sense.
 TEST (FiredAction, TheSqueezesRotateAndElevationDoNotFly)
 {
   auto const fired = fire ("~sqzX = 0.5;\n~sqzY = -0.5;\n~strX = 3;\n~strY = -3;\n"

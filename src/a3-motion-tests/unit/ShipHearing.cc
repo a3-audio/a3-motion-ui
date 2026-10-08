@@ -31,7 +31,7 @@
 
 using namespace a3;
 
-// Where a flying ship is heard while an action drives it (phase B): its floor
+// Where a flying ship is heard while an action drives it: its floor
 // point through its clip's band, swung in height and leant -- and never turning
 // round the listener faster than a room can follow.
 

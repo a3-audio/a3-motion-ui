@@ -44,7 +44,7 @@ struct OrbitPoint
  *  `phaseOffset` (laps) moves the rabbit along its lap: a ship launched
  *  mid-flight starts its rabbit at the phase nearest to it rather than at its
  *  channel's slot. `radiusScale` scales the ellipse about the room's middle
- *  (an action's ~swell, phase B); 1 is the path as tuned. */
+ *  (an action's ~swell); 1 is the path as tuned. */
 /** The lap phase (0..1) channel `channel`'s rabbit has at `beats` without
  *  an offset: its slot, a quarter lap behind channel n-1. */
 float rabbitSlotPhase (double beats, int channel, int beatsPerBar,
@@ -56,7 +56,7 @@ OrbitPoint rabbitAt (double beats, int channel, int beatsPerBar,
 
 /** `v` carried `laps` along the path as it stands at `beats`: the map that
  *  takes the ellipse onto itself, every point `laps` further round, as the
- *  rabbit's phase moves (phase B, an action's spin and pace). Linear, so it
+ *  rabbit's phase moves (an action's spin and pace). Linear, so it
  *  carries a position and a velocity alike; the same at every radiusScale. */
 Vec2 carryAlongOrbit (Vec2 v, double beats, int beatsPerBar,
                       FlightTuning const &tuning, float laps);

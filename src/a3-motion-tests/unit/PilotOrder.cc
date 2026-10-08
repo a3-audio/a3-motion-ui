@@ -24,8 +24,8 @@
 
 using namespace a3;
 
-// The Pilot section's words (FPV phase B, 2026-10-08): each one read back to
-// what it was written from, so the template, the reader and phase C's games
+// The Pilot section's words (FPV, 2026-10-08): each one read back to
+// what it was written from, so the template, the reader and the games
 // agree on one spelling.
 
 TEST (PilotOrder, EveryGameIsReadBackFromItsWord)

@@ -26,7 +26,7 @@
 namespace a3
 {
 
-/** Where a flying ship is heard (phase B): `mapped` -- its floor point
+/** Where a flying ship is heard: `mapped` -- its floor point
  *  through its clip's band -- swung in height by the action's sway and leant
  *  by its tilt and roll, eased in by `weight` (0..1, smoothstep) the short way
  *  round. Without motion, at weight 0 or for an invalid `mapped` it is

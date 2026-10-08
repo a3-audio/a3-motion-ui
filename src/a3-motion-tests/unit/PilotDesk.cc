@@ -24,8 +24,8 @@
 
 using namespace a3;
 
-// Phase B records what an action asks a pilot to play; phase C takes it from
-// here. One pending request per ship, the newest wins -- as the newest press
+// A pilot's pending game: what an action asked it to play, kept until the game
+// that starts it takes it. One pending request per ship, the newest wins -- as the newest press
 // wins on a clip.
 
 namespace
@@ -104,7 +104,7 @@ TEST (PilotDesk, TakeHandsItOverOnce)
   EXPECT_FALSE (desk.pending (3).has_value ());
 }
 
-// Review focus 5.
+// A ship outside the four is ignored.
 TEST (PilotDesk, AShipOutsideTheFourIsIgnored)
 {
   PilotDesk desk;

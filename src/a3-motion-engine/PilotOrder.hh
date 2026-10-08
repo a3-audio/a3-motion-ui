@@ -27,9 +27,9 @@
 namespace a3
 {
 
-/** What an action's Pilot section asks of the channel's pilot (FPV phase B,
- *  spec `.claude/notes/fpv-pilots-spec.md`). Read with the script, kept with
- *  the press, ignored in FULL. Phase B only records a game; phase C plays it.
+/** What an action's Pilot section asks of the channel's pilot (FPV). Read with
+ *  the script, kept with the press, ignored in FULL. It only records a game;
+ *  the game that starts it plays it.
  */
 
 /** The games of the first version. `None` written out calls off a request

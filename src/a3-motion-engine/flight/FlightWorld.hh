@@ -49,7 +49,7 @@ struct ShipOrders
   bool flying = false;
   FlightGoal goal = FlightGoal::Patrol;
   int bodyId = noBodyId;
-  /** What an action fired at the channel asks of its ship (phase B), and
+  /** What an action fired at the channel asks of its ship, and
    *  whether it is asking now: the engine says driven while the accent runs.
    *  The world eases in and out over motionRampBeats and keeps the motion
    *  while it lets go. */

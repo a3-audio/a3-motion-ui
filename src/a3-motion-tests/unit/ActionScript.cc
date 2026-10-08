@@ -695,7 +695,7 @@ TEST (ActionScript, TheClipLineTakesTextOnly)
   EXPECT_FALSE (r.clip.has_value ());
 }
 
-// Review focus 5: the comment cut comes first, so text can't carry "//"; an
+// The comment cut comes first, so text can't carry "//"; an
 // unclosed quote is reported rather than read to the end of the line.
 TEST (ActionScript, AnUnclosedTextIsReported)
 {
@@ -743,9 +743,9 @@ TEST (ActionScript, TheTemplateOffersThenCommentedOut)
   EXPECT_TRUE (actionScriptNames ().contains ("then"));
 }
 
-// -- The Pilot section (FPV phase B, 2026-10-08) ------------------------------
+// -- The Pilot section (FPV, 2026-10-08) ------------------------------
 // What the channel's pilot is asked to play. Read and kept with the action;
-// FULL ignores it, phase C plays it.
+// FULL ignores it.
 
 TEST (ActionScript, APilotSectionNamesAGameATargetAndWhoComes)
 {
@@ -826,7 +826,7 @@ TEST (ActionScript, TheTemplateOffersThePilotSectionCommentedOut)
     EXPECT_TRUE (actionScriptNames ().contains (name)) << name;
 }
 
-// Review focus 4: every script on the rig was written before this section.
+// Every script on the rig was written before this section.
 TEST (ActionScript, AScriptWrittenBeforeThePilotSectionStillReads)
 {
   auto const before = actionScriptTemplate ()

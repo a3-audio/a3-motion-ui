@@ -95,7 +95,7 @@ struct FlightTuning
   float crowdMass = 1.f;
   float hotspotMass = 1.5f;
   float deadZoneMass = -2.f;
-  // An action on a flying ship (phase B, .claude/notes/fpv-phase-b-plan.md).
+  // An action on a flying ship (FPV).
   // Every rate it asks for is held under what a room can follow: a turn round
   // the listener at most 180 deg a beat, one lap per two beats [research B1,
   // mj-defaults], height at most half that [research B3].

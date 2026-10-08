@@ -28,7 +28,7 @@
 
 using namespace a3;
 
-// An action's Motion keys on a flying ship (FPV phase B): rates in beats,
+// An action's Motion keys on a flying ship (FPV): rates in beats,
 // each held under what a room can follow (research B1, B3; mj-defaults).
 
 namespace
@@ -186,7 +186,7 @@ TEST (FlightMotion, ALeanTurnsRoundNoFasterThanTheCap)
   EXPECT_LE (quarterTurnsPerBeat * 90., tuning.angularCapDegreesPerBeat * 1.01);
 }
 
-// Review focus 3: the caps are beats, not bars.
+// The caps are beats, not bars.
 TEST (FlightMotion, TheCapsHoldInThreeFour)
 {
   FlightTuning const tuning;
