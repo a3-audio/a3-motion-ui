@@ -17,10 +17,10 @@
           "script": "Lift Overhead"
         },
         {
-          "script": "Width Close"
+          "script": "Width Breathe"
         },
         {
-          "script": "Width Breathe"
+          "script": "Lift Sway"
         },
         {
           "script": "Move Unwind"
@@ -49,10 +49,10 @@
           "script": "Lift Overhead"
         },
         {
-          "script": "Width Close"
+          "script": "Width Breathe"
         },
         {
-          "script": "Width Breathe"
+          "script": "Lift Sway"
         },
         {
           "script": "Move Unwind"
@@ -81,10 +81,10 @@
           "script": "Lift Overhead"
         },
         {
-          "script": "Width Close"
+          "script": "Width Breathe"
         },
         {
-          "script": "Width Breathe"
+          "script": "Lift Sway"
         },
         {
           "script": "Move Unwind"
@@ -113,10 +113,10 @@
           "script": "Lift Overhead"
         },
         {
-          "script": "Width Close"
+          "script": "Width Breathe"
         },
         {
-          "script": "Width Breathe"
+          "script": "Lift Sway"
         },
         {
           "script": "Move Unwind"
