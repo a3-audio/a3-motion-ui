@@ -360,8 +360,8 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
   looking from above every finger was held on the equator. So a take's band is the whole sphere:
   base at the north pole, reach 1, no clips, no sway or swell, no elevation lanes
   (`openToTheWholeSphere`, `TakeSeed`; the knobs are `isTakeBandKnob`). What is heard during the
-  take is what it plays back, and the bar's elevation knobs show the whole sphere from the
-  downbeat on.
+  take is what it plays back, and the bar's elevation knobs show the whole sphere from the moment
+  REC is pressed.
 
   - **Laid out when it is asked for.** `MotionEngine::recordPattern` prepares the take on the
     caller's thread before scheduling it (`prepareTake`): its ticks, its lanes, and the clip's path
