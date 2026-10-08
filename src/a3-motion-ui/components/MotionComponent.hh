@@ -42,7 +42,10 @@
 #include <a3-motion-ui/components/CameraFingers.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/fpv/FloorGesture.hh>
+#include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-ui/components/fpv/ShipShape.hh>
+#include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/LineMapRenderer.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -53,6 +56,19 @@ namespace a3
 class MotionEngine;
 class Pattern;
 class ChannelUIState;
+
+/** What FPV draws of the gravity field, from the message thread. */
+struct FlightDisplay
+{
+  FlightBodies bodies{};
+  /** Per channel, the body id its ship is seen escorting (escortView);
+   *  noBodyId for none. */
+  std::array<int, fpvShips> escort{ noBodyId, noBodyId, noBodyId, noBodyId };
+  /** The big path at its current precession, on the floor. */
+  std::vector<Vec2> guide;
+  /** gravityPulse now: the discs breathe with it. */
+  float pulse = 1.f;
+};
 
 class MotionComponent : public juce::Component,
                         public juce::OpenGLRenderer,
@@ -74,6 +90,23 @@ public:
   /** FPV: ships instead of blobs, and touch on the sphere is camera only.
    *  Message thread. */
   void setFpv (bool on);
+
+  /** FPV's gravity field as it is to be drawn. Message thread. */
+  void setFlightDisplay (FlightDisplay display);
+
+  /** A Page pad is held in FPV: a finger on the floor names that pad's
+   *  ship's target (onPageTap) instead of starting the group gesture. */
+  void setPageHeld (bool held);
+
+  /** The floor in FPV, decided by FloorGesture (positions on the floor,
+   *  bodies by FlightBody::id). Message thread. */
+  std::function<void (Vec2 at)> onFloorPlaced;
+  std::function<void (int bodyId)> onBodyCycled;
+  std::function<void (int bodyId, Vec2 at)> onBodyMoved;
+  std::function<void (int bodyId)> onBodyRemoved;
+  /** A finger on the floor while a Page pad is held: the body it landed on,
+   *  or empty floor. */
+  std::function<void (std::optional<int> bodyId)> onPageTap;
 
   /** How far the sphere is zoomed, as a factor on its size. */
   float getCameraZoom () const;
@@ -203,6 +236,30 @@ private:
   /** FPV's ships, where the shader draws blobs in FULL. GL thread (the 2D
    *  pass), the only place _shipHeadings is touched. */
   void drawShips (juce::Graphics &g);
+  /** FPV's field in pixel space, before the ships: the big path, the
+   *  escort lines and the bodies. Pixel space because JUCE clamps a font's
+   *  height at 0.1, which at the sphere pass's scale would blow the labels
+   *  up. GL thread. */
+  void drawFlight (juce::Graphics &g, FlightDisplay const &display);
+  /** A point on the floor, where a ship over it would be heard (default
+   *  ElevationParams), in local pixels; nothing when it does not project. */
+  std::optional<juce::Point<float> > floorToPixel (Vec2 at) const;
+  /** A floor length at `at`, in pixels: the mean of its projection along
+   *  both axes, so it shrinks where the band compresses. */
+  float floorLengthInPixels (Vec2 at, float length) const;
+  /** And back: the floor under a pixel. */
+  Vec2 floorAt (juce::Point<float> posPixel) const;
+  float blobDiameterInPixels () const;
+  /** The body under a finger, by the bodies as last set. Message thread. */
+  std::optional<int> bodyAt (juce::Point<float> posPixel) const;
+  /** The first finger in FPV: the floor's, the Page's or the camera's.
+   *  Answers true when the floor took it. */
+  bool floorFingerDown (SourceKey key, juce::Point<float> at);
+  /** Whatever the floor finger was doing stops (a pinch, leaving FPV). */
+  void cancelFloorFinger ();
+  void carryOutFloorAction (FloorAction action, juce::Point<float> at);
+  static double floorClockMs ();
+
   /** Every blob and the recording let go, as if all fingers lifted. */
   void releaseBlobGrabs ();
   void drawListener (juce::Graphics &g);
@@ -220,6 +277,20 @@ private:
    *  thread: the headings start over whenever the view changes. */
   std::atomic<bool> _resetShipHeadings{ false };
   std::array<ShipHeading, 4> _shipHeadings; // GL thread: the 2D pass only
+
+  /** The field as the GL thread draws it: guarded by _mutexDisplayData. */
+  FlightDisplay _flightDisplay;
+  /** The bodies as last set, for the hit test on the message thread. */
+  FlightBodies _flightBodiesShown{};
+  /** The one finger on the floor and what it is. Message thread. */
+  FloorGesture _floorGesture;
+  std::optional<SourceKey> _floorFinger;
+  bool _floorFingerIsPage = false;
+  bool _pageHeld = false;
+  /** The body being held towards its removal, for the ring: set by the
+   *  30-Hz timer, read by the GL thread. */
+  std::atomic<int> _holdBody{ noBodyId };
+  std::atomic<float> _holdProgress{ 0.f };
 
   /** How far the sphere is zoomed, as a factor on its size -- set in camera
    *  mode by the wheel or a two-finger pinch, and read by the render thread

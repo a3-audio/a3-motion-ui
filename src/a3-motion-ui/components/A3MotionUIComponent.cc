@@ -25,6 +25,8 @@
 #include <a3-motion-ui/components/RecordingLength.hh>
 
 #include <a3-motion-engine/Envelope.hh>
+#include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/BeatPulse.hh>
 #include <a3-motion-engine/OscSendGuard.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
@@ -1057,6 +1059,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
           { persisted.cameraPitch, persisted.cameraTurn });
       _motionComponent->setCameraZoom (persisted.cameraZoom);
       _motionComponent->onCameraChanged = [this] { persistSettings (); };
+      wireFloor ();
     }
 
   // Where each encoder was left on MOTION and REC.
@@ -1916,12 +1919,19 @@ A3MotionUIComponent::setView (AppView view)
       closeAllOverlays ();
       showKeyboard (false);
     }
+  // A Page held across the switch would turn its release into an FPV
+  // outcome in FULL, or swallow FULL's page turn.
+  _fpvPageHold.clear ();
+  _motionComponent->setPageHeld (false);
   _clipSettings->setVisible (!fpv);
   _fpvStrips->setVisible (fpv);
   _motionComponent->setFpv (fpv);
   _statusBar->setView (view);
   if (fpv)
-    refreshFpvStrips ();
+    {
+      refreshFpvStrips ();
+      refreshFlightDisplay ();
+    }
   resized ();
   updateControlReadout (fpv ? "-- FPV" : "-- FULL");
   persistSettings ();
@@ -1931,6 +1941,7 @@ void
 A3MotionUIComponent::refreshFpvStrips ()
 {
   std::array<FpvChannel, 4> channels{};
+  auto const bodies = _floorBodies.snapshot ();
   for (index_t ch = 0; ch < channels.size () && ch < _channelUIStates.size ();
        ++ch)
     {
@@ -1945,8 +1956,132 @@ A3MotionUIComponent::refreshFpvStrips ()
       c.pots = { _engine.getChannelPot3Effective (ch),
                  _engine.getChannelPot1Effective (ch),
                  _engine.getChannelPot2Effective (ch) };
+      // From the engine, which a take may have put back on CLIP; the escort
+      // as flown, with its body's weight as it is now.
+      c.orbit = _engine.getFlightMode (ch) == FlightMode::Orbit;
+      auto const escort = escortView (_fpvEscorts.of (static_cast<int> (ch)),
+                                      c.orbit, bodies);
+      c.escort = escort.escort;
+      c.escortMass = escort.mass;
     }
   _fpvStrips->setChannels (channels);
+}
+
+void
+A3MotionUIComponent::wireFloor ()
+{
+  _motionComponent->onFloorPlaced = [this] (Vec2 at) {
+    if (!_floorBodies.add (at))
+      {
+        updateControlReadout ("-- 8 GROUPS");
+        return;
+      }
+    publishFloor ();
+  };
+  _motionComponent->onBodyCycled = [this] (int bodyId) {
+    _floorBodies.cycleWeight (bodyId);
+    publishFloor ();
+  };
+  _motionComponent->onBodyMoved = [this] (int bodyId, Vec2 at) {
+    _floorBodies.move (bodyId, at);
+    publishFloor ();
+  };
+  _motionComponent->onBodyRemoved = [this] (int bodyId) {
+    removeFloorBody (bodyId);
+  };
+  _motionComponent->onPageTap
+      = [this] (std::optional<int> bodyId) { _fpvPageHold.tap (bodyId); };
+}
+
+void
+A3MotionUIComponent::removeFloorBody (int bodyId)
+{
+  // Ids are reused: every ship escorting this one patrols before the floor
+  // without it goes out, so the next group to take the number inherits no
+  // escort.
+  auto const changed = _fpvEscorts.forget (bodyId);
+  for (auto ch = 0u; ch < changed.size (); ++ch)
+    if (changed[ch])
+      _engine.setFlightTarget (ch, noBodyId);
+  _fpvPageHold.bodyRemoved (bodyId);
+  _floorBodies.remove (bodyId);
+  publishFloor ();
+}
+
+void
+A3MotionUIComponent::publishFloor ()
+{
+  _engine.setFlightBodies (_floorBodies.snapshot ());
+  refreshFlightDisplay ();
+  refreshFpvStrips ();
+}
+
+void
+A3MotionUIComponent::refreshFlightDisplay ()
+{
+  if (!_motionComponent)
+    return;
+
+  auto const &tuning = _engine.getFlightTuning ();
+  auto const beatsPerBar = _engine.getBeatsPerBar ();
+  auto const beats = static_cast<double> (
+                         Measure::convertToTicks (_now, beatsPerBar))
+                     / TempoClock::getTicksPerBeat ();
+
+  FlightDisplay display;
+  display.bodies = _floorBodies.snapshot ();
+  for (auto ch = 0; ch < fpvShips; ++ch)
+    display.escort[static_cast<size_t> (ch)]
+        = escortView (_fpvEscorts.of (ch),
+                      _engine.getFlightMode (static_cast<index_t> (ch))
+                          == FlightMode::Orbit,
+                      display.bodies)
+              .escort;
+  constexpr int guidePoints = 96;
+  display.guide = orbitGuidePoints (beats, beatsPerBar, guidePoints, tuning);
+  display.pulse = gravityPulse (_now, beatsPerBar, tuning);
+  _motionComponent->setFlightDisplay (std::move (display));
+}
+
+void
+A3MotionUIComponent::releaseFpvPage (index_t channel)
+{
+  auto const tapped = _fpvPageHold.tappedBody ();
+  if (auto const outcome = _fpvPageHold.release (static_cast<int> (channel)))
+    applyPageOutcome (channel, *outcome, tapped);
+  _motionComponent->setPageHeld (_fpvPageHold.isHeld ());
+}
+
+void
+A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
+                                       std::optional<int> tappedBody)
+{
+  auto const bodyId = tappedBody.value_or (noBodyId);
+  switch (outcome)
+    {
+    case PageOutcome::Toggle:
+      _engine.setFlightMode (channel,
+                             _engine.getFlightMode (channel) == FlightMode::Clip
+                                 ? FlightMode::Orbit
+                                 : FlightMode::Clip);
+      break;
+    case PageOutcome::Escort:
+      _fpvEscorts.set (static_cast<int> (channel), bodyId);
+      _engine.setFlightTarget (channel, bodyId);
+      _engine.setFlightMode (channel, FlightMode::Orbit);
+      break;
+    case PageOutcome::Patrol:
+      _fpvEscorts.set (static_cast<int> (channel), noBodyId);
+      _engine.setFlightTarget (channel, noBodyId);
+      break;
+    case PageOutcome::None:
+      return;
+    }
+  updateControlReadout (fpvPageReadout (
+      static_cast<int> (channel), outcome,
+      _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId));
+  refreshFpvStrips ();
+  refreshFlightDisplay ();
 }
 
 void
@@ -2379,6 +2514,14 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       }
     case PadFunction::Page:
       {
+        // FPV has no page to turn: the pad is the channel's ORBIT key,
+        // decided on its release (fpvPagePress). FULL's Page is below.
+        if (_view == AppView::Fpv)
+          {
+            _fpvPageHold.press (static_cast<int> (channel));
+            _motionComponent->setPageHeld (true);
+            break;
+          }
         // Another channel's PAGE brings that channel up on the page you are
         // on; the shown channel's steps through its pages, back with Shift.
         // Whatever lies over the sphere goes first -- PAGE is about the clip.
@@ -5529,6 +5672,11 @@ A3MotionUIComponent::handlePadRelease (index_t channel, index_t pad)
   // because the screen's pads have to leave the gesture the same way they
   // entered it. A press that could be released only by the hardware would
   // leave a channel previewing with nothing on screen to stop it.
+  if (padFunctionByPadIndex[pad] == PadFunction::Page)
+    {
+      releaseFpvPage (channel);
+      return;
+    }
   if (padFunctionByPadIndex[pad] != PadFunction::Action)
     return;
 
@@ -6797,7 +6945,10 @@ A3MotionUIComponent::timerCallback ()
   sayHelloWhenDue ();
 
   if (_view == AppView::Fpv)
-    refreshFpvStrips ();
+    {
+      refreshFpvStrips ();
+      refreshFlightDisplay ();
+    }
 
   // At most one theme apply per tick, whatever arrived since the last one --
   // see applyEditedSkin(). Here rather than in a callAsync of its own because

@@ -171,6 +171,10 @@ public:
    *  thread takes whatever was written last, without a queue. */
   void setFlightBodies (FlightBodies const &bodies);
 
+  /** The constants the ships fly by, for what the UI draws of the field
+   *  (capture rings, the big path, the pulse). */
+  FlightTuning const &getFlightTuning () const { return _flightTuning; }
+
 private:
   /** One tick of every channel's accent. Runs on the tempo-clock thread with
    *  the rest of playback, so the envelope and the trajectory move together.

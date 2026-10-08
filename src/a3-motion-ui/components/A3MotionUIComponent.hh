@@ -55,6 +55,8 @@
 #include <a3-motion-ui/components/ActionChain.hh>
 #include <a3-motion-ui/components/ActionComponent.hh>
 #include <a3-motion-ui/components/AppView.hh>
+#include <a3-motion-ui/components/fpv/FloorBodies.hh>
+#include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-ui/components/fpv/FpvStrips.hh>
 #include <a3-motion-ui/components/BarKeyboardComponent.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
@@ -731,6 +733,22 @@ private:
   void refreshFpvStrips ();
   /** resized() for FPV: the sphere above, the strips below. */
   void resizedFpv (juce::Rectangle<int> bounds);
+
+  /** The groups the DJ placed (session only), whom each ship escorts, and
+   *  the Page pad while it is held in FPV. Message thread. */
+  FloorBodies _floorBodies;
+  FpvEscorts _fpvEscorts;
+  FpvPageHold _fpvPageHold;
+  /** The floor's touch callbacks, from the sphere. */
+  void wireFloor ();
+  /** The bodies to the engine, and what the sphere draws of them. */
+  void publishFloor ();
+  /** What the sphere draws of the field: every UI tick in FPV. */
+  void refreshFlightDisplay ();
+  void removeFloorBody (int bodyId);
+  void releaseFpvPage (index_t channel);
+  void applyPageOutcome (index_t channel, PageOutcome outcome,
+                         std::optional<int> tappedBody);
   /** What lies over the sphere takes the sphere's whole rectangle, in either
    *  view. */
   void placeOverSphere ();
