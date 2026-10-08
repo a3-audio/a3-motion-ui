@@ -42,10 +42,11 @@ struct ElevationParams
   // exceed r=1, e.g. a Square's corners at r=sqrt(2)) scale proportionally
   // instead of overshooting past reach's edge.
   float reach = 0.5f;
-  // Where the middle of the trajectory (r=0) lands, 0 at the north pole and
-  // 1 at the south. The cone then grows towards whichever pole is further
-  // away, so reach always has room; exactly on the equator it grows south,
-  // which is the direction it has always grown in.
+  // The latitude the figure grows from, 0 at the north pole and 1 at the
+  // south: its top. The cone always grows south from it -- north with a
+  // negative reach -- and over the wall at a pole (see HeightMapSphere's
+  // mapTo3D). The pad's middle (r=0) does not stand here: it runs to the
+  // nearer pole (originFold), so a figure's middle is not at the base.
   //
   // This is what the elevation graphic's line sets, and it is why
   // mirrorSouth is no longer read: a base of 0 is what "north" meant and a

@@ -244,6 +244,34 @@ radiusPlaying (float frac, PlayableBand const &band, float reach)
 }
 
 float
+elevationBaseCentring (float height, float reach)
+{
+  // The ring runs from the edge of the middle run to the drawn circle (pad
+  // radius 1, i.e. 1/sqrt(2) of the pattern range). Its offsets below the
+  // base do not depend on the base, but the run's width does -- twice the
+  // base's distance to the nearer pole, clamped -- so a second pass settles
+  // it; from the middle of the room the width is the cap anyway.
+  auto const towards = reach < 0.f ? -1.f : 1.f;
+  auto const spread = std::abs (reach);
+  auto const ringOut
+      = std::min (thetaShapeFromR (1.f / kPatternCoordinateMaxRadius, spread),
+                  pi<float> ())
+        / pi<float> ();
+
+  auto base = std::clamp (height, 0.f, 1.f);
+  for (int pass = 0; pass < 2; ++pass)
+    {
+      auto const fold = originFold (base, reach);
+      auto const ringIn
+          = std::min (thetaShapeFromR (fold.radius, spread), pi<float> ())
+            / pi<float> ();
+      base = std::clamp (height - towards * (ringIn + ringOut) * 0.5f, 0.f,
+                         1.f);
+    }
+  return base;
+}
+
+float
 HeightMapSphere::computeHeight (Pos const &pos) const
 {
   auto zSquared = 1.f - pos.x () * pos.x () - pos.y () * pos.y ();
