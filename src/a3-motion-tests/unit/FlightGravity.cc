@@ -49,11 +49,6 @@ constexpr int fourFour = 4;
 constexpr float roomSlack = 1e-5f;
 constexpr float twoPi = 2.f * pi<float> ();
 
-// A speed-up has to reach 1.5x to be heard as "faster" at all (Carlile & Best;
-// see .claude/notes/auditory-motion-research.md, B1), so that is the bar a
-// slingshot has to clear, not the plan's 1.2x.
-constexpr float audibleSpeedUp = 1.5f;
-
 float
 tickBeats ()
 {
@@ -131,16 +126,6 @@ closestApproach (std::vector<Sample> const &path, Vec2 to)
   return closest;
 }
 
-size_t
-closestIndex (std::vector<Sample> const &path, Vec2 to)
-{
-  auto const nearer = [to] (Sample const &a, Sample const &b) {
-    return a.ship.p.getDistanceFrom (to) < b.ship.p.getDistanceFrom (to);
-  };
-  return static_cast<size_t> (
-      std::min_element (path.begin (), path.end (), nearer) - path.begin ());
-}
-
 Vec2
 rotated (Vec2 v, float angle)
 {
@@ -184,22 +169,11 @@ isFinite (Vec2 v)
 
 // ---- What a guest hears ----
 //
-// The bars below are perceptual, not tuning: a ship is only "not boring" if
-// the ear can tell. They come from auditory-motion-research.md part B and are
-// met with room to spare, so the rig can retune FlightTuning without
-// touching them.
+// The room's own bars: a ship must not park on the rim, and must keep out of
+// a dead zone. The planets' bends are pinned further below, as quiet ones.
 
 namespace
 {
-
-// A bend is heard once the source sits >= ~25 deg away from where the bare
-// path would have put it: B2 asks >= 20 deg in front and >= 30 deg to the
-// sides. As a chord at the path's radius 0.7: 2 * 0.7 * sin (12.5 deg) = 0.30.
-constexpr float audibleBend = 0.3f;
-
-// A change of speed needs time to be heard: about 250 ms, half a beat at
-// 120 BPM, is what the speed is averaged over (B5: integration ~336 ms).
-constexpr double heardSpeedBeats = 0.5;
 
 // A ship held in one place for longer than a bar is heard as parked, not
 // flying (the lab's failure case: ships that park overhead).
@@ -236,56 +210,6 @@ widestApart (std::vector<Sample> const &a, std::vector<Sample> const &b)
   return widest;
 }
 
-float
-heardSpeed (std::vector<Sample> const &path, size_t at)
-{
-  auto const half = ticksIn (heardSpeedBeats / 2.);
-  auto const from = at > half ? at - half : 0;
-  auto const to = std::min (path.size (), at + half);
-  auto sum = 0.f;
-  for (auto i = from; i < to; ++i)
-    sum += path[i].ship.v.getDistanceFromOrigin ();
-  return sum / static_cast<float> (to - from);
-}
-
-/** How much faster than in the empty room the ship is heard while it passes
- *  `body` and is flung out: the largest ratio from a beat before the closest
- *  approach to two beats after it has left the body's neighbourhood. */
-float
-slingOf (FlightBody const &body)
-{
-  constexpr float neighbourhood = 0.15f;
-  auto const bars = 6.f;
-  auto const path = fly (bars, bodiesOf ({ body }));
-  auto const empty = fly (bars, {});
-
-  auto const closest = closestIndex (path, body.at);
-  auto left = closest;
-  while (left + 1 < path.size ()
-         && path[left + 1].ship.p.getDistanceFrom (body.at) < neighbourhood)
-    ++left;
-
-  auto const from = closest > ticksIn (1.) ? closest - ticksIn (1.) : 0;
-  auto const to = std::min (path.size (), left + ticksIn (2.));
-  auto fastest = 0.f;
-  for (auto i = from; i < to; ++i)
-    fastest = std::max (fastest, heardSpeed (path, i) / heardSpeed (empty, i));
-  return fastest;
-}
-
-/** Of sixteen passes (eight places, on the path and just outside it), how
- *  many fling the ship out audibly faster. */
-int
-audibleSlingshots (float mass)
-{
-  auto count = 0;
-  for (auto const beats : eightPlacesRoundThePath ())
-    for (auto const outwards : { 0.f, 0.08f })
-      if (slingOf ({ besideThePath (beats, outwards), mass }) >= audibleSpeedUp)
-        ++count;
-  return count;
-}
-
 /** How many laps round the room's centre the ship turns over `path`. */
 float
 lapsRoundTheRoom (std::vector<Sample> const &path)
@@ -317,26 +241,101 @@ longestOnTheRim (std::vector<Sample> const &path)
 
 }
 
-TEST (FlightGravity, ACrowdNearThePathBendsItAudibly)
+// ---- Quiet planets (the maintainer's decision, 2026-10-08) ----
+//
+// The planets say *where* the sound goes; the breath carries the motion. So
+// they are light and pull only on the one, and their bends are small: a crowd
+// beside the path moves the ship 0.054-0.167 floor units, a hotspot
+// 0.085-0.210, under the 0.30 the ear needs to hear a bend on its own
+// (measured 2026-10-08). These tests pin that they still act, where and when
+// they should; they do not ask them to be heard.
+
+// Half the smallest crowd bend measured (0.054): a change that halves the
+// planets' pull fails, the quiet design passes.
+constexpr float measurableBend = 0.03f;
+
+TEST (FlightGravity, ACrowdOrAHotspotBesideThePathStillMovesTheShip)
 {
+  FlightTuning const t;
   auto const empty = fly (8.f, {});
-  for (auto const beats : eightPlacesRoundThePath ())
+  for (auto const mass : { t.crowdMass, t.hotspotMass })
+    for (auto const beats : eightPlacesRoundThePath ())
+      {
+        FlightBody const body{ besideThePath (beats, -0.1f), mass };
+        EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ body })), empty), measurableBend)
+            << "mass " << mass << " where the rabbit is at beat " << beats;
+      }
+}
+
+// Towards it, not away: the ship comes closer to a crowd than the empty
+// room's flight does, at most places round the path (7 of 8 measured; near
+// one place the steering's catch-up outweighs the light pull).
+TEST (FlightGravity, APlanetDrawsTheShipTowardsIt)
+{
+  FlightTuning const t;
+  constexpr int mostOfEight = 6;
+  auto const empty = fly (8.f, {});
+  for (auto const mass : { t.groupMass, t.crowdMass, t.hotspotMass })
     {
-      FlightBody const crowd{ besideThePath (beats, -0.1f), FlightTuning{}.crowdMass };
-      EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ crowd })), empty), audibleBend)
-          << "a crowd just inside the path where the rabbit is at beat " << beats;
+      auto closer = 0;
+      for (auto const beats : eightPlacesRoundThePath ())
+        {
+          auto const at = besideThePath (beats, -0.1f);
+          if (closestApproach (fly (8.f, bodiesOf ({ { at, mass } })), at)
+              < closestApproach (empty, at))
+            ++closer;
+        }
+      EXPECT_GE (closer, mostOfEight) << "mass " << mass;
     }
 }
 
-// A slingshot has to speed the ship up by 1.5x to be heard as faster at all.
-// Near a heavy group the flight is chaotic: some passes are held for a moment
-// instead (that is the capture). So the bar is most passes, three in four.
-TEST (FlightGravity, ACrowdOrAHotspotOnThePathSlingsTheShipOnMostPasses)
+// The bends land on the one: the flight with a crowd leaves the empty room's
+// flight first during a beat 1, and over beats 2-4 nothing pulls.
+TEST (FlightGravity, APlanetActsOnlyOnTheOne)
 {
-  constexpr int mostOfSixteen = 12;
   FlightTuning const t;
-  EXPECT_GE (audibleSlingshots (t.crowdMass), mostOfSixteen) << "a crowd";
-  EXPECT_GE (audibleSlingshots (t.hotspotMass), mostOfSixteen) << "a hotspot";
+  auto const empty = fly (4.f, {});
+  for (auto const beats : eightPlacesRoundThePath ())
+    {
+      auto const path
+          = fly (4.f, bodiesOf ({ { besideThePath (beats, -0.1f), t.crowdMass } }));
+      size_t i = 0;
+      while (i < path.size () && path[i].ship.p == empty[i].ship.p)
+        ++i;
+      ASSERT_LT (i, path.size ()) << "the crowd never moved the ship";
+      auto const beatInBar
+          = static_cast<int> (std::floor (path[i].beats - tickBeats ())) % fourFour;
+      EXPECT_EQ (beatInBar, 0) << "first moved at beat " << path[i].beats;
+    }
+}
+
+TEST (FlightGravity, NothingPullsOnBeatsTwoToFour)
+{
+  FlightTuning const t;
+  auto const bodies = bodiesOf ({ { { 0.3f, 0.3f }, t.hotspotMass },
+                                  { { -0.4f, 0.1f }, t.crowdMass } });
+  auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
+  for (auto beat = 0; beat < fourFour; ++beat)
+    for (auto tick : { 0, ticksPerBeat / 2, ticksPerBeat - 1 })
+      {
+        auto const pulse = gravityPulse (Measure (0, beat, tick), fourFour, t);
+        auto const pull = gravityAt ({ 0.6f, 0.2f }, bodies, pulse, t);
+        if (beat == 0)
+          EXPECT_GT (pull.getDistanceFromOrigin (), 0.f) << "the one, tick " << tick;
+        else
+          EXPECT_EQ (pull, (Vec2{ 0.f, 0.f })) << "beat " << beat + 1 << ", tick " << tick;
+      }
+}
+
+// Even a light group makes lap three differ from lap two: measured 0.044 with
+// a G, where the empty room repeats itself to 0.0000. Half of it is the bar.
+TEST (FlightGravity, TwoLapsAreNotTheSameWithAGroupThere)
+{
+  auto const empty = lapTwoAgainstLapThree (fly (16.f, {}));
+  auto const withAGroup = lapTwoAgainstLapThree (
+      fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, FlightTuning{}.groupMass } })));
+  EXPECT_LT (empty, 0.001f) << "the empty room repeats itself, as it should";
+  EXPECT_GT (withAGroup, 0.02f);
 }
 
 TEST (FlightGravity, AHotspotOutsideTheRoomNeverPinsTheShipToTheRim)
@@ -365,16 +364,6 @@ TEST (FlightGravity, ADeadZoneOnThePathKeepsTheShipOut)
                  mostOfTheClearance * tuning.deadZoneClearance)
           << "placed where the rabbit is at beat " << beats;
     }
-}
-
-TEST (FlightGravity, TwoLapsAreNotTheSameWithAGroupThere)
-{
-  auto const empty = lapTwoAgainstLapThree (fly (16.f, {}));
-  auto const withAGroup
-      = lapTwoAgainstLapThree (
-          fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, FlightTuning{}.groupMass } })));
-  EXPECT_LT (empty, 0.05f) << "the empty room repeats itself, as it should";
-  EXPECT_GT (withAGroup, 0.05f);
 }
 
 TEST (FlightGravity, EightHeavyGroupsStayFinite)
