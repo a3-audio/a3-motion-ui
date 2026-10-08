@@ -386,12 +386,17 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
     of (`releaseTheBand`). `Pattern::recordKnobs` writes no lane for them, WRITE's pass over every
     knob included.
   - **How a take ends.** `TakeUnderway` holds the take from REC to its end: the slot, the take
-    and what the slot held. REC again before the downbeat calls it off in the engine too
-    (`cancelScheduledRecording`; `startRecording` starts only the take still scheduled) and puts
-    the old clip back only while the slot still holds the take. Something else put into the slot
-    -- a shape, a clip with its own figure, a set -- ends the take there through
-    `dropPendingTake`: stopped or called off, nothing put back. A new figure in a take's slot gets
-    the band the slot had before the take, not the take's whole sphere (`settingsToCarry`).
+    and what the slot held. **One take at a time:** while one is scheduled or running anywhere, or
+    unsaved on another slot, REC is refused with `-- TAKE UNDERWAY ON CH n`
+    (`refusesANewTake`); again on an unsaved take's own slot it may, keeping the first's before.
+    REC again before the downbeat calls the take off in the engine (`cancelScheduledRecording`,
+    which also stops it if it started in the same tick; `startRecording` starts and announces
+    only the take still scheduled) and puts the old clip back only while the slot still holds the
+    take. Something else put into the slot -- a shape, a clip with its own figure -- ends the take
+    there through `dropPendingTake`: called off or stopped, nothing put back. A set load ends it
+    wherever it is, puts its slot's old clip back before the outgoing set is written, then loads.
+    A new figure in a take's slot gets the band the slot had before the take, not the take's
+    whole sphere (`settingsToCarry`).
   - **Threads.** The band's fields on `Pattern` are each atomic; `prepareTake` sets them before the
     take is the engine's, and with the band held nothing writes them during the take, so the
     clock and the UI never race on them. `HeightMapSphere::mapTo2D(…, ElevationParams)` still
