@@ -83,7 +83,8 @@ struct FlightTuning
   // the beat. The gate: gravity pulls only during beat 1 of each bar, so the
   // bends land on the one [lab: pulseMode = gate]. Off, it breathes on every
   // beat by the two depths below, under 1 deg of wobble at any depth: nothing
-  // may rely on that being heard [lab]. The floor draws the depths either way.
+  // may rely on that being heard [lab]. Under the gate pulseDepth is unused;
+  // pulseDownbeatDepth is how much the floor swells the discs on the one.
   bool gravityOnlyOnTheOne = true;
   float pulseDepth = 0.3f;
   float pulseDownbeatDepth = 0.6f;

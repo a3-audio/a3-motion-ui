@@ -315,13 +315,15 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
 and tagged as lab value, research value or guess. The rig changes values there; no test changes.
-Known compromise: the steer and gravity caps are 1.1, not the lab's 0.6, because 0.6 slings
-only ~1.4x. **Quiet planets, by decision (2026-10-08):** the planets say *where*, the breath
-carries the motion, so a planet's bend is small and need not be heard on its own: a crowd beside
-the path moves the ship 0.054-0.167 floor units, a hotspot 0.085-0.210 (the ear's bar for a bend
-heard alone is 0.30). The earlier "heard bend" and "heard slingshot" bars are retired; `FlightGravity`
-now pins that a planet still moves the ship (half the smallest measured bend), towards it, only
-on the one, and that a lap with a group differs from one without.
+History: the steer and gravity caps are 1.1, not the lab's 0.6, because with the plan's masses
+and an always-on pull 0.6 slung only ~1.4x, under the 1.5x a speed-up needs to be heard. That bar
+is retired (below); the caps stayed. **Quiet planets, by decision (2026-10-08):** the planets say
+*where*, the breath carries the motion, so a planet's bend is small and need not be heard on its
+own. A crowd beside the path moves the ship 0.054-0.167 floor units with the breath off and
+0.058-0.124 with it on, a hotspot 0.085-0.210 off and 0.075-0.174 on (the ear's bar for a bend
+heard alone is 0.30). `FlightGravity` pins that a planet still moves the ship, with and without
+the breath (bars between a halved pull and the real one), towards it, only on the one, and that a
+lap with a group differs from one without.
 
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,

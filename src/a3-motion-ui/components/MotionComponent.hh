@@ -66,7 +66,7 @@ struct FlightDisplay
   std::array<int, fpvShips> escort{ noBodyId, noBodyId, noBodyId, noBodyId };
   /** The big path at its current precession, on the floor. */
   std::vector<Vec2> guide;
-  /** gravityPulse now: the discs breathe with it. */
+  /** drawnPulse now: the discs swell with it. */
   float pulse = 1.f;
 };
 
