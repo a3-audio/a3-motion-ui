@@ -86,6 +86,62 @@ CLIPS = {
 }
 assert len(CLIPS) == 50
 
+# What each clip is for, one line, like an action's Mood: line. The library
+# page's clip table is rendered from these (a3-core tools/render_library.py).
+MOODS = {
+    'Warmup Halo': 'a slow halo overhead, gently breathing',
+    'Warmup Breath': 'one long breath above the room',
+    'Warmup Sunrise': 'a wide flower rising and sinking overhead',
+    'Warmup Horizon': 'a figure eight held level at ear height',
+    'Warmup Drift': 'drifting high and open, no hurry',
+    'Groove Four Floor': 'a jump on every beat, at ear height',
+    'Groove Tresillo': 'jumps on 3+3+2, turning slowly',
+    'Groove Clave': 'the 3-2 clave, jumps that answer',
+    'Groove Offbeat': 'jumps between the beats, wide',
+    'Groove Shuffle': 'a swung jump, turning',
+    'Build Riser': 'a spiral climbing as it opens',
+    'Build Pulse': 'a circle that swells faster and faster',
+    'Build Loop': 'a fast loop, lifting',
+    'Build Gallop': 'galloping jumps that pick up pace',
+    'Build Vortex': 'a wide vortex, the whole room turning',
+    'Peak Anthem': 'a big flower overhead, swelling',
+    'Peak Festival': 'a fast loop over the crowd, swaying',
+    'Peak Carousel': 'a carousel turning high and fast',
+    'Peak Star': 'a star thrown wide overhead',
+    'Peak Euphoria': 'a lifted trefoil, swelling on the bar',
+    'Drop Impact': 'hard corners slamming round the room',
+    'Drop Warehouse': 'a square that bounces back and forth',
+    'Drop Strobe': 'corner to corner, fast as a strobe',
+    'Drop Whirlwind': 'a whirlwind, the fastest turn there is',
+    'Drop Ping Pong': 'left, right, left, wide on the beat',
+    'Break Standstill': 'an arc that nearly stops, close',
+    'Break Collapse': 'a spiral drawing in',
+    'Break Monolith': 'a small diamond, slow and heavy',
+    'Break Suspend': 'a slow figure eight hanging overhead',
+    'Break Heartbeat': 'a heart shape beating close',
+    'Dub Echo': 'a throw and its echo, wide',
+    'Dub Pendulum': 'a pendulum swinging near and far',
+    'Dub Tunnel': 'a low helix, deep like a tunnel',
+    'Dub Kepler': 'an orbit slow far out, fast close in',
+    'Dub Skank': 'the offbeat, fading in and out of the room',
+    'Deep Undertow': 'a spiral pulling down and in',
+    'Deep Sub': 'a small circle on the floor, shrinking',
+    'Deep Fog': 'low drifting, fading at the edges',
+    'Deep Lurk': 'a slow wave close to the floor',
+    'Deep Cellar': 'a stretched cycle down low',
+    'Float Aurora': 'a loop overhead, breathing like light',
+    'Float Canopy': 'a canopy straight overhead, wide',
+    'Float Blossom': 'petals opening above the room',
+    'Float Lullaby': 'a very slow figure eight overhead',
+    'Float Cloud': 'a slow clover drifting high',
+    'Closing Sunset': 'a flower sinking towards ear height',
+    'Closing Farewell': 'a slow spiral drawing in',
+    'Closing Tide': 'a wave coming in and going out',
+    'Closing Ember': 'a small slow ellipse, low and warm',
+    'Closing Still': 'a small circle at ear height, almost still',
+}
+assert MOODS.keys() == CLIPS.keys()
+
 
 def main():
     for path in glob.glob(os.path.join(DIR, '*.json')):
@@ -95,6 +151,7 @@ def main():
         clip = dict(BASE)
         clip['name'] = name
         clip['svg'] = shape
+        clip['mood'] = MOODS[name]
         for key, value in values.items():
             assert key in BASE, key
             clip[key] = value

@@ -16,6 +16,7 @@
   "freqDecay": 3,
   "freqMax": 0.0,
   "mirrorSouth": false,
+  "mood": "jumps between the beats, wide",
   "name": "Groove Offbeat",
   "qAttack": 2,
   "qDecay": 3,

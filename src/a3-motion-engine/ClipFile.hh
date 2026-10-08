@@ -49,6 +49,11 @@ struct Clip
    *  a session it could not see — on another stick, in a backup — finds the
    *  clip again through these. */
   std::vector<std::string> aka;
+  /** What the clip is for, in one short line, like an action's Mood: line.
+   *  Not a setting: a settings save keeps it, and a take recorded on the
+   *  device has none and writes none. The library page's table is rendered
+   *  from it (a3-core tools/render_library.py). */
+  std::string mood;
   /** The shape this clip is played on, by the name the library resolves
    *  (`indexForName`) -- not by file name, which carries a beat-count prefix
    *  and changes when a take's length does. A set names its shapes the same

@@ -142,6 +142,8 @@ ClipFile::save (Clip const &clip, juce::File const &file)
         aka.add (juce::String (name));
       object->setProperty ("aka", aka);
     }
+  if (!clip.mood.empty ())
+    object->setProperty ("mood", juce::String (clip.mood));
 
   auto const &s = clip.settings;
   object->setProperty ("speed", s.speedLog2);
@@ -221,6 +223,7 @@ ClipFile::load (juce::File const &file)
   if (auto const *aka = parsed.getProperty ("aka", {}).getArray ())
     for (auto const &name : *aka)
       clip.aka.push_back (name.toString ().toStdString ());
+  clip.mood = readString (parsed, "mood", {}).toStdString ();
 
   auto &s = clip.settings;
   ClipSettings const defaults;
