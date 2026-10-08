@@ -105,7 +105,7 @@ private:
 struct EscortView
 {
   int escort = noBodyId;
-  float mass = 1.f;
+  float mass = FlightTuning{}.groupMass;
 };
 
 /** The escort as flown: none for a CLIP ship, for a body that is gone and

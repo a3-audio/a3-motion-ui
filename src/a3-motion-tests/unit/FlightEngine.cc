@@ -394,14 +394,16 @@ TEST (FlightEngine, ATakePutsTheChannelBackOnClip)
 // The breath, as the engine flies it: off until asked for, and then the ORBIT
 // channel stands still through the last beat of every bar.
 
-TEST (FlightEngine, TheBreathIsOffUntilAskedFor)
+// The maintainer's verdict after the device A/B (2026-10-08): the breath is
+// the default, the key switches it off for the session.
+TEST (FlightEngine, TheShipsBreatheFromTheStart)
 {
   Flight flight;
-  EXPECT_FALSE (flight.engine->getFlightBreath ());
-  flight.engine->setFlightBreath (true);
   EXPECT_TRUE (flight.engine->getFlightBreath ());
   flight.engine->setFlightBreath (false);
   EXPECT_FALSE (flight.engine->getFlightBreath ());
+  flight.engine->setFlightBreath (true);
+  EXPECT_TRUE (flight.engine->getFlightBreath ());
 }
 
 TEST (FlightEngine, ABreathingOrbitChannelStandsStillOnBeatFour)

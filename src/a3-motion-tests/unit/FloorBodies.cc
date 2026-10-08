@@ -48,11 +48,6 @@ TEST (FloorBodies, TheWeightCyclesThroughTheDeadZoneAndBack)
   EXPECT_EQ (nextWeight (BodyWeight::Hotspot), BodyWeight::DeadZone);
   EXPECT_EQ (nextWeight (BodyWeight::DeadZone), BodyWeight::Group);
 
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Group), 1.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Crowd), 2.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::Hotspot), 3.f);
-  EXPECT_FLOAT_EQ (massOf (BodyWeight::DeadZone), -2.f);
-
   FloorBodies bodies;
   auto const id = *bodies.add ({});
   for (auto want : { BodyWeight::Crowd, BodyWeight::Hotspot,
@@ -89,12 +84,12 @@ TEST (FloorBodies, RemovingShiftsTheRestDownAndKeepsTheirIds)
 
   bodies.remove (b);
 
-  auto const s = bodies.snapshot ();
+  auto const s = bodies.snapshot (FlightTuning{});
   ASSERT_EQ (s.count, 2);
   EXPECT_EQ (s.body[0].id, a);
   EXPECT_EQ (s.body[1].id, c);
   EXPECT_EQ (s.body[1].at, (Vec2{ 0.3f, 0.f }));
-  EXPECT_FLOAT_EQ (s.body[1].mass, 2.f);
+  EXPECT_FLOAT_EQ (s.body[1].mass, massOf (BodyWeight::Crowd, FlightTuning{}));
   EXPECT_FALSE (bodies.contains (b));
   EXPECT_TRUE (bodies.contains (c));
 }
@@ -132,10 +127,10 @@ TEST (FloorBodies, AnUnknownIdChangesNothing)
   bodies.move (id + 1, { 0.f, 0.f });
   bodies.cycleWeight (noBodyId);
   bodies.remove (7);
-  auto const s = bodies.snapshot ();
+  auto const s = bodies.snapshot (FlightTuning{});
   ASSERT_EQ (s.count, 1);
   EXPECT_EQ (s.body[0].at, (Vec2{ 0.5f, 0.f }));
-  EXPECT_FLOAT_EQ (s.body[0].mass, 1.f);
+  EXPECT_FLOAT_EQ (s.body[0].mass, massOf (BodyWeight::Group, FlightTuning{}));
 }
 
 TEST (FloorBodies, TheSnapshotCarriesMassesInOrder)
@@ -149,13 +144,34 @@ TEST (FloorBodies, TheSnapshotCarriesMassesInOrder)
   bodies.cycleWeight (c);
   bodies.cycleWeight (c);
 
-  auto const s = bodies.snapshot ();
+  auto const s = bodies.snapshot (FlightTuning{});
   ASSERT_EQ (s.count, 3);
-  EXPECT_FLOAT_EQ (s.body[0].mass, 1.f);
-  EXPECT_FLOAT_EQ (s.body[1].mass, 2.f);
-  EXPECT_FLOAT_EQ (s.body[2].mass, -2.f);
+  FlightTuning const t;
+  EXPECT_FLOAT_EQ (s.body[0].mass, t.groupMass);
+  EXPECT_FLOAT_EQ (s.body[1].mass, t.crowdMass);
+  EXPECT_FLOAT_EQ (s.body[2].mass, t.deadZoneMass);
   EXPECT_EQ (s.body[0].id, a);
   EXPECT_EQ (s.body[1].id, b);
   EXPECT_EQ (s.body[2].id, c);
   EXPECT_EQ (s.body[2].at, (Vec2{ 0.3f, 0.f }));
+}
+
+// The MJ lab (2026-10-08): light planets, half the plan's masses. With the
+// breath on, every body cost attention in the model; light ones cost least.
+TEST (FloorBodies, PlanetsAreLight)
+{
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Group, FlightTuning{}), 0.5f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Crowd, FlightTuning{}), 1.f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::Hotspot, FlightTuning{}), 1.5f);
+  EXPECT_FLOAT_EQ (massOf (BodyWeight::DeadZone, FlightTuning{}), -2.f);
+}
+
+// The engine's tuning decides, not a fresh default: the rig tunes one place.
+TEST (FloorBodies, TheMassesComeFromTheTuningGiven)
+{
+  FlightTuning heavy;
+  heavy.groupMass = 2.f;
+  FloorBodies bodies;
+  bodies.add ({ 0.1f, 0.f });
+  EXPECT_FLOAT_EQ (bodies.snapshot (heavy).body[0].mass, 2.f);
 }

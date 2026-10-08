@@ -22,6 +22,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 namespace a3
@@ -42,20 +43,22 @@ BodyRole bodyRole (float mass);
  *  accent is close to a channel's colour on more than one skin. */
 ThemeColour bodyColour (BodyRole role);
 
-/** How much bigger a weight is drawn: the square root of |mass|, so a
- *  hotspot (3) is not three times a group but reads as heavier. */
-float bodyWeightScale (float mass);
+/** How much bigger a weight is drawn than a group: the square root of its
+ *  mass over a group's, so a hotspot (three groups) is not three times a
+ *  group but reads as heavier. A dead zone is drawn a crowd's size. */
+float bodyWeightScale (float mass, FlightTuning const &tuning);
 
-/** bodyRadiusOfBlob * sqrt(|mass|) * blob; a dead zone is a crowd's size. */
-float bodyRadius (float mass, float blobDiameter);
+/** bodyRadiusOfBlob * bodyWeightScale(mass) * blob. */
+float bodyRadius (float mass, float blobDiameter, FlightTuning const &tuning);
 
-/** The disc breathes with the gravity's pulse, but less than the pull, so a
- *  beat reads as a breath and not as a jump. */
+/** The disc swells with drawnPulse, but less than the pull, so a beat reads
+ *  as a breath and not as a jump. */
 float bodyPulseScale (float pulse);
 
 /** Where a finger finds the body: as drawn, but never less than a
  *  fingertip across. */
-float bodyHitRadius (float mass, float blobDiameter, float fingertip);
+float bodyHitRadius (float mass, float blobDiameter, float fingertip,
+                     FlightTuning const &tuning);
 
 /** "G1".."G8": the body id counted from one. */
 juce::String bodyLabel (int id);
@@ -71,7 +74,7 @@ struct BodyPaint
   float radius = 0.f;       // bodyRadius, before the pulse
   float mass = 1.f;
   juce::String label;
-  float pulse = 1.f;        // gravityPulse now
+  float pulse = 1.f;        // drawnPulse now
   float ringRadius = 0.f;   // capture radius or dead-zone clearance; 0 = none
   float holdProgress = 0.f; // 0..1 towards removal (FloorGesture)
   float stroke = 1.f;       // a line, in the Graphics' units

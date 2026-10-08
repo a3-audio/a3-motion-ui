@@ -21,6 +21,8 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/BeatPulse.hh>
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-engine/flight/ShipDynamics.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -30,6 +32,7 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <optional>
 #include <vector>
 
 // The reason for this phase: the guest groups on the floor, acting as
@@ -46,11 +49,6 @@ namespace
 constexpr int fourFour = 4;
 constexpr float roomSlack = 1e-5f;
 constexpr float twoPi = 2.f * pi<float> ();
-
-// A speed-up has to reach 1.5x to be heard as "faster" at all (Carlile & Best;
-// see .claude/notes/auditory-motion-research.md, B1), so that is the bar a
-// slingshot has to clear, not the plan's 1.2x.
-constexpr float audibleSpeedUp = 1.5f;
 
 float
 tickBeats ()
@@ -74,6 +72,7 @@ struct Sample
 {
   double beats; // when, after the step
   ShipState ship;
+  Vec2 pull;    // the planets' gravity the step went by
 };
 
 FlightBodies
@@ -85,12 +84,22 @@ bodiesOf (std::initializer_list<FlightBody> list)
   return bodies;
 }
 
-/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity at a fixed
- *  `pulse`, from the rabbit's own place and pace. One sample a tick. */
-std::vector<Sample>
-fly (float bars, FlightBodies const &bodies, float pulse = 1.f)
+/** How the ship flies in `fly`: the engine's pulse (the gate) unless a fixed
+ *  one is given; with or without the breath (the rig's default is with). */
+struct Flying
 {
-  FlightTuning const tuning;
+  std::optional<float> pulse;
+  bool breathing = false;
+  FlightTuning tuning;
+};
+
+/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity, from the
+ *  rabbit's own place and pace. One sample a tick. With the breath the ship
+ *  stands, velocity kept, through beat 4, as FlightWorld holds it. */
+std::vector<Sample>
+fly (float bars, FlightBodies const &bodies, Flying const &how = {})
+{
+  auto const &tuning = how.tuning;
   auto const dt = tickBeats ();
   auto const start = rabbitAt (0., 0, fourFour, tuning);
   ShipState ship{ start.at, start.velocity };
@@ -98,12 +107,19 @@ fly (float bars, FlightBodies const &bodies, float pulse = 1.f)
   for (size_t i = 0; i < ticksIn (beatsIn (bars)); ++i)
     {
       auto const now = static_cast<double> (i) * dt;
-      ShipForces const forces{ rabbitAt (now, 0, fourFour, tuning),
-                               gravityAt (ship.p, bodies, pulse, tuning)
-                                   + deadZonePush (ship.p, bodies, tuning),
-                               {} };
-      ship = stepShip (ship, forces, dt, tuning);
-      path.push_back ({ now + dt, ship });
+      auto const pulling
+          = how.pulse ? *how.pulse
+                      : gravityPulse (Measure (0, 0, static_cast<int> (i)),
+                                      fourFour, tuning);
+      auto const pull = gravityAt (ship.p, bodies, pulling, tuning);
+      if (!(how.breathing && breathHolds (now, fourFour)))
+        {
+          ShipForces const forces{ rabbitAt (now, 0, fourFour, tuning),
+                                   pull + deadZonePush (ship.p, bodies, tuning),
+                                   {} };
+          ship = stepShip (ship, forces, dt, tuning);
+        }
+      path.push_back ({ now + dt, ship, pull });
     }
   return path;
 }
@@ -121,16 +137,6 @@ closestApproach (std::vector<Sample> const &path, Vec2 to)
   for (auto const &sample : path)
     closest = std::min (closest, sample.ship.p.getDistanceFrom (to));
   return closest;
-}
-
-size_t
-closestIndex (std::vector<Sample> const &path, Vec2 to)
-{
-  auto const nearer = [to] (Sample const &a, Sample const &b) {
-    return a.ship.p.getDistanceFrom (to) < b.ship.p.getDistanceFrom (to);
-  };
-  return static_cast<size_t> (
-      std::min_element (path.begin (), path.end (), nearer) - path.begin ());
 }
 
 Vec2
@@ -176,22 +182,11 @@ isFinite (Vec2 v)
 
 // ---- What a guest hears ----
 //
-// The bars below are perceptual, not tuning: a ship is only "not boring" if
-// the ear can tell. They come from auditory-motion-research.md part B and are
-// met with room to spare, so the rig can retune FlightTuning without
-// touching them.
+// The room's own bars: a ship must not park on the rim, and must keep out of
+// a dead zone. The planets' bends are pinned further below, as quiet ones.
 
 namespace
 {
-
-// A bend is heard once the source sits >= ~25 deg away from where the bare
-// path would have put it: B2 asks >= 20 deg in front and >= 30 deg to the
-// sides. As a chord at the path's radius 0.7: 2 * 0.7 * sin (12.5 deg) = 0.30.
-constexpr float audibleBend = 0.3f;
-
-// A change of speed needs time to be heard: about 250 ms, half a beat at
-// 120 BPM, is what the speed is averaged over (B5: integration ~336 ms).
-constexpr double heardSpeedBeats = 0.5;
 
 // A ship held in one place for longer than a bar is heard as parked, not
 // flying (the lab's failure case: ships that park overhead).
@@ -228,56 +223,6 @@ widestApart (std::vector<Sample> const &a, std::vector<Sample> const &b)
   return widest;
 }
 
-float
-heardSpeed (std::vector<Sample> const &path, size_t at)
-{
-  auto const half = ticksIn (heardSpeedBeats / 2.);
-  auto const from = at > half ? at - half : 0;
-  auto const to = std::min (path.size (), at + half);
-  auto sum = 0.f;
-  for (auto i = from; i < to; ++i)
-    sum += path[i].ship.v.getDistanceFromOrigin ();
-  return sum / static_cast<float> (to - from);
-}
-
-/** How much faster than in the empty room the ship is heard while it passes
- *  `body` and is flung out: the largest ratio from a beat before the closest
- *  approach to two beats after it has left the body's neighbourhood. */
-float
-slingOf (FlightBody const &body)
-{
-  constexpr float neighbourhood = 0.15f;
-  auto const bars = 6.f;
-  auto const path = fly (bars, bodiesOf ({ body }));
-  auto const empty = fly (bars, {});
-
-  auto const closest = closestIndex (path, body.at);
-  auto left = closest;
-  while (left + 1 < path.size ()
-         && path[left + 1].ship.p.getDistanceFrom (body.at) < neighbourhood)
-    ++left;
-
-  auto const from = closest > ticksIn (1.) ? closest - ticksIn (1.) : 0;
-  auto const to = std::min (path.size (), left + ticksIn (2.));
-  auto fastest = 0.f;
-  for (auto i = from; i < to; ++i)
-    fastest = std::max (fastest, heardSpeed (path, i) / heardSpeed (empty, i));
-  return fastest;
-}
-
-/** Of sixteen passes (eight places, on the path and just outside it), how
- *  many fling the ship out audibly faster. */
-int
-audibleSlingshots (float mass)
-{
-  auto count = 0;
-  for (auto const beats : eightPlacesRoundThePath ())
-    for (auto const outwards : { 0.f, 0.08f })
-      if (slingOf ({ besideThePath (beats, outwards), mass }) >= audibleSpeedUp)
-        ++count;
-  return count;
-}
-
 /** How many laps round the room's centre the ship turns over `path`. */
 float
 lapsRoundTheRoom (std::vector<Sample> const &path)
@@ -309,30 +254,128 @@ longestOnTheRim (std::vector<Sample> const &path)
 
 }
 
-TEST (FlightGravity, ACrowdNearThePathBendsItAudibly)
+// ---- Quiet planets (the maintainer's decision, 2026-10-08) ----
+//
+// The planets say *where* the sound goes; the breath carries the motion. So
+// they are light and pull only on the one, and their bends are small: a crowd
+// beside the path moves the ship 0.054-0.167 floor units, a hotspot
+// 0.085-0.210, under the 0.30 the ear needs to hear a bend on its own
+// (measured 2026-10-08). These tests pin that they still act, where and when
+// they should; they do not ask them to be heard.
+
+// Breath off: half the smallest crowd bend measured (0.054). A change that
+// halves the planets' pull fails (half a crowd is a G: 0.025 at the least).
+constexpr float measurableBend = 0.03f;
+
+// Breath on, the rig's default: the ship stands through beat 4, so a crowd
+// bends 0.058-0.124 and half a crowd 0.032-0.060 (measured 2026-10-08). The
+// bar sits between them, so it too catches a halved pull.
+constexpr float measurableBendBreathing = 0.045f;
+
+static void
+expectPlanetsMoveTheShip (Flying const &how, float bar)
 {
+  FlightTuning const t;
+  auto const empty = fly (8.f, {}, how);
+  for (auto const mass : { t.crowdMass, t.hotspotMass })
+    for (auto const beats : eightPlacesRoundThePath ())
+      {
+        FlightBody const body{ besideThePath (beats, -0.1f), mass };
+        EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ body }), how), empty), bar)
+            << "mass " << mass << " where the rabbit is at beat " << beats;
+      }
+}
+
+TEST (FlightGravity, ACrowdOrAHotspotBesideThePathStillMovesTheShip)
+{
+  expectPlanetsMoveTheShip ({}, measurableBend);
+}
+
+TEST (FlightGravity, ACrowdOrAHotspotStillMovesABreathingShip)
+{
+  Flying breathing;
+  breathing.breathing = true;
+  expectPlanetsMoveTheShip (breathing, measurableBendBreathing);
+}
+
+// Towards it, not away: the ship comes closer to a crowd than the empty
+// room's flight does, at most places round the path (7 of 8 measured; near
+// one place the steering's catch-up outweighs the light pull).
+TEST (FlightGravity, APlanetDrawsTheShipTowardsIt)
+{
+  FlightTuning const t;
+  constexpr int mostOfEight = 6;
   auto const empty = fly (8.f, {});
-  for (auto const beats : eightPlacesRoundThePath ())
+  for (auto const mass : { t.groupMass, t.crowdMass, t.hotspotMass })
     {
-      FlightBody const crowd{ besideThePath (beats, -0.1f), 2.f };
-      EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ crowd })), empty), audibleBend)
-          << "a crowd just inside the path where the rabbit is at beat " << beats;
+      auto closer = 0;
+      for (auto const beats : eightPlacesRoundThePath ())
+        {
+          auto const at = besideThePath (beats, -0.1f);
+          if (closestApproach (fly (8.f, bodiesOf ({ { at, mass } })), at)
+              < closestApproach (empty, at))
+            ++closer;
+        }
+      EXPECT_GE (closer, mostOfEight) << "mass " << mass;
     }
 }
 
-// A slingshot has to speed the ship up by 1.5x to be heard as faster at all.
-// Near a heavy group the flight is chaotic: some passes are held for a moment
-// instead (that is the capture). So the bar is most passes, three in four.
-TEST (FlightGravity, ACrowdOrAHotspotOnThePathSlingsTheShipOnMostPasses)
+// In flight, too: over beats 2-4 the planets pull with exactly nothing, and
+// on the one they pull. Read from the gravity each step went by.
+TEST (FlightGravity, APlanetActsOnlyOnTheOne)
 {
-  constexpr int mostOfSixteen = 12;
-  EXPECT_GE (audibleSlingshots (2.f), mostOfSixteen) << "a crowd";
-  EXPECT_GE (audibleSlingshots (3.f), mostOfSixteen) << "a hotspot";
+  FlightTuning const t;
+  for (auto const beats : eightPlacesRoundThePath ())
+    {
+      auto pulledOnTheOne = false;
+      for (auto const &sample :
+           fly (4.f, bodiesOf ({ { besideThePath (beats, -0.1f), t.hotspotMass } })))
+        {
+          auto const at = sample.beats - tickBeats ();
+          auto const beatInBar = static_cast<int> (std::floor (at + 1e-9)) % fourFour;
+          if (beatInBar == 0)
+            pulledOnTheOne |= sample.pull.getDistanceFromOrigin () > 0.f;
+          else
+            ASSERT_EQ (sample.pull, (Vec2{ 0.f, 0.f }))
+                << "beat " << beatInBar + 1 << " at " << at;
+        }
+      EXPECT_TRUE (pulledOnTheOne) << "placed where the rabbit is at beat " << beats;
+    }
+}
+
+TEST (FlightGravity, NothingPullsOnBeatsTwoToFour)
+{
+  FlightTuning const t;
+  auto const bodies = bodiesOf ({ { { 0.3f, 0.3f }, t.hotspotMass },
+                                  { { -0.4f, 0.1f }, t.crowdMass } });
+  auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
+  for (auto beat = 0; beat < fourFour; ++beat)
+    for (auto tick : { 0, ticksPerBeat / 2, ticksPerBeat - 1 })
+      {
+        auto const pulse = gravityPulse (Measure (0, beat, tick), fourFour, t);
+        auto const pull = gravityAt ({ 0.6f, 0.2f }, bodies, pulse, t);
+        if (beat == 0)
+          EXPECT_GT (pull.getDistanceFromOrigin (), 0.f) << "the one, tick " << tick;
+        else
+          EXPECT_EQ (pull, (Vec2{ 0.f, 0.f })) << "beat " << beat + 1 << ", tick " << tick;
+      }
+}
+
+// Even a light group makes lap three differ from lap two: measured 0.044 with
+// a G, where the empty room repeats itself to 0.0000. Half of it is the bar.
+TEST (FlightGravity, TwoLapsAreNotTheSameWithAGroupThere)
+{
+  auto const empty = lapTwoAgainstLapThree (fly (16.f, {}));
+  auto const withAGroup = lapTwoAgainstLapThree (
+      fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, FlightTuning{}.groupMass } })));
+  EXPECT_LT (empty, 0.001f) << "the empty room repeats itself, as it should";
+  EXPECT_GT (withAGroup, 0.02f);
 }
 
 TEST (FlightGravity, AHotspotOutsideTheRoomNeverPinsTheShipToTheRim)
 {
-  auto const path = fly (8.f, bodiesOf ({ { { -0.8f, -0.8f }, 3.f } }));
+  auto const path
+      = fly (8.f, bodiesOf ({ { { -0.8f, -0.8f }, FlightTuning{}.hotspotMass } }));
   EXPECT_LE (longestOnTheRim (path), parkedBeats);
   // eight bars are two laps of the path (and a quarter of its precession)
   EXPECT_GE (lapsRoundTheRoom (path), 1.75f);
@@ -349,20 +392,12 @@ TEST (FlightGravity, ADeadZoneOnThePathKeepsTheShipOut)
   for (auto const beats : eightPlacesRoundThePath ())
     {
       auto const deadZone = rabbitOf (beats);
-      auto const path = fly (8.f, bodiesOf ({ { deadZone, -2.f } }));
+      auto const path
+          = fly (8.f, bodiesOf ({ { deadZone, tuning.deadZoneMass } }));
       EXPECT_GE (closestApproach (path, deadZone),
                  mostOfTheClearance * tuning.deadZoneClearance)
           << "placed where the rabbit is at beat " << beats;
     }
-}
-
-TEST (FlightGravity, TwoLapsAreNotTheSameWithAGroupThere)
-{
-  auto const empty = lapTwoAgainstLapThree (fly (16.f, {}));
-  auto const withAGroup
-      = lapTwoAgainstLapThree (fly (16.f, bodiesOf ({ { { 0.3f, 0.3f }, 1.f } })));
-  EXPECT_LT (empty, 0.05f) << "the empty room repeats itself, as it should";
-  EXPECT_GT (withAGroup, 0.05f);
 }
 
 TEST (FlightGravity, EightHeavyGroupsStayFinite)
@@ -382,7 +417,7 @@ TEST (FlightGravity, EightHeavyGroupsStayFinite)
         }
       bodies.count = maxFlightBodies;
 
-      for (auto const &sample : fly (32.f, bodies, hardestPulse))
+      for (auto const &sample : fly (32.f, bodies, { hardestPulse }))
         {
           ASSERT_TRUE (isFinite (sample.ship.p) && isFinite (sample.ship.v))
               << "seed " << seed << " at beat " << sample.beats;
@@ -394,3 +429,4 @@ TEST (FlightGravity, EightHeavyGroupsStayFinite)
         }
     }
 }
+

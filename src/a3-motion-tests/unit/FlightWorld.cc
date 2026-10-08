@@ -251,8 +251,15 @@ namespace
 Vec2 const escorted{ 0.3f, -0.2f };
 constexpr int escortedId = 5; // ids are the floor's, not indices
 
+/** A crowd's mass, the default weight of the escort tests' group. */
+float
+crowd ()
+{
+  return FlightTuning{}.crowdMass;
+}
+
 FlightBodies
-oneGroup (float mass = 2.f)
+oneGroup (float mass = crowd ())
 {
   FlightBodies bodies;
   bodies.body[0] = { escorted, mass, escortedId };
@@ -282,7 +289,7 @@ flyShipZero (std::array<ShipOrders, 4> const &orders, FlightBodies const &bodies
 float
 escortRadius (float mass)
 {
-  return FlightTuning{}.captureRadius * std::sqrt (mass);
+  return a3::escortRadius (mass, FlightTuning{});
 }
 
 /** The samples from bar 3 to bar 8: the ship has had time to be captured. */
@@ -315,7 +322,7 @@ TEST (FlightWorld, AnEscortedGroupCapturesTheShip)
 {
   auto const path = captured (
       flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), oneGroup (), 8.f));
-  auto const radius = escortRadius (2.f);
+  auto const radius = escortRadius (crowd ());
   for (auto const &sample : path)
     {
       auto const distance = sample.ships[0].p.getDistanceFrom (escorted);
@@ -357,13 +364,16 @@ TEST (FlightWorld, ACapturedShipCirclesIt)
 // group: seen from the room's centre it must sweep >= 30 deg (research B2).
 // Near the rim that is where it fails if the escorted group's own pull is
 // added on top of the circle: the part of the circle outside the room is cut
-// off, the rim pushes the ship inwards, and the group swallows it: 10 and 13
-// deg for these two with the group's own pull, 58 and 81 deg without it.
+// off, the rim pushes the ship inwards, and the group swallows it (measured
+// with the plan's masses 1 and 2: 10 and 13 deg with the group's own pull, 58
+// and 81 deg without it). A light G's circle is smaller, and must pass too.
 TEST (FlightWorld, AnEscortNearTheRimIsHeardAsACircle)
 {
   constexpr float audibleSweep = 30.f * pi<float> () / 180.f;
-  for (auto const &group : { FlightBody{ { 0.75f, 0.f }, 1.f, escortedId },
-                             FlightBody{ { 0.6f, -0.5f }, 2.f, escortedId } })
+  FlightTuning const t;
+  for (auto const &group : { FlightBody{ { 0.75f, 0.f }, t.groupMass, escortedId },
+                             FlightBody{ { 0.6f, -0.5f }, t.groupMass, escortedId },
+                             FlightBody{ { 0.6f, -0.5f }, t.crowdMass, escortedId } })
     {
       FlightBodies bodies;
       bodies.body[0] = group;
@@ -393,7 +403,7 @@ TEST (FlightWorld, OtherGroupsStillTug)
   // beyond the escort circle, between it and the room's centre
   auto const towardsTheCentre = -escorted / escorted.getDistanceFromOrigin ();
   withANeighbour.body[1]
-      = { escorted + towardsTheCentre * (1.5f * escortRadius (2.f)), 2.f,
+      = { escorted + towardsTheCentre * (1.5f * escortRadius (crowd ())), crowd (),
           escortedId + 1 };
   withANeighbour.count = 2;
 
@@ -406,7 +416,7 @@ TEST (FlightWorld, OtherGroupsStillTug)
 
 TEST (FlightWorld, EscortingADeadZoneIsPatrol)
 {
-  auto const deadZone = oneGroup (-2.f);
+  auto const deadZone = oneGroup (FlightTuning{}.deadZoneMass);
   EXPECT_TRUE (sameFlight (
       flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), deadZone, 4.f),
       flyShipZero (shipZeroOn (FlightGoal::Patrol, noBodyId), deadZone, 4.f)));
@@ -431,7 +441,7 @@ TEST (FlightWorld, ABodyRemovedMidEscortLetsTheShipGo)
   auto const orders = shipZeroOn (FlightGoal::Escort, escortedId);
   auto const removedAt = barsToBeats (4.f);
   run (world, orders, oneGroup (), ticksIn (removedAt));
-  ASSERT_LE (world.ship (0).p.getDistanceFrom (escorted), 1.6f * escortRadius (2.f));
+  ASSERT_LE (world.ship (0).p.getDistanceFrom (escorted), 1.6f * escortRadius (crowd ()));
 
   auto const after = run (world, orders, FlightBodies{},
                           ticksIn (barsToBeats (4.f)), removedAt);
@@ -451,7 +461,7 @@ TEST (FlightWorld, AnEscortStaysWithItsGroupWhenAnEarlierOneIsRemoved)
 {
   FlightBodies both;
   both.body[0] = { { -0.5f, 0.4f }, 1.f, escortedId + 1 };
-  both.body[1] = { escorted, 2.f, escortedId };
+  both.body[1] = { escorted, crowd (), escortedId };
   both.count = 2;
   FlightBodies justIt;
   justIt.body[0] = both.body[1];
@@ -467,7 +477,7 @@ TEST (FlightWorld, AnEscortStaysWithItsGroupWhenAnEarlierOneIsRemoved)
   auto const after = run (world, orders, justIt, ticksIn (barsToBeats (4.f)), removedAt);
   path.insert (path.end (), after.begin (), after.end ());
 
-  auto const radius = escortRadius (2.f);
+  auto const radius = escortRadius (crowd ());
   auto angleOf = [] (Sample const &s) {
     auto const d = s.ships[0].p - escorted;
     return std::atan2 (d.y, d.x);
@@ -508,7 +518,7 @@ TEST (FlightWorld, AnEscortWithoutACaptureLapStandsBesideItsGroup)
           ASSERT_LE (ship.p.getDistanceFromOrigin (), 1.f + speedSlack);
           ASSERT_LE (ship.v.getDistanceFromOrigin (), tuning.speedMax + speedSlack);
           if (sample.beats >= barsToBeats (2.f))
-            ASSERT_LE (ship.p.getDistanceFrom (escorted), 1.6f * escortRadius (2.f))
+            ASSERT_LE (ship.p.getDistanceFrom (escorted), 1.6f * escortRadius (crowd ()))
                 << "lap " << lapBars << " at beat " << sample.beats;
         }
     }
@@ -544,7 +554,8 @@ namespace
 FlightBodies
 aCrowdedFloor (juce::Random &dice)
 {
-  constexpr float masses[] = { 1.f, 2.f, 3.f, -2.f };
+  FlightTuning const t;
+  float const masses[] = { t.groupMass, t.crowdMass, t.hotspotMass, t.deadZoneMass };
   FlightBodies bodies;
   for (auto i = 0; i < maxFlightBodies; ++i)
     {
@@ -771,7 +782,7 @@ TEST (FlightBreath, AnEscortKeepsItsGroupAcrossTheStops)
   auto const path = run (world, shipZeroOn (FlightGoal::Escort, escortedId),
                          oneGroup (), ticksIn (barsToBeats (8.f)));
 
-  auto const radius = escortRadius (2.f);
+  auto const radius = escortRadius (crowd ());
   for (auto const &sample : captured (path))
     {
       auto const distance = sample.ships[0].p.getDistanceFrom (escorted);

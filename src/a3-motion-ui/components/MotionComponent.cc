@@ -512,7 +512,8 @@ MotionComponent::bodyAt (juce::Point<float> posPixel) const
       onScreen[static_cast<size_t> (count++)]
           = { body.id, *centre,
               bodyHitRadius (body.mass, blobDiameterInPixels (),
-                             static_cast<float> (displayFingertip ())) };
+                             static_cast<float> (displayFingertip ()),
+                             _engine.getFlightTuning ()) };
     }
   return bodyUnderFinger (onScreen, count, posPixel);
 }
@@ -2087,11 +2088,11 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
 
       auto const ring = bodyRole (body.mass) == BodyRole::Repel
                             ? tuning.deadZoneClearance
-                            : tuning.captureRadius * bodyWeightScale (body.mass);
+                            : escortRadius (body.mass, tuning);
 
       BodyPaint paint;
       paint.centre = *centre;
-      paint.radius = bodyRadius (body.mass, blob);
+      paint.radius = bodyRadius (body.mass, blob, tuning);
       paint.mass = body.mass;
       paint.label = bodyLabel (body.id);
       paint.pulse = display.pulse;

@@ -26,6 +26,7 @@
 #include <a3-motion-engine/PositionPacer.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/FlightBodiesBox.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
@@ -700,7 +701,7 @@ private:
   std::vector<std::atomic<int>> _flightMode;
   std::vector<std::atomic<int>> _flightTarget;
   FlightBodiesBox _bodies;
-  std::atomic<bool> _flightBreath{ false };
+  std::atomic<bool> _flightBreath{ flightBreathAtStart };
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

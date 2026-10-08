@@ -37,20 +37,20 @@ insideTheRoom (Vec2 at)
 }
 
 float
-massOf (BodyWeight weight)
+massOf (BodyWeight weight, FlightTuning const &tuning)
 {
   switch (weight)
     {
     case BodyWeight::Group:
-      return 1.f;
+      return tuning.groupMass;
     case BodyWeight::Crowd:
-      return 2.f;
+      return tuning.crowdMass;
     case BodyWeight::Hotspot:
-      return 3.f;
+      return tuning.hotspotMass;
     case BodyWeight::DeadZone:
-      return -2.f;
+      return tuning.deadZoneMass;
     }
-  return 1.f;
+  return tuning.groupMass;
 }
 
 BodyWeight
@@ -136,14 +136,14 @@ FloorBodies::count () const
 }
 
 FlightBodies
-FloorBodies::snapshot () const
+FloorBodies::snapshot (FlightTuning const &tuning) const
 {
   FlightBodies bodies;
   for (int i = 0; i < _count; ++i)
     {
       auto const &entry = _entries[static_cast<size_t> (i)];
       bodies.body[static_cast<size_t> (i)]
-          = { entry.at, massOf (entry.weight), entry.id };
+          = { entry.at, massOf (entry.weight, tuning), entry.id };
     }
   bodies.count = _count;
   return bodies;

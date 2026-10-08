@@ -41,7 +41,7 @@ constexpr int noBodyId = -1;
 struct FlightBody
 {
   Vec2 at;
-  float mass = 1.f;
+  float mass = FlightTuning{}.groupMass;
   int id = noBodyId;
 };
 

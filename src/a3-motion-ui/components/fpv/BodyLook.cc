@@ -91,15 +91,18 @@ bodyColour (BodyRole role)
 }
 
 float
-bodyWeightScale (float mass)
+bodyWeightScale (float mass, FlightTuning const &tuning)
 {
-  return std::sqrt (std::abs (mass));
+  // Relative to a group, so lighter planets are drawn as before; a dead zone
+  // is drawn a crowd's size whatever its push.
+  auto const drawn = mass < 0.f ? tuning.crowdMass : mass;
+  return std::sqrt (drawn / tuning.groupMass);
 }
 
 float
-bodyRadius (float mass, float blobDiameter)
+bodyRadius (float mass, float blobDiameter, FlightTuning const &tuning)
 {
-  return bodyRadiusOfBlob * bodyWeightScale (mass) * blobDiameter;
+  return bodyRadiusOfBlob * bodyWeightScale (mass, tuning) * blobDiameter;
 }
 
 float
@@ -109,9 +112,10 @@ bodyPulseScale (float pulse)
 }
 
 float
-bodyHitRadius (float mass, float blobDiameter, float fingertip)
+bodyHitRadius (float mass, float blobDiameter, float fingertip,
+               FlightTuning const &tuning)
 {
-  return std::max (bodyRadius (mass, blobDiameter), fingertip / 2.f);
+  return std::max (bodyRadius (mass, blobDiameter, tuning), fingertip / 2.f);
 }
 
 juce::String
