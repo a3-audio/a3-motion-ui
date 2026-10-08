@@ -15,6 +15,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShipDynamics.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightGravity.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightWorld.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightMotion.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Handover.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightBodiesBox.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightEngine.cc"

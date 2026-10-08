@@ -95,6 +95,22 @@ struct FlightTuning
   float crowdMass = 1.f;
   float hotspotMass = 1.5f;
   float deadZoneMass = -2.f;
+  // An action on a flying ship (phase B, .claude/notes/fpv-phase-b-plan.md).
+  // Every rate it asks for is held under what a room can follow: a turn round
+  // the listener at most 180 deg a beat, one lap per two beats [research B1,
+  // mj-defaults], height at most half that [research B3].
+  float angularCapDegreesPerBeat = 180.f;
+  float verticalCapDegreesPerBeat = 90.f;
+  // ~sway swings the heard height this far, the crowd's design minimum for a
+  // bend that is heard [research B2].
+  float swayTravelDegrees = 30.f;
+  // ~swell breathes the base path: in to this share of its size [guess], out
+  // until its long axis stands here, inside the soft wall's reach [guess].
+  float swellInnerScale = 0.4f;
+  float swellOuterReach = 0.95f;
+  // How long an action takes to take hold of a ship, and to let go [guess:
+  // the handover's one beat].
+  float motionRampBeats = 1.f;
 };
 
 /** The radius of an escort's circle round a group of `mass`: wider for a
