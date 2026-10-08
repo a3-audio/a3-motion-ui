@@ -2119,9 +2119,15 @@ would be the brightest thing under the sphere at rest. The play state is a key a
 end, lit in play's colour (`transportColour`) with the triangle while the clip runs, the idle face
 with the two bars while it does not. 3D / FREQ / Q are slots in the skin's ground with a hairline,
 filled in the channel's colour, their captions muted and a step smaller. The meter is
-`paintLedMeter` (`components/LedMeter`): twenty segments of 3 dB, so -18 and -6 dBFS fall on segment
-edges, unlit ones as a ghost of their band at `alphaOutline`, the held peak a sliver of its segment;
-its bands are `vuBandColour`'s, as on the continuous meter. No new colour role: every part is an
+`paintLedMeter` (`components/LedMeter`): **the desk's eight channel LEDs**, the same thresholds
+(-36 -24 -18 -12 -9 -6 -3 0 dBFS peak, a3-mixer's `CHANNEL_LED_THRESHOLDS_DB`) and colours (four
+green, two yellow, two red), so a level is the same colour on the desk, StemDeck and here -- it had a
+-60..0 scale of its own until 2026-10-08 and showed red where the desk was yellow. Unlit LEDs are a
+ghost of their band at `alphaOutline`, the held peak's LED is lit whole as the desk's firmware does,
+and the colours are `vuBandColour`'s roles. The thresholds are a copy (the truth carries the meters'
+timing, not their scale); `LedMeter.TheCopyAgreesWithTheDesksSource` holds it to the desk's file
+when a3-mixer is checked out beside this repo. FULL's continuous meter (`paintVuMeter`) still uses
+its -60..0 scale with yellow from -18 and red from -6 dBFS. No new colour role: every part is an
 existing one, so every skin draws it. The skin `stemdeck.json` adds StemDeck's own greys and the soft
 channel set; it is a choice in the skin menu, not the default. The plate and the two keys look like
 keys but take no touch -- FPV's strips have no taps yet.

@@ -461,6 +461,12 @@ TEST (FpvStripsPaint, ItPaintsInTheStemdeckSkin)
     writeSnapshot (f.paint (), "fpv-strips-stemdeck.png");
     f.strips.setChannels (orbiting ());
     writeSnapshot (f.paint (), "fpv-strips-stemdeck-orbit.png");
+    // -5 dBFS with a held -2: the desk shows six LEDs, the top one yellow,
+    // and the held red seventh.
+    f.strips.channelLevel = [] (int) {
+      return VuReading{ std::pow (10.f, -5.f / 20.f), std::pow (10.f, -2.f / 20.f) };
+    };
+    writeSnapshot (f.paint (), "fpv-strips-stemdeck-minus5.png");
     f.strips.channelLevel = [] (int) { return VuReading{}; };
     auto rest = fourChannels ();
     for (auto &channel : rest)

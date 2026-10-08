@@ -31,45 +31,40 @@ namespace a3
 
 namespace
 {
-/** A level exactly on a segment's edge has not entered it. Float rounding
- *  puts -18 dBFS a hair above or below its edge; this says which. */
-constexpr float segmentEdgeTolerance = 1.0e-3f;
+/** The desk's channelLedColour, LED by LED. */
+constexpr std::array<std::size_t, ledThresholdsDb.size ()> ledBands{
+  vuGreenBand,  vuGreenBand,  vuGreenBand, vuGreenBand,
+  vuYellowBand, vuYellowBand, vuRedBand,   vuRedBand,
+};
 
-/** The held peak's sliver, as a share of its segment -- StemDeck's. */
-constexpr float holdOfSegment = 0.4f;
-
+/** The desk's channel_leds(): how many thresholds a linear peak reaches. */
 int
-segmentsReached (float amplitude, int segments)
+ledsReached (float amplitude)
 {
-  auto const fraction = vuMeterFraction (amplitude);
-  if (fraction <= 0.f || segments <= 0)
+  if (!(amplitude > 0.f))
     return 0;
-  auto const reached = static_cast<int> (std::ceil (
-      fraction * static_cast<float> (segments) - segmentEdgeTolerance));
-  return std::clamp (reached, 0, segments);
+  auto const db = 20.f * std::log10 (amplitude);
+  auto const reached = std::count_if (ledThresholdsDb.begin (), ledThresholdsDb.end (),
+                                      [db] (float threshold) { return db >= threshold; });
+  return static_cast<int> (reached);
 }
 }
 
 LedMeterLights
-ledMeterLights (VuReading reading, int segments)
+ledMeterLights (VuReading reading)
 {
   LedMeterLights lights;
-  lights.lit = segmentsReached (reading.bar, segments);
-  auto const held = segmentsReached (reading.hold, segments);
+  lights.lit = ledsReached (reading.bar);
+  auto const held = ledsReached (reading.hold);
   lights.held = held > lights.lit ? held : 0;
   return lights;
 }
 
 std::size_t
-ledSegmentBand (int segment, int segments)
+ledSegmentBand (int segment)
 {
-  auto const middle = (static_cast<float> (segment) + 0.5f)
-                      / static_cast<float> (std::max (1, segments));
-  if (middle <= vuFractionForDb (vuGreenCeilingDb))
-    return vuGreenBand;
-  if (middle <= vuFractionForDb (vuYellowCeilingDb))
-    return vuYellowBand;
-  return vuRedBand;
+  return ledBands[static_cast<std::size_t> (
+      std::clamp (segment, 0, ledMeterSegments - 1))];
 }
 
 juce::Rectangle<float>
@@ -107,12 +102,13 @@ paintLedMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
       g.fillRect (ledSegment (bounds, i));
     }
 
+  // The held peak's LED whole, in its own colour, as the desk's firmware
+  // lights it above the bar.
   if (lights.held > 0)
     {
       auto const held = lights.held - 1;
-      auto sliver = ledSegment (bounds, held);
       g.setColour (vuBandColour (t, ledSegmentBand (held)));
-      g.fillRect (sliver.removeFromRight (sliver.getWidth () * holdOfSegment));
+      g.fillRect (ledSegment (bounds, held));
     }
 }
 

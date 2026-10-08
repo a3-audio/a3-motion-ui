@@ -75,38 +75,112 @@ TEST (LedMeter, FullScaleLightsEverySegment)
   EXPECT_EQ (ledMeterLights ({ 1.f, 1.f }).lit, ledMeterSegments);
 }
 
-// The band ceilings fall on segment edges, so the alignment level lights the
-// green and nothing past it -- and the first decibel over it, the first yellow.
-TEST (LedMeter, TheAlignmentLevelLightsTheGreenAndNoMore)
+// What the desk does with a channel's peak, written out from a3-mixer's
+// a3_mixer_meters.py (CHANNEL_LED_THRESHOLDS_DB, CHANNEL_LED_COLOURS, decided
+// 2026-10-07) and the firmware's channelLedColour: LED n lights once the peak
+// reaches its threshold; four green, two yellow, two red.
+namespace
 {
-  auto const atAlignment = ledMeterLights ({ amplitudeAt (vuGreenCeilingDb), 0.f });
-  ASSERT_GT (atAlignment.lit, 0);
-  EXPECT_EQ (ledSegmentBand (atAlignment.lit - 1), vuGreenBand);
-  EXPECT_EQ (ledSegmentBand (atAlignment.lit), vuYellowBand);
+constexpr float deskThresholdsDb[8] = { -36.f, -24.f, -18.f, -12.f,
+                                        -9.f,  -6.f,  -3.f,  0.f };
+constexpr std::size_t deskColours[8]
+    = { vuGreenBand,  vuGreenBand,  vuGreenBand, vuGreenBand,
+        vuYellowBand, vuYellowBand, vuRedBand,   vuRedBand };
 
-  auto const over
-      = ledMeterLights ({ amplitudeAt (vuGreenCeilingDb + 1.f), 0.f });
-  EXPECT_EQ (over.lit, atAlignment.lit + 1);
+int
+deskLedsLit (float peakDb)
+{
+  auto lit = 0;
+  for (auto threshold : deskThresholdsDb)
+    lit += peakDb >= threshold ? 1 : 0;
+  return lit;
+}
 }
 
-TEST (LedMeter, TheBandsRunGreenYellowRedFootToHead)
+// The fault the maintainer saw on the rig (2026-10-08): a peak of -5 dBFS
+// is yellow on the desk and was red here, because this meter put its red at
+// -6 dBFS on a -60..0 scale of its own.
+TEST (LedMeter, APeakTheDeskShowsYellowIsYellowHere)
 {
-  auto previous = vuGreenBand;
-  EXPECT_EQ (ledSegmentBand (0), vuGreenBand);
-  EXPECT_EQ (ledSegmentBand (ledMeterSegments - 1), vuRedBand);
-  for (int i = 1; i < ledMeterSegments; ++i)
+  auto const lights = ledMeterLights ({ amplitudeAt (-5.f), 0.f });
+  ASSERT_GT (lights.lit, 0);
+  EXPECT_EQ (ledSegmentBand (lights.lit - 1), vuYellowBand);
+}
+
+// The same level lights the same number of LEDs in the same colour as the
+// desk's channel meter, all the way up -- not only at the one level reported.
+TEST (LedMeter, EveryLevelLightsWhatTheDeskLights)
+{
+  ASSERT_EQ (ledMeterSegments, 8);
+  for (auto db = -60.f; db <= 3.f; db += 0.25f)
     {
-      auto const band = ledSegmentBand (i);
-      EXPECT_GE (band, previous) << i;
-      previous = band;
+      auto const lights = ledMeterLights ({ amplitudeAt (db), 0.f });
+      ASSERT_EQ (lights.lit, deskLedsLit (db)) << db << " dBFS";
+      if (lights.lit > 0)
+        EXPECT_EQ (ledSegmentBand (lights.lit - 1), deskColours[lights.lit - 1])
+            << db << " dBFS";
     }
+}
+
+TEST (LedMeter, EachLedWearsTheDesksColour)
+{
+  ASSERT_EQ (ledMeterSegments, 8);
+  for (int i = 0; i < ledMeterSegments; ++i)
+    EXPECT_EQ (ledSegmentBand (i), deskColours[i]) << i;
+}
+
+TEST (LedMeter, TheThresholdsAreTheDesks)
+{
+  ASSERT_EQ (ledMeterSegments, 8);
+  for (int i = 0; i < ledMeterSegments; ++i)
+    EXPECT_FLOAT_EQ (ledThresholdsDb[static_cast<std::size_t> (i)],
+                     deskThresholdsDb[i])
+        << i;
+}
+
+// The desk's own file, where it can be reached (the a3-system checkout): the
+// numbers above are a copy, and a copy is held to its source here. Skipped
+// in a checkout without a3-mixer beside it.
+TEST (LedMeter, TheCopyAgreesWithTheDesksSource)
+{
+  auto const ui = juce::File (A3_UI_SOURCE_DIR).getParentDirectory ().getParentDirectory ();
+  juce::File meters;
+  for (auto const *up : { "../../a3-mixer", "../../../../a3-mixer", "../a3-mixer" })
+    {
+      auto const candidate = ui.getChildFile (up).getChildFile (
+          "software/scripts/a3_mixer_meters.py");
+      if (candidate.existsAsFile ())
+        {
+          meters = candidate;
+          break;
+        }
+    }
+  if (meters == juce::File ())
+    GTEST_SKIP () << "no a3-mixer checkout beside " << ui.getFullPathName ();
+
+  auto const text = meters.loadFileAsString ();
+  auto const thresholds = text.fromFirstOccurrenceOf ("CHANNEL_LED_THRESHOLDS_DB = (", false, false)
+                              .upToFirstOccurrenceOf (")", false, false);
+  juce::StringArray numbers;
+  numbers.addTokens (thresholds, ",", "");
+  numbers.trim ();
+  numbers.removeEmptyStrings ();
+  ASSERT_EQ (numbers.size (), 8) << thresholds;
+  for (int i = 0; i < 8; ++i)
+    EXPECT_FLOAT_EQ (numbers[i].getFloatValue (), deskThresholdsDb[i]) << i;
+
+  auto const colours = text.fromFirstOccurrenceOf ("CHANNEL_LED_COLOURS = ", false, false)
+                           .upToFirstOccurrenceOf ("\n", false, false)
+                           .removeCharacters (" ");
+  EXPECT_EQ (colours, "(\"green\",)*4+(\"yellow\",)*2+(\"red\",)*2");
 }
 
 TEST (LedMeter, AHoldAboveTheBarNamesItsSegment)
 {
   auto const lights
-      = ledMeterLights ({ amplitudeAt (-40.f), amplitudeAt (-10.f) });
+      = ledMeterLights ({ amplitudeAt (-40.f), amplitudeAt (-7.f) });
   EXPECT_GT (lights.held, lights.lit);
+  EXPECT_EQ (lights.held, deskLedsLit (-7.f));
   EXPECT_EQ (ledSegmentBand (lights.held - 1), vuYellowBand);
 }
 
@@ -170,20 +244,24 @@ TEST (LedMeter, TheWellIsTheSkinsGround)
              toColour (theme ().background));
 }
 
-TEST (LedMeter, TheHeldPeakLightsASliverOfItsSegment)
+// The desk lights the held peak's LED whole, in its own colour, above a
+// dark gap -- so does this one.
+TEST (LedMeter, TheHeldPeakLightsItsWholeLed)
 {
   juce::Rectangle<int> const bounds{ 0, 0, 200, 20 };
-  VuReading const reading{ amplitudeAt (-40.f), amplitudeAt (-10.f) };
+  VuReading const reading{ amplitudeAt (-40.f), amplitudeAt (-7.f) };
   auto const lights = ledMeterLights (reading);
   ASSERT_GT (lights.held, lights.lit);
   auto const image = painted (reading, bounds);
   auto const segment = ledSegment (bounds, lights.held - 1);
   auto const lit = vuBandColour (theme (), ledSegmentBand (lights.held - 1));
   auto const y = juce::roundToInt (segment.getCentreY ());
-  EXPECT_EQ (image.getPixelAt (juce::roundToInt (segment.getRight ()) - 1, y), lit)
-      << "the head end of the held segment";
-  EXPECT_NE (image.getPixelAt (juce::roundToInt (segment.getX ()) + 1, y), lit)
-      << "the foot end stays a ghost";
+  EXPECT_EQ (image.getPixelAt (juce::roundToInt (segment.getRight ()) - 1, y), lit);
+  EXPECT_EQ (image.getPixelAt (juce::roundToInt (segment.getX ()) + 1, y), lit);
+  auto const below = ledSegment (bounds, lights.held - 2);
+  EXPECT_NE (image.getPixelAt (juce::roundToInt (below.getCentreX ()), y),
+             vuBandColour (theme (), ledSegmentBand (lights.held - 2)))
+      << "the LED under it stays dark";
 }
 
 TEST (LedMeter, AnEmptyBoxPaintsNothing)

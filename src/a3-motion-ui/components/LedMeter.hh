@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -29,13 +30,20 @@
 namespace a3
 {
 
-/** How many LEDs a segmented meter has.
+/** The desk's channel LED scale (a3-mixer `a3_mixer_meters.py`,
+ *  CHANNEL_LED_THRESHOLDS_DB, decided by the maintainer 2026-10-07), in dBFS
+ *  peak, foot to head: LED n lights once the peak reaches its threshold.
  *
- *  Twenty, three decibels each over the meter's sixty: the two band ceilings
- *  (-18 and -6 dBFS) then fall exactly on segment edges, so no LED is half
- *  green and half yellow. A count, not a size -- the segments share whatever
- *  length the meter is given. */
-constexpr int ledMeterSegments = 20;
+ *  A copy, because the desk's numbers live only in a3-mixer's code and the
+ *  truth carries the meters' timing but not their scale. `LedMeter` tests
+ *  hold it to the desk's file wherever an a3-mixer checkout is beside this
+ *  one. Not dB-linear: the top half of the meter is the last 12 dB, where a
+ *  DJ steers the gain. */
+inline constexpr std::array<float, 8> ledThresholdsDb{ -36.f, -24.f, -18.f, -12.f,
+                                                      -9.f,  -6.f,  -3.f,  0.f };
+
+/** One segment per desk LED. */
+constexpr int ledMeterSegments = static_cast<int> (ledThresholdsDb.size ());
 
 /** What a segmented meter lights.
  *
@@ -48,14 +56,13 @@ struct LedMeterLights
   int held = 0;
 };
 
-/** The segments a reading lights. A segment lights once the level has
- *  entered it, as an LED on a desk does once its threshold is passed. */
-LedMeterLights ledMeterLights (VuReading reading,
-                               int segments = ledMeterSegments);
+/** The LEDs a reading lights, as the desk counts them: every threshold the
+ *  bar's peak has reached, and the held peak's LED likewise. */
+LedMeterLights ledMeterLights (VuReading reading);
 
-/** Which of the meter's colour bands a segment belongs to (vuGreenBand,
- *  vuYellowBand, vuRedBand), by where its middle sits on the scale. */
-std::size_t ledSegmentBand (int segment, int segments = ledMeterSegments);
+/** An LED's colour band, the desk's channelLedColour: four green, two
+ *  yellow, two red. */
+std::size_t ledSegmentBand (int segment);
 
 /** Where segment `segment` (0 at the foot) is drawn inside `bounds`: the
  *  well inset by a hair, cut into equal steps with a tight gap between. */
@@ -64,10 +71,10 @@ juce::Rectangle<float> ledSegment (juce::Rectangle<int> bounds, int segment,
 
 /** A meter of LEDs, foot at the left, in `bounds`.
  *
- *  The LED-segment meter StemDeck and the desk show: a recessed well in the
- *  skin's `background`, every segment drawn, the unlit ones as a ghost of
- *  their band's colour at `alphaOutline`, the lit ones in full, and the held
- *  peak as a sliver at the head of its segment. The bands' colours are
+ *  The desk's channel meter on the screen: a recessed well in the skin's
+ *  `background`, every LED drawn, the unlit ones as a ghost of their band's
+ *  colour at `alphaOutline`, the lit ones in full, and the held peak's LED
+ *  lit whole, as the desk's firmware lights it. The bands' colours are
  *  vuBandColour's, so this meter and the continuous one say the same levels
  *  in the same colours. */
 void paintLedMeter (juce::Graphics &g, juce::Rectangle<int> bounds,
