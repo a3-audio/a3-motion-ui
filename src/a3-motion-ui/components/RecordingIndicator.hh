@@ -79,11 +79,14 @@ struct TakeOnTheBar
 
 /** From the running take and the armed one: the running take wins -- it is
  *  the one writing over something -- and with neither, or one no row holds,
- *  the bar shows nothing. */
+ *  the bar shows nothing. The engine keeps its last take after it finished,
+ *  so `running` counts only while `recording`. */
 template <typename Rows, typename Pointer>
 TakeOnTheBar
-takeOnTheBar (Rows const &rows, Pointer const &running, Pointer const &armed)
+takeOnTheBar (Rows const &rows, bool recording, Pointer const &last,
+              Pointer const &armed)
 {
+  auto const running = recording ? last : Pointer{};
   auto const channel
       = channelHoldingTake (rows, running != nullptr ? running : armed);
   if (channel < 0)
