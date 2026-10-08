@@ -23,6 +23,7 @@
 #include <a3-motion-engine/flight/FlightField.hh>
 
 #include <atomic>
+#include <type_traits>
 
 namespace a3
 {
@@ -39,7 +40,14 @@ namespace a3
  *  one tick old -- where Channel's reader spins until it gets a clean one. */
 class FlightBodiesBox
 {
+  // A SeqLock copies the bytes and checks afterwards whether they were torn;
+  // that is only sound for a type whose copy is a plain copy of its bytes.
+  static_assert (std::is_trivially_copyable_v<FlightBodies>,
+                 "FlightBodiesBox copies under a SeqLock");
+
 public:
+  /** One writer only: the message thread. Two writers could both see an
+   *  even count, and the reader would take a mix of their bodies as clean. */
   void
   write (FlightBodies const &bodies)
   {

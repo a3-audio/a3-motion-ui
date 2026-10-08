@@ -611,6 +611,9 @@ private:
    *  are the ones a clip goes out through. Clock thread only; allocates
    *  nothing and locks nothing. */
   void performFlight ();
+  /** The mode atomics, read once at the start of the tick into
+   *  _flightModeThisTick, which playTick and performFlight both use. */
+  void readFlightModes ();
   /** Whether a finger or a take owns the channel's position this tick. */
   bool positionTakenOver (index_t channel) const;
   void startGlide (index_t channel);
@@ -623,6 +626,7 @@ private:
   FlightWorld _flight{ /* seed */ 1, _flightTuning };
   FlightBodies _flightBodies{};
   std::vector<FlightMode> _flightModeSeen;
+  std::vector<FlightMode> _flightModeThisTick;
   std::vector<int> _glideTicksLeft;
   /** Where each ship was last heard: what a glide back starts from. */
   std::vector<Pos> _glideFrom;

@@ -176,6 +176,7 @@ MotionEngine::createChannels (index_t const numChannels)
   for (auto &target : _flightTarget)
     target.store (noBodyId, std::memory_order_relaxed);
   _flightModeSeen.assign (numChannels, FlightMode::Clip);
+  _flightModeThisTick.assign (numChannels, FlightMode::Clip);
   _glideTicksLeft.assign (numChannels, 0);
   _glideFrom.assign (numChannels, Pos::invalid);
 
@@ -887,6 +888,8 @@ MotionEngine::tickCallback ()
   handleStartStopMessages ();
 
   performRecording ();
+
+  readFlightModes ();
   
   // Perform playback once per tick. With absolute time-based position calculation,
   // we don't need to worry about accumulation errors or sub-stepping granularity.
@@ -1808,7 +1811,8 @@ MotionEngine::playTick (index_t chIdx, Pattern &playing, float playPosition)
   // Not for an ORBIT channel: its ship writes the position, in
   // performFlight(). Everything above still runs, so the clip comes back in
   // phase with the bar and with its lanes.
-  if (position2D.isValid () && getFlightMode (chIdx) == FlightMode::Clip)
+  if (position2D.isValid ()
+      && _flightModeThisTick[chIdx] == FlightMode::Clip)
     channel->setPosition (playedPosition (_heightMap, position2D, playing));
 }
 
@@ -1821,6 +1825,16 @@ MotionEngine::positionTakenOver (index_t channel) const
     return true;
   return _patternScheduledForRecording && _recordingPosition.isValid ()
          && _patternScheduledForRecording->getChannel () == channel;
+}
+
+void
+MotionEngine::readFlightModes ()
+{
+  // One read per channel per tick: playTick and performFlight must agree on
+  // the mode, or a switch landing between them could leave the channel with
+  // two writers or none for that tick.
+  for (auto ch = 0u; ch < _flightModeThisTick.size (); ++ch)
+    _flightModeThisTick[ch] = getFlightMode (ch);
 }
 
 void
@@ -1855,7 +1869,7 @@ MotionEngine::performFlight ()
           continue;
         }
 
-      if (getFlightMode (ch) == FlightMode::Clip)
+      if (_flightModeThisTick[ch] == FlightMode::Clip)
         {
           if (_flightModeSeen[ch] == FlightMode::Orbit)
             startGlide (ch);
