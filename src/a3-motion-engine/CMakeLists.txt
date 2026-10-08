@@ -146,6 +146,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/ShipDynamics.hh
     flight/FlightWorld.cc
     flight/FlightWorld.hh
+    flight/Handover.cc
+    flight/Handover.hh
 )
 
 target_include_directories("a3-motion-engine" PUBLIC

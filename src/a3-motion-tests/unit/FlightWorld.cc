@@ -25,6 +25,7 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -207,6 +208,37 @@ TEST (FlightWorld, LaunchStartsWhereTheChannelIs)
   auto const speed = world.ship (0).v.getDistanceFromOrigin ();
   EXPECT_GE (speed, tuning.speedMin - speedSlack);
   EXPECT_LE (speed, tuning.speedMax + speedSlack);
+}
+
+// Review Focus 2, the CLIP -> ORBIT half: the ship takes off where the
+// channel is, never moves more than speedMax a tick, and chases a rabbit next
+// to it rather than its channel's slot (here half a lap away).
+TEST (FlightWorld, ALaunchedShipDoesNotJump)
+{
+  FlightTuning const tuning;
+  auto const beats = 9.3;
+  auto const launchedAt = rabbitAt (beats, 2, fourFour, tuning).at;
+  FlightWorld world (aSeed);
+  world.launch (0, launchedAt, beats, fourFour);
+  std::array<ShipOrders, 4> orders;
+  orders[0].flying = true;
+
+  auto const path = run (world, orders, {}, ticksIn (barsToBeats (2.f)), beats);
+  auto const widestStep = tuning.speedMax * tickBeats () + speedSlack;
+  auto previous = launchedAt;
+  auto farthestFromItsRabbit = 0.f;
+  for (auto const &sample : path)
+    {
+      auto const p = sample.ships[0].p;
+      ASSERT_LE (p.getDistanceFrom (previous), widestStep) << "beat " << sample.beats;
+      previous = p;
+      farthestFromItsRabbit = std::max (
+          farthestFromItsRabbit,
+          p.getDistanceFrom (rabbitAt (sample.beats, 2, fourFour, tuning).at));
+    }
+  // wander (<= wanderRadius) plus the steering's lag, nowhere near the
+  // half lap (> 1) its own slot is away
+  EXPECT_LE (farthestFromItsRabbit, 0.25f);
 }
 
 // ---- Escort: a group captures the ship (Task 7) ----
