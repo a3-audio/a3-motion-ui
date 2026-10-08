@@ -173,6 +173,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/fpv/FloorBodies.hh
     components/fpv/FloorGesture.cc
     components/fpv/FloorGesture.hh
+    components/fpv/FpvFloor.cc
+    components/fpv/FpvFloor.hh
     components/fpv/FpvLayout.cc
     components/fpv/FpvLayout.hh
     components/fpv/FpvPagePress.hh
