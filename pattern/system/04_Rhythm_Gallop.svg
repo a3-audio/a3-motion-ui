@@ -2,7 +2,16 @@
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 2 2" data-name="Rhythm Gallop"
      data-beats="4" data-ppqn="128">
-  <circle cx="-0.0000" cy="1.0000" r="0.05"/>
-  <circle cx="-0.8660" cy="-0.5000" r="0.05"/>
-  <circle cx="0.8660" cy="-0.5000" r="0.05"/>
+  <circle cx="-0.0000" cy="1.0000" r="0.05" data-at="0"/>
+  <circle cx="-0.8660" cy="-0.5000" r="0.05" data-at="64"/>
+  <circle cx="0.8660" cy="-0.5000" r="0.05" data-at="96"/>
+  <circle cx="-0.0000" cy="1.0000" r="0.05" data-at="128"/>
+  <circle cx="-0.8660" cy="-0.5000" r="0.05" data-at="192"/>
+  <circle cx="0.8660" cy="-0.5000" r="0.05" data-at="224"/>
+  <circle cx="-0.0000" cy="1.0000" r="0.05" data-at="256"/>
+  <circle cx="-0.8660" cy="-0.5000" r="0.05" data-at="320"/>
+  <circle cx="0.8660" cy="-0.5000" r="0.05" data-at="352"/>
+  <circle cx="-0.0000" cy="1.0000" r="0.05" data-at="384"/>
+  <circle cx="-0.8660" cy="-0.5000" r="0.05" data-at="448"/>
+  <circle cx="0.8660" cy="-0.5000" r="0.05" data-at="480"/>
 </svg>

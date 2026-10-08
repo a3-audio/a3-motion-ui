@@ -264,10 +264,13 @@ isTappedTrajectory (std::vector<Pos> const &ticks)
   return places >= 1 && places <= maxTappedPositions;
 }
 
-std::vector<Pos>
-trajectoryPlateaus (std::vector<Pos> const &ticks)
+/** Every run of ticks long enough to be a rest, with the tick it starts on,
+ *  in tick order. A run that is still going at the end of the ring is cut
+ *  there; whether it carries on at tick 0 is the caller's question. */
+static std::vector<TrajectoryHit>
+heldRuns (std::vector<Pos> const &ticks)
 {
-  std::vector<Pos> plateaus;
+  std::vector<TrajectoryHit> runs;
 
   auto const minRun = std::max (
       plateauMinTicks,
@@ -283,7 +286,7 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
   auto const closeRun = [&] (size_t runEnd) {
     if (!inRun || runEnd - runStart < minRun)
       return;
-    plateaus.push_back (ticks[runStart]);
+    runs.push_back ({ ticks[runStart], runStart });
   };
 
   for (size_t i = 0; i < ticks.size (); ++i)
@@ -310,6 +313,16 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
     }
   closeRun (ticks.size ());
 
+  return runs;
+}
+
+std::vector<Pos>
+trajectoryPlateaus (std::vector<Pos> const &ticks)
+{
+  std::vector<Pos> plateaus;
+  for (auto const &run : heldRuns (ticks))
+    plateaus.push_back (run.position);
+
   // The loop's last held position and its first are one and the same when the
   // take was still sitting on its opening tap as it came round.
   if (plateaus.size () > 1
@@ -317,6 +330,26 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
     plateaus.pop_back ();
 
   return plateaus;
+}
+
+std::vector<TrajectoryHit>
+trajectoryHits (std::vector<Pos> const &ticks)
+{
+  auto hits = heldRuns (ticks);
+
+  // A hit is where a place is landed on, so a run that tick 0 merely carries
+  // on from the end of the ring is the last hit, landed on before the loop
+  // came round -- not a hit on tick 0. Only a run that does not carry on is
+  // landed on at 0, and then it stays, even where the last hit is the same
+  // place: two landings, not one held place.
+  auto const carriesOn
+      = hits.size () > 1 && hits.front ().tick == 0 && ticks.front ().isValid ()
+        && ticks.back ().isValid ()
+        && distance (ticks.back (), ticks.front ()) < holdDistance;
+  if (carriesOn)
+    hits.erase (hits.begin ());
+
+  return hits;
 }
 
 std::vector<Pos>

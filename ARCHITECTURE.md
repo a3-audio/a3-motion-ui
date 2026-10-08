@@ -872,6 +872,16 @@ also carries its taps as circles, and `peek()` hands those out instead of the pa
 A file without the mark is a shape — every shipped one, and every take written before #68, which
 loads as it always did (its scale was thrown away when it was written, and is not coming back).
 
+**A jump dot is a hit, and says when** (#61). A shape of jumps used to be written as the places
+it visits, one dot each, and read back spread evenly over the clip — so a tresillo, a gallop, an
+offbeat, a shuffle and both claves played as even jumps, and a gallop's twelve hits over three
+places folded into three dots. Each hit is now its own `<circle>` with `data-at`, the tick (of
+`data-ppqn`) it lands on; it holds to the next one, and the tick before each landing stays empty,
+as `fromSteps` plays it. A file whose dots carry no `data-at` — every one written before, and any
+where only some do — is spread evenly as it always was. The rhythm shapes in `pattern/system` are
+`a3-pattern-gen`'s output again, and `PatternFileJumps.TheShippedRhythmShapesPlayTheirRhythm`
+holds them to the generator tick for tick.
+
 Some shapes are legitimately off-centre and must stay that way, and
 `SystemPatternIcons.EveryShippedShapeSitsWhereItShould` names them rather than leaving them to be
 "fixed" later: `Arc` and `Petal` are one-sided by construction, `Orbit` is a Kepler ellipse with the
