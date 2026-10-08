@@ -118,6 +118,8 @@ target_sources("a3-motion-engine" PRIVATE
     tempo/TempoEstimatorMeanSelective.hh
     tempo/TempoEstimatorIRLS.cc
     tempo/TempoEstimatorIRLS.hh
+    preview/MusicPreview.cc
+    preview/MusicPreview.hh
     backends/SpatBackend.hh
     backends/SpatBackendIEM.cc
     backends/SpatBackendIEM.hh
