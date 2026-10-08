@@ -24,6 +24,8 @@
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
+#include <cmath>
+
 namespace a3
 {
 
@@ -34,7 +36,12 @@ constexpr float barOfThird = 0.5f;       // a bar's height in its third
 constexpr float textOfSection = 0.7f;    // a line of text in its section
 constexpr float glyphOfClip = 0.2f;      // the play state's share of the width
 constexpr float labelOfInstruments = 0.2f; // the bar label's share of the width
-constexpr float autoOfHeader = 0.5f;     // AUTO's share of the header width
+constexpr float pillOfHeader = 0.4f;     // the mode pill's share of the header width
+constexpr float pillOfSection = 0.8f;    // the pill's height in the header
+constexpr float targetOfClip = 0.45f;    // PATROL / G3's share of the clip row
+constexpr float nameOfTarget = 0.75f;    // the clip name, smaller after the target
+constexpr float discOfText = 1.f;        // the heaviest escort disc, to a line of text
+constexpr float heaviestMass = 3.f;      // a hotspot fills discOfText
 
 constexpr char const *potLabels[3] = { "3D", "FREQ", "Q" };
 
@@ -45,18 +52,90 @@ boldFont (float height)
                          .withStyle ("Bold"));
 }
 
-void
-paintHeader (juce::Graphics &g, FpvStrip const &strip, int channel)
+juce::Rectangle<int>
+headerContent (juce::Rectangle<int> header)
 {
-  auto const area = strip.header.reduced (juce::roundToInt (theme ().padding));
+  return header.reduced (juce::roundToInt (theme ().padding));
+}
+
+void
+paintModePill (juce::Graphics &g, juce::Rectangle<int> header, bool orbit)
+{
+  auto const pill = fpvModePill (header);
+  auto const corner = pill.getHeight () / 2.f;
+  auto const text = toColour (theme ().textPrimary);
+  if (orbit)
+    {
+      g.setColour (text);
+      g.fillRoundedRectangle (pill, corner);
+      g.setColour (toColour (theme ().background));
+    }
+  else
+    {
+      g.setColour (text);
+      g.drawRoundedRectangle (pill.reduced (theme ().strokeMedium / 2.f),
+                              corner, theme ().strokeMedium);
+    }
+  g.setFont (boldFont (pill.getHeight () * textOfSection));
+  g.drawFittedText (orbit ? "ORBIT" : "CLIP", pill.toNearestInt (),
+                    juce::Justification::centred, 1, 0.5f);
+}
+
+void
+paintHeader (juce::Graphics &g, FpvStrip const &strip, int channel,
+             bool orbit)
+{
+  auto const area = headerContent (strip.header);
   g.setFont (boldFont (static_cast<float> (area.getHeight ()) * textOfSection));
   g.setColour (toColour (theme ().textPrimary));
   g.drawFittedText ("CH " + juce::String (channel + 1), area,
                     juce::Justification::centredLeft, 1, 0.5f);
-  g.drawFittedText ("AUTO",
-                    area.withTrimmedLeft (juce::roundToInt (
-                        static_cast<float> (area.getWidth ()) * autoOfHeader)),
-                    juce::Justification::centredRight, 1, 0.5f);
+  paintModePill (g, strip.header, orbit);
+}
+
+/** The disc the floor draws for that group, at the size of its weight. */
+void
+paintEscortDisc (juce::Graphics &g, juce::Rectangle<int> box, float mass)
+{
+  auto const full = static_cast<float> (box.getHeight ()) * textOfSection
+                    * discOfText;
+  auto const diameter
+      = full * std::sqrt (juce::jlimit (0.f, 1.f, mass / heaviestMass));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaActive));
+  g.fillEllipse (box.toFloat ()
+                     .withWidth (full)
+                     .withSizeKeepingCentre (diameter, diameter));
+}
+
+/** In ORBIT: PATROL or the escorted group, then the clip name smaller. */
+void
+paintOrbitTarget (juce::Graphics &g, juce::Rectangle<int> area,
+                  FpvChannel const &channel)
+{
+  auto const lineHeight = static_cast<float> (area.getHeight ()) * textOfSection;
+  auto target = area.removeFromLeft (juce::roundToInt (
+      static_cast<float> (area.getWidth ()) * targetOfClip));
+  g.setFont (boldFont (lineHeight));
+  g.setColour (toColour (theme ().textPrimary));
+  if (channel.escort < 0)
+    g.drawFittedText ("PATROL", target, juce::Justification::centredLeft, 1,
+                      0.5f);
+  else
+    {
+      paintEscortDisc (g, target, channel.escortMass);
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawFittedText (
+          "G" + juce::String (channel.escort + 1),
+          target.withTrimmedLeft (juce::roundToInt (lineHeight * discOfText)
+                                  + juce::roundToInt (theme ().paddingSmall)),
+          juce::Justification::centredLeft, 1, 0.5f);
+    }
+
+  g.setFont (juce::Font (juce::FontOptions (fittedFontHeight (
+      lineHeight * nameOfTarget, theme ().fontSize (FontRole::Body)))));
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaSecondary));
+  g.drawFittedText (channel.clipName, area, juce::Justification::centredLeft,
+                    1, 0.5f);
 }
 
 void
@@ -66,11 +145,18 @@ paintClip (juce::Graphics &g, FpvStrip const &strip, FpvChannel const &channel)
                                   juce::roundToInt (theme ().paddingSmall));
   auto const glyph = area.removeFromRight (juce::roundToInt (
       static_cast<float> (area.getWidth ()) * glyphOfClip));
-  g.setFont (boldFont (static_cast<float> (area.getHeight ()) * textOfSection));
-  g.setColour (toColour (theme ().textPrimary));
-  g.drawFittedText (channel.clipName.isEmpty () ? juce::String (juce::CharPointer_UTF8 ("\xe2\x80\x94"))
+  if (channel.orbit)
+    paintOrbitTarget (g, area, channel);
+  else
+    {
+      g.setFont (boldFont (static_cast<float> (area.getHeight ()) * textOfSection));
+      g.setColour (toColour (theme ().textPrimary));
+      g.drawFittedText (channel.clipName.isEmpty () ? juce::String (juce::CharPointer_UTF8 ("\xe2\x80\x94"))
                                                 : channel.clipName,
-                    area, juce::Justification::centredLeft, 1, 0.5f);
+                        area, juce::Justification::centredLeft, 1, 0.5f);
+    }
+  g.setFont (boldFont (static_cast<float> (glyph.getHeight ()) * textOfSection));
+  g.setColour (toColour (theme ().textPrimary));
   g.drawFittedText (channel.playing ? juce::String (juce::CharPointer_UTF8 ("\xe2\x96\xb6"))
                                     : juce::String (juce::CharPointer_UTF8 ("\xe2\x9d\x9a\xe2\x9d\x9a")),
                     glyph, juce::Justification::centredRight, 1, 0.5f);
@@ -106,6 +192,15 @@ paintInstruments (juce::Graphics &g, FpvStrip const &strip,
           theme ().radiusCard);
     }
 }
+}
+
+juce::Rectangle<float>
+fpvModePill (juce::Rectangle<int> header)
+{
+  auto const area = headerContent (header).toFloat ();
+  return area.withTrimmedLeft (area.getWidth () * (1.f - pillOfHeader))
+      .withSizeKeepingCentre (area.getWidth () * pillOfHeader,
+                              area.getHeight () * pillOfSection);
 }
 
 void
@@ -146,7 +241,7 @@ FpvStrips::paint (juce::Graphics &g)
       g.setColour (channel.colour.withAlpha (theme ().alphaFill));
       g.fillRoundedRectangle (strip.whole.toFloat (), theme ().radiusCard);
 
-      paintHeader (g, strip, static_cast<int> (ch));
+      paintHeader (g, strip, static_cast<int> (ch), channel.orbit);
       paintClip (g, strip, channel);
       paintInstruments (g, strip, channel);
       paintVuMeter (g, strip.meter.reduced (juce::roundToInt (theme ().padding)),
