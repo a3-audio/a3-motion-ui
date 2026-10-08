@@ -212,7 +212,7 @@ orbiting ()
   c[0].orbit = true;              // patrol
   c[2].orbit = true;              // escorting G3, a crowd
   c[2].escort = 2;
-  c[2].escortMass = 2.f;
+  c[2].escortMass = FlightTuning{}.crowdMass;
   return c;
 }
 }
@@ -270,12 +270,12 @@ TEST (FpvStripsPaint, AHeavierEscortIsABiggerDisc)
 {
   Fixture f;
   auto light = orbiting ();
-  light[2].escortMass = 1.f;
+  light[2].escortMass = FlightTuning{}.groupMass;
   f.strips.setChannels (light);
   auto const &row = f.strips.strips ()[2].clip;
   auto const small = textColouredPixels (f.paint (), row);
   auto heavy = orbiting ();
-  heavy[2].escortMass = 3.f;
+  heavy[2].escortMass = FlightTuning{}.hotspotMass;
   f.strips.setChannels (heavy);
   auto const big = textColouredPixels (f.paint (), row);
   EXPECT_GT (big, small);

@@ -25,6 +25,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/fpv/FpvLayout.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -41,7 +42,7 @@ struct FpvChannel
   std::array<float, 3> pots{}; // effective 3D, FREQ, Q (channelPotOrder), 0..1
   bool orbit = false;          // flies the gravity field rather than its clip
   int escort = -1;             // the body id it escorts; -1 = patrol
-  float escortMass = 1.f;      // that body's mass, for the size of its disc
+  float escortMass = FlightTuning{}.groupMass; // that body's mass, for the size of its disc
 };
 
 /** Where the header's mode pill sits: CLIP hollow, ORBIT filled. The mode is
@@ -55,6 +56,8 @@ class FpvStrips : public juce::Component, public ThemedComponent
 {
 public:
   void setChannels (std::array<FpvChannel, 4> const &channels);
+  /** The engine's flight tuning: the escort disc is sized by its masses. */
+  void setFlightTuning (FlightTuning const &tuning) { _tuning = tuning; }
 
   /** The meter reading of a channel; unset, the meters read silence. */
   std::function<VuReading (int channel)> channelLevel;
@@ -69,6 +72,7 @@ public:
 
 private:
   std::array<FpvChannel, 4> _channels;
+  FlightTuning _tuning;
   std::array<FpvStrip, 4> _strips;
 };
 

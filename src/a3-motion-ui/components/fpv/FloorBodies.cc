@@ -20,8 +20,6 @@
 
 #include "FloorBodies.hh"
 
-#include <a3-motion-engine/flight/FlightTuning.hh>
-
 #include <algorithm>
 #include <utility>
 
@@ -39,9 +37,8 @@ insideTheRoom (Vec2 at)
 }
 
 float
-massOf (BodyWeight weight)
+massOf (BodyWeight weight, FlightTuning const &tuning)
 {
-  FlightTuning const tuning;
   switch (weight)
     {
     case BodyWeight::Group:
@@ -139,14 +136,14 @@ FloorBodies::count () const
 }
 
 FlightBodies
-FloorBodies::snapshot () const
+FloorBodies::snapshot (FlightTuning const &tuning) const
 {
   FlightBodies bodies;
   for (int i = 0; i < _count; ++i)
     {
       auto const &entry = _entries[static_cast<size_t> (i)];
       bodies.body[static_cast<size_t> (i)]
-          = { entry.at, massOf (entry.weight), entry.id };
+          = { entry.at, massOf (entry.weight, tuning), entry.id };
     }
   bodies.count = _count;
   return bodies;

@@ -20,7 +20,6 @@
 
 #include "FpvStrips.hh"
 
-#include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/components/FittedFont.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
@@ -41,7 +40,6 @@ constexpr float pillOfSection = 0.8f;    // the pill's height in the header
 constexpr float targetOfClip = 0.45f;    // PATROL / G3's share of the clip row
 constexpr float nameOfTarget = 0.75f;    // the clip name, smaller after the target
 constexpr float discOfText = 1.f;        // the heaviest escort disc, to a line of text
-float const heaviestMass = FlightTuning{}.hotspotMass; // a hotspot fills discOfText
 
 constexpr char const *potLabels[3] = { "3D", "FREQ", "Q" };
 
@@ -95,13 +93,15 @@ paintHeader (juce::Graphics &g, FpvStrip const &strip, int channel,
 
 /** The disc the floor draws for that group, at the size of its weight. */
 void
-paintEscortDisc (juce::Graphics &g, juce::Rectangle<int> box, float mass)
+paintEscortDisc (juce::Graphics &g, juce::Rectangle<int> box, float mass,
+                 FlightTuning const &tuning)
 {
   auto const full = static_cast<float> (box.getHeight ()) * textOfSection
                     * discOfText;
   auto const diameter
       = full
-        * juce::jmin (1.f, bodyWeightScale (mass) / bodyWeightScale (heaviestMass));
+        * juce::jmin (1.f, bodyWeightScale (mass, tuning)
+                               / bodyWeightScale (tuning.hotspotMass, tuning)); // a hotspot fills discOfText
   g.setColour (toColour (bodyColour (BodyRole::Attract), theme ().alphaActive));
   g.fillEllipse (box.toFloat ()
                      .withWidth (full)
@@ -111,7 +111,7 @@ paintEscortDisc (juce::Graphics &g, juce::Rectangle<int> box, float mass)
 /** In ORBIT: PATROL or the escorted group, then the clip name smaller. */
 void
 paintOrbitTarget (juce::Graphics &g, juce::Rectangle<int> area,
-                  FpvChannel const &channel)
+                  FpvChannel const &channel, FlightTuning const &tuning)
 {
   auto const lineHeight = static_cast<float> (area.getHeight ()) * textOfSection;
   auto target = area.removeFromLeft (juce::roundToInt (
@@ -123,7 +123,7 @@ paintOrbitTarget (juce::Graphics &g, juce::Rectangle<int> area,
                       0.5f);
   else
     {
-      paintEscortDisc (g, target, channel.escortMass);
+      paintEscortDisc (g, target, channel.escortMass, tuning);
       g.setColour (toColour (theme ().textPrimary));
       g.drawFittedText (
           "G" + juce::String (channel.escort + 1),
@@ -140,14 +140,15 @@ paintOrbitTarget (juce::Graphics &g, juce::Rectangle<int> area,
 }
 
 void
-paintClip (juce::Graphics &g, FpvStrip const &strip, FpvChannel const &channel)
+paintClip (juce::Graphics &g, FpvStrip const &strip, FpvChannel const &channel,
+           FlightTuning const &tuning)
 {
   auto area = strip.clip.reduced (juce::roundToInt (theme ().padding),
                                   juce::roundToInt (theme ().paddingSmall));
   auto const glyph = area.removeFromRight (juce::roundToInt (
       static_cast<float> (area.getWidth ()) * glyphOfClip));
   if (channel.orbit)
-    paintOrbitTarget (g, area, channel);
+    paintOrbitTarget (g, area, channel, tuning);
   else
     {
       g.setFont (boldFont (static_cast<float> (area.getHeight ()) * textOfSection));
@@ -243,7 +244,7 @@ FpvStrips::paint (juce::Graphics &g)
       g.fillRoundedRectangle (strip.whole.toFloat (), theme ().radiusCard);
 
       paintHeader (g, strip, static_cast<int> (ch), channel.orbit);
-      paintClip (g, strip, channel);
+      paintClip (g, strip, channel, _tuning);
       paintInstruments (g, strip, channel);
       paintVuMeter (g, strip.meter.reduced (juce::roundToInt (theme ().padding)),
                     channelLevel ? channelLevel (static_cast<int> (ch))

@@ -36,10 +36,10 @@ TEST (BodyLook, HeavierIsBiggerButNotLinear)
 {
   FlightTuning const t;
   auto const blob = 40.f;
-  EXPECT_GT (bodyRadius (t.hotspotMass, blob), bodyRadius (t.crowdMass, blob));
-  EXPECT_GT (bodyRadius (t.crowdMass, blob), bodyRadius (t.groupMass, blob));
-  EXPECT_LT (bodyRadius (t.hotspotMass, blob), 3.f * bodyRadius (t.groupMass, blob));
-  EXPECT_FLOAT_EQ (bodyRadius (t.groupMass, blob), bodyRadiusOfBlob * blob);
+  EXPECT_GT (bodyRadius (t.hotspotMass, blob, t), bodyRadius (t.crowdMass, blob, t));
+  EXPECT_GT (bodyRadius (t.crowdMass, blob, t), bodyRadius (t.groupMass, blob, t));
+  EXPECT_LT (bodyRadius (t.hotspotMass, blob, t), 3.f * bodyRadius (t.groupMass, blob, t));
+  EXPECT_FLOAT_EQ (bodyRadius (t.groupMass, blob, t), bodyRadiusOfBlob * blob);
 }
 
 // The planets got lighter (2026-10-08), the drawing did not shrink: a group
@@ -48,15 +48,15 @@ TEST (BodyLook, LighterPlanetsAreDrawnAsBefore)
 {
   FlightTuning const t;
   auto const blob = 40.f;
-  auto const group = bodyRadius (t.groupMass, blob);
-  EXPECT_FLOAT_EQ (bodyRadius (t.crowdMass, blob), group * std::sqrt (2.f));
-  EXPECT_FLOAT_EQ (bodyRadius (t.hotspotMass, blob), group * std::sqrt (3.f));
+  auto const group = bodyRadius (t.groupMass, blob, t);
+  EXPECT_FLOAT_EQ (bodyRadius (t.crowdMass, blob, t), group * std::sqrt (2.f));
+  EXPECT_FLOAT_EQ (bodyRadius (t.hotspotMass, blob, t), group * std::sqrt (3.f));
 }
 
 TEST (BodyLook, ADeadZoneIsTheSameSizeAsACrowd)
 {
   FlightTuning const t;
-  EXPECT_FLOAT_EQ (bodyRadius (t.deadZoneMass, 40.f), bodyRadius (t.crowdMass, 40.f));
+  EXPECT_FLOAT_EQ (bodyRadius (t.deadZoneMass, 40.f, t), bodyRadius (t.crowdMass, 40.f, t));
 }
 
 TEST (BodyLook, ThePulseGrowsTheDiscLessThanThePull)
@@ -97,9 +97,9 @@ TEST (BodyLook, AGroupIsNeutralAndOnlyADeadZoneIsRed)
 TEST (BodyLook, ASmallBodyIsStillAFingertipToHit)
 {
   auto const fingertip = 34.f;
-  EXPECT_FLOAT_EQ (bodyHitRadius (1.f, 10.f, fingertip), fingertip / 2.f);
-  auto const big = bodyRadius (3.f, 80.f);
-  EXPECT_FLOAT_EQ (bodyHitRadius (3.f, 80.f, fingertip), big)
+  EXPECT_FLOAT_EQ (bodyHitRadius (1.f, 10.f, fingertip, FlightTuning{}), fingertip / 2.f);
+  auto const big = bodyRadius (3.f, 80.f, FlightTuning{});
+  EXPECT_FLOAT_EQ (bodyHitRadius (3.f, 80.f, fingertip, FlightTuning{}), big)
       << "a disc bigger than a fingertip is hit where it is drawn";
 }
 

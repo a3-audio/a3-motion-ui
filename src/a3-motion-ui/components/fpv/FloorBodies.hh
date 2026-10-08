@@ -37,7 +37,7 @@ enum class BodyWeight
   DeadZone, // "not here"
 };
 
-float massOf (BodyWeight weight);     // FlightTuning: 0.5, 1, 1.5, -2
+float massOf (BodyWeight weight, FlightTuning const &tuning); // 0.5, 1, 1.5, -2 by default
 BodyWeight nextWeight (BodyWeight weight); // G -> C -> H -> X -> G
 
 /** The groups the DJ has placed on the floor. Message thread only; the engine
@@ -63,7 +63,7 @@ public:
   int count () const;
 
   /** In the order they were placed, each with its id and mass. */
-  FlightBodies snapshot () const;
+  FlightBodies snapshot (FlightTuning const &tuning) const;
 
 private:
   struct Entry

@@ -1430,6 +1430,7 @@ A3MotionUIComponent::createMainUI ()
 
   // FPV's four strips below the sphere; shown by setView().
   _fpvStrips = std::make_unique<FpvStrips> ();
+  _fpvStrips->setFlightTuning (_engine.getFlightTuning ());
   _fpvStrips->channelLevel
       = [this] (int ch) { return _vuLevels.channel (ch, vuNowMs ()); };
   addChildComponent (*_fpvStrips);
@@ -1957,7 +1958,7 @@ void
 A3MotionUIComponent::refreshFpvStrips ()
 {
   std::array<FpvChannel, 4> channels{};
-  auto const bodies = _floorBodies.snapshot ();
+  auto const bodies = _floorBodies.snapshot (_engine.getFlightTuning ());
   for (index_t ch = 0; ch < channels.size () && ch < _channelUIStates.size ();
        ++ch)
     {
@@ -2034,8 +2035,8 @@ A3MotionUIComponent::publishFloor ()
 {
   // A group cycled to X lets its escorts go for good, before the floor with
   // the zone goes out.
-  patrol (_fpvEscorts.dropDeadZones (_floorBodies.snapshot ()));
-  _engine.setFlightBodies (_floorBodies.snapshot ());
+  patrol (_fpvEscorts.dropDeadZones (_floorBodies.snapshot (_engine.getFlightTuning ())));
+  _engine.setFlightBodies (_floorBodies.snapshot (_engine.getFlightTuning ()));
   refreshFlightDisplay ();
   refreshFpvStrips ();
 }
@@ -2053,7 +2054,7 @@ A3MotionUIComponent::refreshFlightDisplay ()
                      / TempoClock::getTicksPerBeat ();
 
   FlightDisplay display;
-  display.bodies = _floorBodies.snapshot ();
+  display.bodies = _floorBodies.snapshot (_engine.getFlightTuning ());
   for (auto ch = 0; ch < fpvShips; ++ch)
     display.escort[static_cast<size_t> (ch)]
         = escortView (_fpvEscorts.of (ch),
@@ -2093,7 +2094,7 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
       // Onto a dead zone the ship patrols, and stays on patrol when the zone
       // is cycled back to a group.
       _fpvEscorts.set (static_cast<int> (channel), bodyId);
-      _fpvEscorts.dropDeadZones (_floorBodies.snapshot ());
+      _fpvEscorts.dropDeadZones (_floorBodies.snapshot (_engine.getFlightTuning ()));
       _engine.setFlightTarget (channel,
                                _fpvEscorts.of (static_cast<int> (channel)));
       _engine.setFlightMode (channel, FlightMode::Orbit);
@@ -2107,7 +2108,7 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
     }
   updateControlReadout (fpvPageReadout (
       static_cast<int> (channel),
-      flownOutcome (outcome, bodyId, _floorBodies.snapshot ()),
+      flownOutcome (outcome, bodyId, _floorBodies.snapshot (_engine.getFlightTuning ())),
       _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId,
       flightClipOf (_patterns[channel][0].get ())));
   refreshFpvStrips ();
