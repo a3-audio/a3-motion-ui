@@ -94,6 +94,13 @@ padStatusColour (juce::Colour base, Pattern::Status status,
 }
 
 juce::Colour
+padPausedColour (juce::Colour base, int beatInBar)
+{
+  return pausedBlinkIsLit (beatInBar) ? base
+                                      : base.darker (theme ().padShadeIdle);
+}
+
+juce::Colour
 padBaseColour (PadFunction function, bool clipPlaying, bool actionRunning,
                juce::Colour channel)
 {

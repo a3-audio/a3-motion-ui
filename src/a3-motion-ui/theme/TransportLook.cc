@@ -204,8 +204,11 @@ transportKeyGround (TransportKey key, TransportState const &state)
         return TransportGround::Waiting;
 
       // Armed: lit with ●, because ▶ is what starts the take now.
-      return state.playing || state.armed ? TransportGround::Lit
-                                          : TransportGround::Dark;
+      if (state.playing || state.armed)
+        return TransportGround::Lit;
+
+      // Paused: ▶ goes on where it stood, which a stopped clip does not.
+      return state.paused ? TransportGround::Paused : TransportGround::Dark;
 
     case TransportKey::Action:
       // DISCARD is dark until it has been pressed once: a lit key is one the

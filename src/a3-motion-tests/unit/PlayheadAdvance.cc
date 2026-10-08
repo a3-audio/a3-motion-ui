@@ -23,6 +23,8 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/Playhead.hh>
 
+#include <optional>
+
 using namespace a3;
 
 namespace
@@ -498,4 +500,132 @@ TEST (PlayheadAdvance, AShorterLengthPutsTheLapBackInside)
   EXPECT_LT (nextLapTick (400, 256), 256u);
   EXPECT_EQ (nextLapTick (7, 0), 0u);
   EXPECT_FLOAT_EQ (lapProgress (7, 0), 0.f);
+}
+
+// Where a paused clip comes back in (2026-10-08: "❚❚ resumes where it
+// stopped"). A pause made at once goes back by the ticks since the music's
+// last downbeat, so the resume -- on a downbeat -- plays that bar again; one on
+// the downbeat goes back by nothing. Counted in ticks, not snapped to the
+// clip's bars, so a pass that is not whole bars long, Reverse, Bounce and a
+// long pass full of float steps all come back exactly where they were.
+namespace
+{
+Playhead
+steppedOn (Playhead from, int ticks, float delta, PlayDirection direction,
+           EndAction endAction = EndAction::Loop)
+{
+  for (int tick = 0; tick < ticks; ++tick)
+    from = advancePlayhead (from, delta, direction, endAction, 0.f);
+  return from;
+}
+
+void
+expectSamePlace (std::optional<Playhead> const &rewound, Playhead expected)
+{
+  ASSERT_TRUE (rewound.has_value ());
+  EXPECT_NEAR (rewound->position, expected.position, 1e-4f);
+  EXPECT_EQ (rewound->sign, expected.sign);
+  EXPECT_FALSE (rewound->stopped);
+}
+
+// Six beats of 48 ticks: a pass that is not whole bars and not a power of two.
+float const sixBeats = 1.f / (6.f * 48.f);
+}
+
+TEST (RewoundPlayhead, NoTicksLeavesItWhereItStands)
+{
+  // A bounce arrives home on the way back with its sign still turned; the
+  // next tick turns it, so that is where a downbeat pause has to leave it.
+  expectSamePlace (rewoundPlayhead ({ 0.f, -1.f, false }, 0, sixBeats,
+                                    PlayDirection::Bounce, EndAction::Loop),
+                   { 0.f, -1.f, false });
+}
+
+TEST (RewoundPlayhead, ForwardGoesBackOverTheSeam)
+{
+  Playhead const from{ 0.9f, 1.f, false };
+  auto const later = steppedOn (from, 60, sixBeats, PlayDirection::Forward);
+  ASSERT_LT (later.position, 0.9f) << "the steps did not cross the seam";
+  expectSamePlace (rewoundPlayhead (later, 60, sixBeats,
+                                    PlayDirection::Forward, EndAction::Loop),
+                   from);
+}
+
+TEST (RewoundPlayhead, ReverseGoesBackOverTheSeam)
+{
+  Playhead const from{ 0.1f, -1.f, false };
+  auto const later = steppedOn (from, 60, sixBeats, PlayDirection::Reverse);
+  ASSERT_GT (later.position, 0.1f) << "the steps did not cross the seam";
+  expectSamePlace (rewoundPlayhead (later, 60, sixBeats,
+                                    PlayDirection::Reverse, EndAction::Loop),
+                   from);
+}
+
+TEST (RewoundPlayhead, BounceGoesBackRoundBothEnds)
+{
+  Playhead const out{ 0.95f, 1.f, false };
+  auto const turned = steppedOn (out, 30, sixBeats, PlayDirection::Bounce);
+  ASSERT_LT (turned.sign, 0.f) << "the steps did not reach the far end";
+  expectSamePlace (rewoundPlayhead (turned, 30, sixBeats,
+                                    PlayDirection::Bounce, EndAction::Loop),
+                   out);
+
+  Playhead const back{ 0.05f, -1.f, false };
+  auto const home = steppedOn (back, 30, sixBeats, PlayDirection::Bounce);
+  ASSERT_GT (home.sign, 0.f) << "the steps did not come home";
+  expectSamePlace (rewoundPlayhead (home, 30, sixBeats,
+                                    PlayDirection::Bounce, EndAction::Loop),
+                   back);
+}
+
+// The reviewer's case: a bounce paused at home came back at the far end and
+// replayed the backward leg. Home is the start of the outward leg.
+TEST (RewoundPlayhead, ABounceRewoundToHomeSetsOutAgain)
+{
+  Playhead const home{ 0.f, 1.f, false };
+  auto const later = steppedOn (home, 40, sixBeats, PlayDirection::Bounce);
+  expectSamePlace (rewoundPlayhead (later, 40, sixBeats,
+                                    PlayDirection::Bounce, EndAction::Loop),
+                   home);
+}
+
+// A pass that ends rather than loops has nothing before its start: the clip
+// goes back to the top instead.
+TEST (RewoundPlayhead, BeforeTheStartOfAPassThatEndsIsNowhere)
+{
+  EXPECT_FALSE (rewoundPlayhead ({ 0.05f, 1.f, false }, 10, 0.01f,
+                                 PlayDirection::Forward, EndAction::Stop)
+                    .has_value ());
+  EXPECT_FALSE (rewoundPlayhead ({ 0.95f, -1.f, false }, 10, 0.01f,
+                                 PlayDirection::Reverse, EndAction::Clip)
+                    .has_value ());
+  EXPECT_FALSE (rewoundPlayhead ({ 0.05f, 1.f, false }, 10, 0.01f,
+                                 PlayDirection::Bounce, EndAction::Stop)
+                    .has_value ());
+}
+
+// The reviewer's float drift: eighteen bars of float steps collect more than
+// the old snap's tolerance, and a downbeat pause came back a bar early.
+TEST (RewoundPlayhead, ALongPassComesBackOnItsOwnBar)
+{
+  auto const ticksPerBar = 4 * 48;
+  auto const delta = 1.f / static_cast<float> (18 * ticksPerBar);
+  auto const midBar17 = steppedOn ({ 0.f, 1.f, false },
+                                   17 * ticksPerBar + 2 * 48, delta,
+                                   PlayDirection::Forward);
+  auto const rewound = rewoundPlayhead (midBar17, 2 * 48, delta,
+                                        PlayDirection::Forward,
+                                        EndAction::Loop);
+  ASSERT_TRUE (rewound.has_value ());
+  EXPECT_NEAR (rewound->position, 17.f / 18.f, 1e-4f)
+      << "a pause in bar 18 comes back at bar 18, not bar 17";
+}
+
+TEST (RewoundLapTick, CountsBackAndWraps)
+{
+  EXPECT_EQ (rewoundLapTick (5, 3, 8), 2u);
+  EXPECT_EQ (rewoundLapTick (1, 3, 8), 6u);
+  EXPECT_EQ (rewoundLapTick (2, 19, 8), 7u);
+  EXPECT_EQ (rewoundLapTick (4, 0, 8), 4u);
+  EXPECT_EQ (rewoundLapTick (4, 3, 0), 0u);
 }

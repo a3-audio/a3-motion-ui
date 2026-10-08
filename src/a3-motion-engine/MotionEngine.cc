@@ -665,6 +665,19 @@ MotionEngine::stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint)
 }
 
 void
+MotionEngine::pausePattern (std::shared_ptr<Pattern> pattern,
+                            Measure timepoint)
+{
+  Message message;
+  message.command = Message::Command::Stop;
+  message.keepsPass = true;
+  message.pattern = pattern;
+  message.timepoint = timepoint;
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+void
 MotionEngine::stopPatternAtEnd (std::shared_ptr<Pattern> pattern)
 {
   Message message;
@@ -1255,7 +1268,7 @@ MotionEngine::handleStartStopMessages ()
           }
         case Message::Command::Stop:
           {
-            stop (message.pattern);
+            stop (message.pattern, message.keepsPass);
 
             notifyPatternStatusListeners (
                 PatternStatusMessage::Status::Stopped, message.pattern);
@@ -1370,6 +1383,12 @@ MotionEngine::startPlaying (std::shared_ptr<Pattern> pattern)
   channel._patternScheduledForPlaying = nullptr;
   finishRecording ();
 
+  // After a pause the pass goes on where it was left; once.
+  if (pattern->resumesOnPlay ())
+    {
+      pattern->setResumesOnPlay (false);
+      return;
+    }
   beginPass (*pattern);
 }
 
@@ -1398,9 +1417,87 @@ MotionEngine::beginPass (Pattern &pattern)
     pattern.setPlayPosition (from);
 }
 
-void
-MotionEngine::stop (std::shared_ptr<Pattern> pattern)
+bool
+MotionEngine::rewindToTheBar (Pattern &pattern)
 {
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  auto const ticksPerBar = TempoClock::getTicksPerBeat () * beatsPerBar;
+  auto const passTicks
+      = Measure::convertToTicks (pattern.getPlaybackLength (), beatsPerBar);
+  if (passTicks <= 0 || ticksPerBar <= 0)
+    return false;
+
+  auto const now = Measure::convertToTicks (_now, beatsPerBar);
+  auto const intoTheBar = now % ticksPerBar;
+  auto const channel = pattern.getChannel ();
+  auto const played
+      = channel < _channels.size ()
+            ? now
+                  - Measure::convertToTicks (_channels[channel]->_playingStarted,
+                                             beatsPerBar)
+            : 0;
+  // Started inside this bar: there is no bar start of its own to go back to,
+  // and the top is where it began.
+  if (intoTheBar > played)
+    return false;
+
+  auto const ticks = static_cast<index_t> (intoTheBar);
+  auto const rewound = rewoundPlayhead (
+      { pattern.getPlayPosition (), pattern.getPlaySign (), false }, ticks,
+      1.f / static_cast<float> (passTicks), pattern.getPlayDirection (),
+      pattern.getEndAction ());
+  if (!rewound)
+    return false;
+
+  pattern.setPlayPosition (rewound->position);
+  pattern.setPlaySign (rewound->sign);
+  auto const lapLength = static_cast<index_t> (passTicks);
+  auto const lapTick
+      = rewoundLapTick (pattern.getLapTick (), ticks, lapLength);
+  pattern.setLap (lapTick, lapProgress (lapTick, lapLength));
+
+  // The slow movements go back with the place, at the rate their knobs stand
+  // at now: the replayed bar is the bar that was heard, as far as a knob that
+  // has not been turned since goes.
+  auto const back = static_cast<float> (ticks);
+  auto const perBar = static_cast<float> (ticksPerBar);
+  pattern.setSpinPhase (rewoundLfoPhase (
+      pattern.getSpinPhase (), pattern.getKnobStep (Knob::Spin), back, perBar));
+  pattern.setReachLfoPhase (
+      rewoundLfoPhase (pattern.getReachLfoPhase (),
+                       pattern.getKnobStep (Knob::Swell), back, perBar));
+  pattern.setElevationLfoPhase (
+      rewoundLfoPhase (pattern.getElevationLfoPhase (),
+                       pattern.getKnobStep (Knob::Sway), back, perBar));
+  pattern.setSqueezeXLfoPhase (
+      rewoundLfoPhase (pattern.getSqueezeXLfoPhase (),
+                       pattern.getKnobStep (Knob::StretchX), back, perBar));
+  pattern.setSqueezeYLfoPhase (
+      rewoundLfoPhase (pattern.getSqueezeYLfoPhase (),
+                       pattern.getKnobStep (Knob::StretchY), back, perBar));
+  pattern.setTiltLfoPhase (
+      rewoundLfoPhase (pattern.getTiltLfoPhase (),
+                       pattern.getKnobStep (Knob::TiltSweep), back, perBar));
+  pattern.setRollLfoPhase (
+      rewoundLfoPhase (pattern.getRollLfoPhase (),
+                       pattern.getKnobStep (Knob::RollSweep), back, perBar));
+  return true;
+}
+
+void
+MotionEngine::stop (std::shared_ptr<Pattern> pattern, bool keepsPass)
+{
+  // A pause keeps the place (2026-10-08). Made on the downbeat it keeps it
+  // as it is; made at once (Shift) it goes back by the ticks since the
+  // music's last downbeat, so the resume -- on a downbeat -- plays that bar
+  // again. Only a clip that was playing has a place to keep.
+  auto const wasPlaying
+      = pattern->getStatus () == Pattern::Status::Playing
+        || (pattern->getStatus () == Pattern::Status::ScheduledForIdle
+            && pattern->getLastStatus () == Pattern::Status::Playing);
+  pattern->setResumesOnPlay (keepsPass && wasPlaying
+                             && rewindToTheBar (*pattern));
+
   pattern->setStatus (Pattern::Status::Idle);
   // The lap it was asked to finish is over either way.
   pattern->setStopAtEnd (false);

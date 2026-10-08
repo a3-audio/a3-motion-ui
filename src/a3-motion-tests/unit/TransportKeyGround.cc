@@ -261,3 +261,30 @@ TEST (TransportKeyGround, ArmedLightsRecAndPlayTogether)
   EXPECT_EQ (transportKeyGround (TransportKey::PlayPause, state),
              TransportGround::Lit);
 }
+
+// A paused clip will go on where it stood when ▶ is pressed; a stopped one
+// starts at the top. The key says which, the way a deck's play lamp does:
+// slowly blinking while paused, steady dark when stopped (maintainer,
+// 2026-10-08).
+TEST (TransportKeyGround, APausedClipsPlayKeyBlinksSlowly)
+{
+  TransportState state;
+  state.paused = true;
+  EXPECT_EQ (transportKeyGround (TransportKey::PlayPause, state),
+             TransportGround::Paused);
+
+  // A press waiting for its downbeat is the newer fact.
+  state.scheduled = true;
+  EXPECT_EQ (transportKeyGround (TransportKey::PlayPause, state),
+             TransportGround::Waiting);
+}
+
+// Slow: two beats on, two off -- half the wait blink's rate, so the two can
+// never be mistaken for each other -- and on the music's bar, not a timer.
+TEST (TransportKeyGround, ThePauseBlinkIsTwoBeatsOnTwoOff)
+{
+  EXPECT_TRUE (pausedBlinkIsLit (0));
+  EXPECT_TRUE (pausedBlinkIsLit (1));
+  EXPECT_FALSE (pausedBlinkIsLit (2));
+  EXPECT_FALSE (pausedBlinkIsLit (3));
+}

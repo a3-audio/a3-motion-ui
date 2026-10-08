@@ -236,6 +236,13 @@ public:
   bool getStopAtEnd () const;
   void setStopAtEnd (bool stop);
 
+  /** Paused rather than stopped: the next start goes on from where the pass
+   *  was left -- position, lap, direction and slow movements -- instead of
+   *  from the top. Set by a pause, used once by the start after it, and
+   *  cleared by any stop. */
+  bool resumesOnPlay () const;
+  void setResumesOnPlay (bool resumes);
+
   /** How far the whole trajectory is turned around the vertical axis, in
    *  revolutions [0, 1). A standing angle, not a movement: where the shape
    *  faces.
@@ -497,6 +504,7 @@ private:
   std::atomic<index_t> _lapTick{ 0 };
   std::atomic<float> _lapProgress{ 0.f };
   std::atomic<bool> _stopAtEnd{ false };
+  std::atomic<bool> _resumesOnPlay{ false };
   std::atomic<float> _rotate{ 0.f };
   std::atomic<float> _squeezeX{ 0.f };
   std::atomic<float> _squeezeY{ 0.f };

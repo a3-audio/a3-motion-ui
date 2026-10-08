@@ -258,7 +258,12 @@ public:
   void playPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
   // Stop
+  /** Out of playback and back to the top: the next start begins the pass
+   *  again. Forgets a pause. */
   void stopPattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
+  /** Out of playback, keeping the place: the next start goes on from the bar
+   *  the music's bar the clip was in (see rewoundPlayhead()). What ❚❚ does since 2026-10-08. */
+  void pausePattern (std::shared_ptr<Pattern> pattern, Measure timepoint);
 
   /** Finish the lap, then stop -- whatever the end action says.
    *
@@ -394,6 +399,9 @@ private:
       ArmFollow,
     } command;
 
+    /** A Stop that keeps the pass, for the next start to go on from: a
+     *  pause. */
+    bool keepsPass = false;
     Pos position;
     Pos position2D;  // original 2D position (for recording ticks)
     std::shared_ptr<Pattern> pattern;
@@ -446,7 +454,12 @@ private:
   /** Where one tick of `playing` at `playPosition` puts the channel, and the
    *  slow movements one tick on. */
   void playTick (index_t channel, Pattern &playing, float playPosition);
-  void stop (std::shared_ptr<Pattern> pattern);
+  void stop (std::shared_ptr<Pattern> pattern, bool keepsPass = false);
+  /** A pause made at once, taken back to the start of the music's bar it was
+   *  in: place, lap and slow movements alike. False when there is no such
+   *  place to keep -- started inside this bar, or a pass that ends and would
+   *  have to go back before its start -- and the clip starts from the top. */
+  bool rewindToTheBar (Pattern &pattern);
 
   std::priority_queue<Message, std::vector<Message>, std::greater<Message> >
       _messagesStartStop;

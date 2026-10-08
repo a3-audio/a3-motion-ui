@@ -422,8 +422,10 @@ public:
    *  waiting for the beat to come round.
    *
    *  `playing` reaches the glyph alone -- a triangle runs, two bars stand --
-   *  and never a lit ground; see transportKeyGround(). */
-  void setTransportState (bool playing, bool recording, bool scheduled);
+   *  and never a lit ground; see transportKeyGround(). `paused`: the clip
+   *  stands paused and ▶ goes on, which the key blinks slowly for. */
+  void setTransportState (bool playing, bool recording, bool scheduled,
+                          bool paused);
   /** REC PAUSE on the shown slot: ● and ▶ light together, ▶ shows ▶. */
   void setRecArmed (bool armed);
 
@@ -503,8 +505,10 @@ public:
 
   /** A beat went by. The TAP key breathes with it, faintly — the maintainer
    *  asked for the blink back after it was taken out for being too loud, so
-   *  it is a wash at a fraction of the touch flash, not the flash itself. */
-  void pulseOnBeat ();
+   *  it is a wash at a fraction of the touch flash, not the flash itself.
+   *  `beatInBar` counts from the music's downbeat; the paused blink follows
+   *  it. */
+  void pulseOnBeat (int beatInBar);
 
   void paint (juce::Graphics &g) override;
   void resized () override;
@@ -657,6 +661,9 @@ private:
   };
 
   bool _waitBlinkOn = false;
+  bool _transportPaused = false;
+  /** Where in the bar the last beat was: the paused blink's clock. */
+  int _beatInBar = 0;
 
   /** Stop's press flash -- one shot, its own timer for the same reason the
    *  blink has one. */
