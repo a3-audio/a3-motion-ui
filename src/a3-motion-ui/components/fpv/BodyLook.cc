@@ -54,6 +54,9 @@ paintHatch (juce::Graphics &g, juce::Rectangle<float> disc, float stroke)
   g.reduceClipRegion (clip);
 
   auto const gap = disc.getWidth () / 2.f * hatchOfRadius;
+  // A disc of no size has nothing to hatch, and a zero step never ends.
+  if (!(gap > 0.f))
+    return;
   auto const span = disc.getWidth ();
   for (auto offset = -span; offset <= span; offset += gap)
     g.drawLine (disc.getX () + offset, disc.getBottom (),

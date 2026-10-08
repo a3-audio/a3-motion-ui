@@ -241,3 +241,24 @@ TEST (BodyLookPaint, TheDiscBreathesWithThePulse)
   EXPECT_GT (pixelsAwayFromBackground (p.paint (1.f, 1.6f)),
              pixelsAwayFromBackground (p.paint (1.f, 1.f)));
 }
+
+TEST (BodyLookPaint, ADeadZoneOfNoSizePaintsAndReturns)
+{
+  // A zero-sized disc once left the hatch's step at zero: the loop never
+  // ended. Before the first layout the blob, and so the radius, is zero.
+  LookAndFeel_A3 lookAndFeel;
+  juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
+  juce::Image image (juce::Image::ARGB, side, side, true);
+  {
+    juce::Graphics g (image);
+    BodyPaint body;
+    body.centre = centre;
+    body.radius = 0.f;
+    body.mass = -2.f;
+    body.stroke = theme ().strokeMedium;
+    body.fontHeight = 10.f;
+    paintBody (g, body);
+  }
+  juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+  SUCCEED ();
+}
