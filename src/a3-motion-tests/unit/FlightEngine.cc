@@ -26,8 +26,10 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 
@@ -437,4 +439,201 @@ TEST (FlightEngine, ABreathingOrbitChannelStandsStillOnBeatFour)
     }
   EXPECT_GT (held, 0) << "no beat 4 was sampled";
   EXPECT_GT (moved, 0) << "it never flew between the stops";
+}
+
+// -- An action on a flying ship ----------------------------------------------
+
+namespace
+{
+/** `motion` fired at `channel` with the clip's own settings, its accent held:
+ *  nothing changes on the clip, only what the ship is asked. */
+void
+fireAt (Flight &flight, index_t channel, FlightMotion const &motion,
+        std::function<void (ClipSettings &)> const &change = {})
+{
+  auto const &clip = channel == 0 ? flight.clip0 : flight.clip1;
+  auto settings = clipSettingsFrom (*clip);
+  settings.actMode = ActMode::Hold;
+  if (change)
+    change (settings);
+  flight.engine->setChannelAction (channel, settings, motion);
+  flight.engine->setChannelAccentHeld (channel, true, clip);
+}
+
+/** How far channel 0 went round the room in `ms`, every tick's step counted. */
+double
+turnedDegrees (MotionEngine &engine, int ms)
+{
+  TickRecorder recorder (engine);
+  juce::Thread::sleep (ms);
+  auto const samples = recorder.samples ();
+  auto travel = 0.;
+  for (size_t i = 1; i < samples.size (); ++i)
+    travel += std::abs (std::remainder (
+        static_cast<double> (samples[i].orbit.azimuth ()
+                             - samples[i - 1].orbit.azimuth ()),
+        360.));
+  return travel;
+}
+
+double
+capPerTick ()
+{
+  return static_cast<double> (FlightTuning{}.angularCapDegreesPerBeat)
+         / TempoClock::getTicksPerBeat ();
+}
+
+FlightMotion
+spinOf (int step)
+{
+  FlightMotion motion;
+  motion.spin = step;
+  return motion;
+}
+}
+
+TEST (FlightEngine, AnActionsSpinTurnsAnOrbitShipFaster)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  auto const plain = turnedDegrees (*flight.engine, 1500);
+  fireAt (flight, 0, spinOf (6)); // a lap a bar
+  juce::Thread::sleep (300);      // the beat it takes to take hold, at 240 BPM
+  auto const driven = turnedDegrees (*flight.engine, 1500);
+  EXPECT_GT (driven, 2. * plain) << "plain " << plain << ", driven " << driven;
+}
+
+TEST (FlightEngine, AnActionNeverJumpsTheShip)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  TickRecorder recorder (*flight.engine);
+  FlightMotion leant = spinOf (6);
+  leant.tilt = 1.f;
+  fireAt (flight, 0, leant);
+  juce::Thread::sleep (600);
+  flight.engine->setChannelAccentHeld (0, false, nullptr);
+  juce::Thread::sleep (1200); // the fall, the restore, the beat to let go
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  EXPECT_LE (widestStep (samples), capPerTick () * 1.05);
+}
+
+TEST (FlightEngine, EvenAWildActionStaysUnderTheAngularCap)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  FlightMotion wild = spinOf (8);
+  wild.speedLog2 = -7;
+  wild.tilt = 2.f;
+  wild.tiltSweep = 8;
+  wild.rollSweep = -8;
+  wild.sway = 8;
+  wild.swell = 8;
+  TickRecorder recorder (*flight.engine);
+  fireAt (flight, 0, wild);
+  juce::Thread::sleep (1500);
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples));
+  EXPECT_LE (widestStep (samples), capPerTick () * 1.05);
+}
+
+// A flying ship ignores an action's elevation keys: it flies its clip's own
+// band. The clip's band (base at the pole, reach 0.5) keeps the ship above
+// the ear; an action moving the base to the south pole must not take it
+// there.
+TEST (FlightEngine, AnActionsElevationKeysDoNotMoveAFlyingShip)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  TickRecorder recorder (*flight.engine);
+  fireAt (flight, 0, FlightMotion{}, [] (ClipSettings &s) {
+    s.elevationBase = 1.f;
+    s.reach = -0.5f;
+  });
+  juce::Thread::sleep (1000);
+  for (auto const &sample : recorder.samples ())
+    ASSERT_GT (sample.orbit.elevation (), -1.f) << "tick " << sample.tick;
+}
+
+TEST (FlightEngine, AClipShipKeepsItsClip)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  TickRecorder recorder (*flight.engine);
+  fireAt (flight, 1, spinOf (8));
+  juce::Thread::sleep (800);
+  auto const samples = recorder.samples ();
+  ASSERT_GT (samples.size (), 50u);
+  for (auto const &sample : samples)
+    ASSERT_EQ (sample.clip, samples.front ().clip) << "tick " << sample.tick;
+}
+
+// Switched to ORBIT while an action's accent runs, the ship launches undriven
+// and eases into the running action.
+TEST (FlightEngine, ASwitchToOrbitDuringAnActionDoesNotJump)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  TickRecorder recorder (*flight.engine);
+  ASSERT_TRUE (waitUntil ([&] { return recorder.count () > 20; }));
+  FlightMotion leant = spinOf (7);
+  leant.roll = 1.f;
+  fireAt (flight, 0, leant);
+  juce::Thread::sleep (200);
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (800);
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples));
+  ASSERT_GE (firstIn (samples, FlightMode::Orbit), 1);
+  EXPECT_LT (widestStep (samples), jumpDegrees);
+}
+
+// The latest press wins, and the lean changes over without a jump.
+TEST (FlightEngine, ASecondPressChangesOverUnderTheCap)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  TickRecorder recorder (*flight.engine);
+  FlightMotion first;
+  first.tilt = 2.f;
+  fireAt (flight, 0, first);
+  juce::Thread::sleep (500);
+  FlightMotion second;
+  second.roll = -2.f;
+  fireAt (flight, 0, second);
+  juce::Thread::sleep (800);
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples));
+  EXPECT_LE (widestStep (samples), capPerTick () * 1.05);
+}
+
+TEST (FlightEngine, AGameRequestWaitsOnItsShip)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  PilotOrder order;
+  order.game = PilotGame::Formation;
+  order.with = PilotRecruit::All;
+  flight.engine->requestGame (0, order);
+  ASSERT_TRUE (waitUntil ([&] {
+    return flight.engine->pendingGame (0)
+           == std::optional<PilotGame> (PilotGame::Formation);
+  }));
+  EXPECT_FALSE (flight.engine->pendingGame (1).has_value ());
+
+  order.game = PilotGame::None;
+  flight.engine->requestGame (0, order);
+  EXPECT_TRUE (waitUntil (
+      [&] { return !flight.engine->pendingGame (0).has_value (); }));
 }

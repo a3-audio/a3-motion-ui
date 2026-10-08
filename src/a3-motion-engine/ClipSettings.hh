@@ -292,6 +292,11 @@ ClipSettings withBandOf (ClipSettings settings, ClipSettings const &from);
 ElevationParams sweptElevation (ElevationParams params,
                                 Pattern const &pattern);
 
+/** The band `settings` put a clip in, as Pattern::getElevationParams()
+ *  answers once they are applied -- for a flying ship, which flies its clip's
+ *  own band while an action's settings are on the pattern. */
+ElevationParams elevationParamsOf (ClipSettings const &settings);
+
 /** Where a double tap puts the reach: twelve o'clock, like every other
  *  bipolar knob in the bar.
  *

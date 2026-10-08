@@ -45,6 +45,7 @@
 #include <a3-motion-engine/util/Timing.hh>
 #include <a3-motion-engine/flight/BeatPulse.hh>
 #include <a3-motion-engine/flight/Handover.hh>
+#include <a3-motion-engine/flight/ShipHearing.hh>
 
 namespace a3
 {
@@ -153,6 +154,13 @@ MotionEngine::createChannels (index_t const numChannels)
   _followFrom.resize (numChannels);
   _follow.resize (numChannels);
   _accentRestore.resize (numChannels);
+  _channelFlight.resize (numChannels);
+  _flightMotion.resize (numChannels);
+  _lastHeard.assign (numChannels, Pos::invalid);
+  _turnTrailing.assign (numChannels, 0);
+  _pendingGameView = std::vector<std::atomic<int>> (numChannels);
+  for (auto &game : _pendingGameView)
+    game.store (-1, std::memory_order_relaxed);
   _accentView = std::vector<AccentView> (numChannels);
   _freqView = std::vector<AccentView> (numChannels);
   _qView = std::vector<AccentView> (numChannels);
@@ -527,6 +535,8 @@ MotionEngine::applyAccentHeld (index_t channel, bool held,
           applyClipSettings (
               *pattern,
               actionOver (*_accentRestore[channel], *_channelAction[channel]));
+          // What the ship does is taken at the same press, latest wins.
+          _flightMotion[channel] = _channelFlight[channel];
         }
 
       _accentPattern[channel] = std::move (pattern);
@@ -537,7 +547,8 @@ MotionEngine::applyAccentHeld (index_t channel, bool held,
 
 void
 MotionEngine::setChannelAction (index_t channel,
-                                std::optional<ClipSettings> action)
+                                std::optional<ClipSettings> action,
+                                FlightMotion const &flight)
 {
   if (channel >= _channelAction.size ())
     return;
@@ -548,6 +559,7 @@ MotionEngine::setChannelAction (index_t channel,
   message.command = Message::Command::SetChannelAction;
   message.channel = channel;
   message.action = std::move (action);
+  message.flight = flight;
 
   submitFifoMessage (message);
 }
@@ -575,6 +587,10 @@ MotionEngine::isChannelAccentActive (index_t channel) const
 void
 MotionEngine::restoreAfterAction (index_t channel)
 {
+  // The ship lets go over its own beat (FlightWorld keeps the motion while
+  // it does); the engine stops asking.
+  _flightMotion[channel] = {};
+
   if (!_accentRestore[channel])
     return;
 
@@ -1095,7 +1111,15 @@ MotionEngine::handleFifoMessage (Message const &message)
     case Message::Command::SetChannelAction:
       {
         if (message.channel < _channelAction.size ())
-          _channelAction[message.channel] = message.action;
+          {
+            _channelAction[message.channel] = message.action;
+            _channelFlight[message.channel] = message.flight;
+          }
+        break;
+      }
+    case Message::Command::RequestGame:
+      {
+        postGame (message.channel, message.pilot);
         break;
       }
     case Message::Command::ArmFollow:
@@ -1333,6 +1357,7 @@ MotionEngine::handleStartStopMessages ()
         case Message::Command::ReleaseRecordingPosition:
         case Message::Command::SetRecordingMode:
         case Message::Command::ArmFollow:
+        case Message::Command::RequestGame:
           {
             throw std::runtime_error (
                 "invalid command message in start/stop queue");
@@ -2052,12 +2077,10 @@ MotionEngine::performFlight ()
 
   auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
   auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
-  auto const beats = static_cast<double> (
-                         Measure::convertToTicks (_now, beatsPerBar))
-                     / ticksPerBeat;
+  auto const beats = beatsNow ();
 
   std::array<ShipOrders, flightShips> orders{};
-  std::array<Pattern const *, flightShips> flyingClip{};
+  std::array<ElevationParams, flightShips> flyingBand{};
 
   auto const ships
       = std::min (_channels.size (), static_cast<std::size_t> (flightShips));
@@ -2087,23 +2110,28 @@ MotionEngine::performFlight ()
           continue;
         }
 
+      auto const band = flightBand (ch, *playing);
       _glideTicksLeft[ch] = 0;
       if (_flightModeSeen[ch] == FlightMode::Clip)
         {
-          auto const here = _heightMap.mapTo2D (
-              _channels[ch]->getPosition (), playing->getElevationParams ());
+          auto const here = _heightMap.mapTo2D (_channels[ch]->getPosition (),
+                                                band);
           _flight.launch (static_cast<int> (ch), onTheFloor (here), beats,
                           beatsPerBar);
           startGlideIn (ch);
+          _lastHeard[ch] = Pos::invalid;
+          _turnTrailing[ch] = 0;
         }
       _flightModeSeen[ch] = FlightMode::Orbit;
 
       auto const target = _flightTarget[ch].load (std::memory_order_relaxed);
+      auto const driven
+          = _accentRestore[ch].has_value () && _flightMotion[ch].any ();
       orders[ch] = { true,
                      target == noBodyId ? FlightGoal::Patrol
                                         : FlightGoal::Escort,
-                     target };
-      flyingClip[ch] = playing;
+                     target, _flightMotion[ch], driven };
+      flyingBand[ch] = band;
     }
 
   _flight.setBreathing (_flightBreath.load (std::memory_order_relaxed));
@@ -2115,14 +2143,89 @@ MotionEngine::performFlight ()
     {
       if (!orders[ch].flying)
         continue;
-      auto const p = _flight.ship (static_cast<int> (ch)).p;
-      auto const heard
-          = _heightMap.mapTo3D (Pos::fromCartesian (p.x, p.y, 0.f),
-                                flyingClip[ch]->getElevationParams ());
+      auto const shipIndex = static_cast<int> (ch);
+      auto const p = _flight.ship (shipIndex).p;
+      auto const mapped = _heightMap.mapTo3D (
+          Pos::fromCartesian (p.x, p.y, 0.f), flyingBand[ch]);
+      auto const shaped = heardShip (mapped, _flight.motion (shipIndex),
+                                     _flight.motionWeight (shipIndex), beats,
+                                     beatsPerBar, _flightTuning);
+      auto const heard = turnLimitedHeard (ch, shaped);
+      _lastHeard[ch] = heard;
       auto const written = glideIntoTheFlight (ch, heard);
       _channels[ch]->setPosition (written);
       _glideFrom[ch] = written;
     }
+}
+
+void
+MotionEngine::requestGame (index_t channel, PilotOrder const &order)
+{
+  if (channel >= _pendingGameView.size ())
+    return;
+  Message message;
+  message.command = Message::Command::RequestGame;
+  message.channel = channel;
+  message.pilot = order;
+  submitFifoMessage (message);
+}
+
+std::optional<PilotGame>
+MotionEngine::pendingGame (index_t channel) const
+{
+  if (channel >= _pendingGameView.size ())
+    return std::nullopt;
+  auto const game = _pendingGameView[channel].load (std::memory_order_relaxed);
+  if (game < 0)
+    return std::nullopt;
+  return static_cast<PilotGame> (game);
+}
+
+void
+MotionEngine::postGame (index_t channel, PilotOrder const &order)
+{
+  if (channel >= _pendingGameView.size ())
+    return;
+  GameRequest request;
+  request.order = order;
+  request.leader = static_cast<int> (channel);
+  request.postedBeats = beatsNow ();
+  _pilotDesk.post (request);
+  auto const pending = _pilotDesk.pending (static_cast<int> (channel));
+  _pendingGameView[channel].store (
+      pending ? static_cast<int> (*pending->order.game) : -1,
+      std::memory_order_relaxed);
+}
+
+double
+MotionEngine::beatsNow () const
+{
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  return static_cast<double> (Measure::convertToTicks (_now, beatsPerBar))
+         / TempoClock::getTicksPerBeat ();
+}
+
+ElevationParams
+MotionEngine::flightBand (index_t channel, Pattern const &playing) const
+{
+  if (channel < _accentRestore.size () && _accentRestore[channel]
+      && _accentPattern[channel].get () == &playing)
+    return elevationParamsOf (*_accentRestore[channel]);
+  return playing.getElevationParams ();
+}
+
+Pos
+MotionEngine::turnLimitedHeard (index_t channel, Pos const &shaped)
+{
+  auto &trailing = _turnTrailing[channel];
+  if (_flight.motionWeight (static_cast<int> (channel)) <= 0.f
+      && trailing == 0)
+    return shaped;
+  auto const perTick = _flightTuning.angularCapDegreesPerBeat
+                       / static_cast<float> (TempoClock::getTicksPerBeat ());
+  auto const limited = limitTurn (_lastHeard[channel], shaped, perTick);
+  trailing = limited.caughtUp ? 0 : 1;
+  return limited.heard;
 }
 
 void

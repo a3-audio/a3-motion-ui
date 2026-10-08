@@ -23,13 +23,16 @@
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/KnobLanes.hh>
+#include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/PositionPacer.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
 #include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/FlightBodiesBox.hh>
+#include <a3-motion-engine/flight/FlightMotion.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
+#include <a3-motion-engine/flight/PilotDesk.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 
@@ -137,9 +140,14 @@ public:
    *
    *  Comes in ready to use rather than as a file: the settings are read off
    *  disk when the action is assigned, because the thread that fires this is
-   *  the one that must never touch a disk. */
+   *  the one that must never touch a disk.
+   *
+   *  `flight` is what the action asks of the channel's ship if it flies:
+   *  taken at the press with the settings, flown for as long as the accent
+   *  runs, ignored while the channel flies its clip. */
   void setChannelAction (index_t channel,
-                         std::optional<ClipSettings> action);
+                         std::optional<ClipSettings> action,
+                         FlightMotion const &flight = {});
 
   /** Whether anything about this channel is still moving on its own: the
    *  accent's level, or a clip still wearing the action fired at it.
@@ -178,6 +186,14 @@ public:
    *  thread takes whatever was written last, without a queue. */
   void setFlightBodies (FlightBodies const &bodies);
 
+  /** An action's Pilot section asked `channel`'s pilot for a game, from any
+   *  thread: queued, and kept on the clock thread as the ship's pending
+   *  request until a game takes it. A game of None calls off one still
+   *  waiting. Channels beyond the ships are ignored. */
+  void requestGame (index_t channel, PilotOrder const &order);
+  /** The game waiting on `channel`'s ship, from any thread; empty: none. */
+  std::optional<PilotGame> pendingGame (index_t channel) const;
+
   /** The constants the ships fly by, for what the UI draws of the field
    *  (capture rings, the big path, the pulse). */
   FlightTuning const &getFlightTuning () const { return _flightTuning; }
@@ -197,6 +213,19 @@ private:
    *  before the action was fired at it. After the end action, which the
    *  action is entitled to have brought with it. */
   void restoreAfterAction (index_t channel);
+
+  /** The beat the clock stands on, counted from the start. */
+  double beatsNow () const;
+  /** The band a flying ship flies: its clip's own, which an action's
+   *  elevation keys do not move -- the accent's restore point while one runs
+   *  on `playing`, else what `playing` projects through. */
+  ElevationParams flightBand (index_t channel, Pattern const &playing) const;
+  /** `shaped`, turned no faster than the angular cap from where the ship was
+   *  last heard -- while an action drives the ship, or the heard ship still
+   *  trails one. The plain flight never comes near the cap and is left as it
+   *  was. */
+  Pos turnLimitedHeard (index_t channel, Pos const &shaped);
+  void postGame (index_t channel, PilotOrder const &order);
 
 public:
 
@@ -421,6 +450,8 @@ private:
       SetChannelAction,
       /** The follow of an end action Clip. Same reason. */
       ArmFollow,
+      /** An action's Pilot section. Same reason. */
+      RequestGame,
     } command;
 
     /** A Stop that keeps the pass, for the next start to go on from: a
@@ -441,6 +472,10 @@ private:
     index_t channel{ 0 };
     bool held{ false };
     std::optional<ClipSettings> action;
+    /** What the action asks of a flying ship, for SetChannelAction. */
+    FlightMotion flight;
+    /** What it asks of the pilot, for RequestGame. */
+    PilotOrder pilot;
 
     friend bool
     operator> (const Message &lhs, const Message &rhs)
@@ -617,6 +652,11 @@ private:
   std::vector<std::shared_ptr<Pattern> > _followFrom;
   std::vector<std::shared_ptr<Pattern> > _follow;
   std::vector<std::optional<ClipSettings> > _accentRestore;
+  /** Per channel, the flight motion that came with the waiting action, and
+   *  the one taken at the press -- the clock thread's alone, like the action
+   *  and its restore point. */
+  std::vector<FlightMotion> _channelFlight;
+  std::vector<FlightMotion> _flightMotion;
 
   /** What the readers of an accent are allowed to see.
    *
@@ -702,6 +742,14 @@ private:
   std::vector<std::atomic<int>> _flightTarget;
   FlightBodiesBox _bodies;
   std::atomic<bool> _flightBreath{ flightBreathAtStart };
+  /** Where each ship was last heard before the launch glide, and whether the
+   *  turn limit still holds it back. Clock thread only. */
+  std::vector<Pos> _lastHeard;
+  std::vector<char> _turnTrailing;
+  /** The pilots' pending game requests (clock thread), and what any thread
+   *  may read of them: the game as an int, -1 for none. */
+  PilotDesk _pilotDesk;
+  std::vector<std::atomic<int>> _pendingGameView;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);
