@@ -108,6 +108,47 @@ TEST (ActionEditing, ACopyWithNoOriginIsNamedAfterItsList)
   EXPECT_EQ (copyBaseFor ({}, root.getChildFile ("actions")), "Action");
 }
 
+// A set's copy is named after the set that is loaded (maintainer,
+// 2026-10-08): "Tribal" gives "Tribal 2", whatever file the editor shows --
+// a set taken into the editor with FROM has no file at all.
+TEST (ActionEditing, ASetsCopyIsNamedAfterTheLoadedSet)
+{
+  juce::File const sessions ("/tmp/pattern/sessions");
+  EXPECT_EQ (copyBaseFor ({}, sessions, "Tribal"), "Tribal");
+  EXPECT_EQ (copyBaseFor (sessions.getChildFile ("user/Set 3.json"), sessions,
+                          "Tribal"),
+             "Tribal");
+  EXPECT_EQ (copyBaseFor ({}, sessions, {}), "Set") << "nothing loaded";
+}
+
+// A copy of a copy counts on from the set it came from -- "Tribal 2" gives
+// "Tribal 3", not "Tribal 2 2" -- but a name that only ends in a number
+// ("Acid 303") is a name, not a count.
+TEST (ActionEditing, ACopyOfACopyCountsOn)
+{
+  auto const sessions
+      = juce::File::getSpecialLocation (juce::File::tempDirectory)
+            .getChildFile ("a3-set-copies/sessions");
+  sessions.deleteRecursively ();
+  sessions.getChildFile ("system").createDirectory ();
+  sessions.getChildFile ("user").createDirectory ();
+  sessions.getChildFile ("system/Tribal.json").replaceWithText ("{}");
+  sessions.getChildFile ("user/Tribal 2.json").replaceWithText ("{}");
+  sessions.getChildFile ("system/Acid 303.json").replaceWithText ("{}");
+
+  EXPECT_EQ (copyBaseFor ({}, sessions, "Tribal 2"), "Tribal");
+  EXPECT_EQ (copyBaseFor ({}, sessions, "Acid 303"), "Acid 303");
+}
+
+// Only a set: an action or a clip is still named after its own file.
+TEST (ActionEditing, TheLoadedSetNamesOnlyASet)
+{
+  EXPECT_EQ (copyBaseFor (bloom, bloom.getParentDirectory (), "Tribal"),
+             "Bloom");
+  juce::File const root ("/tmp/pattern");
+  EXPECT_EQ (copyBaseFor ({}, root.getChildFile ("clips"), "Tribal"), "Clip");
+}
+
 // The manual beside the scripts is not an action (#57).
 TEST (ActionEditing, TheReadmeIsNoAction)
 {

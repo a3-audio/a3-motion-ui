@@ -95,8 +95,13 @@ bool errorsBlockSaving (juce::StringArray const &errors,
 /** What a copy is named after: the file it came from ("Bloom" gives
  *  "Bloom 2" through freeFileIn), or, for one with no origin, what the list
  *  it lands in holds -- "Set" in sessions/, "Clip" in clips/, "Action" in
- *  actions/. The fallback used to be "Action" whatever list was open. */
-juce::String copyBaseFor (juce::File const &from, juce::File const &folder);
+ *  actions/. The fallback used to be "Action" whatever list was open.
+ *
+ *  A set is the exception: its copy is named after `loadedSet`, the set
+ *  that is loaded, whatever file the editor shows (maintainer, 2026-10-08)
+ *  -- a copy of "Tribal" is "Tribal 2". */
+juce::String copyBaseFor (juce::File const &from, juce::File const &folder,
+                          juce::String const &loadedSet = {});
 
 /** Where ACTION writes a turned value into the script `file` (maintainer,
  *  2026-10-08): the file itself when it is the performer's, or when
