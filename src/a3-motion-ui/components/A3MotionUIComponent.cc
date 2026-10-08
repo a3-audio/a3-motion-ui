@@ -1404,7 +1404,7 @@ A3MotionUIComponent::createMainUI ()
             // the flash a press makes. The play key's wait turns over on the
             // same beat -- see pulseOnBeat().
             if (_clipSettings)
-              _clipSettings->pulseOnBeat ();
+              _clipSettings->pulseOnBeat (measure.beat ());
             pulseTapLED ();
 
             // Counting the hand in while a take waits for its downbeat. From
@@ -6282,8 +6282,15 @@ A3MotionUIComponent::padLEDCallback (int step)
                 _action->setRunningButton (-1);
             }
 
-          auto const colour = channelColourForPadStatus (
-              base, status, statusLast, step);
+          // Paused: ▶ goes on where it stood, and the pad blinks slowly to
+          // say so, as the screen's ▶ does (2026-10-08).
+          auto const paused = function == PadFunction::PlayPause
+                              && clipStatus == Pattern::Status::Idle
+                              && _patterns[channel][slot]->resumesOnPlay ();
+          auto const colour
+              = paused ? padPausedColour (base, step / stepsPerBeatPadLEDs)
+                       : channelColourForPadStatus (base, status, statusLast,
+                                                    step);
           // Under the hand, the keyboard while it is up; the screen's PADS
           // page keeps showing the set.
           auto const led
@@ -9457,8 +9464,10 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
     if (_clipSettings)
       {
-        _clipSettings->setTransportState (isPlayingThis, isRecordingThis,
-                                          isScheduledThis);
+        _clipSettings->setTransportState (
+            isPlayingThis, isRecordingThis, isScheduledThis,
+            status == Pattern::Status::Idle && pattern != nullptr
+                && pattern->resumesOnPlay ());
         refreshRecArmed ();
 
         // The strip's REC light follows the **engine**, not the key that

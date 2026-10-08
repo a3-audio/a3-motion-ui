@@ -1224,14 +1224,15 @@ ClipSettingsComponent::setRecArmed (bool armed)
 
 void
 ClipSettingsComponent::setTransportState (bool playing, bool recording,
-                                          bool scheduled)
+                                          bool scheduled, bool paused)
 {
   if (playing == _transportPlaying && recording == _transportRecording
-      && scheduled == _transportScheduled)
+      && scheduled == _transportScheduled && paused == _transportPaused)
     return;
 
   _transportPlaying = playing;
   _transportRecording = recording;
+  _transportPaused = paused;
 
   if (scheduled != _transportScheduled)
     {
@@ -1307,6 +1308,7 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
   transport.unsaved = _takeUnsaved;
   transport.discardArmed = _takeDiscardArmed;
   transport.armed = _transportArmed;
+  transport.paused = _transportPaused;
 
   for (int i = 0; i < numTransportKeys; ++i)
     {
@@ -1324,8 +1326,11 @@ ClipSettingsComponent::paintTabs (juce::Graphics &g)
       // A blink is the lit ground, taken away and put back. Same colour, so
       // the key that waits and the key that runs are plainly the same key at
       // two moments rather than two different signals.
-      auto const lit = ground == TransportGround::Lit
-                       || (ground == TransportGround::Waiting && _waitBlinkOn);
+      auto const lit
+          = ground == TransportGround::Lit
+            || (ground == TransportGround::Waiting && _waitBlinkOn)
+            || (ground == TransportGround::Paused
+                && pausedBlinkIsLit (_beatInBar));
 
       g.setColour (lit ? mark.withAlpha (theme ().alphaDisabled)
                        : toColour (theme ().textPrimary, theme ().alphaFill));
@@ -1888,8 +1893,16 @@ ClipSettingsComponent::functionKeyLook () const
 }
 
 void
-ClipSettingsComponent::pulseOnBeat ()
+ClipSettingsComponent::pulseOnBeat (int beatInBar)
 {
+  // The paused blink turns over on the bar's beats, so it is repainted when
+  // its half changes.
+  auto const pausedLitBefore = pausedBlinkIsLit (_beatInBar);
+  _beatInBar = beatInBar;
+  if (_transportPaused && pausedLitBefore != pausedBlinkIsLit (_beatInBar))
+    repaint (
+        _layout.transportButtons[static_cast<size_t> (playPauseIndex ())]);
+
   // The play key's wait, turned over once a beat.
   //
   // On the clock rather than on a timer of its own, because what it is waiting

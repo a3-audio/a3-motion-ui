@@ -73,7 +73,17 @@ enum class TransportGround
   Dark,    ///< nothing of this key's is happening
   Lit,     ///< it is happening now
   Waiting, ///< pressed, and waiting for the beat to come round -- blinks
+  Paused,  ///< play: the clip is paused and ▶ goes on -- blinks slowly
 };
+
+/** The paused blink: two beats on, two off, counted from the music's
+ *  downbeat. Half the wait blink's rate, so the two never read as one, and on
+ *  the bar rather than a timer, like a deck's play lamp. */
+constexpr bool
+pausedBlinkIsLit (int beatInBar)
+{
+  return (beatInBar / 2) % 2 == 0;
+}
 
 /** What each key's ground is told about, in one place.
  *
@@ -90,6 +100,7 @@ struct TransportState
   bool unsaved = false;      ///< the shown slot holds a take nobody has saved
   bool discardArmed = false; ///< DISCARD has been pressed once on it
   bool armed = false;        ///< REC PAUSE: ● pressed, ▶ will start the take
+  bool paused = false;       ///< the shown clip is paused: ▶ goes on
 };
 
 /** Whether a transport key's ground lights, and how.

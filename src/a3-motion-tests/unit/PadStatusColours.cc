@@ -214,3 +214,13 @@ TEST (PadStatusColours, OnlyPlayFollowsTheClip)
   EXPECT_EQ (padShadeStatus (PadFunction::Page, S::Empty, true, true),
              S::Playing);
 }
+
+// The panel's Play pad says paused the same way: its full colour and its idle
+// shade, two beats each.
+TEST (PadStatusColours, APausedPlayPadBlinksSlowlyBetweenFullAndIdle)
+{
+  EXPECT_EQ (padPausedColour (base, 0), base);
+  EXPECT_EQ (padPausedColour (base, 1), base);
+  EXPECT_EQ (padPausedColour (base, 2), base.darker (theme ().padShadeIdle));
+  EXPECT_EQ (padPausedColour (base, 3), base.darker (theme ().padShadeIdle));
+}

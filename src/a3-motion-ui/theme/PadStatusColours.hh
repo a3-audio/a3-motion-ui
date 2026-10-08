@@ -68,4 +68,8 @@ juce::Colour padStatusColour (juce::Colour base, Pattern::Status status,
                               Pattern::Status statusLast, int step,
                               bool oneShotRecording);
 
+/** A paused clip's Play pad: its full colour and its idle shade, two beats
+ *  each -- the screen's paused ▶ on the panel (see pausedBlinkIsLit()). */
+juce::Colour padPausedColour (juce::Colour base, int beatInBar);
+
 }

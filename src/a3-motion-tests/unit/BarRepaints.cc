@@ -105,7 +105,7 @@ describeOneClip (ClipSettingsComponent &bar)
   bar.setShapeRotate (0.25f, 0.f);
   bar.setBeatsPerBar (4);
   bar.setPatternLengthBeats (16.f);
-  bar.setTransportState (true, false, false);
+  bar.setTransportState (true, false, false, false);
   bar.setRecArmed (false);
   bar.setRecording (false);
   bar.setActionActive (false);
