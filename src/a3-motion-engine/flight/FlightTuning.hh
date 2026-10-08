@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -49,13 +51,13 @@ struct FlightTuning
   // slingshot speeds the ship up >= 1.5x (smaller is not heard as faster),
   // and a group's bend pulls the closest pass >= 0.1 nearer.
   float gravity = 0.03f;     // G
-  float softening = 0.045f;  // epsilon, floor units
+  float softening = 0.045f;  // epsilon, floor units; 0 is read as flightSofteningFloor
   float gravityMax = 2.f;    // |a| cap, floor units per beat^2
   // the big path
   float orbitRadius = 0.7f;
   float orbitEccentricity = 0.2f;
-  float orbitLapBars = 4.f;
-  float orbitPrecessionBars = 32.f;
+  float orbitLapBars = 4.f;         // <= 0: the rabbit stands at its slot
+  float orbitPrecessionBars = 32.f; // <= 0: the path does not turn
   // steering
   // kSteer: a PD loop without feed-forward of the rabbit's turn lags it by
   // about (centripetal acceleration / kSteer). The path's tightest bend needs
@@ -81,5 +83,18 @@ struct FlightTuning
   float pulseDepth = 0.3f;
   float pulseDownbeatDepth = 0.6f;
 };
+
+/** The smallest softening the field uses. A softening of 0 would divide
+ *  0 by 0 for a ship exactly on a body (or on another ship); this floor keeps
+ *  that finite, and gravityMax caps what it gives. */
+constexpr float flightSofteningFloor = 1e-4f;
+
+/** softening^2, never below flightSofteningFloor^2. */
+inline float
+flightSofteningSquared (FlightTuning const &tuning)
+{
+  auto const softening = std::max (tuning.softening, flightSofteningFloor);
+  return softening * softening;
+}
 
 }

@@ -38,7 +38,7 @@ Vec2
 gravityAt (Vec2 p, FlightBodies const &bodies, float pulse,
            FlightTuning const &tuning)
 {
-  auto const softeningSquared = tuning.softening * tuning.softening;
+  auto const softeningSquared = flightSofteningSquared (tuning);
   Vec2 sum;
   for (auto i = 0; i < bodies.count && i < maxFlightBodies; ++i)
     {

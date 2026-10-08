@@ -83,3 +83,18 @@ TEST (FlightField, ThePulseScalesThePull)
   EXPECT_NEAR (gravityAt ({}, b, 1.3f, t).x,
                1.3f * gravityAt ({}, b, 1.f, t).x, 1e-6f);
 }
+
+TEST (FlightField, ZeroSofteningOnTopOfABodyIsFinite)
+{
+  FlightBodies b;
+  b.body[0] = { { 0.3f, 0.3f }, 3.f };
+  b.count = 1;
+  FlightTuning t;
+  t.softening = 0.f;
+  for (auto const p : { Vec2{ 0.3f, 0.3f }, Vec2{ 0.3f + 1e-6f, 0.3f } })
+    {
+      auto const a = gravityAt (p, b, 1.6f, t);
+      EXPECT_TRUE (std::isfinite (a.x) && std::isfinite (a.y));
+      EXPECT_LE (a.getDistanceFromOrigin (), t.gravityMax + 1e-5f);
+    }
+}

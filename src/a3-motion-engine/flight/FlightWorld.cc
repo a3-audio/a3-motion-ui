@@ -44,20 +44,6 @@ isShip (int ch)
   return ch >= 0 && ch < flightShips;
 }
 
-double
-lapBeats (int beatsPerBar, FlightTuning const &tuning)
-{
-  return static_cast<double> (tuning.orbitLapBars) * beatsPerBar;
-}
-
-/** The phase channel `ch`'s rabbit would have at `beats` without an offset. */
-float
-slotPhase (int ch, double beats, int beatsPerBar, FlightTuning const &tuning)
-{
-  auto const phase = beats / lapBeats (beatsPerBar, tuning) - 0.25 * ch;
-  return static_cast<float> (phase - std::floor (phase));
-}
-
 /** A point uniformly inside a disc of `radius`. */
 Vec2
 pointInDisc (juce::Random &dice, float radius)
@@ -110,7 +96,7 @@ FlightWorld::launch (int ch, Vec2 p, double beats, int beatsPerBar)
     return;
 
   auto const nearest = nearestOrbitPhase (p, beats, beatsPerBar, _tuning);
-  _phaseOffset[index (ch)] = nearest - slotPhase (ch, beats, beatsPerBar, _tuning);
+  _phaseOffset[index (ch)] = nearest - rabbitSlotPhase (beats, ch, beatsPerBar, _tuning);
 
   auto const tangent = rabbitAt (beats, ch, beatsPerBar, _tuning,
                                  _phaseOffset[index (ch)]).velocity;
@@ -214,7 +200,7 @@ Vec2
 FlightWorld::separationOf (int ch,
                            std::array<ShipOrders, flightShips> const &orders) const
 {
-  auto const softeningSquared = _tuning.softening * _tuning.softening;
+  auto const softeningSquared = flightSofteningSquared (_tuning);
   auto const &p = _ships[index (ch)].p;
   Vec2 push;
   for (auto other = 0; other < flightShips; ++other)

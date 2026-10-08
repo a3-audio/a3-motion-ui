@@ -190,3 +190,55 @@ TEST (BaseOrbit, APhaseOffsetPutsTheRabbitWhereALaunchFoundIt)
   EXPECT_EQ (rabbitAt (beats, 1, fourFour, t, 0.f).at,
              rabbitAt (beats, 1, fourFour, t).at);
 }
+
+namespace
+{
+
+bool
+isFinite (Vec2 v)
+{
+  return std::isfinite (v.x) && std::isfinite (v.y);
+}
+
+}
+
+TEST (BaseOrbit, PrecessionZeroMeansThePathDoesNotTurn)
+{
+  FlightTuning t;
+  t.orbitPrecessionBars = 0.f;
+  for (auto const beats : { 0., 16., 37.5 })
+    {
+      auto const rabbit = rabbitAt (beats, 0, fourFour, t);
+      EXPECT_TRUE (isFinite (rabbit.at) && isFinite (rabbit.velocity));
+      EXPECT_TRUE (std::isfinite (nearestOrbitPhase ({ 0.2f, 0.1f }, beats,
+                                                     fourFour, t)));
+    }
+  // A whole lap later the rabbit is where it started: nothing turned.
+  EXPECT_LE (rabbitAt (16., 0, fourFour, t).at.getDistanceFrom (
+                 rabbitAt (0., 0, fourFour, t).at),
+             1e-4f);
+  auto const longEnd = orbitGuidePoints (40., fourFour, 1, t).front ();
+  EXPECT_NEAR (longEnd.x, t.orbitRadius * (1.f + t.orbitEccentricity), 1e-4f);
+  EXPECT_NEAR (longEnd.y, 0.f, 1e-4f);
+}
+
+TEST (BaseOrbit, ALapOfZeroOrLessStandsTheRabbitStill)
+{
+  for (auto const lapBars : { 0.f, -1.f })
+    {
+      FlightTuning t;
+      t.orbitLapBars = lapBars;
+      for (auto const beats : { 0., 3.25, 100. })
+        {
+          auto const rabbit = rabbitAt (beats, 1, fourFour, t, 0.3f);
+          EXPECT_TRUE (isFinite (rabbit.at) && isFinite (rabbit.velocity))
+              << "lap " << lapBars << " beats " << beats;
+          EXPECT_TRUE (std::isfinite (rabbitSlotPhase (beats, 1, fourFour, t)));
+        }
+      // With the path not turning either, the rabbit does not move at all.
+      t.orbitPrecessionBars = 0.f;
+      EXPECT_EQ (rabbitAt (100., 1, fourFour, t).at,
+                 rabbitAt (0., 1, fourFour, t).at);
+      EXPECT_EQ (rabbitAt (100., 1, fourFour, t).velocity, Vec2{});
+    }
+}

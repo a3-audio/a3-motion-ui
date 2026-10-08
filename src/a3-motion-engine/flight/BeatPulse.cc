@@ -22,6 +22,8 @@
 
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
+#include <algorithm>
+
 namespace a3
 {
 
@@ -31,7 +33,10 @@ gravityPulse (Measure now, int beatsPerBar, FlightTuning const &tuning)
   if (beatsPerBar > 0)
     now.consolidate (beatsPerBar);
   auto const ticksPerBeat = static_cast<float> (TempoClock::getTicksPerBeat ());
-  auto const beatFraction = static_cast<float> (now.tick ()) / ticksPerBeat;
+  // A negative tick (a clock corrected backwards) survives consolidate; held
+  // to the beat so the pulse stays within [1, 1 + depth].
+  auto const beatFraction = std::clamp (
+      static_cast<float> (now.tick ()) / ticksPerBeat, 0.f, 1.f);
   auto const depth
       = now.beat () == 0 ? tuning.pulseDownbeatDepth : tuning.pulseDepth;
   auto const sinceOnset = 1.f - beatFraction;

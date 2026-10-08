@@ -73,3 +73,18 @@ TEST (BeatPulse, NeverBelowOne)
       EXPECT_GE (pulseAt (beat, tick), 1.f)
           << "beat " << beat << " tick " << tick;
 }
+
+TEST (BeatPulse, ANegativeTickStaysInRange)
+{
+  // A measure just before a beat (a tempo nudge, an EXT clock correcting
+  // backwards) must not pull harder than the onset does.
+  FlightTuning const t;
+  for (auto beat = 0; beat < fourFour; ++beat)
+    for (auto tick : { -1, -64, -127, -200 })
+      {
+        auto const pulse = pulseAt (beat, tick, t);
+        EXPECT_GE (pulse, 1.f) << "beat " << beat << " tick " << tick;
+        EXPECT_LE (pulse, 1.f + t.pulseDownbeatDepth)
+            << "beat " << beat << " tick " << tick;
+      }
+}

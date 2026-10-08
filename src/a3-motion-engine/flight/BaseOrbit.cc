@@ -56,11 +56,28 @@ precessionBeats (int beatsPerBar, FlightTuning const &tuning)
   return static_cast<double> (tuning.orbitPrecessionBars) * beatsPerBar;
 }
 
+/** How many periods fit into `beats`; none when the period is not positive
+ *  (a lap or precession of 0 bars means: that motion stands still). */
+double
+periodsIn (double beats, double periodBeats)
+{
+  return periodBeats > 0. ? beats / periodBeats : 0.;
+}
+
+/** Radians per beat of one turn per period; 0 for a period that is not
+ *  positive, as in periodsIn. */
+float
+turnRate (double periodBeats)
+{
+  return periodBeats > 0. ? static_cast<float> (twoPi / periodBeats) : 0.f;
+}
+
 /** Only the fraction: an hour into a set the turn is still exact in float. */
 float
 turnAngle (double beats, double periodBeats)
 {
-  return static_cast<float> (twoPi * (beats / periodBeats - std::floor (beats / periodBeats)));
+  auto const periods = periodsIn (beats, periodBeats);
+  return static_cast<float> (twoPi * (periods - std::floor (periods)));
 }
 
 Ellipse
@@ -105,24 +122,32 @@ wrapPhase (double phase)
 
 }
 
+float
+rabbitSlotPhase (double beats, int channel, int beatsPerBar,
+                 FlightTuning const &tuning)
+{
+  return wrapPhase (periodsIn (beats, lapBeats (beatsPerBar, tuning))
+                    - 0.25 * channel);
+}
+
 OrbitPoint
 rabbitAt (double beats, int channel, int beatsPerBar,
           FlightTuning const &tuning, float phaseOffset)
 {
   auto const lap = lapBeats (beatsPerBar, tuning);
   auto const ellipse = ellipseAt (beats, beatsPerBar, tuning);
-  auto const phase = wrapPhase (beats / lap - 0.25 * channel + phaseOffset);
+  auto const phase = wrapPhase (static_cast<double> (
+      rabbitSlotPhase (beats, channel, beatsPerBar, tuning) + phaseOffset));
   auto const theta = static_cast<float> (twoPi) * phase;
 
   auto const local = onEllipse (ellipse, theta);
-  auto const thetaRate = static_cast<float> (twoPi / lap);
-  auto const turnRate
-      = static_cast<float> (twoPi / precessionBeats (beatsPerBar, tuning));
+  auto const thetaRate = turnRate (lap);
+  auto const pathTurnRate = turnRate (precessionBeats (beatsPerBar, tuning));
   // The point's own motion along the ellipse, plus the ellipse turning
   // under it: d/dt R(turn) q(theta) = R(turn) (turn' J q + theta' q').
   Vec2 const alongPath{ -ellipse.longAxis * std::sin (theta) * thetaRate,
                         ellipse.shortAxis * std::cos (theta) * thetaRate };
-  Vec2 const withTurn{ -local.y * turnRate, local.x * turnRate };
+  Vec2 const withTurn{ -local.y * pathTurnRate, local.x * pathTurnRate };
 
   return { rotate (local, ellipse.turn),
            rotate (alongPath + withTurn, ellipse.turn) };

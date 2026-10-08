@@ -44,6 +44,11 @@ struct OrbitPoint
  *  `phaseOffset` (laps) moves the rabbit along its lap: a ship launched
  *  mid-flight starts its rabbit at the phase nearest to it rather than at its
  *  channel's slot. */
+/** The lap phase (0..1) channel `channel`'s rabbit has at `beats` without
+ *  an offset: its slot, a quarter lap behind channel n-1. */
+float rabbitSlotPhase (double beats, int channel, int beatsPerBar,
+                       FlightTuning const &tuning);
+
 OrbitPoint rabbitAt (double beats, int channel, int beatsPerBar,
                      FlightTuning const &tuning, float phaseOffset = 0.f);
 
