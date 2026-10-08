@@ -26,6 +26,7 @@
 #include <a3-motion-ui/components/fpv/FpvStrips.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+#include <a3-motion-ui/theme/TransportLook.hh>
 
 using namespace a3;
 
@@ -200,8 +201,7 @@ pixelsThatDiffer (juce::Image const &a, juce::Image const &b,
   return differ;
 }
 
-/** Pixels within a small distance of the theme's text colour: what a filled
- *  pill covers and a hollow one only outlines. */
+/** Pixels within a small distance of the theme's text colour. */
 int
 textColouredPixels (juce::Image const &image, juce::Rectangle<int> area)
 {
@@ -257,26 +257,227 @@ TEST (FpvStripsPaint, AnOrbitStripPaintsDifferentlyFromAClipStrip)
       << "a channel left on CLIP keeps its header";
 }
 
-// The mode is a shape before it is a word: CLIP a hollow pill, ORBIT a
-// filled one.
-TEST (FpvStripsPaint, TheOrbitPillIsFilledAndTheClipPillIsHollow)
+namespace
 {
-  Fixture f;
-  auto const pill = fpvModePill (f.strips.strips ()[0].header).getSmallestIntegerContainer ();
-  ASSERT_FALSE (pill.isEmpty ());
-  auto const clip = textColouredPixels (f.paint (), pill);
-  f.strips.setChannels (orbiting ());
-  auto const orbit = textColouredPixels (f.paint (), pill);
-  EXPECT_GT (orbit, 2 * clip) << "clip " << clip << ", orbit " << orbit;
+/** CIE L*, from the relative luminance the contrast rules use. */
+float
+lightness (juce::Colour colour)
+{
+  auto const y = relativeLuminance (colour);
+  return y > 0.008856f ? 116.f * std::cbrt (y) - 16.f : 903.3f * y;
 }
 
-TEST (FpvStripsPaint, ThePillSitsInTheHeadersRightHalf)
+/** A pixel of a key's face: just inside its left edge, clear of the hairline
+ *  and of the word, which is centred. */
+juce::Point<int>
+faceOf (juce::Rectangle<float> key)
+{
+  return { juce::roundToInt (key.getX () + key.getWidth () / 10.f),
+           juce::roundToInt (key.getCentreY ()) };
+}
+}
+
+// The mode is a key, as on StemDeck: CLIP the idle face, ORBIT the lifted
+// "current" face. Which mode, the ground says before the word does.
+TEST (FpvStripsPaint, TheOrbitKeyIsLiftedAndTheClipKeyIsNot)
+{
+  Fixture f;
+  auto const at = faceOf (fpvModeKey (f.strips.strips ()[0].header));
+  auto const clip = f.paint ().getPixelAt (at.x, at.y);
+  f.strips.setChannels (orbiting ());
+  auto const orbit = f.paint ().getPixelAt (at.x, at.y);
+  EXPECT_EQ (clip, toColour (theme ().surfaceRaised));
+  EXPECT_GT (lightness (orbit), lightness (clip));
+}
+
+TEST (FpvStripsPaint, ThePlateIsLeftAndTheModeKeyRight)
 {
   Fixture f;
   auto const &header = f.strips.strips ()[0].header;
-  auto const pill = fpvModePill (header);
-  EXPECT_TRUE (header.toFloat ().contains (pill));
-  EXPECT_GT (pill.getX (), static_cast<float> (header.getCentreX ()));
+  auto const plate = fpvHeaderPlate (header);
+  auto const key = fpvModeKey (header);
+  EXPECT_TRUE (header.toFloat ().contains (plate));
+  EXPECT_TRUE (header.toFloat ().contains (key));
+  EXPECT_LT (plate.getRight (), key.getX ());
+  EXPECT_GT (key.getX (), static_cast<float> (header.getCentreX ()));
+}
+
+// The strip is a card of the skin's own surface: opaque, so it looks the same
+// in every skin's FPV, and with no channel wash -- the plate says whose it is.
+TEST (FpvStripsPaint, TheStripIsACardOfTheSkinsSurface)
+{
+  Fixture f;
+  auto const image = f.paint ();
+  for (auto const &strip : f.strips.strips ())
+    {
+      auto const x = strip.whole.getX ()
+                     + juce::roundToInt (theme ().padding / 2.f);
+      EXPECT_EQ (image.getPixelAt (x, strip.instruments.getCentreY ()),
+                 toColour (theme ().surface));
+    }
+}
+
+TEST (FpvStripsPaint, ThePlateWearsTheChannelsColourAtMostAsLightAsACaption)
+{
+  Fixture f;
+  auto const image = f.paint ();
+  for (size_t ch = 0; ch < 4; ++ch)
+    {
+      auto const plate = fpvHeaderPlate (f.strips.strips ()[ch].header);
+      auto const at = faceOf (plate);
+      auto const want = fpvPlateColour (toColour (theme ().channel[ch]));
+      EXPECT_EQ (image.getPixelAt (at.x, at.y), want) << ch;
+    }
+}
+
+TEST (FpvStripsPaint, ABrightChannelsPlateIsDimmedToTheCaptionsLightness)
+{
+  auto const before = theme ();
+  auto muted = before;
+  muted.textMuted = { 150, 151, 166 }; // quiet-indigo-2's captions, L* 63
+  setTheme (muted);
+
+  auto const caption = lightness (toColour (theme ().textMuted));
+  auto const yellow = juce::Colour (247, 208, 2);
+  ASSERT_GT (lightness (yellow), caption);
+  auto const plate = fpvPlateColour (yellow);
+  EXPECT_NEAR (lightness (plate), caption, 1.f);
+  EXPECT_NEAR (plate.getHue (), yellow.getHue (), 0.01f) << "same hue";
+
+  setTheme (before);
+}
+
+TEST (FpvStripsPaint, ADarkerChannelsPlateIsItsOwnColour)
+{
+  auto const crimson = juce::Colour (40, 4, 18);
+  ASSERT_LT (lightness (crimson), lightness (toColour (theme ().textMuted)));
+  EXPECT_EQ (fpvPlateColour (crimson), crimson);
+}
+
+// Black on a light plate, the skin's text colour on a dark one: whichever of
+// the two reads better, so no channel colour leaves its number unreadable.
+TEST (FpvStripsPaint, ThePlateInkReadsOnEveryChannel)
+{
+  for (size_t ch = 0; ch < 4; ++ch)
+    {
+      auto const plate = fpvPlateColour (toColour (theme ().channel[ch]));
+      EXPECT_GE (contrastRatio (fpvInkOn (plate), plate), minimumInkContrast)
+          << ch;
+    }
+}
+
+// Play state as a key, as StemDeck's: lit in play's colour while the clip
+// runs, the idle face while it does not.
+TEST (FpvStripsPaint, ThePlayKeyLightsWhileItsClipRuns)
+{
+  Fixture f;
+  auto const image = f.paint ();
+  auto const running = faceOf (fpvPlayKey (f.strips.strips ()[0].clip));
+  auto const idle = faceOf (fpvPlayKey (f.strips.strips ()[1].clip));
+  EXPECT_EQ (image.getPixelAt (running.x, running.y),
+             transportColour (TransportKey::PlayPause));
+  EXPECT_EQ (image.getPixelAt (idle.x, idle.y),
+             toColour (theme ().surfaceRaised));
+}
+
+TEST (FpvStripsPaint, ThePlayKeyIsASquareAtTheRowsEnd)
+{
+  Fixture f;
+  auto const &clip = f.strips.strips ()[0].clip;
+  auto const key = fpvPlayKey (clip);
+  EXPECT_TRUE (clip.toFloat ().contains (key));
+  EXPECT_FLOAT_EQ (key.getWidth (), key.getHeight ());
+  EXPECT_GT (key.getX (), static_cast<float> (clip.getCentreX ()));
+}
+
+// A bar's empty part is a recess in the skin's ground, the fader slot of a
+// desk, rather than a white wash.
+TEST (FpvStripsPaint, AnEmptySlotIsTheSkinsWell)
+{
+  Fixture f;
+  auto const image = f.paint ();
+  auto const &inst = f.strips.strips ()[2].instruments; // pots 1, 0, 0
+  auto const yFreq = inst.getY () + inst.getHeight () / 2;
+  auto const xRight = inst.getRight () - inst.getWidth () / 20;
+  EXPECT_EQ (image.getPixelAt (xRight, yFreq), toColour (theme ().background));
+}
+
+// A skin whose ground and surface are one grey still shows where an empty
+// bar is: the slot carries a hairline, as a key does.
+TEST (FpvStripsPaint, AnEmptySlotCanBeFoundOnAFlatSkin)
+{
+  auto const before = theme ();
+  auto flat = before;
+  flat.background = flat.surface = { 12, 12, 16 };
+  setTheme (flat);
+  {
+    Fixture f;
+    auto const image = f.paint ();
+    auto const &inst = f.strips.strips ()[1].instruments; // pots all 0
+    auto const third = inst.getHeight () / 3;
+    auto const ground = toColour (theme ().surface);
+    auto marked = 0;
+    for (int y = inst.getY () + third; y < inst.getY () + 2 * third; ++y)
+      for (int x = inst.getCentreX (); x < inst.getRight () - inst.getWidth () / 10; ++x)
+        marked += image.getPixelAt (x, y) != ground ? 1 : 0;
+    EXPECT_GT (marked, 0);
+  }
+  setTheme (before);
+}
+
+// The meter is a row of LEDs: silent, it still shows its dark segments.
+TEST (FpvStripsPaint, ASilentMeterShowsItsSegments)
+{
+  Fixture f;
+  f.strips.channelLevel = [] (int) { return VuReading{}; };
+  auto const image = f.paint ();
+  auto const &m = f.strips.strips ()[1].meter;
+  auto const ground = toColour (theme ().background);
+  auto ghosts = 0;
+  for (int x = m.getX (); x < m.getRight (); ++x)
+    ghosts += image.getPixelAt (x, m.getCentreY ()) != ground
+                      && image.getPixelAt (x, m.getCentreY ())
+                             != toColour (theme ().surface)
+                  ? 1
+                  : 0;
+  EXPECT_GT (ghosts, m.getWidth () / 2);
+}
+
+// The look this was built for, in its own skin -- the soft channel set and
+// StemDeck's greys -- painted in each state the row can be in.
+TEST (FpvStripsPaint, ItPaintsInTheStemdeckSkin)
+{
+  auto const before = theme ();
+  auto const file = juce::File (A3_CONFIG_JSON_PATH)
+                        .getParentDirectory ()
+                        .getChildFile ("skins")
+                        .getChildFile ("stemdeck.json");
+  ASSERT_TRUE (file.existsAsFile ());
+  setTheme (loadTheme (juce::JSON::parse (file)));
+  {
+    Fixture f;
+    f.strips.setBounds (0, 0, 768, 330);
+    f.strips.setChannels (fourChannels ());
+    writeSnapshot (f.paint (), "fpv-strips-stemdeck.png");
+    f.strips.setChannels (orbiting ());
+    writeSnapshot (f.paint (), "fpv-strips-stemdeck-orbit.png");
+    f.strips.channelLevel = [] (int) { return VuReading{}; };
+    auto rest = fourChannels ();
+    for (auto &channel : rest)
+      {
+        channel.playing = false;
+        channel.pots = {};
+      }
+    f.strips.setChannels (rest);
+    writeSnapshot (f.paint (), "fpv-strips-stemdeck-rest.png");
+
+    for (size_t ch = 0; ch < 4; ++ch)
+      {
+        auto const plate = fpvPlateColour (toColour (theme ().channel[ch]));
+        EXPECT_GE (contrastRatio (fpvInkOn (plate), plate), 4.5f) << ch;
+      }
+  }
+  setTheme (before);
 }
 
 TEST (FpvStripsPaint, TheEscortRowDiffersFromPatrol)

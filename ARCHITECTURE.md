@@ -2101,10 +2101,30 @@ held, and the finger that let go was no longer listened to.
 **The strips take the clip settings' place.** `FpvLayout` is the pure arithmetic (sphere rectangle,
 four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
 with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is `CH n` at the left and `CLIP` or
-`ORBIT` at the right (phase 2). Only the strip's tint and the bar fills use the channel's colour
-(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
+`ORBIT` at the right (phase 2). The channel's colour comes in as `ChannelUIState::colour` via
+`FpvChannel::colour`; everything else from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
 `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
-`FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+`FpvStripsPaint`, `LedMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+
+**The strips wear StemDeck's look in every skin** (2026-10-08; the audit is
+`.claude/notes/stemdeck-look-for-motion.md` in the workspace, steps b and d). The row stands on the
+skin's `background` and is opaque; before, nothing painted it and JUCE's stock window grey showed
+through in every skin. `A3MotionUIComponent::paint` fills the gap above the row, in FPV only: FULL's
+clip bar is drawn at `panelOpacity`, so a ground there would change FULL. Each strip is an opaque
+card of `surface` with no channel wash. The header is a plate in the channel's colour with "CH n"
+in `fpvInkOn` (black or the skin's text, whichever reads), and the mode as a key: CLIP the idle face
+(`surfaceRaised` and a hairline), ORBIT the lifted "current" face. The plate is the channel's colour
+dimmed, hue kept, to no lighter than `textMuted` (`fpvPlateColour`), because four full-strength plates
+would be the brightest thing under the sphere at rest. The play state is a key at the clip row's
+end, lit in play's colour (`transportColour`) with the triangle while the clip runs, the idle face
+with the two bars while it does not. 3D / FREQ / Q are slots in the skin's ground with a hairline,
+filled in the channel's colour, their captions muted and a step smaller. The meter is
+`paintLedMeter` (`components/LedMeter`): twenty segments of 3 dB, so -18 and -6 dBFS fall on segment
+edges, unlit ones as a ghost of their band at `alphaOutline`, the held peak a sliver of its segment;
+its bands are `vuBandColour`'s, as on the continuous meter. No new colour role: every part is an
+existing one, so every skin draws it. The skin `stemdeck.json` adds StemDeck's own greys and the soft
+channel set; it is a choice in the skin menu, not the default. The plate and the two keys look like
+keys but take no touch -- FPV's strips have no taps yet.
 
 **Encoders in FPV act as with SHIFT:** each one turns its own column's channel FREQ/Q
 (`encoderTarget(..., shift)` with `shift = SHIFT held || FPV`), and a press does nothing, so

@@ -45,9 +45,28 @@ struct FpvChannel
   float escortMass = FlightTuning{}.groupMass; // that body's mass, for the size of its disc
 };
 
-/** Where the header's mode pill sits: CLIP hollow, ORBIT filled. The mode is
- *  a shape before it is a word, so it reads at a glance. */
-juce::Rectangle<float> fpvModePill (juce::Rectangle<int> header);
+/** The header's channel plate: "CH n" on the channel's colour, StemDeck's
+ *  deck plate. Left of the mode key. */
+juce::Rectangle<float> fpvHeaderPlate (juce::Rectangle<int> header);
+
+/** Where the header's mode key sits, at its right: CLIP on the idle key face,
+ *  ORBIT on the lifted one. The mode is a ground before it is a word, so it
+ *  reads at a glance. */
+juce::Rectangle<float> fpvModeKey (juce::Rectangle<int> header);
+
+/** The clip row's play-state key, a square at the row's right end: lit in
+ *  play's colour while the clip runs, the idle face while it does not. */
+juce::Rectangle<float> fpvPlayKey (juce::Rectangle<int> clip);
+
+/** What a channel's plate is filled with: its colour, dimmed (hue kept) to
+ *  no lighter than the skin's caption ink. A plate names a column; it is not
+ *  a light, and four full-strength plates would be the brightest thing under
+ *  the sphere at rest. */
+juce::Colour fpvPlateColour (juce::Colour channel);
+
+/** The ink for a word on a coloured ground: the skin's `textOnAccent` or its
+ *  `textPrimary`, whichever stands out more. */
+juce::Colour fpvInkOn (juce::Colour ground);
 
 /** The bottom third in FPV: one strip per channel. Its bounds are the strips'
  *  row only; strip rectangles come from fpvStripRow. Painted from plain data,
