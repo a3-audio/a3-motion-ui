@@ -52,7 +52,8 @@ struct ScriptKeyStates
 
 /** @param unsaved   the text differs from what was last saved or loaded
  *  @param locked    one of the instrument's own (shippedFileMayBeOverwritten)
- *  @param hasFile   a file stands behind the text to write back to
+ *  @param hasFile   a file stands behind the text to write back to, or to
+ *                   copy as it is
  *  @param slotHolds the shown slot has a clip to take settings from */
 ScriptKeyStates scriptKeysFor (bool unsaved, bool locked, bool hasFile,
                                bool slotHolds);
