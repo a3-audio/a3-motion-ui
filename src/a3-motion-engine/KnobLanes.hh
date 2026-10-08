@@ -70,8 +70,18 @@ isTakeBandKnob (Knob knob)
     case Knob::ClipBottom:
     case Knob::Sway:
     case Knob::Swell: return true;
-    default: return false;
+    case Knob::Rotate:
+    case Knob::Spin:
+    case Knob::SqueezeX:
+    case Knob::StretchX:
+    case Knob::SqueezeY:
+    case Knob::StretchY:
+    case Knob::Tilt:
+    case Knob::TiltSweep:
+    case Knob::Roll:
+    case Knob::RollSweep: return false;
     }
+  return false;
 }
 
 /** The name a clip file stores a knob's lane under -- the knob's caption. */

@@ -89,6 +89,18 @@ Pattern::wasRecording () const
 }
 
 bool
+Pattern::isBandHeld () const
+{
+  return _bandHeld.load (std::memory_order_relaxed);
+}
+
+void
+Pattern::setBandHeld (bool held)
+{
+  _bandHeld.store (held, std::memory_order_relaxed);
+}
+
+bool
 Pattern::isTake () const
 {
   return _isTake;

@@ -2408,9 +2408,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // Remembered so an empty take can be undone: the slot's pattern is
   // replaced right below, and a stray double press must not cost whatever
   // was in there.
-  _recordingSlot = std::make_pair (channel, slot);
-  _patternBeforeRecording = pattern;
-  _clipFileBeforeRecording = _slotClipFile[channel][slot];
+  auto const before = SlotContent{ pattern, _slotClipFile[channel][slot] };
   // The take is no clip file's yet. Pointing at the old one would let FILES'
   // Save write the take's values over it.
   _slotClipFile[channel][slot] = juce::File{};
@@ -2419,7 +2417,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // MotionComponent decides whether to show it -- Write replaces the whole
   // pass, and a ghost of the old one there says nothing.
   if (_motionComponent)
-    _motionComponent->setRecordingUnderlay (_patternBeforeRecording);
+    _motionComponent->setRecordingUnderlay (before.pattern);
 
   // A fresh Pattern for the take, starting from the clip the slot held: its
   // settings now, so the bar goes on showing them, and its path and lanes at
@@ -2427,8 +2425,9 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   // the old figure keeps the figure.
   pattern = std::make_shared<Pattern> ();
   pattern->setChannel (channel);
-  if (_patternBeforeRecording)
-    applyClipSettings (*pattern, clipSettingsFrom (*_patternBeforeRecording));
+  if (before.pattern)
+    applyClipSettings (*pattern, clipSettingsFrom (*before.pattern));
+  _takeUnderway.begin (channel, slot, pattern, before);
 
   auto recordLength = Measure{
     0, static_cast<int> (std::max (1.f, configuredLengthBeats)), 0
@@ -2439,7 +2438,7 @@ A3MotionUIComponent::startRecording (index_t channel, index_t slot)
   pattern->setPlaybackLength (recordLength);
 
   _engine.recordPattern (pattern, TempoClock::nextDownBeat (_now),
-                         recordLength, _patternBeforeRecording);
+                         recordLength, before.pattern);
 
   // A take underway turns SAVE and DISCARD back into REC and ACT.
   refreshTakeState ();
@@ -2593,7 +2592,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
               = _channelActions[channel][static_cast<size_t> (button)];
           auto const press = cuePressFor (
               cueButton.isCue, cueButton.cueClip.existsAsFile (),
-              _recordingSlot.has_value () && _recordingSlot->first == channel,
+              _takeUnderway.isOnChannel (channel),
               _pendingTakes.isPending (channel, slot));
           switch (press)
             {
@@ -2717,8 +2716,7 @@ A3MotionUIComponent::stopChannel (index_t channel)
   // Stop on the channel a take is going into ends the take, the same way REC
   // does. Stopped alone, the engine finished it with nobody to mark it
   // unsaved, and the next REC put the old clip back over it.
-  if (_recordingSlot.has_value ()
-      && *_recordingSlot == std::make_pair (channel, slot))
+  if (_takeUnderway.isOn (channel, slot))
     {
       endRecording ();
       return;
@@ -3300,7 +3298,7 @@ A3MotionUIComponent::putFigureInSlot (index_t channel, index_t slot, int index,
   // the hand put it -- the same rule the picture on the CLIP page follows,
   // because it is the same gesture reached from the other side. Choosing a
   // whole clip is what replaces the values, and that has its own tab.
-  auto const held = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+  auto const held = settingsToCarry (channel, slot);
   auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
   auto const hadOne = pattern != nullptr;
 
@@ -6736,28 +6734,31 @@ A3MotionUIComponent::endRecording ()
   updateFunctionKeyLEDs ();
 
   auto pattern = _engine.getRecordingPattern ();
-  if (!pattern || !_recordingSlot.has_value ())
+  if (!pattern || !_takeUnderway.any ())
     {
       // Nothing has started yet: the take was scheduled and is being called
-      // off before its downbeat. Put the slot back the way it was and clear
-      // the request, or the next press would find one still standing.
-      if (_recordingSlot.has_value ())
+      // off before its downbeat -- in the engine too, or its queued start
+      // fires anyway. Put the slot back the way it was, if it still holds the
+      // take, and clear the request, or the next press would find one still
+      // standing.
+      if (auto const where = _takeUnderway.slot ())
         {
-          auto const channel = _recordingSlot->first;
-          auto const slot = _recordingSlot->second;
-          _patterns[channel][slot] = _patternBeforeRecording;
-          _slotClipFile[channel][slot] = _clipFileBeforeRecording;
+          auto const [channel, slot] = *where;
+          _engine.cancelScheduledRecording (_takeUnderway.take ());
+          if (auto const back
+              = _takeUnderway.calledOff (_patterns[channel][slot]))
+            {
+              _patterns[channel][slot] = back->pattern;
+              _slotClipFile[channel][slot] = back->clipFile;
+            }
           if (_motionComponent)
             _motionComponent->setRecordingUnderlay (nullptr);
-          _recordingSlot.reset ();
-          _patternBeforeRecording = nullptr;
           updateClipSettingsDisplay ();
         }
       return;
     }
 
-  auto const channel = _recordingSlot->first;
-  auto const slot = _recordingSlot->second;
+  auto const [channel, slot] = *_takeUnderway.slot ();
 
   // Something performed -- the finger or a knob -- and a path to play it on.
   // The path alone cannot say the first: a take over a clip starts out
@@ -6799,22 +6800,18 @@ A3MotionUIComponent::endRecording ()
       _playWhenRecordingStops = pattern;
       // Not on disk until somebody says so. A slot that already held an
       // unsaved take keeps the before it had -- see PendingTakes::begin().
-      _pendingTakes.begin (channel, slot,
-                           { _patternBeforeRecording,
-                             _clipFileBeforeRecording });
+      _pendingTakes.begin (channel, slot, _takeUnderway.ended ());
     }
   else
     {
       // Nothing was ever played into it. Put back what the slot held rather
       // than leaving a clip made of nothing.
-      _patterns[channel][slot] = _patternBeforeRecording;
-      _slotClipFile[channel][slot] = _clipFileBeforeRecording;
+      auto const before = _takeUnderway.ended ();
+      _patterns[channel][slot] = before.pattern;
+      _slotClipFile[channel][slot] = before.clipFile;
       updateControlReadout ("recording discarded - nothing played");
     }
 
-  _recordingSlot.reset ();
-  _patternBeforeRecording.reset ();
-  _clipFileBeforeRecording = juce::File{};
   if (_motionComponent)
     _motionComponent->setRecordingUnderlay (nullptr);
   selectClip (channel, slot);
@@ -6846,6 +6843,8 @@ A3MotionUIComponent::saveShownTake ()
     }
 
   _pendingTakes.clear (channel, slot);
+  // Saved, it is a clip like any other: its band is the knobs' again.
+  pattern->setBandHeld (false);
   // The clip saveUserPattern() wrote beside the shape. Not the library entry
   // found by name: that is the shape's, and a shape carries no clip file.
   auto const clip = namedFileIn (_patternLibrary->getClipDir (),
@@ -6923,6 +6922,21 @@ A3MotionUIComponent::mouseDown (juce::MouseEvent const &event)
 void
 A3MotionUIComponent::dropPendingTake (index_t channel, index_t slot)
 {
+  // A take still going into the slot ends here too, and puts nothing back:
+  // what replaces it is what the slot holds now. Stopped or called off in
+  // the engine, so REC is REC again and its band is let go of.
+  if (auto const take = _takeUnderway.slotReplaced (channel, slot))
+    {
+      _engine.cancelScheduledRecording (take);
+      if (take->getStatus () == Pattern::Status::Recording)
+        _engine.stopPattern (take, _now);
+      if (_playWhenRecordingStops == take)
+        _playWhenRecordingStops.reset ();
+      if (_motionComponent)
+        _motionComponent->setRecordingUnderlay (nullptr);
+      updateFunctionKeyLEDs ();
+    }
+
   _pendingTakes.resolve (channel, slot);
   refreshTakeState ();
 }
@@ -6930,16 +6944,34 @@ A3MotionUIComponent::dropPendingTake (index_t channel, index_t slot)
 bool
 A3MotionUIComponent::takeIsUnderway ()
 {
-  return _engine.isRecording () || _recordingSlot.has_value ();
+  return _engine.isRecording () || _takeUnderway.any ();
 }
 
 bool
 A3MotionUIComponent::bandLockedOnShownSlot () const
 {
-  auto const shown = std::make_pair (_clipSettingsChannel, _clipSettingsSlot);
-  return _pendingTakes.locksTheBand (
-      shown.first, shown.second,
-      _recordingSlot.has_value () && *_recordingSlot == shown);
+  auto const &shown = _patterns[_clipSettingsChannel][_clipSettingsSlot];
+  return shown && shown->isBandHeld ();
+}
+
+ClipSettings
+A3MotionUIComponent::settingsToCarry (index_t channel, index_t slot) const
+{
+  auto const &pattern = _patterns[channel][slot];
+  if (!pattern)
+    return ClipSettings{};
+
+  auto const own = clipSettingsFrom (*pattern);
+  if (!pattern->isBandHeld ())
+    return own;
+
+  // A take: the band the slot had before it, as a running take or an unsaved
+  // one remembers it -- nothing but the default if the slot was empty.
+  auto const before = _takeUnderway.isOn (channel, slot)
+                          ? _takeUnderway.before ().pattern
+                          : _pendingTakes.forSet (channel, slot, {}).pattern;
+  return withBandOf (own, before ? clipSettingsFrom (*before)
+                                 : ClipSettings{});
 }
 
 void
@@ -8812,8 +8844,9 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
         // reaching for another shape reset everything that had been dialled
         // into the slot -- and the one thing the picture must not change is
         // how the slot is played.
-        auto const held
-            = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
+        // A take's whole-sphere band stays with the take: the new figure
+        // gets the band the slot had before it (settingsToCarry()).
+        auto const held = settingsToCarry (channel, slot);
         // And the knobs it plays, stretched onto the new figure.
         auto const heldLanes = pattern ? pattern->getLanes () : KnobLanes{};
 
@@ -9610,9 +9643,17 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
     _clipSettings->setKnobsLaneDriven (driven);
     _clipSettings->setKnobsWriting (writing);
 
-    // The band's knobs, still from the take to its Save or Discard.
+    // The band's knobs, still from the take to its Save or Discard. A finger
+    // already on one when the lock starts is let go of: the disabled knob
+    // never sees its mouseUp.
     std::array<bool, numKnobs> still{};
     auto const locked = bandLockedOnShownSlot ();
+    if (locked && !_bandLockShown)
+      {
+        releaseTheBand (_knobHold);
+        pushKnobHolds ();
+      }
+    _bandLockShown = locked;
     for (int k = 0; k < numKnobs; ++k)
       still[static_cast<std::size_t> (k)]
           = locked && isTakeBandKnob (static_cast<Knob> (k));

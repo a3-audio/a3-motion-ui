@@ -61,13 +61,6 @@ PendingTakes::offersKeys (index_t channel, index_t slot,
   return !takeUnderway && isPending (channel, slot);
 }
 
-bool
-PendingTakes::locksTheBand (index_t channel, index_t slot,
-                            bool takeOnSlot) const
-{
-  return takeOnSlot || isPending (channel, slot);
-}
-
 SlotContent
 PendingTakes::forSet (index_t channel, index_t slot,
                       SlotContent current) const

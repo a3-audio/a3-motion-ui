@@ -391,6 +391,9 @@ applyLanes (Pattern &pattern, KnobLanes const &lanes)
       auto const &lane = lanes[k];
       if (lane.empty () || ticks <= 0)
         continue;
+      // A take keeps the whole sphere: no lane moves its band.
+      if (pattern.isBandHeld () && isTakeBandKnob (static_cast<Knob> (k)))
+        continue;
 
       // Each change lands where it stood in the take, as a share of it.
       auto const scale

@@ -243,8 +243,20 @@ public:
   std::shared_ptr<Pattern> getRecordingPattern ();
   std::shared_ptr<Pattern> getScheduledForRecordingPattern ();
 
-  /** `seed`, if given, is the clip the take starts from -- see seedTake().
-   *  Read at the downbeat, so the clip may go on playing until then. */
+  /** A take, laid out here on the caller's thread and started on `timepoint`
+   *  (prepareTake(), 2026-10-08): its ticks and lanes, `seed` -- the clip it
+   *  starts from, see seedTake() -- copied in and moved into the whole
+   *  sphere, and its band held.
+   *
+   *  - `pattern` must be fresh: nobody else's, not scheduled, not playing.
+   *    It is written here, off the clock thread, before the engine has it.
+   *  - The seed is read now, not at the downbeat: REC over a clip that goes
+   *    on playing until then takes the clip as it was at the press. That
+   *    costs the caller some 43 ms for a 64-bar take.
+   *  - The sweeps are converted at the pass length, speed and bar length of
+   *    now. Changed between the press and the downbeat, the clip's sway and
+   *    swell are converted at the old ones -- the take is the clip as it
+   *    stood at REC. */
   void recordPattern (std::shared_ptr<Pattern> pattern, //
                       Measure timepoint, Measure length,
                       std::shared_ptr<Pattern> seed = nullptr);
@@ -299,6 +311,12 @@ public:
    *  Immediate, and deliberately: taking back a press is not a musical event.
    */
   void cancelScheduledPlay (std::shared_ptr<Pattern> pattern);
+
+  /** The same for a take asked for and not started: REC pressed again before
+   *  its downbeat. Its queued start then finds it no longer scheduled and
+   *  starts nothing -- before, it started anyway, a take in Loop nobody
+   *  owned, with isRecording() stuck and REC dead (2026-10-08). */
+  void cancelScheduledRecording (std::shared_ptr<Pattern> pattern);
 
   /** Whether that has been asked for and has not happened yet.
    *
@@ -386,6 +404,7 @@ private:
       Stop,
       StopAtEnd,
       CancelScheduledPlay,
+      CancelScheduledRecording,
       /** A pad went down or came up. Queued like everything else rather than
        *  written where it was pressed: the accent state is the clock
        *  thread's, and it used to be written from the message thread while

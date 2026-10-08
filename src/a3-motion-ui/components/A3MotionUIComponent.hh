@@ -45,6 +45,7 @@
 #include <a3-motion-ui/components/OverlayButtons.hh>
 #include <a3-motion-ui/components/OverlaySideStrips.hh>
 #include <a3-motion-ui/PendingTakes.hh>
+#include <a3-motion-ui/TakeUnderway.hh>
 #include <a3-motion-ui/SessionFile.hh>
 #include <a3-motion-ui/components/BrowserComponent.hh>
 #include <a3-motion-ui/components/EncoderMap.hh>
@@ -1215,11 +1216,11 @@ private:
   // [channel][slot], sized alongside _patterns in initializePatterns().
   std::vector<std::vector<ClipUIParams> > _clipUIParams;
 
-  /** Which slot the running recording belongs to, and what that slot held
-   *  before it started. The slot's pattern is replaced the moment recording
-   *  begins, so a take that turns out empty can only be undone by putting the
-   *  old one back. */
-  std::optional<std::pair<index_t, index_t> > _recordingSlot;
+  /** The take from REC until it ends: its slot, the take, and what the slot
+   *  held. The slot's pattern is replaced the moment recording begins, so a
+   *  take that turns out empty can only be undone by putting the old one
+   *  back. See TakeUnderway. */
+  TakeUnderway _takeUnderway;
   /** REC PAUSE: the slot ● armed, where ▶ will start the take. Only ever the
    *  shown slot -- showing another drops it. */
   std::optional<std::pair<index_t, index_t> > _recArmedSlot;
@@ -1228,10 +1229,6 @@ private:
   void startArmedTake ();
   /** Drops an arming the shown slot no longer has, and tells the bar. */
   void refreshRecArmed ();
-  std::shared_ptr<Pattern> _patternBeforeRecording;
-  /** The clip file the slot pointed at when the take began, beside
-   *  _patternBeforeRecording and for the same reason. */
-  juce::File _clipFileBeforeRecording;
   /** The takes nobody has saved yet. See PendingTakes and
    *  .claude/notes/rec-save-discard.md in the workspace. */
   PendingTakes _pendingTakes{ 0, 0 };
@@ -1249,9 +1246,16 @@ private:
   void refreshTakeState ();
   /** A take running or waiting for its downbeat, on any slot. */
   bool takeIsUnderway ();
-  /** Whether the band knobs of the clip on the bar are still: its slot's take
-   *  is armed, running or unsaved -- PendingTakes::locksTheBand(). */
+  /** Whether the band knobs of the clip on the bar are locked: it is a take
+   *  holding its band, from being laid out until saved or discarded
+   *  (Pattern::isBandHeld()). */
   bool bandLockedOnShownSlot () const;
+  /** Whether the bar showed the band locked on its last refresh. */
+  bool _bandLockShown = false;
+  /** The settings to carry from a slot's pattern onto a new figure put in it:
+   *  its own, except that a take's whole-sphere band is not carried -- the
+   *  band the slot had before the take is. */
+  ClipSettings settingsToCarry (index_t channel, index_t slot) const;
   /** Whether the ACT press being held landed on DISCARD, so its release
    *  is not taken for the end of an accent that never started. */
   bool _actPressWasDiscard = false;

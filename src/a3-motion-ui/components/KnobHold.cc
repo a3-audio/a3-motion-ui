@@ -60,4 +60,12 @@ KnobHold::isHeld (Knob knob, double nowMs) const
   return nudged && nowMs - *nudged < encoderHoldMs;
 }
 
+void
+releaseTheBand (KnobHold &hold)
+{
+  for (int k = 0; k < numKnobs; ++k)
+    if (isTakeBandKnob (static_cast<Knob> (k)))
+      hold.release (static_cast<Knob> (k));
+}
+
 }

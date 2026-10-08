@@ -78,7 +78,7 @@ knobAt (int section, int sub)
 
 /** Whether a turn, a reset or an encoder step on the knob at a place is
  *  refused: a band knob while the band is locked -- see isTakeBandKnob() and
- *  PendingTakes::locksTheBand(). */
+ *  Pattern::isBandHeld(). */
 constexpr bool
 refusedWhileBandLocked (int section, int sub, bool bandLocked)
 {
@@ -104,5 +104,11 @@ private:
   std::array<bool, numKnobs> _pressed{};
   std::array<std::optional<double>, numKnobs> _nudgedAt{};
 };
+
+/** The band locks with a finger already on one of its knobs: the knob is
+ *  disabled under the finger, and a disabled slider gets no mouseUp, so its
+ *  hold would never end. Let go of the band's knobs, and of nothing else. */
+void releaseTheBand (KnobHold &hold);
+
 
 }

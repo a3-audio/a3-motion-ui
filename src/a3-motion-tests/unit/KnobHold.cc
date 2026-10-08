@@ -109,3 +109,20 @@ TEST (KnobPlaces, ALockedBandRefusesItsKnobsAndNoOthers)
   // A place without a knob is not refused.
   EXPECT_FALSE (refusedWhileBandLocked (elevationSection, 99, true));
 }
+
+// A finger already on elv when the band locks: the knob is disabled under it,
+// and a disabled slider gets no mouseUp, so the hold would never end. The
+// lock lets go of the band's knobs and of nothing else (2026-10-08).
+TEST (KnobHold, LockingTheBandLetsGoOfItsKnobs)
+{
+  KnobHold hold;
+  hold.press (Knob::Elevation);
+  hold.press (Knob::Swell);
+  hold.press (Knob::Rotate);
+
+  releaseTheBand (hold);
+
+  EXPECT_FALSE (hold.isHeld (Knob::Elevation, 0.0));
+  EXPECT_FALSE (hold.isHeld (Knob::Swell, 0.0));
+  EXPECT_TRUE (hold.isHeld (Knob::Rotate, 0.0));
+}

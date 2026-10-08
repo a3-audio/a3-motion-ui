@@ -638,7 +638,11 @@ MotionEngine::recordPattern (std::shared_ptr<Pattern> pattern,
   // sphere. On the clock thread at the downbeat that cost a 64-bar take some
   // 43 ms -- eleven ticks at 120 BPM (2026-10-08).
   if (pattern)
-    prepareTake (*pattern, length, seed.get ());
+    {
+      // Fresh, so that nothing else reads it while it is laid out.
+      jassert (pattern->getStatus () == Pattern::Status::Empty);
+      prepareTake (*pattern, length, seed.get ());
+    }
 
   Message message;
   message.command = Message::Command::StartRecording;
@@ -713,6 +717,17 @@ MotionEngine::cancelScheduledPlay (std::shared_ptr<Pattern> pattern)
   Message message;
   message.command = Message::Command::CancelScheduledPlay;
   message.pattern = pattern;
+  message.timepoint = {};
+  message.length = {};
+  submitFifoMessage (message);
+}
+
+void
+MotionEngine::cancelScheduledRecording (std::shared_ptr<Pattern> pattern)
+{
+  Message message;
+  message.command = Message::Command::CancelScheduledRecording;
+  message.pattern = std::move (pattern);
   message.timepoint = {};
   message.length = {};
   submitFifoMessage (message);
@@ -1141,6 +1156,18 @@ MotionEngine::handleFifoMessage (Message const &message)
         message.pattern->restoreStatus ();
         break;
       }
+    case Message::Command::CancelScheduledRecording:
+      {
+        // As CancelScheduledPlay: the pointer startRecording() checks goes,
+        // and the start still queued finds nothing to start.
+        if (!message.pattern
+            || _patternScheduledForRecording != message.pattern)
+          break;
+
+        _patternScheduledForRecording = nullptr;
+        message.pattern->restoreStatus ();
+        break;
+      }
     case Message::Command::StopAtEnd:
       {
         // Nothing is scheduled and nothing is queued: the moment is not a
@@ -1305,6 +1332,11 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
                               std::shared_ptr<Pattern> const &seed)
 {
   if (!pattern)
+    return;
+
+  // A start whose take is no longer the one scheduled: called off, or
+  // replaced by a later REC (see scheduledForRecording()).
+  if (_patternScheduledForRecording != pattern)
     return;
 
   // Stop any currently recording pattern
@@ -1587,6 +1619,7 @@ MotionEngine::prepareTake (Pattern &take, Measure length,
   if (seed)
     seedTake (take, *seed);
   openTakeToTheWholeSphere (take, beatsPerBar, subSampling);
+  take.setBandHeld (true);
 }
 
 /** The take's band becomes the whole sphere (openToTheWholeSphere), and
