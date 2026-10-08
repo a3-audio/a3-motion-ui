@@ -77,6 +77,11 @@ public:
   std::function<void ()> onClockKeyTapped;
   /** The FULL/FPV key, right of CLOCK. */
   std::function<void ()> onViewKeyTapped;
+  /** BREATH, right of the view key, in FPV only: the ships' breath on or
+   *  off. */
+  std::function<void ()> onBreathKeyTapped;
+  /** Whether the ships breathe, so BREATH can wear it. */
+  void setBreathing (bool on);
   /** STEMDECK, at the right end: over to StemDeck's workspace. */
   std::function<void ()> onDeckKeyTapped;
   /** The arrow beside it: list the rig's workspaces. */
@@ -213,6 +218,7 @@ private:
   std::atomic<int> _beatClockBar{ 0 };
   std::atomic<int> _clockMode{ 0 };
   bool _fpv{ false }; // message thread only
+  bool _breathing{ false }; // message thread only
 };
 
 }

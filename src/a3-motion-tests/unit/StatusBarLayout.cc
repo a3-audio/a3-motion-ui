@@ -193,3 +193,38 @@ TEST (StatusBarLayout, AnEmptyRowLaysOutNothing)
   EXPECT_TRUE (l.readout.isEmpty ());
   EXPECT_TRUE (l.menuKey.isEmpty ());
 }
+
+// FPV adds the breath's key right of the view key (2026-10-08): the A/B the
+// MJ lab asked for, tapped while listening. FULL has no ships to breathe and
+// keeps its readings' room.
+TEST (StatusBarLayout, FullHasNoBreathKey)
+{
+  EXPECT_TRUE (deviceLayout ().breathKey.isEmpty ());
+}
+
+TEST (StatusBarLayout, FpvPutsTheBreathKeyRightOfTheViewKey)
+{
+  auto const l = statusBarLayout (rowOf (deviceWidth, barHeight), deviceWidth,
+                                  padding, true);
+
+  EXPECT_EQ (l.breathKey.getX (), l.viewKey.getRight ());
+  EXPECT_EQ (l.breathKey.getWidth (), l.viewKey.getWidth ());
+  EXPECT_EQ (l.breathKey.getHeight (), l.viewKey.getHeight ());
+  EXPECT_LE (l.breathKey.getRight (), l.bpm.getX ());
+  EXPECT_FALSE (l.bpm.isEmpty ());
+  EXPECT_FALSE (l.readout.isEmpty ());
+  EXPECT_LE (l.readout.getRight (), l.tick.getX ());
+}
+
+TEST (StatusBarLayout, FpvKeepsEveryOtherKeyWhereFullHasIt)
+{
+  auto const full = deviceLayout ();
+  auto const fpv = statusBarLayout (rowOf (deviceWidth, barHeight),
+                                    deviceWidth, padding, true);
+  EXPECT_EQ (fpv.clockKey, full.clockKey);
+  EXPECT_EQ (fpv.viewKey, full.viewKey);
+  EXPECT_EQ (fpv.tick, full.tick);
+  EXPECT_EQ (fpv.cleanKey, full.cleanKey);
+  EXPECT_EQ (fpv.menuKey, full.menuKey);
+  EXPECT_EQ (fpv.deckKey, full.deckKey);
+}

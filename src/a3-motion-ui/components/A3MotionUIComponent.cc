@@ -1428,6 +1428,14 @@ A3MotionUIComponent::createMainUI ()
       = [this] (int ch) { return _vuLevels.channel (ch, vuNowMs ()); };
   addChildComponent (*_fpvStrips);
   _statusBar->onViewKeyTapped = [this] { setView (toggled (_view)); };
+  // The breath is the engine's, for the session: the A/B against the planets
+  // the MJ lab asked for (2026-10-08), so nothing is saved.
+  _statusBar->onBreathKeyTapped = [this] {
+    auto const on = !_engine.getFlightBreath ();
+    _engine.setFlightBreath (on);
+    _statusBar->setBreathing (on);
+    updateControlReadout (on ? "BREATH ON" : "BREATH OFF");
+  };
 
   // Hidden: no longer part of the visible layout (see resized()), but these
   // keep receiving their normal update calls underneath.

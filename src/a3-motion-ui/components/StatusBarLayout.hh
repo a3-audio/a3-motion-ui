@@ -64,6 +64,8 @@ struct StatusBarLayout
   /** The clock mode's key, leading the row. */
   juce::Rectangle<int> clockKey;
   juce::Rectangle<int> viewKey;
+  /** FPV only: the breath on or off, right of the view key. Empty in FULL. */
+  juce::Rectangle<int> breathKey;
   /** Over to StemDeck's workspace, and the arrow that lists all of the
    *  rig's workspaces -- at the right end, where StemDeck has its switch. */
   juce::Rectangle<int> deckKey;
@@ -111,6 +113,6 @@ constexpr float statusTickHeightOfRow = 3.f / 5.f;
  *  width, because the beat display is centred on the bar and not on the row.
  *  `padding` is the air the labels are held off the bar's ends by. */
 StatusBarLayout statusBarLayout (juce::Rectangle<int> row, int barWidth,
-                                 int padding);
+                                 int padding, bool fpv = false);
 
 }
