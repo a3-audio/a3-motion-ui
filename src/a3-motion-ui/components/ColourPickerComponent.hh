@@ -39,6 +39,9 @@ namespace a3
  * the skin file stores is derived on the way out — the file keeps saying
  * what it always said.
  */
+/** What the picker's header says for a skin path. */
+juce::String colourPickerTitle (juce::String const &path);
+
 class ColourPickerComponent : public juce::Component,
                               private juce::ChangeListener
 {
@@ -47,6 +50,10 @@ public:
 
   void setColour (juce::Colour colour, juce::String const &title);
   juce::Colour getColour () const { return _colour; }
+  juce::String const &title () const { return _title; }
+
+  /** Put back the colour it opened with, tell the skin, and leave. */
+  void cancel ();
 
   /** Turn the encoder: pick a row, or move the armed row's value. */
   void navigate (int delta);
@@ -58,6 +65,11 @@ public:
   /** Tapped on the done button. The Menu button does the same thing; a
    *  touchscreen wants something to touch. */
   std::function<void ()> onDone;
+
+  /** Left without keeping the colour: Escape here, Back or MENU outside. */
+  std::function<void ()> onCancel;
+
+  bool keyPressed (juce::KeyPress const &key) override;
 
   void paint (juce::Graphics &g) override;
   void mouseDown (juce::MouseEvent const &event) override;
@@ -109,6 +121,7 @@ private:
   void resized () override;
 
   juce::Colour _colour{ juce::Colours::transparentBlack };
+  juce::Colour _openedWith{ juce::Colours::transparentBlack };
   juce::String _title;
   int _index = 0;      //< which of H, S, L is browsed
   bool _editing = false;

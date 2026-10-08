@@ -178,6 +178,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuFader.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PotKnob.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarRepaints.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ColourPickerUndo.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChannelPotTurn.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FirstSourceOnly.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/CameraFingers.cc"

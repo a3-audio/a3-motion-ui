@@ -529,6 +529,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _motionComponent->addChildComponent (*_colourPicker);
   _colourPicker->onColourChanged = [this] { applyPickedColour (); };
   _colourPicker->onDone = [this] { closeColourPicker (); };
+  _colourPicker->onCancel = [this] { closeColourPicker (); };
 
   // Clip Settings: permanent bottom panel, always visible.
   _clipSettings = std::make_unique<ClipSettingsComponent> ();
@@ -1887,8 +1888,9 @@ A3MotionUIComponent::closeAllOverlays ()
 {
   updateControlReadout ("-- CLOSE");
 
+  // Out of a mask without keeping it, the picker too (#55).
   if (_colourPickerOpen)
-    closeColourPicker ();
+    _colourPicker->cancel ();
   // Out of everything at once, and out of a mask without keeping it -- the
   // same as Back and Escape. Keeping is Enter's.
   if (_skinEditorOpen && _skinEditor->isNaming ())
@@ -2025,9 +2027,10 @@ A3MotionUIComponent::toggleGlobalSettings ()
     }
 
   // Back leaves a mask without keeping what was in it, the way Escape does:
-  // keeping is Enter's, or a tap on the value in a list.
+  // keeping is Enter's, or a tap on the value in a list -- and the picker's
+  // done (#55).
   if (_colourPickerOpen)
-    closeColourPicker ();
+    _colourPicker->cancel ();
   else if (_skinEditorOpen && _skinEditor->isNaming ())
     _skinEditor->cancelNaming ();
   else if (_skinEditorOpen)
