@@ -1758,7 +1758,8 @@ What a file means stays each list's (`LibraryList`: `fileAt`, `folder`, `extensi
   action (`slotsFiring`), every slot holding a clip (`applyClip`) or a figure (`putFigureInSlot`,
   a playing one plays on from the next beat); a set is only written -- loading stays Load's;
 - **Save as** writes a copy into the user half, named after the original (`freeFileIn`,
-  `copyBaseFor`); on ACTIONS the clip EDIT came from fires it, once (`takeEditOrigin`);
+  `copyBaseFor`) -- on SETS after the set that is loaded, "Tribal 2" (2026-10-08), whatever the
+  editor shows; on ACTIONS the clip EDIT came from fires it, once (`takeEditOrigin`);
 - **FROM** ("from clip", on SETS "from set") puts the current state in as the file's text,
   unsaved, written by the same writers Save used to call straight into the file
   (`currentStateText` through a temporary file) -- so there is one pair of Save keys, and you see

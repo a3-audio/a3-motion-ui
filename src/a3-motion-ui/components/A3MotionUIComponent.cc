@@ -2836,15 +2836,17 @@ A3MotionUIComponent::saveCurrentSession ()
 {
   auto set = buildSession ();
 
-  // A name that is not taken yet. Naming one by hand comes with the naming
-  // row; until then a set is "Set", "Set 2", "Set 3" -- countable, sayable,
-  // and findable in a list, which is what a name is for.
+  // A name that is not taken yet, after the set that is loaded -- "Tribal
+  // 2" beside "Tribal" (2026-10-08) -- or, with none loaded, "Set", "Set 2",
+  // "Set 3": countable, sayable, and findable in a list, which is what a
+  // name is for.
   //
   // In user/, counted against both halves: written into the folder's top
   // level, a new set was missing from the list, and its name was checked
   // against nothing -- so the Save after it wrote over an older set of the
   // same name.
-  auto const file = freeFileIn (sessionsDir (), "Set", ".json");
+  auto const file = freeFileIn (
+      sessionsDir (), copyBaseFor ({}, sessionsDir (), _sessionName), ".json");
   auto name = file.getFileNameWithoutExtension ();
   file.getParentDirectory ().createDirectory ();
 
@@ -3710,7 +3712,9 @@ A3MotionUIComponent::saveFileTextAs ()
   // came from. Counted against both halves, or a new file would take a
   // shipped name; written into the user half.
   auto const copy
-      = freeFileIn (list.folder (), copyBaseFor (_panelFile, list.folder ()), list.extension ());
+      = freeFileIn (list.folder (),
+                    copyBaseFor (_panelFile, list.folder (), _sessionName),
+                    list.extension ());
   if (!fileTextIsFitToWrite (fileErrorsOf (text, copy), copy))
     return;
 

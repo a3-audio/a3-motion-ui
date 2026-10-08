@@ -110,15 +110,20 @@ scriptErrorsOf (juce::String const &script)
 }
 
 juce::String
-copyBaseFor (juce::File const &from, juce::File const &folder)
+copyBaseFor (juce::File const &from, juce::File const &folder,
+             juce::String const &loadedSet)
 {
+  auto const list = folder.getFileName ();
+  auto const isSets = list == "sessions";
+  if (isSets && loadedSet.isNotEmpty ())
+    return loadedSet;
+
   if (from != juce::File{})
     return from.getFileNameWithoutExtension ();
 
   // Sets live in sessions/, but a set is called a set -- the same word
   // saveCurrentSession() names a new one with.
-  auto const list = folder.getFileName ();
-  if (list == "sessions")
+  if (isSets)
     return "Set";
   if (list == "clips")
     return "Clip";
