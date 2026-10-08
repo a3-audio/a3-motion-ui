@@ -264,18 +264,14 @@ isTappedTrajectory (std::vector<Pos> const &ticks)
   return places >= 1 && places <= maxTappedPositions;
 }
 
-/** Every run of ticks long enough to be a rest, with the tick it starts on,
- *  in tick order. A run that is still going at the end of the ring is cut
- *  there; whether it carries on at tick 0 is the caller's question. */
+/** Every run of at least `minRun` ticks that never leaves its spot, with the
+ *  tick it starts on, in tick order. A run that is still going at the end of
+ *  the ring is cut there; whether it carries on at tick 0 is the caller's
+ *  question. */
 static std::vector<TrajectoryHit>
-heldRuns (std::vector<Pos> const &ticks)
+heldRuns (std::vector<Pos> const &ticks, size_t minRun)
 {
   std::vector<TrajectoryHit> runs;
-
-  auto const minRun = std::max (
-      plateauMinTicks,
-      static_cast<size_t> (static_cast<float> (ticks.size ())
-                           * plateauMinFraction));
 
   // A run of consecutive ticks that never leaves the spot it started on. Only
   // a run long enough to be a rest is a place; the rest of the ticks are the
@@ -319,8 +315,14 @@ heldRuns (std::vector<Pos> const &ticks)
 std::vector<Pos>
 trajectoryPlateaus (std::vector<Pos> const &ticks)
 {
+  // A place is held for a share of the clip, so a long clip's passing
+  // touches are not counted as places.
+  auto const minRun = std::max (
+      plateauMinTicks,
+      static_cast<size_t> (static_cast<float> (ticks.size ())
+                           * plateauMinFraction));
   std::vector<Pos> plateaus;
-  for (auto const &run : heldRuns (ticks))
+  for (auto const &run : heldRuns (ticks, minRun))
     plateaus.push_back (run.position);
 
   // The loop's last held position and its first are one and the same when the
@@ -335,7 +337,10 @@ trajectoryPlateaus (std::vector<Pos> const &ticks)
 std::vector<TrajectoryHit>
 trajectoryHits (std::vector<Pos> const &ticks)
 {
-  auto hits = heldRuns (ticks);
+  // A hit is a landing however short, at any length of clip: a sixteen-bar
+  // gallop's sixteenths are shorter than a place's 1/64 of the clip, and
+  // were dropped when hits were read with the places' threshold.
+  auto hits = heldRuns (ticks, plateauMinTicks);
 
   // A hit is where a place is landed on, so a run that tick 0 merely carries
   // on from the end of the ring is the last hit, landed on before the loop

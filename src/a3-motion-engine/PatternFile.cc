@@ -522,9 +522,14 @@ flattenQuadratic (Vec2 p0, Vec2 p1, Vec2 p2,
  *  jump is still a jump. */
 static void
 placeTimedDots (std::vector<std::pair<float,float>> const &jumpDots,
-                std::vector<std::size_t> const &hitTicks,
+                std::vector<std::size_t> const &rawHitTicks,
                 std::size_t numTicks, std::vector<Pos> &outTicks)
 {
+  // A time past the clip's end comes round, as the generator's do.
+  std::vector<std::size_t> hitTicks;
+  for (auto const at : rawHitTicks)
+    hitTicks.push_back (at % numTicks);
+
   std::vector<std::size_t> order (jumpDots.size ());
   for (std::size_t i = 0; i < order.size (); ++i)
     order[i] = i;
@@ -535,9 +540,7 @@ placeTimedDots (std::vector<std::pair<float,float>> const &jumpDots,
 
   auto const landsOn = [&] (std::size_t tick) {
     return std::any_of (hitTicks.begin (), hitTicks.end (),
-                        [tick, numTicks] (std::size_t at) {
-                          return at % numTicks == tick;
-                        });
+                        [tick] (std::size_t at) { return at == tick; });
   };
 
   auto current = order.back ();
@@ -871,9 +874,13 @@ PatternFile::load (juce::File const &file)
           auto cx = child->getStringAttribute ("cx").getFloatValue ();
           auto cy = child->getStringAttribute ("cy").getFloatValue ();
           jumpDots.push_back ({ cx, cy });
-          everyDotTimed = everyDotTimed && child->hasAttribute (kAtAttribute);
-          hitTicks.push_back (static_cast<std::size_t> (
-              std::max (0, child->getIntAttribute (kAtAttribute))));
+          // A time that is not a whole number of ticks is no time.
+          auto const at = child->getStringAttribute (kAtAttribute).trim ();
+          auto const isTime
+              = at.isNotEmpty () && at.containsOnly ("0123456789");
+          everyDotTimed = everyDotTimed && isTime;
+          hitTicks.push_back (
+              isTime ? static_cast<std::size_t> (at.getLargeIntValue ()) : 0u);
         }
     }
 

@@ -349,3 +349,76 @@ TEST (PatternFileJumps, TheShippedRhythmShapesPlayTheirRhythm)
 }
 
 }
+
+// Hits are kept at any length: a sixteen-bar gallop's sixteenth-note hits are
+// shorter than the 1/64 of the clip a *place* has to be held for, and were
+// dropped -- 64 dots written of 192 hits.
+TEST (PatternFileJumps, ALongGallopKeepsEveryHit)
+{
+  static HeightMapSphere const heightMap;
+  std::shared_ptr<Pattern> const gallop
+      = PatternGenerator::createGallop (64, 0.8f, heightMap);
+  auto const file = tempSvg ("a3-long-gallop.svg");
+  ASSERT_TRUE (PatternFile::save (gallop, file));
+
+  auto const xml = juce::XmlDocument::parse (file);
+  ASSERT_NE (xml, nullptr);
+  auto circles = 0;
+  for (auto *child : xml->getChildWithTagNameIterator ("circle"))
+    {
+      juce::ignoreUnused (child);
+      ++circles;
+    }
+  EXPECT_EQ (circles, 16 * 12) << "twelve hits a bar, sixteen bars";
+
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+  expectSameRhythm (*gallop, *loaded, "Gallop, 16 bars");
+  file.deleteFile ();
+}
+
+// A time past the clip's end comes round, as the generator's do.
+TEST (PatternFileJumps, ATimePastTheEndComesRound)
+{
+  auto const file = handWrittenDots (
+      "a3-past-the-end.svg",
+      "<circle cx=\"-1\" cy=\"0\" r=\"0.05\" data-at=\"576\"/>"
+      "<circle cx=\"1\" cy=\"0\" r=\"0.05\" data-at=\"320\"/>");
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+  EXPECT_NEAR (loaded->getTick (0).x (), 1.f, 1e-4f);
+  EXPECT_FALSE (loaded->getTick (63).isValid ());
+  EXPECT_NEAR (loaded->getTick (64).x (), -1.f, 1e-4f);
+  EXPECT_NEAR (loaded->getTick (318).x (), -1.f, 1e-4f);
+  file.deleteFile ();
+}
+
+// A time that is not a number is no time: the file is read the old way.
+TEST (PatternFileJumps, ATimeThatIsNoNumberIsNoTime)
+{
+  auto const file = handWrittenDots (
+      "a3-not-a-time.svg",
+      "<circle cx=\"-1\" cy=\"0\" r=\"0.05\" data-at=\"soon\"/>"
+      "<circle cx=\"1\" cy=\"0\" r=\"0.05\" data-at=\"320\"/>");
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+  EXPECT_NEAR (loaded->getTick (0).x (), -1.f, 1e-4f)
+      << "the first dot starts the clip, as untimed dots do";
+  EXPECT_NEAR (loaded->getTick (300).x (), 1.f, 1e-4f);
+  file.deleteFile ();
+}
+
+// The dots may come in any order; their times say which is first.
+TEST (PatternFileJumps, HitsOutOfOrderPlayInTimeOrder)
+{
+  auto const file = handWrittenDots (
+      "a3-out-of-order.svg",
+      "<circle cx=\"1\" cy=\"0\" r=\"0.05\" data-at=\"320\"/>"
+      "<circle cx=\"-1\" cy=\"0\" r=\"0.05\" data-at=\"64\"/>");
+  auto const loaded = PatternFile::load (file);
+  ASSERT_NE (loaded, nullptr);
+  EXPECT_NEAR (loaded->getTick (0).x (), 1.f, 1e-4f);
+  EXPECT_NEAR (loaded->getTick (64).x (), -1.f, 1e-4f);
+  EXPECT_NEAR (loaded->getTick (320).x (), 1.f, 1e-4f);
+  file.deleteFile ();
+}
