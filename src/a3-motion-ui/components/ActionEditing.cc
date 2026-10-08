@@ -109,6 +109,26 @@ scriptErrorsOf (juce::String const &script)
   return runActionScript (script, ClipSettings{}, 0).errors;
 }
 
+namespace
+{
+/** "Tribal" for "Tribal 2" when a "Tribal" is there to count on from, so a
+ *  copy of a copy is "Tribal 3" rather than "Tribal 2 2". A name that only
+ *  ends in a number ("Acid 303") has nothing to count from and stays. */
+juce::String
+countedFrom (juce::String const &name, juce::File const &folder,
+             juce::String const &extension)
+{
+  auto const space = name.lastIndexOfChar (' ');
+  if (space <= 0)
+    return name;
+  auto const tail = name.substring (space + 1);
+  if (!tail.containsOnly ("0123456789"))
+    return name;
+  auto const base = name.substring (0, space);
+  return namedFileIn (folder, base, extension).existsAsFile () ? base : name;
+}
+}
+
 juce::String
 copyBaseFor (juce::File const &from, juce::File const &folder,
              juce::String const &loadedSet)
@@ -116,7 +136,7 @@ copyBaseFor (juce::File const &from, juce::File const &folder,
   auto const list = folder.getFileName ();
   auto const isSets = list == "sessions";
   if (isSets && loadedSet.isNotEmpty ())
-    return loadedSet;
+    return countedFrom (loadedSet, folder, ".json");
 
   if (from != juce::File{})
     return from.getFileNameWithoutExtension ();
