@@ -208,6 +208,7 @@ target_sources(a3-motion-ui-shared PRIVATE
     theme/PadStatusColours.cc
     components/ChannelValueReset.cc
     components/RecordingIndicator.cc
+    components/ClockModeTempo.cc
     components/LibraryKeys.cc
     components/ActionEditing.cc
     components/ActionEditing.hh

@@ -76,6 +76,7 @@
 #include <a3-motion-engine/SplitFolder.hh>
 #include <a3-motion-engine/TextFile.hh>
 #include <a3-motion-ui/components/RecordingIndicator.hh>
+#include <a3-motion-ui/components/ClockModeTempo.hh>
 #include <a3-motion-ui/theme/PadStatusColours.hh>
 #include <a3-motion-ui/theme/CleanSkin.hh>
 #include <a3-motion-ui/components/SceneLaunch.hh>
@@ -7486,15 +7487,13 @@ A3MotionUIComponent::applyClockMode (int mode)
   if (mode == _clockMode)
     return;
 
+  _internalBPM = internalTempoKept (_clockMode, mode, _internalBPM,
+                                    _engine.getTempoBPM ());
   _clockMode = mode;
   _beatArrival.follow.store (_clockMode != 0);
 
   if (_clockMode != 0)
-    {
-      if (std::abs (_internalBPM) < 0.0001f)
-        _internalBPM = _engine.getTempoBPM ();
-      _engine.resetTempo ();
-    }
+    _engine.resetTempo ();
   else
     {
       if (_internalBPM > 0.f)
