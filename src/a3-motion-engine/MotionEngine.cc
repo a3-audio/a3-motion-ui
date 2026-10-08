@@ -1358,6 +1358,11 @@ MotionEngine::handleStartStopMessages ()
         case Message::Command::SetRecordingMode:
         case Message::Command::ArmFollow:
         case Message::Command::RequestGame:
+        case Message::Command::StopAtEnd:
+        case Message::Command::CancelScheduledPlay:
+        case Message::Command::CancelScheduledRecording:
+        case Message::Command::SetAccentHeld:
+        case Message::Command::SetChannelAction:
           {
             throw std::runtime_error (
                 "invalid command message in start/stop queue");
