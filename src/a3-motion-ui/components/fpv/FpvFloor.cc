@@ -79,21 +79,50 @@ FpvEscorts::forget (int bodyId)
   return changed;
 }
 
+namespace
+{
+FlightBody const *
+bodyWithId (FlightBodies const &bodies, int id)
+{
+  if (id == noBodyId)
+    return nullptr;
+  for (auto i = 0; i < std::min (bodies.count, maxFlightBodies); ++i)
+    if (bodies.body[static_cast<size_t> (i)].id == id)
+      return &bodies.body[static_cast<size_t> (i)];
+  return nullptr;
+}
+
+bool
+isDeadZone (FlightBody const &body)
+{
+  return bodyRole (body.mass) == BodyRole::Repel;
+}
+}
+
+std::array<bool, fpvShips>
+FpvEscorts::dropDeadZones (FlightBodies const &bodies)
+{
+  std::array<bool, fpvShips> changed{};
+  for (auto ch = 0u; ch < _escort.size (); ++ch)
+    {
+      auto const *body = bodyWithId (bodies, _escort[ch]);
+      if (body == nullptr || !isDeadZone (*body))
+        continue;
+      _escort[ch] = noBodyId;
+      changed[ch] = true;
+    }
+  return changed;
+}
+
 EscortView
 escortView (int escortId, bool orbit, FlightBodies const &bodies)
 {
-  if (!orbit || escortId == noBodyId)
+  if (!orbit)
     return {};
-  for (auto i = 0; i < std::min (bodies.count, maxFlightBodies); ++i)
-    {
-      auto const &body = bodies.body[static_cast<size_t> (i)];
-      if (body.id != escortId)
-        continue;
-      if (bodyRole (body.mass) == BodyRole::Repel)
-        return {};
-      return { escortId, body.mass };
-    }
-  return {};
+  auto const *body = bodyWithId (bodies, escortId);
+  if (body == nullptr || isDeadZone (*body))
+    return {};
+  return { escortId, body->mass };
 }
 
 void

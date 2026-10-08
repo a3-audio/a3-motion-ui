@@ -91,6 +91,12 @@ public:
    *  the next group can take its number. Answers which channels changed. */
   std::array<bool, fpvShips> forget (int bodyId);
 
+  /** A ship does not escort a dead zone: an escort onto one, or of a group
+   *  cycled to X, goes back to patrol for good, so cycling the zone back to
+   *  a group later does not silently capture the ship again. Answers which
+   *  channels changed. */
+  std::array<bool, fpvShips> dropDeadZones (FlightBodies const &bodies);
+
 private:
   std::array<int, fpvShips> _escort{ noBodyId, noBodyId, noBodyId, noBodyId };
 };

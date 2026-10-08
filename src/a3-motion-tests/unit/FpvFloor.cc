@@ -101,6 +101,25 @@ TEST (FpvFloor, ARemovedBodyLetsItsEscortsGo)
   EXPECT_FALSE (changed[3]);
 }
 
+TEST (FpvFloor, AnEscortOntoADeadZoneIsDropped)
+{
+  FpvEscorts escorts;
+  escorts.set (0, 1);
+  escorts.set (1, 2);
+  auto deadZoneAndGroup = floorWith ({ { { 0.f, 0.f }, -2.f, 1 },
+                                       { { 0.5f, 0.f }, 2.f, 2 } });
+  auto const changed = escorts.dropDeadZones (deadZoneAndGroup);
+  EXPECT_EQ (escorts.of (0), noBodyId) << "a ship does not escort a dead zone";
+  EXPECT_EQ (escorts.of (1), 2);
+  EXPECT_TRUE (changed[0]);
+  EXPECT_FALSE (changed[1]);
+
+  // Cycled back to a group later, the zone does not capture the ship again.
+  deadZoneAndGroup.body[0].mass = 1.f;
+  EXPECT_FALSE (escorts.dropDeadZones (deadZoneAndGroup)[0]);
+  EXPECT_EQ (escorts.of (0), noBodyId);
+}
+
 TEST (FpvFloor, AChannelOutOfRangeChangesNothing)
 {
   FpvEscorts escorts;

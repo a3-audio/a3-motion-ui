@@ -1999,18 +1999,26 @@ A3MotionUIComponent::removeFloorBody (int bodyId)
   // Ids are reused: every ship escorting this one patrols before the floor
   // without it goes out, so the next group to take the number inherits no
   // escort.
-  auto const changed = _fpvEscorts.forget (bodyId);
-  for (auto ch = 0u; ch < changed.size (); ++ch)
-    if (changed[ch])
-      _engine.setFlightTarget (ch, noBodyId);
+  patrol (_fpvEscorts.forget (bodyId));
   _fpvPageHold.bodyRemoved (bodyId);
   _floorBodies.remove (bodyId);
   publishFloor ();
 }
 
 void
+A3MotionUIComponent::patrol (std::array<bool, fpvShips> const &channels)
+{
+  for (auto ch = 0u; ch < channels.size (); ++ch)
+    if (channels[ch])
+      _engine.setFlightTarget (ch, noBodyId);
+}
+
+void
 A3MotionUIComponent::publishFloor ()
 {
+  // A group cycled to X lets its escorts go for good, before the floor with
+  // the zone goes out.
+  patrol (_fpvEscorts.dropDeadZones (_floorBodies.snapshot ()));
   _engine.setFlightBodies (_floorBodies.snapshot ());
   refreshFlightDisplay ();
   refreshFpvStrips ();
@@ -2066,8 +2074,12 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
                                  : FlightMode::Clip);
       break;
     case PageOutcome::Escort:
+      // Onto a dead zone the ship patrols, and stays on patrol when the zone
+      // is cycled back to a group.
       _fpvEscorts.set (static_cast<int> (channel), bodyId);
-      _engine.setFlightTarget (channel, bodyId);
+      _fpvEscorts.dropDeadZones (_floorBodies.snapshot ());
+      _engine.setFlightTarget (channel,
+                               _fpvEscorts.of (static_cast<int> (channel)));
       _engine.setFlightMode (channel, FlightMode::Orbit);
       break;
     case PageOutcome::Patrol:

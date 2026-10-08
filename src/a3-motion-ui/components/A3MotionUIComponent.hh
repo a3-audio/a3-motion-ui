@@ -743,6 +743,8 @@ private:
   void wireFloor ();
   /** The bodies to the engine, and what the sphere draws of them. */
   void publishFloor ();
+  /** The marked channels' ships back to patrol in the engine. */
+  void patrol (std::array<bool, fpvShips> const &channels);
   /** What the sphere draws of the field: every UI tick in FPV. */
   void refreshFlightDisplay ();
   void removeFloorBody (int bodyId);
