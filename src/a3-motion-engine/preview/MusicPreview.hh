@@ -25,10 +25,9 @@
 namespace a3
 {
 
-/** Where the music is, as StemDeck's preview says (/stemdeck/ahead, spec
- *  fpv-pilots phase A). Motion analyses no audio: this is what it knows of
- *  the set's sections, and nothing here acts on it yet -- the pilots' games
- *  (phase C) will. */
+/** Where the music is, as StemDeck's preview (the `stemdeck.ahead` word)
+ *  says. Motion analyses no audio: this is all it knows of the set's
+ *  sections, and nothing acts on it yet. */
 enum class MusicSection
 {
   Groove,
@@ -56,7 +55,7 @@ struct MusicAhead
   float energy{ 0.f };
 };
 
-/** One /stemdeck/ahead's arguments as a preview. Nothing for words StemDeck
+/** One `stemdeck.ahead` message's arguments as a preview. Nothing for words StemDeck
  *  does not send -- and for "none", which the caller asks first
  *  (isNoMusic), because it means something: the preview is gone. */
 std::optional<MusicAhead> musicAheadFrom (std::string const &section,

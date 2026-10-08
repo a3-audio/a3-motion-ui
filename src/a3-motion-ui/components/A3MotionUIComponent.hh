@@ -629,8 +629,8 @@ private:
     juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
-  /** StemDeck's preview of the music, with its age (spec fpv-pilots,
-   *  phase A). Held only: the pilots' games (phase C) read
+  /** StemDeck's preview of the music, with its age. Held only,
+   *  nothing acts on it yet; a reader asks
    *  _musicPreview.current (now, _engine.getTempoBPM ()). */
   MusicPreview _musicPreview;
   /** The engine's own beats, stamped on the clock's thread. */

@@ -134,7 +134,7 @@ public:
      *  not this one. */
     virtual void onFilterValue (int slot, float value) = 0;
 
-    /** StemDeck's preview of the music (/stemdeck/ahead, relayed by Core):
+    /** StemDeck's preview of the music (the `stemdeck.ahead` word, relayed by Core):
      *  where the audible deck is in its set and what comes next. Nothing:
      *  StemDeck said "none" -- no deck is heard, or it is not analysed. A
      *  message Motion cannot read is not reported at all, so the last good

@@ -103,8 +103,8 @@ struct OscAddresses
   /** The beat clock coming in -- followed in EXT and PIO mode. The same
    *  address as beatOut; which one is in use follows the clock mode. */
   juce::String beatIn;
-  /** StemDeck's preview of the music, relayed by Core (spec fpv-pilots,
-   *  phase A). **Optional, and empty when the truth lacks it** -- the one
+  /** StemDeck's preview of the music, relayed by Core.
+   *  **Optional, and empty when the truth lacks it** -- the one
    *  exception to "no default": it is only listened for, never sent, and a
    *  truth from before it must stay usable (optionalOscAddressKeys). */
   juce::String stemdeckAhead;

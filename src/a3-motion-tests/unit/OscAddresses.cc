@@ -168,7 +168,7 @@ TEST (OscAddresses, TheAddressTableIsAsLongAsTheControlTable)
   EXPECT_EQ (numFilterAddresses, numFilterControls);
 }
 
-// StemDeck's preview is optional (spec fpv-pilots, phase A): a truth from
+// StemDeck's preview is optional: a truth from
 // before it is still usable, and Motion simply hears no preview.
 TEST (OscAddresses, StemDecksPreviewIsOptional)
 {
