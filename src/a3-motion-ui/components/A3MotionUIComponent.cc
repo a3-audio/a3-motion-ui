@@ -47,6 +47,7 @@
 #include <a3-motion-engine/ClipFile.hh>
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-ui/components/fpv/ActionReach.hh>
 #include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
@@ -695,13 +696,17 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _clipSettings->onAccentHeld = [this] (bool held) {
     auto const channel = _clipSettingsChannel;
     auto const slot = _clipSettingsSlot;
-    if (held)
-      _engine.setChannelAction (
-          channel, firedActionOf (channel, _chosenActionButton[channel]));
-    _engine.setChannelAccentHeld (channel, held,
-                                  held ? _patterns[channel][slot] : nullptr);
+    // The readout first, so that a game's readout is the one that stays.
     updateControlReadout (juce::String ("CH") + juce::String (channel + 1)
                           + " ACTION");
+    if (held)
+      {
+        auto const button = _chosenActionButton[channel];
+        sendFiredAction (channel, firedActionOf (channel, button),
+                         "A" + juce::String (button + 1));
+      }
+    _engine.setChannelAccentHeld (channel, held,
+                                  held ? _patterns[channel][slot] : nullptr);
   };
 
   _clipSettings->onControlDragged = [this] (int section, int sub,
@@ -2705,7 +2710,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // it: the engine takes the clip's settings down at the moment the
         // accent starts, and it can only do that if it already knows there is
         // something to put in their place.
-        _engine.setChannelAction (channel, fired);
+        sendFiredAction (channel, fired, name);
         _engine.setChannelAccentHeld (channel, true, pattern);
 
         if (!pattern || pattern->getStatus () != Pattern::Status::Idle)
@@ -2734,7 +2739,7 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         // In Hold the clip belongs to the finger for as long as it is down.
         // Remembered here rather than worked out on release, and read from
         // the button -- how it is played is the button's (2026-09-27).
-        if (fired->actMode == ActMode::Hold)
+        if (fired->settings.actMode == ActMode::Hold)
           _actHeldSlot[channel] = button;
         break;
       }
@@ -3755,7 +3760,7 @@ A3MotionUIComponent::shownActionButton ()
   return &_channelActions[channel][static_cast<size_t> (button)];
 }
 
-std::optional<ClipSettings>
+std::optional<FiredAction>
 A3MotionUIComponent::firedActionOf (index_t channel, int button)
 {
   if (channel >= _channelActions.size () || channel >= _accentBase.size ()
@@ -3771,7 +3776,26 @@ A3MotionUIComponent::firedActionOf (index_t channel, int button)
       auto const &pattern = _patterns[channel][0];
       base = pattern ? clipSettingsFrom (*pattern) : ClipSettings{};
     }
-  return resolveActionAt (action.source, *base, action.seed, action.feel);
+  return fireActionAt (action.source, *base, action.seed, action.feel);
+}
+
+void
+A3MotionUIComponent::sendFiredAction (index_t channel,
+                                      std::optional<FiredAction> const &fired,
+                                      juce::String const &padName)
+{
+  if (!fired)
+    {
+      _engine.setChannelAction (channel, std::nullopt);
+      return;
+    }
+  _engine.setChannelAction (channel, fired->settings, fired->flight);
+  if (auto const order = pilotOrderAtPress (_view, fired->pilot))
+    {
+      _engine.requestGame (channel, *order);
+      updateControlReadout (
+          pilotReadout (static_cast<int> (channel), padName, *order->game));
+    }
 }
 
 juce::File
@@ -5524,7 +5548,7 @@ A3MotionUIComponent::fireChainedAction (index_t channel, int button)
 
   // Nobody holds a chained action, so a Hold button plays as a one-shot:
   // held by no finger, it would fall the instant it rose.
-  fired->actMode = ActMode::OneShot;
+  fired->settings.actMode = ActMode::OneShot;
 
   _actionChains[channel].pressed (button, _engine.accentEndCount (channel));
   if (channel < _actionSlot.size ())
@@ -5533,7 +5557,7 @@ A3MotionUIComponent::fireChainedAction (index_t channel, int button)
   // As if pressed and let go: the accent and what it throws the clip to,
   // and a clip the last action stopped starts again, as a press starts it.
   auto const &pattern = _patterns[channel][0];
-  _engine.setChannelAction (channel, fired);
+  sendFiredAction (channel, fired, "A" + juce::String (button + 1));
   _engine.setChannelAccentHeld (channel, true, pattern);
   _engine.setChannelAccentHeld (channel, false, nullptr);
   if (pattern && pattern->getStatus () == Pattern::Status::Idle)

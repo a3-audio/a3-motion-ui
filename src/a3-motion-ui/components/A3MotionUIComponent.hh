@@ -33,6 +33,7 @@
 #include <a3-motion-engine/DeviceHello.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/ClipFile.hh>
+#include <a3-motion-engine/FiredAction.hh>
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
@@ -1031,9 +1032,17 @@ private:
   /** The button the ACTION page shows and edits. */
   ActionButton *shownActionButton ();
   /** What a button fires: its script worked out against the clip as it
-   *  stands before any accent (resolveActionAt), with its own feel on, or
+   *  stands before any accent (fireActionAt), with its own feel on -- the
+   *  clip's settings, what a flying ship does, what the pilot is asked -- or
    *  nothing for a button with no action. */
-  std::optional<ClipSettings> firedActionOf (index_t channel, int button);
+  std::optional<FiredAction> firedActionOf (index_t channel, int button);
+  /** The one route a fired action takes into the engine: the clip's settings
+   *  and the ship's motion together, so the engine takes both at the press,
+   *  and the Pilot section to the pilot when the view says so
+   *  (pilotOrderAtPress). `fired` empty clears the channel's action. From the
+   *  message thread only: requestGame queues into a single-producer FIFO. */
+  void sendFiredAction (index_t channel, std::optional<FiredAction> const &fired,
+                        juce::String const &padName);
   /** The clip's settings from before the running accent, so a second press
    *  during an accent is worked out against the clip, not against the first
    *  action. Taken afresh whenever no accent runs. */

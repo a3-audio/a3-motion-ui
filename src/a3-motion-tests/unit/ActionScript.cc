@@ -23,6 +23,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/ActionScript.hh>
+#include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-engine/TempoLfo.hh>
 
 #include "ClipSettingsFields.hh"
@@ -694,7 +695,7 @@ TEST (ActionScript, TheClipLineTakesTextOnly)
   EXPECT_FALSE (r.clip.has_value ());
 }
 
-// Review focus 5: the comment cut comes first, so text can't carry "//"; an
+// The comment cut comes first, so text can't carry "//"; an
 // unclosed quote is reported rather than read to the end of the line.
 TEST (ActionScript, AnUnclosedTextIsReported)
 {
@@ -740,4 +741,101 @@ TEST (ActionScript, TheTemplateOffersThenCommentedOut)
 {
   EXPECT_TRUE (actionScriptTemplate ().contains ("//~then = 1;"));
   EXPECT_TRUE (actionScriptNames ().contains ("then"));
+}
+
+// -- The Pilot section (FPV, 2026-10-08) ------------------------------
+// What the channel's pilot is asked to play. Read and kept with the action;
+// FULL ignores it.
+
+TEST (ActionScript, APilotSectionNamesAGameATargetAndWhoComes)
+{
+  auto const r = runActionScript (
+      "~game = \\fakeout;\n~target = \\group3;\n~with = \\all;\n", ClipSettings{}, 1);
+  EXPECT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("; ");
+  ASSERT_TRUE (r.pilot.game.has_value ());
+  EXPECT_EQ (*r.pilot.game, PilotGame::FakeOut);
+  EXPECT_EQ (r.pilot.target.kind, PilotTargetKind::Group);
+  EXPECT_EQ (r.pilot.target.groupId, 2);
+  EXPECT_EQ (r.pilot.with, PilotRecruit::All);
+  EXPECT_TRUE (r.assigned.contains ("game"));
+  EXPECT_TRUE (r.assigned.contains ("target"));
+  EXPECT_TRUE (r.assigned.contains ("with"));
+}
+
+TEST (ActionScript, AScriptWithoutAPilotSectionAsksNoGame)
+{
+  auto const r = runActionScript ("~spin = 3;", ClipSettings{}, 1);
+  EXPECT_FALSE (r.pilot.game.has_value ());
+}
+
+// \none written out is a word with a meaning -- "no game", which calls off one
+// still waiting -- not the same as a line left commented.
+TEST (ActionScript, TheNoneGameIsAGameNamed)
+{
+  auto const r = runActionScript ("~game = \\none;", ClipSettings{}, 1);
+  EXPECT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("; ");
+  ASSERT_TRUE (r.pilot.game.has_value ());
+  EXPECT_EQ (*r.pilot.game, PilotGame::None);
+}
+
+TEST (ActionScript, APilotLineTakesOnlyItsOwnWords)
+{
+  for (auto const *line : { "~game = \\spin;", "~game = 3;", "~target = \\group9;",
+                            "~target = \\group0;", "~with = \\some;" })
+    {
+      auto const r = runActionScript (line, ClipSettings{}, 1);
+      ASSERT_EQ (r.errors.size (), 1) << line;
+      EXPECT_TRUE (r.errors[0].contains ("takes")) << line << ": " << r.errors[0];
+      EXPECT_FALSE (r.pilot.game.has_value ()) << line;
+    }
+  auto const quoted = runActionScript ("~game = \"fakeout\";", ClipSettings{}, 1);
+  EXPECT_EQ (quoted.errors.size (), 1);
+}
+
+TEST (ActionScript, APilotLineLeavesTheClipAlone)
+{
+  ClipSettings turned;
+  turned.spin = 5;
+  turned.reach = 0.25f;
+  auto const r = runActionScript ("~game = \\formation;\n~with = \\nearest;\n", turned, 1);
+  EXPECT_EQ (r.settings, turned);
+}
+
+TEST (ActionScript, ThePilotChoiceCanBeLeftToTheDice)
+{
+  auto const source = "~game = [\\fakeout, \\hideseek].choose;";
+  auto const first = runActionScript (source, ClipSettings{}, 11);
+  auto const again = runActionScript (source, ClipSettings{}, 11);
+  EXPECT_TRUE (first.errors.isEmpty ()) << first.errors.joinIntoString ("; ");
+  ASSERT_TRUE (first.pilot.game.has_value ());
+  EXPECT_TRUE (*first.pilot.game == PilotGame::FakeOut || *first.pilot.game == PilotGame::HideAndSeek);
+  EXPECT_EQ (*first.pilot.game, *again.pilot.game) << "the same seed lands in the same place";
+}
+
+TEST (ActionScript, TheTemplateOffersThePilotSectionCommentedOut)
+{
+  auto const text = actionScriptTemplate ();
+  EXPECT_TRUE (text.contains ("// ---- Pilot "));
+  EXPECT_TRUE (text.contains ("//~game = \\none;"));
+  EXPECT_TRUE (text.contains ("//~target = \\nearest;"));
+  EXPECT_TRUE (text.contains ("//~with = \\self;"));
+  EXPECT_FALSE (runActionScript (text, ClipSettings{}, 1).pilot.game.has_value ());
+  EXPECT_TRUE (actionScriptFor (ClipSettings{}).contains ("//~game = \\none;"))
+      << "FROM CLIP writes the section too, commented";
+  for (auto const *name : { "game", "target", "with" })
+    EXPECT_TRUE (actionScriptNames ().contains (name)) << name;
+}
+
+// Every script on the rig was written before this section.
+TEST (ActionScript, AScriptWrittenBeforeThePilotSectionStillReads)
+{
+  auto const before = actionScriptTemplate ()
+                          .upToFirstOccurrenceOf ("// ---- Pilot", false, false)
+                          .trimEnd () + "\n";
+  ASSERT_FALSE (before.contains ("~game"));
+  auto const r = runActionScript (before, ClipSettings{}, 1);
+  EXPECT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("; ");
+  EXPECT_FALSE (r.pilot.game.has_value ());
+  EXPECT_FALSE (setScriptLine (before, "spin", "3").contains ("~game"))
+      << "a knob turn on ACTION adds no Pilot lines";
 }

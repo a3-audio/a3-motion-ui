@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/ActionMotion.hh>
 #include <a3-motion-engine/ClipSettings.hh>
+#include <a3-motion-engine/PilotOrder.hh>
 
 #include <JuceHeader.h>
 
@@ -81,6 +82,11 @@ struct ActionScriptResult
   /** The button, 0-based, a `~then = N;` line fires when this action's
    *  accent is over (2026-09-29). Empty: nothing after. */
   std::optional<int> then;
+
+  /** The Pilot section (FPV): what the channel's pilot is asked to
+   *  play. Not a ClipSettings field -- it says what the ship does, not how
+   *  the clip plays -- and FULL ignores it. `pilot.game` empty: no game. */
+  PilotOrder pilot;
 };
 
 /** Read a script and work out what it makes of the settings it is given.

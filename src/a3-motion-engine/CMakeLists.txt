@@ -55,6 +55,8 @@ target_sources("a3-motion-engine" PRIVATE
     Measure.cc
     Measure.hh
     ActionScript.cc
+    PilotOrder.cc
+    FiredAction.cc
     ScriptLine.cc
     ActionMotion.cc
     ClipFile.cc
@@ -70,6 +72,8 @@ target_sources("a3-motion-engine" PRIVATE
     RecordingSeam.cc
     PlaybackRate.cc
     ActionScript.hh
+    PilotOrder.hh
+    FiredAction.hh
     ActionMotion.hh
     ClipFile.hh
     ClipMigration.hh
@@ -147,6 +151,12 @@ target_sources("a3-motion-engine" PRIVATE
     flight/ShipDynamics.hh
     flight/FlightWorld.cc
     flight/FlightWorld.hh
+    flight/FlightMotion.cc
+    flight/FlightMotion.hh
+    flight/ShipHearing.cc
+    flight/ShipHearing.hh
+    flight/PilotDesk.cc
+    flight/PilotDesk.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh

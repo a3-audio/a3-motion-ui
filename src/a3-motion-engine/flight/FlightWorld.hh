@@ -21,6 +21,7 @@
 #pragma once
 
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-engine/flight/FlightMotion.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-engine/flight/ShipDynamics.hh>
 
@@ -48,6 +49,12 @@ struct ShipOrders
   bool flying = false;
   FlightGoal goal = FlightGoal::Patrol;
   int bodyId = noBodyId;
+  /** What an action fired at the channel asks of its ship, and
+   *  whether it is asking now: the engine says driven while the accent runs.
+   *  The world eases in and out over motionRampBeats and keeps the motion
+   *  while it lets go. */
+  FlightMotion motion{};
+  bool driven = false;
 };
 
 /** The four ships in one gravity field.
@@ -70,6 +77,12 @@ public:
              float pulse, float dt);
 
   ShipState const &ship (int ch) const;
+
+  /** How far an action has hold of ship `ch`, 0..1: up over motionRampBeats
+   *  while driven, down over as long after. */
+  float motionWeight (int ch) const;
+  /** The action ship `ch` flies by, kept while it lets go; empty at 0. */
+  FlightMotion const &motion (int ch) const;
 
   /** The breath (see Breath.hh): while on, every ship stands still through
    *  the last beat of each bar, velocity kept, and its rabbit runs on, so
@@ -104,12 +117,20 @@ private:
   Vec2 separationOf (int ch,
                      std::array<ShipOrders, flightShips> const &orders) const;
   void redrawWanderOnANewBar (double beats, int beatsPerBar);
+  void easeMotion (int ch, ShipOrders const &orders, float dt);
+  /** Carries patrolling ship `ch` and its rabbit along the path as it stands
+   *  at `beats` by the laps its action adds to the path's own (spin, pace).
+   *  The ship is carried, not steered: the steering and gravity balance stay
+   *  as tuned. */
+  void carry (int ch, double beats, int beatsPerBar, float dt);
 
   FlightTuning _tuning;
   std::array<ShipState, flightShips> _ships{};
   std::array<float, flightShips> _phaseOffset{}; // set by launch: rabbit starts at the nearest phase
   std::array<Vec2, flightShips> _wander{};
   std::array<EscortLeg, flightShips> _escort{};
+  std::array<FlightMotion, flightShips> _motion{};
+  std::array<float, flightShips> _motionWeight{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
   bool _breathWanted = false;

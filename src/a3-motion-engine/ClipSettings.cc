@@ -125,6 +125,20 @@ applyClipSettings (Pattern &pattern, ClipSettings const &given)
 }
 
 ElevationParams
+elevationParamsOf (ClipSettings const &settings)
+{
+  ElevationParams params;
+  params.reach = settings.reach;
+  params.elevationBase = settings.elevationBase;
+  params.mirrorSouth = settings.mirrorSouth;
+  params.clipTop = settings.clipTop;
+  params.clipBottom = settings.clipBottom;
+  params.flat = settings.flat;
+  params.flatElevation = settings.flatElevation;
+  return params;
+}
+
+ElevationParams
 sweptElevation (ElevationParams params, Pattern const &pattern)
 {
   // Out of where each was set and back, towards the end its sign points at.

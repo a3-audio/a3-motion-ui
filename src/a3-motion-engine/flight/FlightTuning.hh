@@ -95,6 +95,27 @@ struct FlightTuning
   float crowdMass = 1.f;
   float hotspotMass = 1.5f;
   float deadZoneMass = -2.f;
+  // An action on a flying ship (FPV).
+  // Every rate it asks for is held under what a room can follow: a turn round
+  // the listener at most 180 deg a beat, one lap per two beats (about 360 deg/s
+  // at 120 BPM; direction stops being heard as a path near 900 deg/s, Feron
+  // 2010). Only ~sway's height is capped lower, at half that (vertical
+  // localisation is coarser than horizontal; the factor is a design choice);
+  // tilt/roll sweeps and swell are held only by the 180 deg/beat turn limit
+  // on the heard direction.
+  float angularCapDegreesPerBeat = 180.f;
+  float verticalCapDegreesPerBeat = 90.f;
+  // ~sway swings the heard height this far, the crowd's design minimum for a
+  // bend that is heard (the minimum audible movement angle is about 5 deg
+  // in front and grows to the sides, Grantham).
+  float swayTravelDegrees = 30.f;
+  // ~swell breathes the base path: in to this share of its size [guess], out
+  // until its long axis stands here, inside the soft wall's reach [guess].
+  float swellInnerScale = 0.4f;
+  float swellOuterReach = 0.95f;
+  // How long an action takes to take hold of a ship, and to let go [guess:
+  // the handover's one beat].
+  float motionRampBeats = 1.f;
 };
 
 /** The radius of an escort's circle round a group of `mass`: wider for a

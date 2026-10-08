@@ -673,3 +673,28 @@ TEST (ClipSettings, ABaseInsideTheClipsIsNotMoved)
 
   EXPECT_FLOAT_EQ (sweptElevation (params, pattern).elevationBase, 0.4f);
 }
+
+// A flying ship flies its clip's own band: the engine reads it off the
+// settings the accent will put back, and that must be the band the pattern
+// projects through once they are back.
+TEST (ClipSettings, TheBandOfSettingsIsTheBandOfTheClipWearingThem)
+{
+  ClipSettings settings;
+  settings.reach = -0.4f;
+  settings.elevationBase = 0.3f;
+  settings.clipTop = 0.1f;
+  settings.clipBottom = 0.2f;
+  settings.flat = true;
+  settings.flatElevation = 0.6f;
+  Pattern pattern;
+  applyClipSettings (pattern, settings);
+  auto const fromPattern = pattern.getElevationParams ();
+  auto const fromSettings = elevationParamsOf (settings);
+  EXPECT_FLOAT_EQ (fromSettings.reach, fromPattern.reach);
+  EXPECT_FLOAT_EQ (fromSettings.elevationBase, fromPattern.elevationBase);
+  EXPECT_EQ (fromSettings.mirrorSouth, fromPattern.mirrorSouth);
+  EXPECT_FLOAT_EQ (fromSettings.clipTop, fromPattern.clipTop);
+  EXPECT_FLOAT_EQ (fromSettings.clipBottom, fromPattern.clipBottom);
+  EXPECT_EQ (fromSettings.flat, fromPattern.flat);
+  EXPECT_FLOAT_EQ (fromSettings.flatElevation, fromPattern.flatElevation);
+}
