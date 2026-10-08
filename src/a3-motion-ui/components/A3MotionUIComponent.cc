@@ -2373,6 +2373,16 @@ A3MotionUIComponent::handleScreenTap ()
 void
 A3MotionUIComponent::startRecording (index_t channel, index_t slot)
 {
+  // One take at a time: a second one used to overwrite the first's record,
+  // which could come back into its slot band-locked with the old clip lost.
+  if (auto const busy = _takeUnderway.refusesANewTake (channel, slot,
+                                                       _pendingTakes))
+    {
+      updateControlReadout ("-- TAKE UNDERWAY ON CH "
+                            + juce::String (*busy + 1));
+      return;
+    }
+
   auto &pattern = _patterns[channel][slot];
 
   // Stop any existing pattern at this slot
@@ -3062,6 +3072,18 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
     {
       updateControlReadout ("-- NO SUCH SET");
       return;
+    }
+
+  // A take underway ends with the arrangement it was going into, wherever it
+  // is -- on a slot the new set leaves empty too -- and its slot is written
+  // down with what it held before, not with an unsaved take.
+  if (auto const where = _takeUnderway.slot ())
+    {
+      auto const [channel, slot] = *where;
+      auto const before = _takeUnderway.before ();
+      endReplacedTake (_takeUnderway.everythingReplaced ());
+      _patterns[channel][slot] = before.pattern;
+      _slotClipFile[channel][slot] = before.clipFile;
     }
 
   // What is running now, written down before it is replaced. Not asked about
@@ -6855,6 +6877,8 @@ A3MotionUIComponent::saveShownTake ()
   updatePadRowLabel (channel, slot);
   refreshTakeState ();
   refreshBrowser ();
+  // The band's knobs work again: drawn so at once, not on the next refresh.
+  updateClipSettingsDisplay ();
 }
 
 void
@@ -6923,22 +6947,27 @@ void
 A3MotionUIComponent::dropPendingTake (index_t channel, index_t slot)
 {
   // A take still going into the slot ends here too, and puts nothing back:
-  // what replaces it is what the slot holds now. Stopped or called off in
-  // the engine, so REC is REC again and its band is let go of.
-  if (auto const take = _takeUnderway.slotReplaced (channel, slot))
-    {
-      _engine.cancelScheduledRecording (take);
-      if (take->getStatus () == Pattern::Status::Recording)
-        _engine.stopPattern (take, _now);
-      if (_playWhenRecordingStops == take)
-        _playWhenRecordingStops.reset ();
-      if (_motionComponent)
-        _motionComponent->setRecordingUnderlay (nullptr);
-      updateFunctionKeyLEDs ();
-    }
+  // what replaces it is what the slot holds now.
+  endReplacedTake (_takeUnderway.slotReplaced (channel, slot));
 
   _pendingTakes.resolve (channel, slot);
   refreshTakeState ();
+}
+
+void
+A3MotionUIComponent::endReplacedTake (std::shared_ptr<Pattern> const &take)
+{
+  if (!take)
+    return;
+
+  // One call for scheduled and running alike: the engine calls it off if it
+  // has not started and stops it if it has, whichever the FIFO finds.
+  _engine.cancelScheduledRecording (take);
+  if (_playWhenRecordingStops == take)
+    _playWhenRecordingStops.reset ();
+  if (_motionComponent)
+    _motionComponent->setRecordingUnderlay (nullptr);
+  updateFunctionKeyLEDs ();
 }
 
 bool

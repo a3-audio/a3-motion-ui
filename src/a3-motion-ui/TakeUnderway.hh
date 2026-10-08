@@ -56,6 +56,19 @@ public:
    *  or call off; null when no take was on that slot. */
   std::shared_ptr<Pattern> slotReplaced (index_t channel, index_t slot);
 
+  /** A set loaded: every slot is replaced, so the take ends wherever it is
+   *  -- on a slot the new set leaves empty too. Handed out as slotReplaced()
+   *  does; null when there was none. */
+  std::shared_ptr<Pattern> everythingReplaced ();
+
+  /** One take at a time (2026-10-08): the channel of the take that keeps a
+   *  new one from starting on `channel`/`slot` -- one scheduled or running
+   *  anywhere, or one unsaved on another slot. Nothing when it may start. A
+   *  take again on an unsaved take's own slot may: it keeps the first's
+   *  before (PendingTakes::begin). */
+  std::optional<index_t> refusesANewTake (index_t channel, index_t slot,
+                                          PendingTakes const &pending) const;
+
   /** Called off before its downbeat: what to put back into the slot -- only
    *  while the slot still holds the take (`inTheSlot`), never over something
    *  put there since. */

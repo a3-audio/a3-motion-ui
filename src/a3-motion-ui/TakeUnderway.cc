@@ -79,6 +79,25 @@ TakeUnderway::slotReplaced (index_t channel, index_t slot)
   return take;
 }
 
+std::shared_ptr<Pattern>
+TakeUnderway::everythingReplaced ()
+{
+  if (!_slot)
+    return nullptr;
+  return slotReplaced (_slot->first, _slot->second);
+}
+
+std::optional<index_t>
+TakeUnderway::refusesANewTake (index_t channel, index_t slot,
+                               PendingTakes const &pending) const
+{
+  if (_slot)
+    return _slot->first;
+  if (auto const other = pending.pendingOtherThan (channel, slot))
+    return other->first;
+  return std::nullopt;
+}
+
 std::optional<SlotContent>
 TakeUnderway::calledOff (std::shared_ptr<Pattern> const &inTheSlot)
 {

@@ -63,6 +63,9 @@ public:
    *  first one standing. */
   void begin (index_t channel, index_t slot, SlotContent before);
   bool isPending (index_t channel, index_t slot) const;
+  /** A slot other than this one that holds an unsaved take, if any. */
+  std::optional<std::pair<index_t, index_t> >
+  pendingOtherThan (index_t channel, index_t slot) const;
 
   /** Whether the bar offers SAVE and DISCARD for this slot: it holds an
    *  unsaved take and no take is running or waiting for its downbeat. While

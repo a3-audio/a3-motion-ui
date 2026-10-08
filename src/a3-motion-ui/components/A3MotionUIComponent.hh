@@ -1250,6 +1250,9 @@ private:
    *  holding its band, from being laid out until saved or discarded
    *  (Pattern::isBandHeld()). */
   bool bandLockedOnShownSlot () const;
+  /** A take whose slot was filled with something else: called off or stopped
+   *  in the engine, its underlay gone, nothing put back. */
+  void endReplacedTake (std::shared_ptr<Pattern> const &take);
   /** Whether the bar showed the band locked on its last refresh. */
   bool _bandLockShown = false;
   /** The settings to carry from a slot's pattern onto a new figure put in it:

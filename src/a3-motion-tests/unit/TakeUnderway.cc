@@ -110,3 +110,44 @@ TEST (TakeUnderway, EndingHandsBackWhatTheSlotHeld)
   EXPECT_EQ (ended.clipFile, before.clipFile);
   EXPECT_FALSE (underway.any ());
 }
+
+/** One take at a time (2026-10-08): while one is scheduled or running, REC
+ *  anywhere is refused, and so is REC on another slot while one is unsaved --
+ *  a second take used to overwrite the first's record, which could come back
+ *  into its slot band-locked with the old clip lost. The answer is the channel
+ *  the take is on, for the readout. A second take on the slot of an unsaved
+ *  one is still allowed: it keeps the first's before (PendingTakes::begin). */
+TEST (TakeUnderway, OneTakeAtATime)
+{
+  TakeUnderway underway;
+  PendingTakes pending (4, 2);
+
+  EXPECT_FALSE (underway.refusesANewTake (1, 0, pending).has_value ());
+
+  underway.begin (2, 0, std::make_shared<Pattern> (), held ("Breath"));
+  EXPECT_EQ (underway.refusesANewTake (1, 0, pending), index_t{ 2 });
+  EXPECT_EQ (underway.refusesANewTake (2, 0, pending), index_t{ 2 });
+
+  underway.ended ();
+  pending.begin (2, 0, held ("Breath"));
+  EXPECT_EQ (underway.refusesANewTake (1, 0, pending), index_t{ 2 })
+      << "another slot while a take is unsaved";
+  EXPECT_FALSE (underway.refusesANewTake (2, 0, pending).has_value ())
+      << "again on the unsaved take's own slot";
+
+  pending.clear (2, 0);
+  EXPECT_FALSE (underway.refusesANewTake (1, 0, pending).has_value ());
+}
+
+/** A set load replaces every slot, so it ends a take wherever it is -- on a
+ *  slot the new set leaves empty too -- and hands it out to be stopped. */
+TEST (TakeUnderway, ASetLoadEndsATakeWhereverItIs)
+{
+  TakeUnderway underway;
+  EXPECT_EQ (underway.everythingReplaced (), nullptr);
+
+  auto const take = std::make_shared<Pattern> ();
+  underway.begin (3, 1, take, held ("Breath"));
+  EXPECT_EQ (underway.everythingReplaced (), take);
+  EXPECT_FALSE (underway.any ());
+}
