@@ -1,7 +1,7 @@
 /*
 
   A3 Motion UI
-  Copyright (C) 2023 Patric Schmitz
+  Copyright (C) 2026 Raphael Eismann
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
