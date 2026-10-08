@@ -223,7 +223,7 @@ Vec2
 FlightWorld::separationOf (int ch,
                            std::array<ShipOrders, flightShips> const &orders) const
 {
-  auto const softeningSquared = flightSofteningSquared (_tuning);
+  auto const coreSquared = softeningSquared (_tuning.separationSoftening);
   auto const &p = _ships[index (ch)].p;
   Vec2 push;
   for (auto other = 0; other < flightShips; ++other)
@@ -233,7 +233,7 @@ FlightWorld::separationOf (int ch,
       auto const away = p - _ships[index (other)].p;
       push += away
               * (_tuning.separation
-                 / (away.getDistanceSquaredFromOrigin () + softeningSquared));
+                 / (away.getDistanceSquaredFromOrigin () + coreSquared));
     }
   return push;
 }

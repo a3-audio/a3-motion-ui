@@ -24,6 +24,7 @@
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
+#include <a3-motion-engine/util/SeedSpread.hh>
 
 #include <algorithm>
 #include <cmath>
@@ -512,3 +513,103 @@ TEST (FlightWorld, AnEscortWithoutACaptureLapStandsBesideItsGroup)
     }
 }
 
+
+// ---- Ships among themselves, and the worst a floor can do ----
+
+// The ships keep apart by their own softening: tuning how sharp a group's
+// well is must not change how close two ships may come.
+TEST (FlightWorld, TheShipsKeepApartWhateverTheGravitysSoftening)
+{
+  FlightTuning sharp, soft;
+  sharp.softening = 0.04f;
+  soft.softening = 0.3f;
+  FlightWorld first (aSeed, sharp), second (aSeed, soft);
+  launchAll (first);
+  launchAll (second);
+  Vec2 const spot{ 0.5f, 0.2f };
+  first.launch (1, spot, 0., fourFour);
+  first.launch (2, spot, 0., fourFour);
+  second.launch (1, spot, 0., fourFour);
+  second.launch (2, spot, 0., fourFour);
+  EXPECT_TRUE (sameFlight (run (first, allPatrolling (), {}, 2000),
+                           run (second, allPatrolling (), {}, 2000)));
+}
+
+namespace
+{
+
+/** Eight bodies thrown on the floor: ids 1..8, a mix of groups, crowds,
+ *  hotspots and dead zones, anywhere in the room. */
+FlightBodies
+aCrowdedFloor (juce::Random &dice)
+{
+  constexpr float masses[] = { 1.f, 2.f, 3.f, -2.f };
+  FlightBodies bodies;
+  for (auto i = 0; i < maxFlightBodies; ++i)
+    {
+      auto const angle = twoPi * dice.nextFloat ();
+      auto const radius = std::sqrt (dice.nextFloat ());
+      bodies.body[static_cast<size_t> (i)]
+          = { { radius * std::cos (angle), radius * std::sin (angle) },
+              masses[dice.nextInt (4)], i + 1 };
+    }
+  bodies.count = maxFlightBodies;
+  return bodies;
+}
+
+/** `bodies` without its body at `index`, the later ones moved down: what
+ *  the floor does on a long press. */
+FlightBodies
+withoutIndex (FlightBodies const &bodies, int index)
+{
+  FlightBodies left;
+  for (auto i = 0; i < bodies.count; ++i)
+    if (i != index)
+      left.body[static_cast<size_t> (left.count++)]
+          = bodies.body[static_cast<size_t> (i)];
+  return left;
+}
+
+}
+
+// Review Focus 3: never NaN, never out of the room, never faster than
+// speedMax, with all four ships up, two of them escorting (one of them a
+// body that is removed half way, one perhaps a dead zone), eight bodies, the
+// hardest pulse, 32 bars, twenty floors.
+TEST (FlightWorld, FourShipsOnACrowdedFloorNeverBreak)
+{
+  FlightTuning const tuning;
+  auto const hardestPulse = 1.f + tuning.pulseDownbeatDepth;
+  auto const dt = tickBeats ();
+  auto const half = ticksIn (barsToBeats (16.f));
+  for (juce::int64 seed = 1; seed <= 20; ++seed)
+    {
+      juce::Random dice (spreadSeed (seed));
+      auto bodies = aCrowdedFloor (dice);
+      auto orders = allPatrolling ();
+      orders[0] = { true, FlightGoal::Escort, 1 + dice.nextInt (maxFlightBodies) };
+      orders[1] = { true, FlightGoal::Escort, 1 + dice.nextInt (maxFlightBodies) };
+      auto const removed = 1 + dice.nextInt (maxFlightBodies - 1);
+
+      FlightWorld world (seed, tuning);
+      launchAll (world);
+      for (size_t i = 0; i < 2 * half; ++i)
+        {
+          if (i == half)
+            bodies = withoutIndex (bodies, removed - 1);
+          auto const now = static_cast<double> (i) * dt;
+          world.step (orders, bodies, now, fourFour, hardestPulse, dt);
+          for (auto ch = 0; ch < 4; ++ch)
+            {
+              auto const &ship = world.ship (ch);
+              ASSERT_TRUE (std::isfinite (ship.p.x) && std::isfinite (ship.p.y)
+                           && std::isfinite (ship.v.x) && std::isfinite (ship.v.y))
+                  << "seed " << seed << ", ship " << ch << ", beat " << now;
+              ASSERT_LE (ship.p.getDistanceFromOrigin (), 1.f + speedSlack)
+                  << "seed " << seed << ", ship " << ch << ", beat " << now;
+              ASSERT_LE (ship.v.getDistanceFromOrigin (), tuning.speedMax + speedSlack)
+                  << "seed " << seed << ", ship " << ch << ", beat " << now;
+            }
+        }
+    }
+}

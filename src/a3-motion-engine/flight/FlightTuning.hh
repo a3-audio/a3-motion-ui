@@ -73,6 +73,10 @@ struct FlightTuning
   float deadZoneStiffness = 40.f; // per beat^2
   // ships among themselves, wander
   float separation = 0.004f; // [guess, plan]
+  // the core of the push between two ships, floor units; its own, so a
+  // sharper or softer well does not change how close ships come. 0 reads as
+  // flightSofteningFloor [lab: the lab used the gravity's 0.08 for it]
+  float separationSoftening = 0.08f;
   float wanderRadius = 0.12f; // ~10 deg a bar: "life", below a heard bend [research B2]
   // the beat. Harmless, but under 1 deg of wobble at any depth: nothing may
   // rely on it being heard [lab]; research B5 suggests half bars instead.
@@ -85,12 +89,19 @@ struct FlightTuning
  *  that finite, and gravityMax caps what it gives. */
 constexpr float flightSofteningFloor = 1e-4f;
 
-/** softening^2, never below flightSofteningFloor^2. */
+/** `softening`^2, never below flightSofteningFloor^2. */
+inline float
+softeningSquared (float softening)
+{
+  auto const floored = std::max (softening, flightSofteningFloor);
+  return floored * floored;
+}
+
+/** The gravity's softening^2, never below flightSofteningFloor^2. */
 inline float
 flightSofteningSquared (FlightTuning const &tuning)
 {
-  auto const softening = std::max (tuning.softening, flightSofteningFloor);
-  return softening * softening;
+  return softeningSquared (tuning.softening);
 }
 
 }
