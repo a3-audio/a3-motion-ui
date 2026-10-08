@@ -359,14 +359,32 @@ judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
   base, so with the base at ear height only the lower half was playable, and with the camera
   looking from above every finger was held on the equator. So a take's band is the whole sphere:
   base at the north pole, reach 1, no clips, no sway or swell, no elevation lanes
-  (`openToTheWholeSphere`, `TakeSeed`). At the downbeat `MotionEngine::openTakeToTheWholeSphere`
-  moves the clip's path into that band where it was heard, tick by tick through the clip's own band,
-  lanes and sweeps at each tick's first-pass phase, so untouched parts play where they did. The take
-  keeps the whole sphere, so what is heard during the take is what it plays back; the bar's
-  elevation knobs show it from the downbeat on. `HeightMapSphere::mapTo2D(…, ElevationParams)`
-  still answers with the *nearest playable* direction for a band that does not cover a direction --
-  a knob turned during the take narrows the band again, and then a finger outside it is held on its
-  edge as before.
+  (`openToTheWholeSphere`, `TakeSeed`; the knobs are `isTakeBandKnob`). What is heard during the
+  take is what it plays back, and the bar's elevation knobs show the whole sphere from the
+  downbeat on.
+
+  - **Laid out when it is asked for.** `MotionEngine::recordPattern` prepares the take on the
+    caller's thread before scheduling it (`prepareTake`): its ticks, its lanes, and the clip's path
+    moved into the whole sphere where it was heard -- tick by tick through the clip's own band,
+    lanes and sweeps at each tick's first-pass phase, in each tick's own play direction. Untouched
+    parts play where they did. At the downbeat the clock thread only starts the take: the move
+    costs a 64-bar take some 43 ms, eleven clock ticks at 120 BPM. A `KnobLane` keeps a bit per
+    written tick (and one per word) so `at()` finds the last value in a few word reads; walking
+    back over a lane read from a file, which holds only where it changes, was quadratic and took
+    47 s on the clock for a 64-bar take.
+  - **One lap, as baked** (maintainer, 2026-10-08). A clip whose sway or swell runs slower than the
+    take is long is moved at the phases of the take's *first* lap. Played back, the take repeats
+    that lap, so where the clip's sweep had not come round by the lap's end, the take jumps at the
+    loop seam. Accepted: the take is one lap of what was heard.
+  - **The band knobs are locked** from the take being armed until it is saved or discarded
+    (`PendingTakes::locksTheBand`): drawn disabled, refused by the bar and the encoders
+    (`refusedWhileBandLocked`), and never recorded -- `Pattern::recordKnobs` skips them, WRITE's
+    pass over every knob included. A turn would have narrowed the band under the finger.
+  - **Threads.** The band's fields on `Pattern` are each atomic; `prepareTake` sets them before the
+    take is the engine's, and with the knobs locked nothing writes them during the take, so the
+    clock and the UI never race on them. `HeightMapSphere::mapTo2D(…, ElevationParams)` still
+    answers with the *nearest playable* direction for any band that does not cover a direction --
+    the flight engine relies on it.
 
   The same goes for the rest of what playback does to a tick (decided 2026-10-07): the clip's
   squeeze and turn — rotate plus the spin's phase, the squeezes swept by their stretch — and the
