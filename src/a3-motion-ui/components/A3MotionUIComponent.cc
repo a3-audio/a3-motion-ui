@@ -9424,22 +9424,31 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         // The fill is the take and only the take: one recording runs at a
         // time and it writes over something that does not come back, so it
         // keeps a shape of its own rather than becoming a fifth mark to
-        // count in the dark.
+        // count in the dark. It shows the take wherever it runs, not only
+        // when its clip is the one open (#16), in that channel's colour --
+        // which is how the eye tells whose take it is.
+        auto const running = _engine.isRecording () ? recording : nullptr;
         auto const armed = _engine.getScheduledForRecordingPattern ();
-        auto const isArmedForThis = armed != nullptr && armed == pattern;
+        auto const takeChannel
+            = channelHoldingTake (_patterns, running ? running : armed);
 
         // Three states from one rule, so the bar and any later reader cannot
         // disagree about which of them is on. See RecordingIndicator.hh.
         auto const indicator
-            = recordingIndicatorFor (isArmedForThis, isRecordingThis);
+            = takeChannel < 0 ? RecordingIndicator::Off
+                              : recordingIndicatorFor (armed != nullptr,
+                                                       running != nullptr);
+        auto const takeColour
+            = takeChannel < 0 ? _channelUIStates[channel]->colour
+                              : _channelUIStates[takeChannel]->colour;
 
         _statusBar->setCountingIn (indicator == RecordingIndicator::CountIn,
-                                   _channelUIStates[channel]->colour);
+                                   takeColour);
         _statusBar->setRecordingProgress (
             indicator == RecordingIndicator::Running
                 ? _engine.getRecordingProgress ()
                 : -1.f,
-            _channelUIStates[channel]->colour);
+            takeColour);
 
         updateChannelProgress ();
       }

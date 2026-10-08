@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 namespace a3
 {
 
@@ -48,5 +50,24 @@ enum class RecordingIndicator
  *  saying the least, and this is the state that writes over something that
  *  does not come back. */
 RecordingIndicator recordingIndicatorFor (bool scheduled, bool recording);
+
+/** The channel whose row holds `take`, or -1 when there is no take or no row
+ *  holds it. The bar shows a take wherever it runs, not only when its clip is
+ *  the one on screen (#16), and paints it in that channel's colour -- so the
+ *  channel has to come from the take, not from what is open. */
+template <typename Rows, typename Pointer>
+int
+channelHoldingTake (Rows const &rows, Pointer const &take)
+{
+  if (take == nullptr)
+    return -1;
+
+  for (auto channel = 0; channel < static_cast<int> (rows.size ()); ++channel)
+    for (auto const &slot : rows[static_cast<std::size_t> (channel)])
+      if (slot == take)
+        return channel;
+
+  return -1;
+}
 
 }
