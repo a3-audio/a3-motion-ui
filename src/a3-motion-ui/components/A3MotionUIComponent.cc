@@ -5191,7 +5191,8 @@ A3MotionUIComponent::editShownScript (
       for (size_t b = 0; b < channel.size (); ++b)
         files.back ()[b] = channel[b].file;
     }
-  for (auto const &[channel, button] : buttonsHoldingFile (files, file))
+  auto const rewire = rewireButtons (files, file, target);
+  for (auto const &[channel, button] : rewire.buttons)
     {
       auto &action = _channelActions[static_cast<size_t> (channel)]
                                     [static_cast<size_t> (button)];
@@ -5199,11 +5200,15 @@ A3MotionUIComponent::editShownScript (
       action.source = text;
       runButtonScript (static_cast<index_t> (channel), action);
     }
+  // The buttons now name the copy; the set on disk must too, or a restart
+  // brings back the factory script and the next turn makes another copy.
+  if (rewire.setChanged)
+    scheduleSetSave ();
 
   if (_browser != nullptr && _panelFile == file)
     {
       auto &panel = _browser->scriptPanel ();
-      _panelFile = target;
+      _panelFile = rewire.panelFileAfter (_panelFile);
       panel.applyEdit (panel.hasUnsavedChanges () ? edit (panel.script ())
                                                   : text);
       panel.setErrors (shown->errors);

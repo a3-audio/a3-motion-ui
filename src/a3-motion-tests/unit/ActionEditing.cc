@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/components/ActionEditing.hh>
+#include <a3-motion-ui/components/PendingScriptWrites.hh>
 
 using namespace a3;
 
@@ -319,4 +320,43 @@ TEST (ScriptToWrite, DeveloperModeWritesTheShippedOneInPlace)
   auto const dir = anActionsDirHolding ({ "Bloom" }, {});
   auto const bloom = dir.getChildFile ("system").getChildFile ("Bloom.scd");
   EXPECT_EQ (scriptFileToWrite (bloom, dir, ShippedClips::Writable), bloom);
+}
+
+// A turn on a shipped action moves every button holding it to the copy, and
+// that is a change to the set: the set must be saved, or after a restart the
+// buttons fire the factory script again and the next turn makes "Bloom 3".
+TEST (ScriptRewire, ACopyMovesEveryButtonAndChangesTheSet)
+{
+  auto const dir = anActionsDirHolding ({ "Bloom" }, {});
+  auto const bloom = dir.getChildFile ("system").getChildFile ("Bloom.scd");
+  auto const other = dir.getChildFile ("system").getChildFile ("Other.scd");
+  std::vector<std::array<juce::File, numActionButtons> > files (2);
+  files[0][0] = bloom;
+  files[0][3] = other;
+  files[1][0] = bloom;
+
+  auto const target = scriptFileToWrite (bloom, dir, ShippedClips::Protected);
+  auto const rewire = rewireButtons (files, bloom, target);
+  EXPECT_EQ (rewire.buttons,
+             (std::vector<std::pair<int, int> > { { 0, 0 }, { 1, 0 } }));
+  EXPECT_TRUE (rewire.setChanged);
+  EXPECT_EQ (rewire.panelFileAfter (bloom), target) << "the panel follows";
+  EXPECT_EQ (rewire.panelFileAfter (other), other);
+}
+
+// The second turn finds the buttons on the copy, which is the performer's
+// own: written in place, the set left as it is.
+TEST (ScriptRewire, TheSecondTurnWritesTheCopyInPlace)
+{
+  auto const dir = anActionsDirHolding ({ "Bloom" }, { "Bloom 2" });
+  auto const copy = dir.getChildFile ("user").getChildFile ("Bloom 2.scd");
+  std::vector<std::array<juce::File, numActionButtons> > files (1);
+  files[0][0] = copy;
+
+  auto const target = scriptFileToWrite (copy, dir, ShippedClips::Protected);
+  EXPECT_EQ (target, copy);
+  auto const rewire = rewireButtons (files, copy, target);
+  EXPECT_EQ (rewire.buttons, (std::vector<std::pair<int, int> > { { 0, 0 } }));
+  EXPECT_FALSE (rewire.setChanged);
+  EXPECT_EQ (rewire.panelFileAfter (copy), copy);
 }
