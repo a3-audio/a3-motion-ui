@@ -1816,6 +1816,18 @@ MotionEngine::positionTakenOver (index_t channel) const
 }
 
 void
+MotionEngine::setFlightBreath (bool on)
+{
+  _flightBreath.store (on, std::memory_order_relaxed);
+}
+
+bool
+MotionEngine::getFlightBreath () const
+{
+  return _flightBreath.load (std::memory_order_relaxed);
+}
+
+void
 MotionEngine::readFlightModes ()
 {
   // One read per channel per tick: playTick and performFlight must agree on
@@ -1887,6 +1899,7 @@ MotionEngine::performFlight ()
       flyingClip[ch] = playing;
     }
 
+  _flight.setBreathing (_flightBreath.load (std::memory_order_relaxed));
   _flight.step (orders, _flightBodies, beats, beatsPerBar,
                 gravityPulse (_now, beatsPerBar, _flightTuning),
                 1.f / static_cast<float> (ticksPerBeat));

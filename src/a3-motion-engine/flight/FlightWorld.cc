@@ -21,6 +21,7 @@
 #include "FlightWorld.hh"
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
@@ -132,6 +133,11 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
                    float pulse, float dt)
 {
   redrawWanderOnANewBar (beats, beatsPerBar);
+
+  // All ships hold together, so a held tick is simply not stepped: nobody
+  // moves, nobody pushes another away, every velocity is kept.
+  if (_breathing && breathHolds (beats, beatsPerBar))
+    return;
 
   // Every ship's pulls are taken from where the others were before this
   // tick, so the order the four are stepped in does not matter.

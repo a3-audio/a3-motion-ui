@@ -390,3 +390,49 @@ TEST (FlightEngine, ATakePutsTheChannelBackOnClip)
       << "a take is the finger's path, not the physics";
   EXPECT_EQ (flight.engine->getFlightMode (1), FlightMode::Clip);
 }
+
+// The breath, as the engine flies it: off until asked for, and then the ORBIT
+// channel stands still through the last beat of every bar.
+
+TEST (FlightEngine, TheBreathIsOffUntilAskedFor)
+{
+  Flight flight;
+  EXPECT_FALSE (flight.engine->getFlightBreath ());
+  flight.engine->setFlightBreath (true);
+  EXPECT_TRUE (flight.engine->getFlightBreath ());
+  flight.engine->setFlightBreath (false);
+  EXPECT_FALSE (flight.engine->getFlightBreath ());
+}
+
+TEST (FlightEngine, ABreathingOrbitChannelStandsStillOnBeatFour)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightBreath (true);
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  // Past the one-beat glide in, which moves the channel on its own.
+  juce::Thread::sleep (600);
+  TickRecorder recorder (*flight.engine);
+  juce::Thread::sleep (2200); // two bars and more at 240 BPM
+
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
+  auto const ticksPerBar = ticksPerBeat * flight.engine->getBeatsPerBar ();
+  auto held = 0, moved = 0;
+  for (size_t i = 1; i < samples.size (); ++i)
+    {
+      auto const inBar = samples[i].tick % ticksPerBar;
+      auto const step = degreesBetween (samples[i - 1].orbit, samples[i].orbit);
+      if (inBar > ticksPerBar - ticksPerBeat) // past the first tick of beat 4
+        {
+          EXPECT_EQ (samples[i].orbit, samples[i - 1].orbit)
+              << "moved on beat 4 at tick " << samples[i].tick;
+          ++held;
+        }
+      else if (step > 0.)
+        ++moved;
+    }
+  EXPECT_GT (held, 0) << "no beat 4 was sampled";
+  EXPECT_GT (moved, 0) << "it never flew between the stops";
+}

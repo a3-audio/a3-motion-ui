@@ -71,6 +71,12 @@ public:
 
   ShipState const &ship (int ch) const;
 
+  /** The breath (see Breath.hh): while on, every ship stands still through
+   *  the last beat of each bar, velocity kept, and its rabbit runs on, so
+   *  the restart on the one is a short chase. Off by default. */
+  void setBreathing (bool on) { _breathing = on; }
+  bool breathing () const { return _breathing; }
+
 private:
   /** How ship `ch` circles the body it escorts, fixed at the first step
    *  after the order: from the angle it is at, in the sense it is flying. */
@@ -101,6 +107,7 @@ private:
   std::array<EscortLeg, flightShips> _escort{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
+  bool _breathing = false;
 };
 
 }

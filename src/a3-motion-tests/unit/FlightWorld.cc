@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
@@ -612,4 +613,82 @@ TEST (FlightWorld, FourShipsOnACrowdedFloorNeverBreak)
             }
         }
     }
+}
+
+// The breath (MJ lab, 2026-10-08, playbook rule 18): every flying ship stands
+// still for the last beat of each bar and restarts on the one.
+
+TEST (FlightBreath, HoldsOnTheLastBeatOfTheBar)
+{
+  EXPECT_FALSE (breathHolds (0., fourFour));
+  EXPECT_FALSE (breathHolds (2.99, fourFour));
+  EXPECT_TRUE (breathHolds (3., fourFour));
+  EXPECT_TRUE (breathHolds (3.99, fourFour));
+  EXPECT_FALSE (breathHolds (4., fourFour));
+  EXPECT_TRUE (breathHolds (7.5, fourFour));
+  EXPECT_TRUE (breathHolds (2.5, 3));
+  EXPECT_FALSE (breathHolds (1.5, 3));
+}
+
+TEST (FlightBreath, NoBarNoBreath)
+{
+  EXPECT_FALSE (breathHolds (3.5, 0));
+  EXPECT_FALSE (breathHolds (-0.5, fourFour));
+}
+
+TEST (FlightBreath, IsOffUntilAskedFor)
+{
+  FlightWorld world (aSeed);
+  EXPECT_FALSE (world.breathing ());
+  launchAll (world);
+  auto const before = world.ship (0).p;
+  run (world, allPatrolling (), {}, ticksIn (1.), 3.);
+  EXPECT_NE (world.ship (0).p, before) << "without the breath beat 4 flies";
+}
+
+TEST (FlightBreath, EveryShipStandsStillOnBeatFour)
+{
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  launchAll (world);
+  run (world, allPatrolling (), oneGroup (), ticksIn (3.));
+  std::array<ShipState, 4> before;
+  for (auto ch = 0; ch < 4; ++ch)
+    before[static_cast<size_t> (ch)] = world.ship (ch);
+
+  run (world, allPatrolling (), oneGroup (), ticksIn (1.), 3.);
+  for (auto ch = 0; ch < 4; ++ch)
+    {
+      EXPECT_EQ (world.ship (ch).p, before[static_cast<size_t> (ch)].p) << "ship " << ch;
+      EXPECT_EQ (world.ship (ch).v, before[static_cast<size_t> (ch)].v) << "ship " << ch;
+    }
+}
+
+TEST (FlightBreath, RestartsOnTheOne)
+{
+  FlightWorld world (aSeed);
+  world.setBreathing (true);
+  launchAll (world);
+  run (world, allPatrolling (), {}, ticksIn (4.));
+  auto const held = world.ship (0).p;
+  run (world, allPatrolling (), {}, 1, 4.);
+  EXPECT_NE (world.ship (0).p, held);
+}
+
+TEST (FlightBreath, TheShipCatchesUpWithItsRabbit)
+{
+  // The rabbit runs on through the stop, so the restart is a short chase; by
+  // the third beat of the next bar the ship is back where an unbroken flight
+  // would be.
+  FlightWorld breathing (aSeed), steady (aSeed);
+  breathing.setBreathing (true);
+  launchAll (breathing);
+  launchAll (steady);
+  auto const until = barsToBeats (4.f) + 3.;
+  run (breathing, allPatrolling (), {}, ticksIn (until));
+  run (steady, allPatrolling (), {}, ticksIn (until));
+  for (auto ch = 0; ch < 4; ++ch)
+    EXPECT_LT ((breathing.ship (ch).p - steady.ship (ch).p).getDistanceFromOrigin (),
+               0.1f)
+        << "ship " << ch;
 }

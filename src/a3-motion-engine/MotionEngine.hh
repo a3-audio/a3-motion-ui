@@ -167,6 +167,12 @@ public:
    *  body has (any more) patrols. */
   void setFlightTarget (index_t channel, int bodyId);
 
+  /** The breath, from any thread: while on, every ORBIT ship stands still
+   *  through the last beat of each bar and restarts on the one. Off at
+   *  start-up and never saved: it is the A/B the MJ lab asked for. */
+  void setFlightBreath (bool on);
+  bool getFlightBreath () const;
+
   /** The floor's bodies, from the message thread. Newest wins: the clock
    *  thread takes whatever was written last, without a queue. */
   void setFlightBodies (FlightBodies const &bodies);
@@ -648,6 +654,7 @@ private:
   std::vector<std::atomic<int>> _flightMode;
   std::vector<std::atomic<int>> _flightTarget;
   FlightBodiesBox _bodies;
+  std::atomic<bool> _flightBreath{ false };
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);
