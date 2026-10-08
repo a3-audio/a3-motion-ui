@@ -59,9 +59,22 @@ TEST (ScriptPanelLayout, UnchangedScriptOffersNothingToKeep)
 {
   auto const k = scriptKeysFor (false, false, true, true);
   EXPECT_FALSE (k.save);
-  EXPECT_FALSE (k.saveAs);
   EXPECT_FALSE (k.cancel);
   EXPECT_TRUE (k.fromClip);
+}
+
+// A copy of an unchanged file is the safe first step before ACTION writes
+// into it (#59): Save as needs a file to copy, not an edit to keep.
+TEST (ScriptPanelLayout, AnUnchangedFileCanBeCopied)
+{
+  EXPECT_TRUE (scriptKeysFor (false, false, true, true).saveAs);
+  EXPECT_TRUE (scriptKeysFor (false, true, true, true).saveAs)
+      << "a shipped file is the one most worth copying";
+}
+
+TEST (ScriptPanelLayout, AnEmptyPanelHasNothingToCopy)
+{
+  EXPECT_FALSE (scriptKeysFor (false, false, false, true).saveAs);
 }
 
 TEST (ScriptPanelLayout, LockedScriptOffersOnlyACopy)

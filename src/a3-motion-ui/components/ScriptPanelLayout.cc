@@ -45,7 +45,11 @@ layOutScriptPanel (juce::Rectangle<int> bounds, int errorLines,
 ScriptKeyStates
 scriptKeysFor (bool unsaved, bool locked, bool hasFile, bool slotHolds)
 {
-  return { slotHolds, unsaved, unsaved && hasFile && !locked, unsaved };
+  // Save as copies whatever stands in the panel: an edit, or a file as it
+  // is -- a copy of an unchanged one is the safe first step before ACTION
+  // writes into it (#59).
+  return { slotHolds, unsaved, unsaved && hasFile && !locked,
+           unsaved || hasFile };
 }
 
 ScriptLanguage
