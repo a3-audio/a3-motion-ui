@@ -167,3 +167,18 @@ TEST (OscAddresses, TheAddressTableIsAsLongAsTheControlTable)
   EXPECT_EQ (numMasterAddresses, numMasterControls);
   EXPECT_EQ (numFilterAddresses, numFilterControls);
 }
+
+// StemDeck's preview is optional (spec fpv-pilots, phase A): a truth from
+// before it is still usable, and Motion simply hears no preview.
+TEST (OscAddresses, StemDecksPreviewIsOptional)
+{
+  EXPECT_EQ (oscAddressesFrom (madeUpOscTruth ()).stemdeckAhead,
+             "/t/stemdeck.ahead");
+
+  auto const without = madeUpOscTruth ({ "stemdeck.ahead" });
+  EXPECT_TRUE (oscAddressesFrom (without).stemdeckAhead.isEmpty ())
+      << "no /a3-osc-missing/ mark: it is only listened for, never sent";
+  EXPECT_FALSE (missingOscKeys (without).contains ("stemdeck.ahead"));
+  EXPECT_FALSE (oscAddressKeys ().contains ("stemdeck.ahead"));
+  EXPECT_TRUE (optionalOscAddressKeys ().contains ("stemdeck.ahead"));
+}

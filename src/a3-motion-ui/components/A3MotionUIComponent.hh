@@ -133,6 +133,7 @@ public:
   void onMixerChannelValue (int channel, int slot, float value) override;
   void onMasterValue (int slot, float value) override;
   void onFilterValue (int slot, float value) override;
+  void onMusicPreview (std::optional<MusicAhead> const &ahead) override;
   void repaintMixerPages ();
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
@@ -628,6 +629,10 @@ private:
     juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
+  /** StemDeck's preview of the music, with its age (spec fpv-pilots,
+   *  phase A). Held only: the pilots' games (phase C) read
+   *  _musicPreview.current (now, _engine.getTempoBPM ()). */
+  MusicPreview _musicPreview;
   /** The engine's own beats, stamped on the clock's thread. */
   TempoClock::PointerT _beatTraceHandle;
 

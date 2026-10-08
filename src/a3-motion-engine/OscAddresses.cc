@@ -162,11 +162,18 @@ oscAddressesFrom (OscTruth const &truth)
   a.tap = addressFor (truth, "tap");
   a.clockMode = addressFor (truth, "clockmode");
   a.vuPrefix = prefixBeforeNumber (addressFor (truth, "vu"));
+  a.stemdeckAhead = truth.pattern ("stemdeck.ahead");
 
   fillTable (truth, mixerChannelKeys, a.mixerChannel);
   fillTable (truth, mixerMasterKeys, a.mixerMaster);
   fillTable (truth, mixerFilterKeys, a.mixerFilter);
   return a;
+}
+
+juce::StringArray
+optionalOscAddressKeys ()
+{
+  return { "stemdeck.ahead" };
 }
 
 juce::StringArray

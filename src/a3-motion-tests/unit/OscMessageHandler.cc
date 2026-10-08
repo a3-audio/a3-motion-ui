@@ -25,6 +25,8 @@
 
 #include <JuceHeader.h>
 
+#include <optional>
+
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
@@ -96,6 +98,16 @@ struct RecordingListener : public OscMessageHandler::Listener
     ++masterValueCalls;
     lastMasterSlot = slot;
     lastMasterValue = value;
+  }
+
+  int previewCalls = 0;
+  std::optional<MusicAhead> lastPreview;
+
+  void
+  onMusicPreview (std::optional<MusicAhead> const &ahead) override
+  {
+    ++previewCalls;
+    lastPreview = ahead;
   }
 
   void
@@ -879,4 +891,99 @@ TEST (OscMessageHandler, AChannelAddressIsNotAMasterOne)
   EXPECT_EQ (listener.mixerValueCalls, 1);
   EXPECT_EQ (listener.masterValueCalls, 0);
   EXPECT_EQ (listener.filterValueCalls, 0);
+}
+
+namespace
+{
+juce::OSCMessage
+aheadMessage (juce::String const &address, juce::String const &section,
+              juce::String const &next, int bars, float energy)
+{
+  juce::OSCMessage message (address);
+  message.addString (section);
+  message.addString (next);
+  message.addInt32 (bars);
+  message.addFloat32 (energy);
+  return message;
+}
+}
+
+TEST (OscMessageHandler, StemDecksPreviewReachesTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+
+  handler.handleMessage (aheadMessage (madeUpAddresses ().stemdeckAhead,
+                                       "build", "drop", 4, 0.6f),
+                         /*clockMode=*/0);
+
+  EXPECT_EQ (listener.previewCalls, 1);
+  ASSERT_TRUE (listener.lastPreview.has_value ());
+  EXPECT_EQ (listener.lastPreview->section, MusicSection::Build);
+  EXPECT_EQ (listener.lastPreview->next, MusicSection::Drop);
+  EXPECT_EQ (listener.lastPreview->barsUntilNext, 4);
+  EXPECT_EQ (listener.channelVUCalls, 0);
+  EXPECT_EQ (listener.valueCalls, 0);
+}
+
+TEST (OscMessageHandler, NoneSaysThePreviewIsGone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+
+  handler.handleMessage (aheadMessage (madeUpAddresses ().stemdeckAhead,
+                                       "none", "none", 0, 0.f),
+                         /*clockMode=*/0);
+
+  EXPECT_EQ (listener.previewCalls, 1);
+  EXPECT_FALSE (listener.lastPreview.has_value ());
+}
+
+// Review Focus 5: a word Motion does not know, or the wrong types.
+TEST (OscMessageHandler, APreviewOfTheWrongShapeIsLeftAlone)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (madeUpAddresses ());
+  auto const address = madeUpAddresses ().stemdeckAhead;
+
+  handler.handleMessage (aheadMessage (address, "chorus", "drop", 4, 0.5f), 0);
+
+  juce::OSCMessage shortOne (address);
+  shortOne.addString ("build");
+  shortOne.addString ("drop");
+  shortOne.addInt32 (4);
+  handler.handleMessage (shortOne, 0);
+
+  juce::OSCMessage floatBars (address);
+  floatBars.addString ("build");
+  floatBars.addString ("drop");
+  floatBars.addFloat32 (4.f);
+  floatBars.addFloat32 (0.5f);
+  handler.handleMessage (floatBars, 0);
+
+  EXPECT_EQ (listener.previewCalls, 0);
+}
+
+TEST (OscMessageHandler, WithoutTheWordInTheTruthNoPreviewArrives)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (
+      oscAddressesFrom (madeUpOscTruth ({ "stemdeck.ahead" })));
+
+  handler.handleMessage (
+      aheadMessage ("/t/stemdeck.ahead", "build", "drop", 4, 0.5f), 0);
+
+  EXPECT_EQ (listener.previewCalls, 0);
 }

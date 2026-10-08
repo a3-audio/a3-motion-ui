@@ -24,6 +24,9 @@
 
 #include <JuceHeader.h>
 
+#include <optional>
+#include <a3-motion-engine/preview/MusicPreview.hh>
+
 #include <a3-motion-engine/MotionEngine.hh>
 #include <a3-motion-engine/OscAddresses.hh>
 #include <a3-motion-ui/osc/VuRouting.hh>
@@ -130,6 +133,13 @@ public:
      *  desk's LED reads travels `/fx/led`, which is the desk's own wire and
      *  not this one. */
     virtual void onFilterValue (int slot, float value) = 0;
+
+    /** StemDeck's preview of the music (/stemdeck/ahead, relayed by Core):
+     *  where the audible deck is in its set and what comes next. Nothing:
+     *  StemDeck said "none" -- no deck is heard, or it is not analysed. A
+     *  message Motion cannot read is not reported at all, so the last good
+     *  preview stands until it goes stale. */
+    virtual void onMusicPreview (std::optional<MusicAhead> const &ahead) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
@@ -145,6 +155,7 @@ public:
 
 private:
   void routeMeter (int number, float peak, float rms);
+  void routePreview (juce::OSCMessage const &message);
   void routeChannelSide (std::size_t channel, std::size_t side, float peak,
                          float rms);
 

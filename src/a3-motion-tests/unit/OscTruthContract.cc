@@ -73,3 +73,12 @@ TEST (OscTruthContract, TheChannelMapHasEveryMeterMotionShows)
       missing.add (name);
   EXPECT_EQ (missing.joinIntoString (", "), "");
 }
+
+TEST (OscTruthContract, TheTruthHasTheOptionalAddresses)
+{
+  auto const truth = realTruth ();
+  ASSERT_TRUE (truth.isValid ()) << truth.error ();
+
+  for (auto const &key : optionalOscAddressKeys ())
+    EXPECT_TRUE (truth.pattern (key).isNotEmpty ()) << key;
+}
