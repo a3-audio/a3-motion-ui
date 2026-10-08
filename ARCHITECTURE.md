@@ -253,7 +253,7 @@ Groups live for the session only. Plan: `.claude/notes/fpv-phase-2-plan.md` in t
 | beat pulse | Gravity is `1 + depth*(1 - beatFraction)^2`: hardest on the beat, hardest of all on the one |
 | escort | The goal becomes a circle round one body; its own pull is left out so the ship holds the circle |
 | dead zone | A soft wall at `deadZoneClearance`, because capped repulsion lost against the steering |
-| breath | Off by default. When on, every ship stands still through the last beat of each bar, velocity kept, while its rabbit runs on; it restarts on the one (`Breath.hh`, `MotionEngine::setFlightBreath`). A switch made inside a stop waits for the one, so no stop is cut short or started late; under three beats a bar there is no breath |
+| breath | Off by default. When on, every ship stands still through the last beat of each bar, velocity kept, while its rabbit runs on; it restarts on the one (`Breath.hh`, `MotionEngine::setFlightBreath`). The switch guarantees no partial stop, it is not quantised to the downbeat: made inside a stop it waits for the one, so no stop is cut short or started late; made outside one it acts at once, so switched on in beats 1-3 this bar's beat 4 already holds. Under three beats a bar there is no breath |
 
 Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The plane is the clip's
 floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
