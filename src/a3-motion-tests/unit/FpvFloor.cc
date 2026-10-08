@@ -228,3 +228,41 @@ TEST (FpvFloor, TheReadoutNamesTheChannelAndWhatItDoesNow)
   EXPECT_EQ (fpvPageReadout (3, PageOutcome::Patrol, true, noBodyId),
              "CH4 PATROL");
 }
+
+// --- readouts that tell the truth --------------------------------------------
+
+TEST (FpvFloor, FullSaysOrbitOnAPlayOrPagePadForAnOrbitChannel)
+{
+  EXPECT_EQ (padPressReadout (1, "PLAYPAUSE", AppView::Full, true, true),
+             "CH2 ORBIT");
+  EXPECT_EQ (padPressReadout (1, "PAGE", AppView::Full, true, true),
+             "CH2 ORBIT");
+}
+
+TEST (FpvFloor, FullKeepsThePadNameOtherwise)
+{
+  EXPECT_EQ (padPressReadout (0, "PLAYPAUSE", AppView::Full, false, true),
+             "CH1 PLAYPAUSE");
+  EXPECT_EQ (padPressReadout (0, "A3", AppView::Full, true, false), "CH1 A3");
+  EXPECT_EQ (padPressReadout (0, "PAGE", AppView::Fpv, true, true),
+             "CH1 PAGE");
+}
+
+TEST (FpvFloor, ADeadZoneEscortIsReportedAsPatrol)
+{
+  auto const floor = floorWith ({ { { 0.f, 0.f }, -2.f, 1 },
+                                  { { 0.5f, 0.f }, 2.f, 2 } });
+  EXPECT_EQ (flownOutcome (PageOutcome::Escort, 1, floor), PageOutcome::Patrol);
+  EXPECT_EQ (flownOutcome (PageOutcome::Escort, 2, floor), PageOutcome::Escort);
+  EXPECT_EQ (flownOutcome (PageOutcome::Toggle, 1, floor), PageOutcome::Toggle);
+}
+
+TEST (FpvFloor, AnOrbitToggleWithoutAClipSaysSo)
+{
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId, false),
+             juce::String::fromUTF8 ("CH1 ORBIT \xc2\xb7 no clip"));
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, true, noBodyId, true),
+             "CH1 ORBIT");
+  EXPECT_EQ (fpvPageReadout (0, PageOutcome::Toggle, false, noBodyId, false),
+             "CH1 CLIP");
+}

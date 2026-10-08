@@ -2077,9 +2077,13 @@ A3MotionUIComponent::applyPageOutcome (index_t channel, PageOutcome outcome,
     case PageOutcome::None:
       return;
     }
+  auto const &pattern = _patterns[channel][0];
+  auto const hasClip
+      = pattern && pattern->getStatus () == Pattern::Status::Playing;
   updateControlReadout (fpvPageReadout (
-      static_cast<int> (channel), outcome,
-      _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId));
+      static_cast<int> (channel),
+      flownOutcome (outcome, bodyId, _floorBodies.snapshot ()),
+      _engine.getFlightMode (channel) == FlightMode::Orbit, bodyId, hasClip));
   refreshFpvStrips ();
   refreshFlightDisplay ();
 }
@@ -2443,7 +2447,10 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
       = function == PadFunction::PlayPause ? juce::String ("PLAYPAUSE")
         : function == PadFunction::Page    ? juce::String ("PAGE")
                                            : "A" + juce::String (button + 1);
-  updateControlReadout ("CH" + juce::String (channel + 1) + " " + name);
+  updateControlReadout (padPressReadout (
+      static_cast<int> (channel), name, _view,
+      _engine.getFlightMode (channel) == FlightMode::Orbit,
+      function == PadFunction::PlayPause || function == PadFunction::Page));
 
   // The bar follows the hand. Pressing play or an action on a clip is saying
   // "this one", so the settings you are looking at should be its — otherwise

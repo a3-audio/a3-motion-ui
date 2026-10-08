@@ -151,7 +151,8 @@ FpvPageHold::clear ()
 }
 
 juce::String
-fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow, int bodyId)
+fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow, int bodyId,
+                bool hasClip)
 {
   auto const ch = "CH" + juce::String (channel + 1) + " ";
   switch (outcome)
@@ -164,7 +165,30 @@ fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow, int bodyId)
     case PageOutcome::None:
       break;
     }
-  return ch + (orbitNow ? "ORBIT" : "CLIP");
+  if (!orbitNow)
+    return ch + "CLIP";
+  return hasClip ? ch + "ORBIT"
+                 : ch + juce::String::fromUTF8 ("ORBIT \xc2\xb7 no clip");
+}
+
+PageOutcome
+flownOutcome (PageOutcome outcome, int bodyId, FlightBodies const &bodies)
+{
+  if (outcome != PageOutcome::Escort)
+    return outcome;
+  return escortView (bodyId, true, bodies).escort == noBodyId
+             ? PageOutcome::Patrol
+             : outcome;
+}
+
+juce::String
+padPressReadout (int channel, juce::String const &padName, AppView view,
+                 bool orbit, bool playOrPagePad)
+{
+  auto const ch = "CH" + juce::String (channel + 1) + " ";
+  if (view == AppView::Full && orbit && playOrPagePad)
+    return ch + "ORBIT";
+  return ch + padName;
 }
 
 }

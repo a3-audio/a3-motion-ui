@@ -21,6 +21,7 @@
 #pragma once
 
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-ui/components/AppView.hh>
 #include <a3-motion-ui/components/fpv/FpvPagePress.hh>
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -130,9 +131,21 @@ private:
   std::optional<int> _body;
 };
 
-/** "CH1 ORBIT", "CH1 CLIP", "CH1 -> G3", "CH1 PATROL": the channel and what
+/** An ORBIT toggle with `hasClip` false says "CH1 ORBIT . no clip": the ship
+ *  cannot fly without a running clip.
+ *  "CH1 ORBIT", "CH1 CLIP", "CH1 -> G3", "CH1 PATROL": the channel and what
  *  it does now. `orbitNow` is the mode after a toggle. */
 juce::String fpvPageReadout (int channel, PageOutcome outcome, bool orbitNow,
-                             int bodyId);
+                             int bodyId, bool hasClip = true);
+
+/** What an Escort release does to the ship: onto a dead zone the engine
+ *  patrols, so that is what is reported. */
+PageOutcome flownOutcome (PageOutcome outcome, int bodyId,
+                          FlightBodies const &bodies);
+
+/** The readout of a pad press. In FULL a Play|Pause or Page pad of a channel
+ *  that flies ORBIT says so ("CH2 ORBIT"); everything else keeps `padName`. */
+juce::String padPressReadout (int channel, juce::String const &padName,
+                              AppView view, bool orbit, bool playOrPagePad);
 
 }
