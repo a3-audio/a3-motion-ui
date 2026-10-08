@@ -72,4 +72,18 @@ buttonsHoldingFile (
   return holding;
 }
 
+juce::File
+ScriptRewire::panelFileAfter (juce::File const &shown) const
+{
+  return shown == from ? to : shown;
+}
+
+ScriptRewire
+rewireButtons (
+    std::vector<std::array<juce::File, numActionButtons> > const &files,
+    juce::File const &file, juce::File const &target)
+{
+  return { buttonsHoldingFile (files, file), target != file, file, target };
+}
+
 }

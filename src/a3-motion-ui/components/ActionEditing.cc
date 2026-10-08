@@ -125,6 +125,21 @@ copyBaseFor (juce::File const &from, juce::File const &folder)
   return "Action";
 }
 
+juce::File
+scriptFileToWrite (juce::File const &file, juce::File const &actionsFolder,
+                   ShippedClips shipped)
+{
+  // A script that has gone meanwhile is written back where it was, as it
+  // always was: it is the button's text, and only a shipped one is guarded.
+  auto const shippedHere = isSystemFileIn (actionsFolder, file);
+  if (!shippedHere
+      || shippedFileMayBeOverwritten (true, shippedHere, shipped))
+    return file;
+
+  return freeFileIn (actionsFolder, copyBaseFor (file, actionsFolder),
+                     file.getFileExtension ());
+}
+
 bool
 isActionScript (juce::File const &file)
 {

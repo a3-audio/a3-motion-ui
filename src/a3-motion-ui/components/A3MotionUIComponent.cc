@@ -5332,7 +5332,8 @@ A3MotionUIComponent::editShownScript (
 {
   // ACTION writes into the script (2026-09-29), in place: every button on
   // every channel holding this file takes the new text, the editor in FILES
-  // shows it, and the file is written once the hand stops.
+  // shows it, and the file is written once the hand stops. A shipped script
+  // with developer mode off is the exception, below.
   // A button with no script has nowhere to write, and says so rather than
   // showing a value nothing holds. A script whose file has gone meanwhile
   // (git, rm, an upgrade) is still the button's text: the edit applies and
@@ -5351,6 +5352,24 @@ A3MotionUIComponent::editShownScript (
   if (text == shown->source)
     return true;
 
+  // One of the instrument's own is not changed by a knob while developer
+  // mode is off -- the rule FILES keeps for Save (2026-10-08). The turn goes
+  // into a copy beside it in user/, "Bloom 2", written now so it exists, and
+  // every button that fired the factory one fires the copy from here on, as
+  // every one of them would have taken the new text in place.
+  auto const target = scriptFileToWrite (file, actionsDir (), shippedClips ());
+  if (target != file)
+    {
+      target.getParentDirectory ().createDirectory ();
+      if (!writeTextFile (target, text))
+        {
+          updateControlReadout ("-- CANNOT WRITE "
+                                + target.getFileNameWithoutExtension ()
+                                      .toUpperCase ());
+          return false;
+        }
+    }
+
   std::vector<std::array<juce::File, numActionButtons> > files;
   for (auto const &channel : _channelActions)
     {
@@ -5358,24 +5377,37 @@ A3MotionUIComponent::editShownScript (
       for (size_t b = 0; b < channel.size (); ++b)
         files.back ()[b] = channel[b].file;
     }
-  for (auto const &[channel, button] : buttonsHoldingFile (files, file))
+  auto const rewire = rewireButtons (files, file, target);
+  for (auto const &[channel, button] : rewire.buttons)
     {
       auto &action = _channelActions[static_cast<size_t> (channel)]
                                     [static_cast<size_t> (button)];
+      action.file = target;
       action.source = text;
       runButtonScript (static_cast<index_t> (channel), action);
     }
+  // The buttons now name the copy; the set on disk must too, or a restart
+  // brings back the factory script and the next turn makes another copy.
+  if (rewire.setChanged)
+    scheduleSetSave ();
 
   if (_browser != nullptr && _panelFile == file)
     {
       auto &panel = _browser->scriptPanel ();
+      _panelFile = rewire.panelFileAfter (_panelFile);
       panel.applyEdit (panel.hasUnsavedChanges () ? edit (panel.script ())
                                                   : text);
       panel.setErrors (shown->errors);
+      dressFilePanel ();
     }
 
-  _scriptWrites.put (file, text);
-  scheduleScriptWrite ();
+  if (target == file)
+    {
+      _scriptWrites.put (file, text);
+      scheduleScriptWrite ();
+    }
+  else
+    refreshBrowser ();
   updateActionPage ();
   updateClipSettingsDisplay ();
   return true;

@@ -57,4 +57,24 @@ std::vector<std::pair<int, int> > buttonsHoldingFile (
     std::vector<std::array<juce::File, numActionButtons> > const &files,
     juce::File const &file);
 
+/** What a turn on the script `file`, written to `target`, does to the
+ *  buttons: every one holding `file` holds `target` from then on. When the
+ *  two differ the turn went into a copy, and the set has changed with it --
+ *  it must be saved, or a restart brings the buttons back to the original. */
+struct ScriptRewire
+{
+  std::vector<std::pair<int, int> > buttons;
+  bool setChanged = false;
+  juce::File from;
+  juce::File to;
+
+  /** What a panel showing `shown` shows afterwards: the copy, if it showed
+   *  the original. */
+  juce::File panelFileAfter (juce::File const &shown) const;
+};
+
+ScriptRewire rewireButtons (
+    std::vector<std::array<juce::File, numActionButtons> > const &files,
+    juce::File const &file, juce::File const &target);
+
 }
