@@ -1732,7 +1732,7 @@ the one route by which a clip file becomes what a channel plays — FILES' Load 
 
 | Pad | When |
 |---|---|
-| PlayPause | the **next beat**, starting and stopping alike (`TempoClock::nextBeat()`) |
+| PlayPause | **now**; with Shift the **next downbeat** (`TempoClock::nextDownBeat()`); a double tap goes to the top |
 | Stop | **now** |
 | Action | **now** — the instant start beside PlayPause's quantised one |
 | Shift+Action | now, in preview mode, for as long as it is held |
@@ -1779,15 +1779,21 @@ gone from the panel and the screen. Internally the slot dimension still exists w
 ACTION page's fields reach `handlePadPress()` through them, so there is one route to what a pad
 means. STOP on the screen is `stopChannel()`: the panel has none.
 
-**Play|Pause on a running clip pauses** (`MotionEngine::pausePattern`, since 2026-10-08) on the next
-downbeat, and the next start goes on from where it stood (`Pattern::resumesOnPlay`); a paused ▶
-blinks slowly. **SHIFT means now and from the top** (`playPausePress()` in `PlayPausePress.hh`): on a
-running clip, or a pause still waiting, it stops and goes back to the top -- the panel's only way
-there -- and on a still clip it starts from the top at once, a pause forgotten. ■ (`stopPattern`)
+**Play|Pause on a running clip pauses** (`MotionEngine::pausePattern`, since 2026-10-08), and the next
+start goes on from where it stood (`Pattern::resumesOnPlay`); a paused ▶ blinks slowly. **A plain
+press acts now** (maintainer, 2026-10-08, reversing the downbeat default of 2026-09-25); **SHIFT waits
+for the next downbeat**, the key blinking meanwhile, and a second press on a waiting start calls it
+off. **Two plain taps within `doubleTapWindowMs` (350 ms) go back to the top**: the first already
+paused or resumed, so the second stops a paused clip to the top and starts a resumed one over -- the
+panel's only way there. `playPausePress()` in `PlayPausePress.hh` decides all of it from the status,
+Shift and the previous press on that clip (`PreviousPress`); every pad route -- panel, PADS page,
+screen transport key, scene rows -- reaches it through `handlePadPress()`. A press within
+`twinWindowMs` (40 ms) of the last is the second half of one touch under X (touch plus emulated mouse) and does nothing; serial panel presses have no twin. A plain pause
+passes `PausePlace::Exact` so the place stays exactly where it was. ■ (`stopPattern`)
 goes back to the top as well, a paused clip and a pending pause included (`stopReachesClip()`).
 
-A pause on the downbeat keeps the place as it is. One made off the downbeat -- the engine allows it,
-no key asks for it since SHIFT stops instead -- goes back by the ticks since the music's last
+A pause on the downbeat keeps the place as it is. One made off the downbeat with the default
+`PausePlace::BackToTheBar` -- no key asks for it since 2026-10-08 -- goes back by the ticks since the music's last
 downbeat (`MotionEngine::rewindToTheBar`; `rewoundPlayhead()` / `rewoundLapTick()` in
 `Playhead.hh`, `rewoundLfoPhase()`), place, lap and slow movements together, so a resume on a
 downbeat plays that bar again. Counted in ticks rather than snapped to the clip's bars: a pass that

@@ -240,8 +240,8 @@ private:
    *  or one that will not read, leaves the slot firing the accent alone. */
   void setButtonAction (index_t channel, int button, juce::File const &file);
   /** Stop now, or end the take going into this channel -- what the panel's
-   *  Stop pad did; the screen's STOP and Shift+Play reach it since the pad
-   *  became PAGE (2026-09-27). */
+   *  Stop pad did; the screen's STOP and a double tap on Play|Pause reach
+   *  it since the pad became PAGE (2026-09-27). */
   void stopChannel (index_t channel);
   /** Chooses which of the shown channel's six action buttons ACTION, the
    *  list, FILES' Load and the screen's ACT act on. Clamped to A1..A6. */
@@ -563,6 +563,13 @@ private:
   void writeSet ();
   // _patterns[channel][slot]: 2 clip slots per channel (see numClipSlots).
   std::vector<std::vector<std::shared_ptr<Pattern> > > _patterns;
+  /** The last Play|Pause press on each clip, for the double tap. */
+  struct LastPlayPausePress
+  {
+    long long atMs = 0; ///< 0: none
+    bool shift = false;
+  };
+  std::vector<std::vector<LastPlayPausePress> > _lastPlayPausePress;
 
   // Pattern library: manages system/ and user/ pattern files
   std::unique_ptr<PatternLibrary> _patternLibrary;

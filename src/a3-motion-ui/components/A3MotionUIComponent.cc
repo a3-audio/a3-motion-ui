@@ -1538,12 +1538,15 @@ A3MotionUIComponent::initializePatterns ()
                                ? _ioAdapter->getNumChannels ()
                                : _engine.getNumChannels ();
   _patterns.resize (numChannels);
+  _lastPlayPausePress.resize (numChannels);
   _clipUIParams.resize (numChannels);
   _slotClipFile.resize (numChannels);
   _armedFollows.resize (numChannels);
 
   for (auto &channelPatterns : _patterns)
     channelPatterns.resize (numClipSlots);
+  for (auto &channelPresses : _lastPlayPausePress)
+    channelPresses.resize (numClipSlots);
   for (auto &channelParams : _clipUIParams)
     channelParams.resize (numClipSlots);
   // Sized alongside _patterns, always: fillSlotFromLibrary() indexes both, so
@@ -2519,23 +2522,36 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
         if (!pattern)
           break;
 
-        // **On the next downbeat**; Shift means now and from the top, the
-        // panel's only way back to the top since it lost its Stop pads
-        // (2026-09-27) -- see playPausePress().
-        //
-        // The downbeat used to be the next beat, on the reasoning that a bar
-        // is up to a metre's worth of beats away and a clip starting that
-        // late reads as a button that did not work. What that reasoning was
-        // missing is that a figure which does not begin on the one runs the
-        // whole pass against the music -- and it was written before the key
-        // blinked while it waited, which is what makes the wait legible
-        // rather than dead.
+        // **At once**; Shift waits for the next downbeat, and two plain
+        // taps go back to the top -- the panel's only way there since it
+        // lost its Stop pads (2026-09-27). See playPausePress(). The key
+        // blinks while a Shift press waits, which is what makes the wait
+        // legible rather than dead.
         auto const downbeat = TempoClock::nextDownBeat (_now);
-        switch (playPausePress (pattern->getStatus (),
-                                isButtonPressed (Button::Shift)))
+        auto const shift = isButtonPressed (Button::Shift);
+        auto &lastPress = _lastPlayPausePress[channel][slot];
+        auto const pressedAt = static_cast<long long> (
+                                   juce::Time::getMillisecondCounterHiRes ())
+                               + 1; // never 0, which means "no press yet"
+        auto previous = PreviousPress{};
+        if (lastPress.atMs != 0)
+          previous = { static_cast<long> (pressedAt - lastPress.atMs),
+                       lastPress.shift };
+        // A double tap is used up; the next press starts afresh. A twin is
+        // not a press at all and leaves the record alone.
+        if (isDoubleTap (shift, previous))
+          lastPress = {};
+        else if (previous.msAgo >= twinWindowMs)
+          lastPress = { pressedAt, shift };
+
+        switch (playPausePress (pattern->getStatus (), shift, previous))
           {
-          case PlayPausePress::Start:
+          case PlayPausePress::StartNow:
             // A paused clip goes on from where it stood; the engine knows.
+            pattern->setPlaybackLength (getPlaybackLength (channel, slot));
+            _engine.playPattern (pattern, _now);
+            break;
+          case PlayPausePress::StartOnTheDownbeat:
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.playPattern (pattern, downbeat);
             break;
@@ -2546,10 +2562,13 @@ A3MotionUIComponent::handlePadPress (index_t channel, index_t pad)
             pattern->setPlaybackLength (getPlaybackLength (channel, slot));
             _engine.playPattern (pattern, _now);
             break;
-          case PlayPausePress::Pause:
-            // A pause, not a stop, since 2026-10-08 ("❚❚ resumes where it
-            // stopped"): the next ▶ goes on from there. The key blinks while
-            // it waits for the downbeat (maintainer, 2026-09-25).
+          case PlayPausePress::PauseNow:
+            // A pause, not a stop: the next ▶ goes on from there, exactly --
+            // the resume is at once too, so no bar to line up with.
+            _engine.pausePattern (pattern, _now, PausePlace::Exact);
+            break;
+          case PlayPausePress::PauseOnTheDownbeat:
+            // The key blinks while it waits (maintainer, 2026-09-25).
             _engine.pausePattern (pattern, downbeat);
             break;
           case PlayPausePress::StopToTheTop:
