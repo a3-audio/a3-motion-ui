@@ -234,6 +234,90 @@ flag flips, if the old switch or `a3-audio-engine` comes back, or if a source un
 `AudioIODevice`. Dropping the two modules would mean building the app with `juce_add_gui_app`
 instead of as a plugin.
 
+#### FPV phase 2: gravity flight
+
+> „was wir unbedingt vermeiden müssen ist, dass die raumschiffe nicht die ganze zeit auf ihrer bahn
+> rumfliegen, das klingt langweilig. [...] wir brauchen eine große flugbahn und wie planeten die
+> usergruppen" (maintainer, 2026-10-08)
+
+**In FPV a channel is CLIP or ORBIT.** CLIP flies the clip as FULL does. ORBIT flies one large
+ellipse, one lap per four bars, and guest groups the DJ places on the floor bend it. The mode is
+engine state (`MotionEngine::setFlightMode`), not view state: an ORBIT ship keeps flying in FULL.
+Groups live for the session only. Plan: `.claude/notes/fpv-phase-2-plan.md` in the workspace.
+
+| Part | What it does |
+|---|---|
+| bodies | Up to 8 points on the floor with a mass: G +1, C +2, H +3, X (dead zone) -2 |
+| big path | `BaseOrbit`: an ellipse that precesses once per 32 bars; a "rabbit" runs on it, locked to the bar |
+| ship | `a = steer + gravity + separation + wander - damping*v`, stepped one tick at a time |
+| beat pulse | Gravity is `1 + depth*(1 - beatFraction)^2`: hardest on the beat, hardest of all on the one |
+| escort | The goal becomes a circle round one body; its own pull is left out so the ship holds the circle |
+| dead zone | A soft wall at `deadZoneClearance`, because capped repulsion lost against the steering |
+
+Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The plane is the clip's
+floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
+in its band.
+
+**Switching never jumps.** CLIP to ORBIT starts at the channel's position with the path's tangent
+as velocity and the rabbit at the nearest phase on the ellipse. ORBIT to CLIP glides over one
+beat (`handover`). The glide is skipped while the channel is stopped or held: it cuts on Play. The
+clip's playhead runs on during ORBIT, so CLIP returns in phase.
+
+**The send path is unchanged.** `performFlight()` runs after `performPlayback()` and writes
+through `Channel::setPosition`. `PositionPacer` still limits to 60 positions a second, and the
+newest wins. No new OSC address.
+
+**Clock-thread rules.**
+
+| Rule | How |
+|---|---|
+| bodies reach the clock thread without a lock | `FlightBodiesBox`, a SeqLock snapshot; the message thread is the only writer; a torn read is refused, never spun |
+| mode and target | `std::atomic<int>` per channel, read once per tick |
+| no allocation, no lock, no log | fixed `std::array`s only |
+| ship state | owned by the clock thread |
+
+**Controls in FPV.** The three knobs stay sound, as in phase 1.
+
+| Input | Does |
+|---|---|
+| tap empty floor | new group G; a ninth is refused with `-- 8 GROUPS` |
+| tap a group | weight G, C, H, X, G |
+| drag from a group | moves it; the camera does not turn |
+| hold a group (600 ms) | removes it; its escorts go back to PATROL |
+| Page, short press | that channel CLIP <-> ORBIT (on release) |
+| Page held + tap a group | that ship escorts it (switches to ORBIT) |
+| Page held + tap empty floor | that ship back to PATROL |
+| drag outside any group, pinch | camera, as phase 1 |
+| double tap | resets the view only outside the floor disc |
+| Play, action pads | as phase 1 |
+
+`FpvFloor` decides who gets a finger (`fpvFingerDown`) and what a Page release means
+(`FpvPageHold`, `fpvPagePress`). Group ids are the lowest free 0..7, so G-labels stay stable while
+a group lives and are reused after its removal.
+
+**Where it lives.**
+
+| Code | Files |
+|---|---|
+| physics, pure | `src/a3-motion-engine/flight/` |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`) |
+| app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
+
+**Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
+and tagged as lab value, research value or guess. The rig changes values there; no test changes.
+Known compromises: the steer and gravity caps are 1.1, not the lab's 0.6, because 0.6 slings
+only ~1.4x; a single group (mass 1) bends the path only ~13-15 degrees.
+
+**Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
+`FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
+`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`. They are deterministic:
+one tick per step, seeds through `spreadSeed`, no wall clock. They assert behaviours (bends
+towards, slings out, stays out), except one determinism test. Engines in tests take
+`offlineBackend ()`, so nothing is sent.
+
+**Open.** FULL's pad readout does not yet say `CH n ORBIT`. Whether bodies need a floor shadow is
+judged on the device. Checklist: `smoke-test/fpv-phase-2.md` in the workspace.
+
 ### Engine (`src/a3-motion-engine`)
 
 - `MotionEngine` is the core: owns `Channel`s, a `TempoClock`, and an `AsyncCommandQueue`. It
@@ -241,6 +325,9 @@ instead of as a plugin.
   communicates with the rest of the engine and UI through lock-free FIFOs (`juce::AbstractFifo`) —
   commands are enqueued from the UI/message thread and drained on the high-priority clock thread,
   never called directly across threads.
+- `flight/` holds the pure gravity-flight physics for FPV's ORBIT mode (bodies, base orbit, ship
+  step, beat pulse, handover). `MotionEngine::performFlight()` runs it on the clock thread. See
+  "FPV phase 2: gravity flight".
 - `TempoClock` (`tempo/`) is the timing engine: runs at tick resolution relative to the current
   metrum (bar/beat/tick), with pluggable `TempoEstimator` strategies (`Last`, `Mean`,
   `MeanSelective`, `IRLS`) for turning tap events into BPM.
@@ -1912,7 +1999,8 @@ are `ShipShape`: the heading is taken in **screen space** (from where the positi
 ago to where it is now), because a heading on the sphere's surface would point wrongly whenever
 the camera is turned. Its path is a dart, sized from the blob size like everything else.
 
-**Touch on the sphere is camera only.** One finger tilts and turns, two zoom, a double tap resets.
+**Touch on the sphere is camera only outside the dance floor** (phase 2 gives the floor to the
+group gesture, see below). One finger tilts and turns, two zoom, a double tap resets.
 A blob cannot be grabbed, since nothing is drawn to grab. Entering camera mode now releases held
 blob grabs and the recording position (`TouchGrabs::releaseAll`) -- this holds for FULL's own
 elevation-picture camera toggle too: before, a blob held while the toggle was pressed stayed
@@ -1920,9 +2008,8 @@ held, and the finger that let go was no longer listened to.
 
 **The strips take the clip settings' place.** `FpvLayout` is the pure arithmetic (sphere rectangle,
 four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
-with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is a placeholder in phase
-1: `CH n` at the left and a fixed `AUTO` at the right, not wired to any state (`FpvChannel` has no
-mode field). Only the strip's tint and the bar fills use the channel's colour
+with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is `CH n` at the left and `CLIP` or
+`ORBIT` at the right (phase 2). Only the strip's tint and the bar fills use the channel's colour
 (`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
 `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
 `FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
