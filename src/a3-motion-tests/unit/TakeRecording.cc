@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -294,33 +295,38 @@ TEST (TakeRecording, UntouchedTicksPlayWhereTheClipPlayedThem)
   EXPECT_LT (worst, 2e-3f) << "an untouched tick moved";
 }
 
-/** The same over a clip whose band sways: each untouched tick is moved by the
- *  band the clip had at the phase that tick is heard with. */
-TEST (TakeRecording, UntouchedTicksOfASwayingClipPlayWhereTheyWereHeard)
+namespace
+{
+
+/** A take over a one-bar clip standing at one point of the pad, set up by
+ *  `configure` (the take carries the same settings, as the UI hands them
+ *  over), with nothing touched in `mode`: how far, at worst, any tick of the
+ *  take is heard from where the clip was heard at that tick of its first
+ *  pass, and how far the clip itself travelled -- a sweep that moves nothing
+ *  tests nothing. */
+std::pair<float, float>
+untouchedTicksMoved (std::function<void (Pattern &)> const &configure,
+                     RecMode mode)
 {
   HeightMapSphere heightMap;
   auto engine = anOfflineEngine (heightMap);
   engine->setPreviewMode (0, true);
   engine->setTempoBPM (240.f);
   engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
-  engine->setRecMode (RecMode::Touch);
+  engine->setRecMode (mode);
 
   Measure const oneBar{ 1, 0, 0 };
   auto const old2D = Pos::fromCartesian (0.6f, 0.3f, 0.f);
   auto const clip = aClipStandingAt (old2D, 128);
-  auto const swaying = [&] (Pattern &p) {
-    p.setElevationBase (0.5f);
-    p.setReach (0.3f);
-    p.setKnobSetting (Knob::Sway, 4.f);
-    p.setPlaybackLength (oneBar);
-  };
-  swaying (*clip);
+  configure (*clip);
+  clip->setPlaybackLength (oneBar);
 
   auto take = std::make_shared<Pattern> ();
   take->setChannel (0);
-  swaying (*take);
+  configure (*take);
+  take->setPlaybackLength (oneBar);
   engine->recordPattern (take, aBeatFromNow, oneBar, clip);
-  ASSERT_TRUE (waitUntil ([&] {
+  EXPECT_TRUE (waitUntil ([&] {
     return take->wasRecording ()
            && take->getStatus () == Pattern::Status::Idle;
   })) << "the take never ended";
@@ -328,18 +334,27 @@ TEST (TakeRecording, UntouchedTicksOfASwayingClipPlayWhereTheyWereHeard)
   auto const ticksPerBar = static_cast<float> (TempoClock::getTicksPerBeat ())
                            * 4.f;
   auto const ticks = take->getTicks ().positions;
-  ASSERT_FALSE (ticks.empty ());
+  EXPECT_FALSE (ticks.empty ());
+  auto const numTicks = static_cast<index_t> (ticks.size ());
   float worst = 0.f;
   float travelled = 0.f;
   Pos first = Pos::invalid;
-  for (std::size_t tick = 0; tick < ticks.size (); ++tick)
+  for (index_t tick = 0; tick < numTicks; ++tick)
     {
-      ASSERT_TRUE (ticks[tick].isValid ()) << "tick " << tick;
-      auto const at = ticksIntoFirstPass (static_cast<index_t> (tick),
-                                          static_cast<index_t> (ticks.size ()),
-                                          PlayDirection::Forward, ticksPerBar);
-      setPassPhases (*clip, at, ticksPerBar);
-      setPassPhases (*take, at, ticksPerBar);
+      if (!ticks[tick].isValid ())
+        return { 10.f, travelled };
+      // Each at its own direction's first pass: a reversed clip reaches its
+      // first tick last.
+      setPassPhases (*clip,
+                     ticksIntoFirstPass (tick, numTicks,
+                                         clip->getPlayDirection (),
+                                         ticksPerBar),
+                     ticksPerBar);
+      setPassPhases (*take,
+                     ticksIntoFirstPass (tick, numTicks,
+                                         take->getPlayDirection (),
+                                         ticksPerBar),
+                     ticksPerBar);
       auto const before = playedPosition (heightMap, old2D, *clip);
       auto const now = playedPosition (heightMap, ticks[tick], *take);
       worst = std::max (worst, angleBetween (before, now));
@@ -347,8 +362,80 @@ TEST (TakeRecording, UntouchedTicksOfASwayingClipPlayWhereTheyWereHeard)
         first = before;
       travelled = std::max (travelled, angleBetween (first, before));
     }
-  EXPECT_GT (travelled, 0.05f) << "the sway moved nothing; the test means nothing";
+  return { worst, travelled };
+}
+
+void
+inABand (Pattern &p)
+{
+  p.setElevationBase (0.5f);
+  p.setReach (0.3f);
+}
+
+}
+
+/** The same over a clip whose band sways: each untouched tick is moved by the
+ *  band the clip had at the phase that tick is heard with. */
+TEST (TakeRecording, UntouchedTicksOfASwayingClipPlayWhereTheyWereHeard)
+{
+  auto const [worst, travelled] = untouchedTicksMoved (
+      [] (Pattern &p) {
+        inABand (p);
+        p.setKnobSetting (Knob::Sway, 4.f);
+      },
+      RecMode::Touch);
+  EXPECT_GT (travelled, 0.05f) << "the sway moved nothing";
   EXPECT_LT (worst, 2e-3f) << "an untouched tick of the swaying clip moved";
+}
+
+/** Turned, squeezed, leant and spinning: the shaping is undone and done again
+ *  around the change of band, not applied twice. */
+TEST (TakeRecording, UntouchedTicksOfATurnedSpinningClipPlayWhereTheyWereHeard)
+{
+  auto const [worst, travelled] = untouchedTicksMoved (
+      [] (Pattern &p) {
+        inABand (p);
+        p.setRotate (0.3f);
+        p.setSqueezeX (-0.8f);
+        p.setSqueezeY (0.4f);
+        p.setTilt (0.25f);
+        p.setSpin (6); // a bar a turn
+      },
+      RecMode::Touch);
+  EXPECT_GT (travelled, 0.05f) << "the spin moved nothing";
+  EXPECT_LT (worst, 2e-3f) << "an untouched tick of the turned clip moved";
+}
+
+/** Backwards and to and fro: each tick moved at the phase its own direction
+ *  reaches it with. */
+TEST (TakeRecording, UntouchedTicksOfAReversedOrBouncingClipStayPut)
+{
+  for (auto const direction : { PlayDirection::Reverse, PlayDirection::Bounce })
+    {
+      auto const [worst, travelled] = untouchedTicksMoved (
+          [direction] (Pattern &p) {
+            inABand (p);
+            p.setKnobSetting (Knob::Sway, 4.f);
+            p.setPlayDirection (direction);
+          },
+          RecMode::Touch);
+      EXPECT_GT (travelled, 0.05f) << static_cast<int> (direction);
+      EXPECT_LT (worst, 2e-3f) << static_cast<int> (direction);
+    }
+}
+
+/** LATCH with nothing touched keeps the clip, moved into the whole sphere,
+ *  the same as TOUCH. */
+TEST (TakeRecording, LatchLeavesAnUntouchedClipWhereItWasHeard)
+{
+  auto const [worst, travelled] = untouchedTicksMoved (
+      [] (Pattern &p) {
+        inABand (p);
+        p.setKnobSetting (Knob::Sway, 4.f);
+      },
+      RecMode::Latch);
+  EXPECT_GT (travelled, 0.05f);
+  EXPECT_LT (worst, 2e-3f);
 }
 
 /** The clip is moved into the whole sphere when the take is asked for, on
@@ -626,6 +713,44 @@ TEST (TakeRecording, TouchKeepsTheTicksItDidNotTouch)
       << "a tick is neither the clip's nor the finger's";
   // The ticks before the finger came down are the clip's.
   EXPECT_TRUE (heardAt (heightMap, *take, ticks.front (), oldHeard));
+}
+
+// ── The band knobs are still during a take (2026-10-08) ──────────────────
+
+/** A hand on elv during a take writes nothing: no lane for any of the band's
+ *  knobs, even in WRITE, which writes every other knob through the pass --
+ *  and the take keeps the whole sphere. */
+TEST (TakeRecording, TurningElvDuringATakeLeavesTheBandWhole)
+{
+  HeightMapSphere heightMap;
+  auto engine = anOfflineEngine (heightMap);
+  engine->setPreviewMode (0, true);
+  engine->setTempoBPM (240.f);
+  engine->setRecordingMode (MotionEngine::RecordingMode::OneShot);
+  engine->setRecMode (RecMode::Write);
+
+  auto take = std::make_shared<Pattern> ();
+  take->setChannel (0);
+  take->setElevationBase (0.5f);
+  take->setReach (0.3f);
+  engine->recordPattern (take, aBeatFromNow, Measure{ 0, 1, 0 });
+  ASSERT_TRUE (waitUntil ([&] { return engine->isRecording (); }));
+  take->setKnobHeld (Knob::Elevation, true);
+  take->setKnobHeld (Knob::Reach, true);
+  ASSERT_TRUE (waitUntil ([&] {
+    return take->wasRecording ()
+           && take->getStatus () == Pattern::Status::Idle;
+  })) << "the take never ended";
+  take->setKnobHeld (Knob::Elevation, false);
+  take->setKnobHeld (Knob::Reach, false);
+
+  for (int k = 0; k < numKnobs; ++k)
+    if (isTakeBandKnob (static_cast<Knob> (k)))
+      EXPECT_FALSE (take->hasLane (static_cast<Knob> (k)))
+          << knobName (static_cast<Knob> (k));
+  EXPECT_TRUE (take->hasLane (Knob::Rotate)) << "WRITE writes the other knobs";
+  EXPECT_FLOAT_EQ (take->getElevationParams ().elevationBase, 0.f);
+  EXPECT_FLOAT_EQ (take->getElevationParams ().reach, 1.f);
 }
 
 // ── 3D, FREQ and Q belong to the actions ─────────────────────────────────
