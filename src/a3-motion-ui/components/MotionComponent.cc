@@ -1648,7 +1648,16 @@ MotionComponent::renderOpenGL ()
     _mutexDisplayData.lock ();
     auto const patternsDisplayData{ _patternsDisplayData };
     auto const selected = _selectedPattern;
-    auto const flightDisplay = _fpv ? _flightDisplay : FlightDisplay{};
+    // Copy-assigned into a member so the vectors keep their capacity: no
+    // allocation per frame on this thread.
+    if (_fpv)
+      _flightDisplayDrawn = _flightDisplay;
+    else
+      {
+        _flightDisplayDrawn.guide.clear ();
+        _flightDisplayDrawn.bodies.count = 0;
+      }
+    auto const &flightDisplay = _flightDisplayDrawn;
     _mutexDisplayData.unlock ();
 
     ++_frameCount;

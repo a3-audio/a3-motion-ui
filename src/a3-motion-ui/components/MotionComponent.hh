@@ -280,6 +280,8 @@ private:
 
   /** The field as the GL thread draws it: guarded by _mutexDisplayData. */
   FlightDisplay _flightDisplay;
+  /** GL thread only: this frame's copy, kept so its vector is reused. */
+  FlightDisplay _flightDisplayDrawn;
   /** The bodies as last set, for the hit test on the message thread. */
   FlightBodies _flightBodiesShown{};
   /** The one finger on the floor and what it is. Message thread. */
