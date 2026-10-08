@@ -40,8 +40,13 @@ struct FlightTuning
   float orbitLapBars = 4.f;
   float orbitPrecessionBars = 32.f;
   // steering
-  float steerStiffness = 0.6f; // kSteer, per beat^2
-  float steerDamping = 0.8f;   // cSteer, per beat
+  // kSteer and cSteer: a PD loop without feed-forward of the rabbit's turn
+  // lags it by about (centripetal acceleration / kSteer). The path's tightest
+  // bend needs ~0.13 floor units/beat^2, so 0.6 left the ship 0.24 behind;
+  // 2 keeps it within ~0.07. cSteer = 2 * 0.78 * sqrt (kSteer): just under
+  // critically damped, so it settles onto the path without ringing.
+  float steerStiffness = 2.f; // kSteer, per beat^2
+  float steerDamping = 2.2f;  // cSteer, per beat
   float steerMax = 0.3f;
   float damping = 0.05f;  // per beat
   float speedMin = 0.08f; // floor units per beat
