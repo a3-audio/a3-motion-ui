@@ -58,4 +58,12 @@ Vec2 clampLength (Vec2 v, float maxLength);
 Vec2 gravityAt (Vec2 p, FlightBodies const &bodies, float pulse,
                 FlightTuning const &tuning);
 
+/** The walls round the dead zones at `p`: nothing beyond deadZoneClearance
+ *  of one, a spring straight away from it inside. Not capped by gravityMax
+ *  and not breathing with the beat, as the room's rim is not: "not here"
+ *  holds whatever pulls the other way. Zero on the very centre of a zone
+ *  (no direction to push in); the zone's own repulsion moves a ship off it. */
+Vec2 deadZonePush (Vec2 p, FlightBodies const &bodies,
+                   FlightTuning const &tuning);
+
 }

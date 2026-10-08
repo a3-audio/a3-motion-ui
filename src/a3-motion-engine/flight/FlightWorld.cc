@@ -128,7 +128,8 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
       FlightBodies const pulling
           = escorted < 0 ? bodies : withoutBody (bodies, escorted);
       forces[index (ch)] = { goalFor (ch, bodies, beats, beatsPerBar),
-                             gravityAt (ship.p, pulling, pulse, _tuning),
+                             gravityAt (ship.p, pulling, pulse, _tuning)
+                                 + deadZonePush (ship.p, bodies, _tuning),
                              separationOf (ch, orders) };
     }
 

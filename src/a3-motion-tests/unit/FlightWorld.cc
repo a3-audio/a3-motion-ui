@@ -354,7 +354,10 @@ TEST (FlightWorld, OtherGroupsStillTug)
 {
   auto alone = oneGroup ();
   auto withANeighbour = oneGroup ();
-  withANeighbour.body[1] = { escorted + Vec2{ 0.3f, -0.15f }, 2.f };
+  // beyond the escort circle, between it and the room's centre
+  auto const towardsTheCentre = -escorted / escorted.getDistanceFromOrigin ();
+  withANeighbour.body[1]
+      = { escorted + towardsTheCentre * (1.5f * escortRadius (2.f)), 2.f };
   withANeighbour.count = 2;
 
   auto const orders = shipZeroOn (FlightGoal::Escort, 0);

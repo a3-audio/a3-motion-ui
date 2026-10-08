@@ -98,3 +98,33 @@ TEST (FlightField, ZeroSofteningOnTopOfABodyIsFinite)
       EXPECT_LE (a.getDistanceFromOrigin (), t.gravityMax + 1e-5f);
     }
 }
+
+TEST (FlightField, ADeadZonesWallPushesStraightAwayInsideItsClearance)
+{
+  FlightTuning const t;
+  FlightBodies b;
+  b.body[0] = { { 0.5f, 0.f }, -2.f };
+  b.count = 1;
+  auto const inside = deadZonePush ({ 0.5f + 0.5f * t.deadZoneClearance, 0.f }, b, t);
+  EXPECT_GT (inside.x, 0.f);
+  EXPECT_FLOAT_EQ (inside.y, 0.f);
+  EXPECT_EQ (deadZonePush ({ 0.5f + 1.1f * t.deadZoneClearance, 0.f }, b, t), Vec2{});
+}
+
+TEST (FlightField, AGroupHasNoWall)
+{
+  FlightTuning const t;
+  FlightBodies b;
+  b.body[0] = { { 0.5f, 0.f }, 3.f };
+  b.count = 1;
+  EXPECT_EQ (deadZonePush ({ 0.55f, 0.f }, b, t), Vec2{});
+}
+
+TEST (FlightField, OnTheCentreOfADeadZoneTheWallIsFinite)
+{
+  FlightBodies b;
+  b.body[0] = { { 0.5f, 0.f }, -2.f };
+  b.count = 1;
+  auto const push = deadZonePush ({ 0.5f, 0.f }, b, FlightTuning{});
+  EXPECT_TRUE (std::isfinite (push.x) && std::isfinite (push.y));
+}

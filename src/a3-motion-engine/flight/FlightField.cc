@@ -50,4 +50,25 @@ gravityAt (Vec2 p, FlightBodies const &bodies, float pulse,
   return clampLength (sum * (pulse * tuning.gravity), tuning.gravityMax);
 }
 
+Vec2
+deadZonePush (Vec2 p, FlightBodies const &bodies, FlightTuning const &tuning)
+{
+  constexpr float noDirection = 1e-6f;
+  Vec2 sum;
+  for (auto i = 0; i < bodies.count && i < maxFlightBodies; ++i)
+    {
+      auto const &body = bodies.body[static_cast<size_t> (i)];
+      if (body.mass >= 0.f)
+        continue;
+      auto const away = p - body.at;
+      auto const distance = away.getDistanceFromOrigin ();
+      if (distance >= tuning.deadZoneClearance || distance <= noDirection)
+        continue;
+      sum += away
+             * (tuning.deadZoneStiffness
+                * (tuning.deadZoneClearance - distance) / distance);
+    }
+  return sum;
+}
+
 }

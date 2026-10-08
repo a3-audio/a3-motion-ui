@@ -32,54 +32,50 @@ namespace a3
  *  of its own. Lengths are floor units: the room's edge is at radius 1. */
 struct FlightTuning
 {
-  // gravity, steering: tuned together against unit/FlightGravity.cc
-  // (2026-10-08). The plan's start values let a crowd just outside the room
-  // pin the ship to the rim for good; three things set the values below.
-  //
-  // - gravityMax == steerMax. The pull can match the steering but never beat
-  //   it at full error, so every capture on PATROL lets go: a ship that a
-  //   group holds falls behind its rabbit until the steering wins (a crowd
-  //   right on the path holds it ~1 bar). Below that, gravity beats the
-  //   *linear* steering (kSteer * error) near a body, which is what bends.
-  // - A small softening (0.045) makes the field steep: strong within ~0.15
-  //   of a body (slingshots, the dead zone's wall), weak at 0.3 (a group
-  //   off the path only nudges). A wider core reached the far ship as well.
-  // - cSteer low (damping ratio ~0.4): the velocity term pulls the speed
-  //   back to the rabbit's, so a high one swallowed every slingshot.
-  //
-  // The audible bars these meet, from the research notes (B1, B2): a
-  // slingshot speeds the ship up >= 1.5x (smaller is not heard as faster),
-  // and a group's bend pulls the closest pass >= 0.1 nearer.
-  float gravity = 0.03f;     // G
-  float softening = 0.045f;  // epsilon, floor units; 0 is read as flightSofteningFloor
-  float gravityMax = 2.f;    // |a| cap, floor units per beat^2
+  // Where each value comes from, as a tag: [lab] the MJ Lab's simulation
+  // (.claude/notes/mj-lab/mj-defaults-from-lab.md, 2026-10-08), [research]
+  // auditory-motion-research.md part B, [sweep] chosen by a sweep of this
+  // C++ model against the audible tests (FlightGravity.cc, FlightWorld.cc),
+  // [guess] neither: try it on the rig. The pro-DJ owns these defaults.
+
+  // gravity
+  float gravity = 0.02f;   // G [lab]
+  float softening = 0.08f; // epsilon, floor units; 0 reads as flightSofteningFloor [lab]
+  // |pull| cap, floor units per beat^2. Kept equal to steerMax [lab]: above
+  // it a group holds a patrolling ship for good, below it bends and lets go.
+  // The lab's 0.6 bends audibly in this model but tops out at ~1.4x speed in
+  // a flyby; 1.1 is the nearest that slings >= 1.5x on most passes [sweep].
+  float gravityMax = 1.1f;
   // the big path
   float orbitRadius = 0.7f;
   float orbitEccentricity = 0.2f;
-  float orbitLapBars = 4.f;         // <= 0: the rabbit stands at its slot
-  float orbitPrecessionBars = 32.f; // <= 0: the path does not turn
-  // steering
-  // kSteer: a PD loop without feed-forward of the rabbit's turn lags it by
-  // about (centripetal acceleration / kSteer). The path's tightest bend needs
-  // ~0.13 floor units/beat^2, so 0.6 left the ship 0.24 behind; 2.5 keeps it
-  // within ~0.07.
-  float steerStiffness = 2.5f; // kSteer, per beat^2
-  float steerDamping = 1.3f;   // cSteer, per beat
-  float steerMax = 2.f;        // == gravityMax, see above
-  float damping = 0.05f;  // per beat
-  float speedMin = 0.08f; // floor units per beat
-  // 0.9 a beat is ~150 deg/s round the path at 120 BPM: well under the
-  // ~360 deg/s where a path turns into a swirl (research notes, B1).
+  float orbitLapBars = 4.f;         // <= 0: the rabbit stands at its slot [lab + research B1]
+  float orbitPrecessionBars = 32.f; // <= 0: the path does not turn [research B1: "the room drifts"]
+  // steering: a PD loop on the rabbit
+  float steerStiffness = 2.5f; // kSteer, per beat^2; lag ~0.06 behind the rabbit [lab]
+  float steerDamping = 1.6f;   // cSteer, per beat [lab]
+  float steerMax = 1.1f;       // == gravityMax, see there [lab ratio, sweep value]
+  float damping = 0.05f;  // per beat [guess, plan]
+  float speedMin = 0.08f; // floor units per beat [guess, plan]
+  // ~1 lap per bar round the path, where the ear stops following [lab + research B1]
   float speedMax = 0.9f;
-  float rimSoft = 0.9f;
-  float rimStiffness = 4.f;
-  // escort
-  float captureRadius = 0.15f;
-  float captureLapBars = 2.f;
+  float rimSoft = 0.9f;      // [guess, plan]
+  float rimStiffness = 4.f;  // [guess, plan]
+  // escort: the circle round a group is captureRadius * sqrt(mass). At 0.15
+  // it was a small circle near the group, heard as parked [lab + research B2].
+  float captureRadius = 0.3f;
+  float captureLapBars = 2.f; // <= 0: the escort goal stands still [lab, weak]
+  // dead zones: a soft wall round each, like the room's rim, which the
+  // gravity cap does not touch (a capped push never beat the steering). 0.25
+  // is ~20 deg seen from the centre at the path [research B2]; the stiffness
+  // keeps a ship at >= ~0.8 of it at full speed [guess, sweep].
+  float deadZoneClearance = 0.25f;
+  float deadZoneStiffness = 40.f; // per beat^2
   // ships among themselves, wander
-  float separation = 0.004f;
-  float wanderRadius = 0.12f;
-  // the beat
+  float separation = 0.004f; // [guess, plan]
+  float wanderRadius = 0.12f; // ~10 deg a bar: "life", below a heard bend [research B2]
+  // the beat. Harmless, but under 1 deg of wobble at any depth: nothing may
+  // rely on it being heard [lab]; research B5 suggests half bars instead.
   float pulseDepth = 0.3f;
   float pulseDownbeatDepth = 0.6f;
 };
