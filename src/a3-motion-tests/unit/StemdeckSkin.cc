@@ -19,7 +19,7 @@
 */
 
 // The StemDeck look as a skin (decided 2026-10-08): StemDeck's neutral greys
-// and state colours, the softer channel set, and a sphere surround that stays
+// and state colours, StemDeck's channel colours, and a sphere surround that stays
 // dark. What the maintainer decided is held here, so a later edit of the file
 // that breaks one of those decisions says so.
 
@@ -60,15 +60,6 @@ lightness (ThemeColour colour)
   return y > 0.008856f ? 116.f * std::cbrt (y) - 16.f : 903.3f * y;
 }
 
-/** The angle between two hues on the colour wheel, 0..180. */
-float
-hueDistanceDegrees (ThemeColour a, ThemeColour b)
-{
-  auto const d = std::abs (toColour (a).getHue () - toColour (b).getHue ())
-                 * 360.f;
-  return std::min (d, 360.f - d);
-}
-
 bool
 sameColour (ThemeColour a, ThemeColour b)
 {
@@ -92,26 +83,19 @@ TEST (StemdeckSkin, TheSphereSurroundStaysDark)
   EXPECT_LE (lightness (t.sphereEnvironment), 4.f);
 }
 
-// The approved soft set, in Motion's channel order -- not StemDeck's stem
-// order, which would swap identities.
-TEST (StemdeckSkin, TheChannelsAreTheSoftSet)
+// The channels are StemDeck's own stem colours, in StemDeck's order, so a
+// channel on Motion looks like the stem StemDeck colours that way. The
+// maintainer's call (2026-10-08): "fake it for now" -- until the colours
+// come from one place for every device. It knowingly leaves the shipped
+// channel hues (the designer's within-10-degrees rule) for this skin only.
+TEST (StemdeckSkin, TheChannelsAreStemDecksColours)
 {
   auto const t = shippedTheme ("stemdeck");
-  ThemeColour const soft[numThemeChannels]
-      = { { 208, 106, 134 }, { 106, 127, 224 }, { 232, 195, 61 },
-          { 79, 179, 191 } };
+  ThemeColour const stemDeck[numThemeChannels]
+      = { { 232, 163, 61 }, { 79, 179, 191 }, { 208, 106, 134 },
+          { 143, 155, 214 } };
   for (int ch = 0; ch < numThemeChannels; ++ch)
-    EXPECT_TRUE (sameColour (t.channel[ch], soft[ch])) << "channel " << ch + 1;
-}
-
-// A channel's colour is its identity on the screen, the pads and the blobs:
-// a skin may move its lightness, not its hue (designer: within 10 degrees).
-TEST (StemdeckSkin, EachChannelKeepsTheShippedHue)
-{
-  auto const soft = shippedTheme ("stemdeck");
-  auto const shipped = shippedTheme ("default");
-  for (int ch = 0; ch < numThemeChannels; ++ch)
-    EXPECT_LE (hueDistanceDegrees (soft.channel[ch], shipped.channel[ch]), 10.f)
+    EXPECT_TRUE (sameColour (t.channel[ch], stemDeck[ch]))
         << "channel " << ch + 1;
 }
 
