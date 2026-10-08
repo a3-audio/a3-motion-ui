@@ -181,3 +181,19 @@ TEST (FloorGesture, ASwipeLiftedBeforeAnyMoveIsNotATap)
   g.down ({ 0.f, 0.f }, 0., body);
   EXPECT_EQ (g.up ({ 100.f, 0.f }, 80.), FloorAction::None);
 }
+
+TEST (FloorGesture, ANewGestureHasASlopBeforeAnyBlobIsKnown)
+{
+  FloorGesture g;
+  g.down ({ 100.f, 100.f }, 0., body);
+  EXPECT_EQ (g.move ({ 103.f, 100.f }, 20.), FloorAction::None);
+  EXPECT_EQ (g.up ({ 103.f, 100.f }, 40.), FloorAction::CycleWeight);
+}
+
+TEST (FloorGesture, ABlobOfNoSizeKeepsTheSlop)
+{
+  auto g = gesture ();
+  g.setBlobDiameter (0.f);
+  g.down ({ 100.f, 100.f }, 0., body);
+  EXPECT_EQ (g.move ({ 110.f, 100.f }, 20.), FloorAction::None);
+}

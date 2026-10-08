@@ -100,7 +100,10 @@ FloorGesture::holdProgress (double ms) const
 void
 FloorGesture::setBlobDiameter (float pixels)
 {
-  _blobDiameter = pixels;
+  // Before the first layout the blob is zero, and a slop of zero would make
+  // every trembling tap a drag.
+  if (pixels > 0.f)
+    _blobDiameter = pixels;
 }
 
 bool

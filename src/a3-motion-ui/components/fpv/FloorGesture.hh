@@ -24,6 +24,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <a3-motion-ui/components/ControllerLayout.hh>
+
 namespace a3
 {
 
@@ -87,7 +89,9 @@ private:
   juce::Point<float> _start;
   double _downMs = 0.;
   std::optional<int> _body;
-  float _blobDiameter = 0.f;
+  /** A fingertip until the caller knows the blob: a slop exists from the
+   *  start. setBlobDiameter ignores a size of zero or less. */
+  float _blobDiameter = static_cast<float> (fingertipSize);
 };
 
 }
