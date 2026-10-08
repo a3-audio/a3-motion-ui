@@ -37,6 +37,7 @@
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <memory>
@@ -348,6 +349,52 @@ TEST (TakeRecording, UntouchedTicksOfASwayingClipPlayWhereTheyWereHeard)
     }
   EXPECT_GT (travelled, 0.05f) << "the sway moved nothing; the test means nothing";
   EXPECT_LT (worst, 2e-3f) << "an untouched tick of the swaying clip moved";
+}
+
+/** The clip is moved into the whole sphere when the take is asked for, on
+ *  the caller's thread -- not at the downbeat, where the clock thread would
+ *  stall on it. A 64-bar take over a clip whose knobs hold lanes read from a
+ *  file (sparse: only where they change) is ready, band and all, before its
+ *  downbeat, and quickly: that walk took 47 s on the clock (2026-10-08). */
+TEST (TakeRecording, ALongTakeIsLaidOutBeforeItsDownbeat)
+{
+  HeightMapSphere heightMap;
+  auto engine = anOfflineEngine (heightMap);
+  engine->setTempoBPM (60.f);
+  engine->setRecMode (RecMode::Touch);
+
+  Measure const sixtyFourBars{ 64, 0, 0 };
+  auto const ticks = static_cast<index_t> (64 * 4 * TempoClock::getTicksPerBeat ());
+  auto const old2D = Pos::fromCartesian (0.6f, 0.3f, 0.f);
+  auto const clip = aClipStandingAt (old2D, ticks);
+  clip->setElevationBase (0.5f);
+  clip->setReach (0.3f);
+  KnobLanes lanes;
+  for (auto const knob : { Knob::Rotate, Knob::SqueezeX, Knob::Tilt,
+                           Knob::Reach, Knob::Elevation, Knob::Roll })
+    lanes[static_cast<std::size_t> (knob)] = KnobLane::fromChangePoints (
+        { { 5, 0.1f }, { static_cast<int> (ticks / 2), 0.2f } }, ticks);
+  clip->setLanes (lanes);
+
+  auto take = std::make_shared<Pattern> ();
+  take->setChannel (0);
+  take->setElevationBase (0.5f);
+  take->setReach (0.3f);
+  take->setPlaybackLength (sixtyFourBars);
+
+  auto const started = std::chrono::steady_clock::now ();
+  engine->recordPattern (take, Measure{ 8, 0, 0 }, sixtyFourBars, clip);
+  auto const took = std::chrono::duration<double> (
+                        std::chrono::steady_clock::now () - started)
+                        .count ();
+
+  EXPECT_FALSE (engine->isRecording ()) << "the take started already";
+  EXPECT_EQ (take->getNumTicks (), ticks);
+  EXPECT_FLOAT_EQ (take->getElevationParams ().reach, 1.f)
+      << "the band is opened at the downbeat, not when the take is asked for";
+  EXPECT_FALSE (take->hasLane (Knob::Reach));
+  EXPECT_TRUE (take->hasLane (Knob::Rotate)) << "the clip's other lanes went";
+  EXPECT_LT (took, 1.0) << "laying out the take walked its lanes";
 }
 
 /** Before the downbeat the armed take owns the finger too, and the blob

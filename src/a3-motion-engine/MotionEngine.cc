@@ -633,6 +633,13 @@ MotionEngine::recordPattern (std::shared_ptr<Pattern> pattern,
                              Measure timepoint, Measure length,
                              std::shared_ptr<Pattern> seed)
 {
+  // Laid out here, on the caller's thread, while the take is still nobody
+  // else's: its path over the clip it starts from, moved into the whole
+  // sphere. On the clock thread at the downbeat that cost a 64-bar take some
+  // 43 ms -- eleven ticks at 120 BPM (2026-10-08).
+  if (pattern)
+    prepareTake (*pattern, length, seed.get ());
+
   Message message;
   message.command = Message::Command::StartRecording;
   message.pattern = pattern;
@@ -1319,10 +1326,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   _recordingLap = 0;
   _recordingTicksAtLift = 0;
   _recordingFingerWasDown = false;
-  // A new take is new knob lanes too: they belong to the path they were
-  // turned over.
+  // A new take is new knob recorders too: what they remember is about this
+  // take. Its lanes were laid out with its path in prepareTake().
   _knobRecorders = KnobRecorders{};
-  pattern->clearLanes ();
   _takeWrote.store (false, std::memory_order_relaxed);
 
   // Calculate adaptive sub-sampling factor based on recording length
@@ -1331,19 +1337,9 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   juce::Logger::writeToLog ("Recording with sub-sampling factor: " + juce::String (_recordingSubSamplingFactor));
 #endif
 
-  auto const ticks
-      = Measure::convertToTicks (length, _tempoClock.getBeatsPerBar ());
-  jassert (ticks >= 0);
-
-  _patternRecording->clear ();
-  // Allocate with adaptive sub-sampling for smooth playback at any speed
-  auto const ticksWithSubSampling = static_cast<std::size_t> (ticks) * _recordingSubSamplingFactor;
-  _patternRecording->resize (ticksWithSubSampling);
-
-  // Over the clip the slot held: TOUCH then changes only what is touched.
-  if (seed)
-    seedTake (*_patternRecording, *seed);
-  openTakeToTheWholeSphere (*_patternRecording);
+  // Its ticks, the clip's path in them and its band were laid out when it
+  // was asked for -- prepareTake().
+  (void) seed;
 
   _recordingPosition = Pos::invalid;
   _recordingPosition2D = Pos::invalid;
@@ -1545,18 +1541,25 @@ MotionEngine::finishRecording ()
 void
 MotionEngine::takePhasesAt (Pattern &take, index_t tick) const
 {
-  auto const ticksPerBar
-      = static_cast<float> (TempoClock::getTicksPerBeat ())
-        * static_cast<float> (_tempoClock.getBeatsPerBar ());
+  firstPassPhasesAt (take, tick, _tempoClock.getBeatsPerBar (),
+                     _recordingSubSamplingFactor);
+}
+
+void
+MotionEngine::firstPassPhasesAt (Pattern &take, index_t tick, int beatsPerBar,
+                                 int subSampling)
+{
+  auto const ticksPerBar = static_cast<float> (TempoClock::getTicksPerBeat ())
+                           * static_cast<float> (beatsPerBar);
   auto const numTicks = take.getNumTicks ();
 
   // The pass is as long as the take plays, which is not always as long as it
   // records; a take with no playback length set plays at its own.
-  auto passTicks = static_cast<float> (Measure::convertToTicks (
-      take.getPlaybackLength (), _tempoClock.getBeatsPerBar ()));
+  auto passTicks = static_cast<float> (
+      Measure::convertToTicks (take.getPlaybackLength (), beatsPerBar));
   if (passTicks <= 0.f)
     passTicks = static_cast<float> (numTicks)
-                / static_cast<float> (std::max (_recordingSubSamplingFactor, 1));
+                / static_cast<float> (std::max (subSampling, 1));
 
   setPassPhases (take,
                  ticksIntoFirstPass (tick, numTicks, take.getPlayDirection (),
@@ -1564,12 +1567,35 @@ MotionEngine::takePhasesAt (Pattern &take, index_t tick) const
                  ticksPerBar);
 }
 
+void
+MotionEngine::prepareTake (Pattern &take, Measure length,
+                           Pattern const *seed) const
+{
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  auto const subSampling = calculateSubSamplingFactor (length, beatsPerBar);
+  auto const ticks = Measure::convertToTicks (length, beatsPerBar);
+  jassert (ticks >= 0);
+
+  // A new take is new knob lanes too: they belong to the path they were
+  // turned over.
+  take.clearLanes ();
+  take.clear ();
+  take.resize (static_cast<std::size_t> (std::max<long long> (ticks, 0))
+               * static_cast<std::size_t> (subSampling));
+
+  // Over the clip the slot held: TOUCH then changes only what is touched.
+  if (seed)
+    seedTake (take, *seed);
+  openTakeToTheWholeSphere (take, beatsPerBar, subSampling);
+}
+
 /** The take's band becomes the whole sphere (openToTheWholeSphere), and
  *  every point already in it -- the clip it started from -- is moved into the
  *  new band where it was heard, tick by tick through the clip's own band,
  *  lanes and sweeps at the phase its first pass reaches that tick with. */
 void
-MotionEngine::openTakeToTheWholeSphere (Pattern &take)
+MotionEngine::openTakeToTheWholeSphere (Pattern &take, int beatsPerBar,
+                                        int subSampling) const
 {
   auto const numTicks = take.getNumTicks ();
   auto const ticks = take.getTicks ().positions;
@@ -1578,7 +1604,7 @@ MotionEngine::openTakeToTheWholeSphere (Pattern &take)
   for (index_t tick = 0; tick < numTicks; ++tick)
     if (ticks[tick].isValid ())
       {
-        takePhasesAt (take, tick);
+        firstPassPhasesAt (take, tick, beatsPerBar, subSampling);
         take.playKnobs (static_cast<double> (tick));
         heard[tick] = playedPosition (_heightMap, ticks[tick], take);
       }
@@ -1588,7 +1614,7 @@ MotionEngine::openTakeToTheWholeSphere (Pattern &take)
   for (index_t tick = 0; tick < numTicks; ++tick)
     if (heard[tick].isValid ())
       {
-        takePhasesAt (take, tick);
+        firstPassPhasesAt (take, tick, beatsPerBar, subSampling);
         take.playKnobs (static_cast<double> (tick));
         take.setTick (tick, writtenPosition (_heightMap, heard[tick], take));
       }

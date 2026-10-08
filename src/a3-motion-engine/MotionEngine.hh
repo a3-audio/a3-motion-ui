@@ -466,7 +466,13 @@ private:
 
   void performRecording ();
   void takePhasesAt (Pattern &take, index_t tick) const;
-  void openTakeToTheWholeSphere (Pattern &take);
+  static void firstPassPhasesAt (Pattern &take, index_t tick, int beatsPerBar,
+                                 int subSampling);
+  /** A take laid out before it is scheduled, on the caller's thread: its
+   *  ticks, its lanes, the clip it starts from moved into the whole sphere. */
+  void prepareTake (Pattern &take, Measure length, Pattern const *seed) const;
+  void openTakeToTheWholeSphere (Pattern &take, int beatsPerBar,
+                                 int subSampling) const;
   Pos heardInTake (Pos const &direction, Pattern &take, index_t tick) const;
   void performPlayback ();
   index_t updatePlayPosition (Pattern &pattern);
