@@ -69,7 +69,8 @@ elevationKnobSpec (int sub)
     return { -lfoMaxStep, lfoMaxStep, 1.0, 0.0, true, false, caption::sway };
 
   // Where the middle of the trajectory sits, bottom to top. Two taps are the
-  // page's rule (the middle of the clip band), not a number in the table.
+  // page's rule (ear height, held inside the clips: defaultElevationBase),
+  // not a number in the table.
   if (sub == 3)
     return { 0.0, 1.0, 0.0, 0.5, false, false, caption::elevation };
 

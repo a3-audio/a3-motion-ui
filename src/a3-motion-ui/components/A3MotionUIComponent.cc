@@ -8347,8 +8347,7 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
         pattern->setElevationLfo (0);
       else if (sub == 3)
         {
-          // elv: the middle of what the clips leave, which is where the line
-          // sat before anyone moved it.
+          // elv: ear height, or as near as the clips allow (2026-10-08).
           pattern->setElevationBase (defaultElevationBase (
               pattern->getClipTop (), pattern->getClipBottom ()));
           refreshPatternDisplay (pattern);

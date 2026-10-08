@@ -303,17 +303,17 @@ ElevationParams sweptElevation (ElevationParams params,
  */
 float defaultReach (float current);
 
-/** Where a double tap puts the elevation line: the middle of the range the
- *  control actually has.
+/** Where a double tap puts the elevation line: ear height, 0° elevation
+ *  (maintainer, 2026-10-08).
  *
- *  The same rule the bar's knobs follow -- back to the middle of the travel --
- *  read for a control whose travel is a circle rather than a ring. That middle
- *  is the equator, ear height, and it is what a hand reaching for "neutral"
- *  mid-set means; the clip default of zero is straight overhead, which is a
- *  place to put a sound rather than a place to come back to.
+ *  It used to be the middle of whatever band the clips left, which was a
+ *  different height for every clip; ear height is what a hand reaching for
+ *  "neutral" mid-set means. The clip default of zero is straight overhead,
+ *  which is a place to put a sound rather than a place to come back to.
  *
  *  The clips bound it, ordered the way sweptElevation() orders them, so a
- *  double tap never puts the line somewhere the sound may not go.
+ *  double tap never puts the line somewhere the sound may not go: where they
+ *  take ear height away, it goes as near to it as they allow.
  */
 float defaultElevationBase (float clipTop, float clipBottom);
 

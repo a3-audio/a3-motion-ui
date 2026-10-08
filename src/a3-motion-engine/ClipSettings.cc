@@ -236,10 +236,14 @@ defaultReach (float current)
 float
 defaultElevationBase (float clipTop, float clipBottom)
 {
+  // Ear height, held inside the clips the way sweptElevation() holds the
+  // base: a height, not a share of whatever band the clips leave.
+  constexpr float earHeight = 0.5f;
   auto const ceiling = std::clamp (clipTop, 0.f, 1.f);
   auto const floor = 1.f - std::clamp (clipBottom, 0.f, 1.f);
 
-  return (std::min (ceiling, floor) + std::max (ceiling, floor)) * 0.5f;
+  return std::clamp (earHeight, std::min (ceiling, floor),
+                     std::max (ceiling, floor));
 }
 
 bool

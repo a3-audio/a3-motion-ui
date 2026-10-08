@@ -426,16 +426,26 @@ TEST (ClipSettings, TheElevationLineGoesBackToEarHeight)
   EXPECT_FLOAT_EQ (defaultElevationBase (0.f, 0.f), 0.5f);
 }
 
-/** And to the middle of what the clips have left of it, so a double tap never
- *  puts the line somewhere the sound may not go. */
-TEST (ClipSettings, TheElevationLineGoesBackInsideTheClips)
+/** Ear height whatever the clips leave around it (maintainer, 2026-10-08):
+ *  the middle of the clip band was a different height for every clip, and
+ *  the knob's rest is a height, not a share of the band. */
+TEST (ClipSettings, TheElevationLineGoesBackToEarHeightInsideTheClips)
 {
-  // Ceiling a third down, floor a fifth up: the middle of what is left.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.3f, 0.2f), 0.55f);
+  // Ceiling a third down, floor a fifth up: ear height is still in the room.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.3f, 0.2f), 0.5f);
+  // Clips pushed past each other leave the range between them, ear height
+  // included, the same rule sweptElevation() holds the base by.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.8f, 0.6f), 0.5f);
+}
 
-  // Clips pushed past each other pin it to where they crossed, the same rule
-  // sweptElevation() holds the base by.
-  EXPECT_FLOAT_EQ (defaultElevationBase (0.8f, 0.6f), 0.6f);
+/** Where the clips take ear height away, as near to it as the sound may go,
+ *  so a double tap never puts the line somewhere the sound may not go. */
+TEST (ClipSettings, WithoutEarHeightTheLineGoesAsNearAsItMay)
+{
+  // Floor raised past ear height: the band is the upper part of the room.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.f, 0.6f), 0.4f);
+  // Ceiling lowered past it: the lower part.
+  EXPECT_FLOAT_EQ (defaultElevationBase (0.7f, 0.f), 0.7f);
 }
 
 /** A hand-set reach stands as long as it fits. */
