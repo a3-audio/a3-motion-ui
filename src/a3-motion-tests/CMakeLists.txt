@@ -11,6 +11,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PositionPacer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightField.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatPulse.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/BaseOrbit.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TruthKeeper.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TempoClock.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatTrace.cc"

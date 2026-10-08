@@ -140,6 +140,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/FlightField.hh
     flight/BeatPulse.cc
     flight/BeatPulse.hh
+    flight/BaseOrbit.cc
+    flight/BaseOrbit.hh
 )
 
 target_include_directories("a3-motion-engine" PUBLIC
