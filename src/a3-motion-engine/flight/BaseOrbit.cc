@@ -107,11 +107,11 @@ wrapPhase (double phase)
 
 OrbitPoint
 rabbitAt (double beats, int channel, int beatsPerBar,
-          FlightTuning const &tuning)
+          FlightTuning const &tuning, float phaseOffset)
 {
   auto const lap = lapBeats (beatsPerBar, tuning);
   auto const ellipse = ellipseAt (beats, beatsPerBar, tuning);
-  auto const phase = wrapPhase (beats / lap - 0.25 * channel);
+  auto const phase = wrapPhase (beats / lap - 0.25 * channel + phaseOffset);
   auto const theta = static_cast<float> (twoPi) * phase;
 
   auto const local = onEllipse (ellipse, theta);

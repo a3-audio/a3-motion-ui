@@ -175,3 +175,18 @@ TEST (BaseOrbit, GuidePointsCloseTheLoop)
       = twoPi * t.orbitRadius * (1.f + t.orbitEccentricity) / (count - 1);
   EXPECT_LE (points.front ().getDistanceFrom (points.back ()), longestStep);
 }
+
+TEST (BaseOrbit, APhaseOffsetPutsTheRabbitWhereALaunchFoundIt)
+{
+  // A ship launched mid-lap starts its rabbit at the nearest phase, not at its
+  // channel's slot: the offset moves the rabbit along the same ellipse.
+  FlightTuning const t;
+  auto const beats = 9.3;
+  auto const somewhere = rabbitAt (beats, 2, fourFour, t).at;
+  auto const found = nearestOrbitPhase (somewhere, beats, fourFour, t);
+  auto const slot = static_cast<float> (beats / lapBeats (t) - 0.25 * 0);
+  auto const shifted = rabbitAt (beats, 0, fourFour, t, found - slot).at;
+  EXPECT_LE (shifted.getDistanceFrom (somewhere), 1e-2f);
+  EXPECT_EQ (rabbitAt (beats, 1, fourFour, t, 0.f).at,
+             rabbitAt (beats, 1, fourFour, t).at);
+}

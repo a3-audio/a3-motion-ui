@@ -39,9 +39,13 @@ struct OrbitPoint
  *  one lap per orbitLapBars, channel n a quarter lap behind n-1; the ellipse
  *  (semi-axes orbitRadius * (1 +- orbitEccentricity), centred in the room)
  *  turns once per orbitPrecessionBars. Locked to the bar, so a ship chasing
- *  it stays in time however far gravity throws it off. */
+ *  it stays in time however far gravity throws it off.
+ *
+ *  `phaseOffset` (laps) moves the rabbit along its lap: a ship launched
+ *  mid-flight starts its rabbit at the phase nearest to it rather than at its
+ *  channel's slot. */
 OrbitPoint rabbitAt (double beats, int channel, int beatsPerBar,
-                     FlightTuning const &tuning);
+                     FlightTuning const &tuning, float phaseOffset = 0.f);
 
 /** The lap phase (0..1) on the ellipse nearest `p` at time `beats`.
  *  No allocation: safe on the clock thread. */
