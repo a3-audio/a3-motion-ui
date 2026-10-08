@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 
 #include <ShippedSkin.hh>
+#include <SourceCode.hh>
 #include <UiSource.hh>
 
 #include <a3-motion-ui/components/FingerLatch.hh>
@@ -714,13 +715,15 @@ TEST (MenuScroll, TheMainMenusListOfValuesMovesOneRowPerRowOfFinger)
 // The main component's half of #54, read from its source (it cannot be built
 // in a test): Back with a skin shown, and the menu closing with one shown,
 // both put the running skin back -- closing is not keeping -- and showing a
-// skin writes nothing.
+// skin writes nothing. Read as code (codeOf): no comments, no spacing, so a
+// reformat cannot turn these red and a call left in a comment cannot keep
+// them green.
 namespace
 {
 juce::String
 uiBody (juce::String const &signature)
 {
-  return a3::test::uiComponentBodyOf (signature);
+  return codeOf (a3::test::uiComponentBodyOf (signature));
 }
 }
 
@@ -728,39 +731,39 @@ TEST (MenuSkinPreviewWiring, BackWithAListOpenCancelsIt)
 {
   auto const body = uiBody ("A3MotionUIComponent::toggleGlobalSettings ()");
   ASSERT_TRUE (body.isNotEmpty ());
-  EXPECT_TRUE (body.contains ("_globalSettings->isPickerOpen ())\n"
-                              "    _globalSettings->cancelPicker ();"));
+  EXPECT_TRUE (body.contains ("_globalSettings->isPickerOpen())"
+                              "_globalSettings->cancelPicker();"));
 }
 
 TEST (MenuSkinPreviewWiring, ClosingTheMenuCancelsTheList)
 {
   auto const body = uiBody ("A3MotionUIComponent::closeGlobalSettings ()");
   ASSERT_TRUE (body.isNotEmpty ());
-  EXPECT_TRUE (body.contains ("_globalSettings->cancelPicker ();"));
+  EXPECT_TRUE (body.contains ("_globalSettings->cancelPicker();"));
 }
 
 TEST (MenuSkinPreviewWiring, ACancelledListShowsTheRunningSkinAgain)
 {
-  auto const ui = juce::File (A3_UI_SOURCE_DIR)
-                      .getChildFile ("components/A3MotionUIComponent.cc")
-                      .loadFileAsString ();
   auto const handler
-      = ui.fromFirstOccurrenceOf ("_globalSettings->onPickerCancelled = [this] {",
-                                  false, false)
+      = uiCode ("components/A3MotionUIComponent.cc")
+            .fromFirstOccurrenceOf ("_globalSettings->onPickerCancelled=[this]{",
+                                    false, false)
             .upToFirstOccurrenceOf ("};", false, false);
   ASSERT_TRUE (handler.isNotEmpty ());
-  EXPECT_TRUE (handler.contains ("previewSkin (_skinIndex);"));
+  EXPECT_TRUE (handler.contains ("previewSkin(_skinIndex);"));
   EXPECT_FALSE (handler.contains ("applySkin")) << "cancelling keeps nothing";
 }
 
 // Showing a skin is only drawing it: no write of config.json (that is
-// applySkin's writeActiveSkin) and no write of a skin file.
+// applySkin's writeActiveSkin) and no write of a skin file. This reads
+// previewSkin's own body; a write moved into a helper it calls would not be
+// seen here.
 TEST (MenuSkinPreviewWiring, ShowingASkinWritesNothing)
 {
   auto const body = uiBody ("A3MotionUIComponent::previewSkin (int index)");
   ASSERT_TRUE (body.isNotEmpty ());
   for (auto const *write : { "writeActiveSkin", "writeTextFile", "replaceWithText",
-                             "saveEditedSkin", "appendText", "create ()" })
+                             "saveEditedSkin", "appendText", ".create()" })
     EXPECT_FALSE (body.contains (write)) << write;
 
   auto const apply = uiBody ("A3MotionUIComponent::applySkin (int index)");
