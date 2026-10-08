@@ -132,6 +132,51 @@ TEST (PotKnob, TheLookAndFeelDrawsItAsTheDevicesOwnKnob)
   knob.setLookAndFeel (nullptr);
 }
 
+// A knob that takes no hand -- a band knob during a take -- is drawn the way
+// every disabled control is: the same picture at the skin's disabled alpha,
+// fainter everywhere it was drawn and nowhere else (2026-10-08).
+TEST (PotKnob, ADisabledKnobIsTheSamePictureFainter)
+{
+  LookAndFeel_A3 lookAndFeel;
+  PotKnob knob;
+  knob.setLookAndFeel (&lookAndFeel);
+  knob.setBounds (0, 0, 60, 80);
+  knob.setValue (0.75, juce::dontSendNotification);
+  knob.setLabel ("elv");
+  knob.setKnobColour (juce::Colours::hotpink);
+
+  auto const painted = [&knob] {
+    juce::Image image (juce::Image::ARGB, 60, 80, true);
+    juce::Graphics g (image);
+    knob.paintEntireComponent (g, false);
+    return image;
+  };
+  auto const lit = painted ();
+  knob.setEnabled (false);
+  auto const dim = painted ();
+
+  auto drawn = 0;
+  auto fainter = 0;
+  for (int y = 0; y < lit.getHeight (); ++y)
+    for (int x = 0; x < lit.getWidth (); ++x)
+      {
+        auto const a = lit.getPixelAt (x, y).getAlpha ();
+        auto const b = dim.getPixelAt (x, y).getAlpha ();
+        if (a == 0)
+          {
+            EXPECT_EQ (b, 0) << x << "," << y;
+            continue;
+          }
+        ++drawn;
+        if (b < a)
+          ++fainter;
+      }
+  ASSERT_GT (drawn, 0);
+  EXPECT_GT (fainter, drawn * 9 / 10) << "the disabled knob is not dimmed";
+
+  knob.setLookAndFeel (nullptr);
+}
+
 // Two taps are JUCE's double-click, timed by the platform: a knob that has
 // someone to ask hands them over and leaves its own value alone, so the owner
 // sets the value once and through the same road as a turn -- the mixer's 3D,

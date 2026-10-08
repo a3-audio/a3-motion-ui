@@ -87,3 +87,25 @@ TEST (KnobHold, EachKnobIsHeldOnItsOwn)
   EXPECT_TRUE (hold.isHeld (Knob::Elevation, 0.0));
   EXPECT_FALSE (hold.isHeld (Knob::Sway, 0.0));
 }
+
+// Which knobs a take's band is made of, and that a locked band refuses exactly
+// those -- by place, the way the bar and the encoders address them.
+TEST (KnobPlaces, ALockedBandRefusesItsKnobsAndNoOthers)
+{
+  for (int k = 0; k < numKnobs; ++k)
+    {
+      auto const knob = static_cast<Knob> (k);
+      auto const place = placeOf (knob);
+      auto const band = knob == Knob::Elevation || knob == Knob::Reach
+                        || knob == Knob::ClipTop || knob == Knob::ClipBottom
+                        || knob == Knob::Sway || knob == Knob::Swell;
+
+      EXPECT_EQ (isTakeBandKnob (knob), band) << knobName (knob);
+      EXPECT_EQ (refusedWhileBandLocked (place.section, place.sub, true), band)
+          << knobName (knob);
+      EXPECT_FALSE (refusedWhileBandLocked (place.section, place.sub, false))
+          << knobName (knob);
+    }
+  // A place without a knob is not refused.
+  EXPECT_FALSE (refusedWhileBandLocked (elevationSection, 99, true));
+}

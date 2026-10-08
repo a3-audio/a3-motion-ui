@@ -6933,6 +6933,15 @@ A3MotionUIComponent::takeIsUnderway ()
   return _engine.isRecording () || _recordingSlot.has_value ();
 }
 
+bool
+A3MotionUIComponent::bandLockedOnShownSlot () const
+{
+  auto const shown = std::make_pair (_clipSettingsChannel, _clipSettingsSlot);
+  return _pendingTakes.locksTheBand (
+      shown.first, shown.second,
+      _recordingSlot.has_value () && *_recordingSlot == shown);
+}
+
 void
 A3MotionUIComponent::refreshTakeState ()
 {
@@ -8539,6 +8548,11 @@ A3MotionUIComponent::handleClipSettingsReset (index_t channel, int section,
 {
   if (channel != _clipSettingsChannel)
     return;
+  if (refusedWhileBandLocked (section, sub, bandLockedOnShownSlot ()))
+    {
+      updateControlReadout ("-- BAND LOCKED IN TAKE");
+      return;
+    }
 
   // Twelve o'clock, everywhere: the middle of whatever range the control has.
   // Not yet a per-control table of remembered defaults -- for a knob you have
@@ -8648,6 +8662,11 @@ A3MotionUIComponent::setClipSettingsValue (index_t channel, int section,
 {
   if (channel != _clipSettingsChannel)
     return;
+  if (refusedWhileBandLocked (section, sub, bandLockedOnShownSlot ()))
+    {
+      updateControlReadout ("-- BAND LOCKED IN TAKE");
+      return;
+    }
 
   auto &pattern = _patterns[channel][_clipSettingsSlot];
   if (!pattern)
@@ -8704,6 +8723,11 @@ A3MotionUIComponent::handleClipSettingsValueChange (index_t channel,
 {
   if (channel != _clipSettingsChannel || increment == 0)
     return;
+  if (refusedWhileBandLocked (section, sub, bandLockedOnShownSlot ()))
+    {
+      updateControlReadout ("-- BAND LOCKED IN TAKE");
+      return;
+    }
 
   // Which control to change is a parameter, not the current selection. Read
   // off the selection instead, two fingers on two controls both changed
@@ -9585,6 +9609,14 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
         }
     _clipSettings->setKnobsLaneDriven (driven);
     _clipSettings->setKnobsWriting (writing);
+
+    // The band's knobs, still from the take to its Save or Discard.
+    std::array<bool, numKnobs> still{};
+    auto const locked = bandLockedOnShownSlot ();
+    for (int k = 0; k < numKnobs; ++k)
+      still[static_cast<std::size_t> (k)]
+          = locked && isTakeBandKnob (static_cast<Knob> (k));
+    _clipSettings->setKnobsStill (still);
   }
   _clipSettings->setMotionStretch (stretchX, stretchY);
   {

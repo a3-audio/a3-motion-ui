@@ -1249,6 +1249,9 @@ private:
   void refreshTakeState ();
   /** A take running or waiting for its downbeat, on any slot. */
   bool takeIsUnderway ();
+  /** Whether the band knobs of the clip on the bar are still: its slot's take
+   *  is armed, running or unsaved -- PendingTakes::locksTheBand(). */
+  bool bandLockedOnShownSlot () const;
   /** Whether the ACT press being held landed on DISCARD, so its release
    *  is not taken for the end of an accent that never started. */
   bool _actPressWasDiscard = false;

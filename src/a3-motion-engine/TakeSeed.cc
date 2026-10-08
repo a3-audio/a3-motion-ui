@@ -57,9 +57,9 @@ openToTheWholeSphere (Pattern &take)
   take.setFlat (false);
   take.setKnobSetting (Knob::Sway, 0.f);
   take.setKnobSetting (Knob::Swell, 0.f);
-  for (auto const knob : { Knob::Elevation, Knob::Reach, Knob::ClipTop,
-                           Knob::ClipBottom, Knob::Sway, Knob::Swell })
-    take.clearLane (knob);
+  for (int k = 0; k < numKnobs; ++k)
+    if (isTakeBandKnob (static_cast<Knob> (k)))
+      take.clearLane (static_cast<Knob> (k));
 }
 
 }

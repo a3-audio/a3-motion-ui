@@ -70,6 +70,12 @@ public:
    *  keys must say so -- one rule for the face and for what a press does. */
   bool offersKeys (index_t channel, index_t slot, bool takeUnderway) const;
 
+  /** Whether the band knobs of this slot are still: from its take being armed
+   *  (`takeOnSlot`) until that take is saved or discarded. A take records
+   *  over the whole sphere and keeps it; a turn would narrow the band under
+   *  the finger (maintainer, 2026-10-08). */
+  bool locksTheBand (index_t channel, index_t slot, bool takeOnSlot) const;
+
   /** What a set writes for this slot: `before` while it is pending, the slot's
    *  own content otherwise. A set names only what is on disk. */
   SlotContent forSet (index_t channel, index_t slot,

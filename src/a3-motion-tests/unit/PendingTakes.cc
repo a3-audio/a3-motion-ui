@@ -256,3 +256,26 @@ TEST (PendingTakes, SaysWhetherAnyDiscardIsArmed)
   takes.disarm ();
   EXPECT_FALSE (takes.anyDiscardArmed ());
 }
+
+// The band knobs -- elv, reach, the clips, sway, swell -- are still from the
+// take's start until it is saved or discarded: a take's band is the whole
+// sphere, and a turn would narrow it under the finger (maintainer,
+// 2026-10-08).
+TEST (PendingTakes, TheBandIsLockedFromTheTakeUntilSaveOrDiscard)
+{
+  PendingTakes takes (4, 2);
+
+  EXPECT_FALSE (takes.locksTheBand (1, 0, false)) << "no take, nothing locked";
+  EXPECT_TRUE (takes.locksTheBand (1, 0, true)) << "armed or recording here";
+
+  takes.begin (1, 0, held ("Breath"));
+  EXPECT_TRUE (takes.locksTheBand (1, 0, false)) << "unsaved";
+  EXPECT_FALSE (takes.locksTheBand (1, 1, false)) << "another slot";
+
+  takes.clear (1, 0); // saved
+  EXPECT_FALSE (takes.locksTheBand (1, 0, false));
+
+  takes.begin (1, 0, held ("Breath"));
+  takes.resolve (1, 0); // discarded
+  EXPECT_FALSE (takes.locksTheBand (1, 0, false));
+}

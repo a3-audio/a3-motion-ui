@@ -1110,6 +1110,13 @@ Pattern::recordKnobs (KnobRecorders &recorders, RecMode mode,
   for (std::size_t k = 0; k < _lanes.size (); ++k)
     {
       auto const knob = static_cast<Knob> (k);
+      // The band is the whole sphere for the whole take: its knobs write
+      // nothing, not even WRITE's pass over every knob.
+      if (isTakeBandKnob (knob))
+        {
+          _knobWriting[k].store (false, std::memory_order_relaxed);
+          continue;
+        }
       // A lane is as long as the take it belongs to; one from before is
       // somebody else's.
       if (_lanes[k].ticks () != lapTicks)

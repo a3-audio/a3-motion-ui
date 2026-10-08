@@ -76,6 +76,16 @@ knobAt (int section, int sub)
   return {};
 }
 
+/** Whether a turn, a reset or an encoder step on the knob at a place is
+ *  refused: a band knob while the band is locked -- see isTakeBandKnob() and
+ *  PendingTakes::locksTheBand(). */
+constexpr bool
+refusedWhileBandLocked (int section, int sub, bool bandLocked)
+{
+  auto const knob = knobAt (section, sub);
+  return bandLocked && knob && isTakeBandKnob (*knob);
+}
+
 /** Whether a hand is on a knob: a finger on the screen from the press to the
  *  lift, or an encoder turned in the last moment -- an encoder has no touch,
  *  so its turning is the only sign of a hand. What a take records, and where

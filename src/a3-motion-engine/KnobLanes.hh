@@ -55,6 +55,25 @@ enum class Knob
 };
 constexpr int numKnobs = 16;
 
+/** The knobs a take's band is made of: where the figure sits and how far it
+ *  reaches, the two clips and the two sweeps that move them. A take records
+ *  over the whole sphere, so these are still from its start until it is saved
+ *  or discarded, and none of them gets a lane (maintainer, 2026-10-08). */
+constexpr bool
+isTakeBandKnob (Knob knob)
+{
+  switch (knob)
+    {
+    case Knob::Elevation:
+    case Knob::Reach:
+    case Knob::ClipTop:
+    case Knob::ClipBottom:
+    case Knob::Sway:
+    case Knob::Swell: return true;
+    default: return false;
+    }
+}
+
 /** The name a clip file stores a knob's lane under -- the knob's caption. */
 constexpr char const *
 knobName (Knob knob)

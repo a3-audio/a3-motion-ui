@@ -303,6 +303,9 @@ public:
   void setKnobsLaneDriven (std::array<bool, numKnobs> const &driven);
   /** Which knobs the running take is writing -- drawn in the recording red. */
   void setKnobsWriting (std::array<bool, numKnobs> const &writing);
+  /** Which knobs take no hand right now -- the band's, during a take: drawn
+   *  dimmed, the way a disabled control is, and not touchable. */
+  void setKnobsStill (std::array<bool, numKnobs> const &still);
   /** The knobs (section, sub) the encoders are on, where a press switches
    *  between two: each framed in the accent. */
   void setEncoderMarks (std::vector<std::pair<int, int> > const &marked);
