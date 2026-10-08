@@ -253,6 +253,9 @@ TEST (PauseResumes, AnExactPauseKeepsThePlaceOffTheBar)
   ASSERT_TRUE (waitUntil ([&] { return e.current () != Measure{}; }));
   e.engine.playPattern (clip, TempoClock::nextDownBeat (e.current ()));
   ASSERT_TRUE (waitUntil ([&] { return clip->getPlayPosition () > 0.3f; }));
+  // Pause in the middle of a bar, a beat (250 ms at 240 BPM) away from both
+  // of its edges, so the lap is certain not to be on a bar boundary.
+  ASSERT_TRUE (waitUntil ([&] { return e.current ().beat () == 2; }));
   e.engine.pausePattern (clip, Measure{}, PausePlace::Exact);
   ASSERT_TRUE (waitUntil (
       [&] { return clip->getStatus () == Pattern::Status::Idle; }));
