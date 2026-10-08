@@ -134,6 +134,22 @@ target_sources("a3-motion-engine" PRIVATE
     util/Slew.cc
     util/Slew.hh
     util/Helpers.cc
+    flight/FlightTuning.hh
+    flight/FlightVec.hh
+    flight/FlightField.cc
+    flight/FlightField.hh
+    flight/BeatPulse.cc
+    flight/BeatPulse.hh
+    flight/Breath.hh
+    flight/BaseOrbit.cc
+    flight/BaseOrbit.hh
+    flight/ShipDynamics.cc
+    flight/ShipDynamics.hh
+    flight/FlightWorld.cc
+    flight/FlightWorld.hh
+    flight/Handover.cc
+    flight/Handover.hh
+    flight/FlightBodiesBox.hh
 )
 
 target_include_directories("a3-motion-engine" PUBLIC

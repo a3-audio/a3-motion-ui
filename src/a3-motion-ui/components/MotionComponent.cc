@@ -22,6 +22,9 @@
 
 #include <a3-motion-ui/AppPaths.hh>
 #include <a3-motion-ui/components/BlobPush.hh>
+#include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/fpv/BodyLook.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/components/SourceKeys.hh>
 
 #include <a3-motion-engine/ClipSettings.hh>
@@ -367,6 +370,165 @@ MotionComponent::timerCallback ()
 {
   // Also with nothing held: a pushed blob eases back to its channel's place.
   disoccludeBlobs ();
+
+  // The long press on a body: the gesture only knows the time it is told.
+  auto const now = floorClockMs ();
+  auto const holding = _floorFinger.has_value () && !_floorFingerIsPage;
+  if (holding)
+    carryOutFloorAction (_floorGesture.held (now), {});
+  auto const body = holding ? _floorGesture.body () : std::nullopt;
+  _holdBody = body.value_or (noBodyId);
+  _holdProgress = body ? _floorGesture.holdProgress (now) : 0.f;
+}
+
+double
+MotionComponent::floorClockMs ()
+{
+  return juce::Time::getMillisecondCounterHiRes ();
+}
+
+bool
+MotionComponent::floorFingerDown (SourceKey key, juce::Point<float> at)
+{
+  auto const screenRadius = [&] {
+    auto const flat = localToNormalized2DPosition (at);
+    return std::hypot (flat.x (), flat.y ());
+  }();
+  auto const route = fpvFingerDown (
+      true, onTheFloor (screenRadius, floorAt (at)), _pageHeld);
+
+  switch (route)
+    {
+    case FpvFingerDown::Camera:
+      return false;
+    case FpvFingerDown::PageTap:
+      _floorFinger = key;
+      _floorFingerIsPage = true;
+      if (onPageTap)
+        onPageTap (bodyAt (at));
+      return true;
+    case FpvFingerDown::Floor:
+      _floorFinger = key;
+      _floorFingerIsPage = false;
+      _floorGesture.setBlobDiameter (blobDiameterInPixels ());
+      _floorGesture.down (at, floorClockMs (), bodyAt (at));
+      // Should it turn out to be the camera, it turns from here.
+      _cameraGrabbedAt = at;
+      _cameraAtGrab = getCamera ();
+      return true;
+    }
+  return false;
+}
+
+void
+MotionComponent::cancelFloorFinger ()
+{
+  _floorGesture.cancel ();
+  _floorFinger.reset ();
+  _floorFingerIsPage = false;
+}
+
+void
+MotionComponent::carryOutFloorAction (FloorAction action,
+                                      juce::Point<float> at)
+{
+  auto const body = _floorGesture.body ();
+  switch (action)
+    {
+    case FloorAction::Place:
+      if (onFloorPlaced)
+        onFloorPlaced (floorAt (at));
+      return;
+    case FloorAction::CycleWeight:
+      if (body && onBodyCycled)
+        onBodyCycled (*body);
+      return;
+    case FloorAction::Drag:
+      if (body && onBodyMoved)
+        onBodyMoved (*body, floorAt (at));
+      return;
+    case FloorAction::Remove:
+      if (body && onBodyRemoved)
+        onBodyRemoved (*body);
+      return;
+    case FloorAction::None:
+    case FloorAction::Camera:
+      return;
+    }
+}
+
+Vec2
+MotionComponent::floorAt (juce::Point<float> posPixel) const
+{
+  auto const onFloor = _engine.getHeightMap ().mapTo2D (
+      pixelToDirection (posPixel), ElevationParams{});
+  return { onFloor.x (), onFloor.y () };
+}
+
+std::optional<juce::Point<float> >
+MotionComponent::floorToPixel (Vec2 at) const
+{
+  auto const direction = _engine.getHeightMap ().mapTo3D (
+      Pos::fromCartesian (at.x, at.y, 0.f), ElevationParams{});
+  if (!direction.isValid ())
+    return std::nullopt;
+  auto const screen = projectToScreen (direction);
+  if (!std::isfinite (screen.x) || !std::isfinite (screen.y))
+    return std::nullopt;
+  return screen.transformedBy (_transformNormalizedToLocal);
+}
+
+float
+MotionComponent::floorLengthInPixels (Vec2 at, float length) const
+{
+  auto const centre = floorToPixel (at);
+  auto const alongX = floorToPixel (at + Vec2{ length, 0.f });
+  auto const alongY = floorToPixel (at + Vec2{ 0.f, length });
+  if (!centre || !alongX || !alongY)
+    return 0.f;
+  return (centre->getDistanceFrom (*alongX)
+          + centre->getDistanceFrom (*alongY))
+         / 2.f;
+}
+
+float
+MotionComponent::blobDiameterInPixels () const
+{
+  // The pass's unit is the sphere's radius; a blob is 2 * _blobScale of it.
+  return _blobScale * static_cast<float> (_boundsCenterRegion.getWidth ());
+}
+
+std::optional<int>
+MotionComponent::bodyAt (juce::Point<float> posPixel) const
+{
+  std::array<BodyOnScreen, maxFlightBodies> onScreen{};
+  auto count = 0;
+  for (auto i = 0; i < _flightBodiesShown.count; ++i)
+    {
+      auto const &body = _flightBodiesShown.body[static_cast<size_t> (i)];
+      auto const centre = floorToPixel (body.at);
+      if (!centre)
+        continue;
+      onScreen[static_cast<size_t> (count++)]
+          = { body.id, *centre,
+              bodyHitRadius (body.mass, blobDiameterInPixels (),
+                             static_cast<float> (displayFingertip ())) };
+    }
+  return bodyUnderFinger (onScreen, count, posPixel);
+}
+
+void
+MotionComponent::setFlightDisplay (FlightDisplay display)
+{
+  _flightBodiesShown = display.bodies;
+  std::lock_guard<std::mutex> guard (_mutexDisplayData);
+  _flightDisplay = std::move (display);
+}
+
+void
+MotionComponent::setPageHeld (bool held)
+{
+  _pageHeld = held;
 }
 
 void
@@ -631,6 +793,9 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
 
       if (_cameraFingers.count () == 2)
         {
+          // A pinch: whatever the first finger was deciding on the floor
+          // decides nothing more.
+          cancelFloorFinger ();
           _cameraGrab.reset ();
           _pinchDistanceAtStart = _cameraFingers.pinchDistance ();
           _zoomAtPinch = _cameraZoom;
@@ -638,6 +803,12 @@ MotionComponent::mouseDown (const juce::MouseEvent &event)
         }
 
       if (!alone)
+        return;
+
+      // In FPV the floor is the groups': only off it (the rim, the
+      // background) does a finger start the camera and count towards the
+      // double tap that resets the view.
+      if (_fpv && floorFingerDown (key, at))
         return;
 
       // Only a finger alone on the sphere counts towards two taps: the
@@ -736,6 +907,18 @@ MotionComponent::mouseUp (const juce::MouseEvent &event)
       auto const key = sourceKeyOf (event.source);
       if (!_cameraFingers.release (key))
         return;
+      if (_floorFinger == std::optional<SourceKey>{ key })
+        {
+          // A tap, a drag or a hold: none of it moved the view.
+          auto const wasPage = _floorFingerIsPage;
+          _floorFinger.reset ();
+          if (!wasPage)
+            carryOutFloorAction (
+                _floorGesture.up (event.getPosition ().toFloat (),
+                                  floorClockMs ()),
+                event.getPosition ().toFloat ());
+          return;
+        }
       if (_cameraGrab == std::optional<SourceKey>{ key })
         _cameraGrab.reset ();
       if (onCameraChanged)
@@ -773,6 +956,22 @@ MotionComponent::mouseDrag (const juce::MouseEvent &event)
                                        _cameraFingers.pinchDistance ());
           repaint ();
           return;
+        }
+
+      if (_floorFinger == std::optional<SourceKey>{ key })
+        {
+          if (_floorFingerIsPage)
+            return;
+          auto const action = _floorGesture.move (posPixel, floorClockMs ());
+          if (action != FloorAction::Camera)
+            {
+              carryOutFloorAction (action, posPixel);
+              return;
+            }
+          // Off the bodies and past the slop: the camera, from where the
+          // finger went down (floorFingerDown kept the view then).
+          _floorFinger.reset ();
+          _cameraGrab = key;
         }
 
       // A finger that is not turning the view -- the one left over from a
@@ -1449,6 +1648,16 @@ MotionComponent::renderOpenGL ()
     _mutexDisplayData.lock ();
     auto const patternsDisplayData{ _patternsDisplayData };
     auto const selected = _selectedPattern;
+    // Copy-assigned into a member so the vectors keep their capacity: no
+    // allocation per frame on this thread.
+    if (_fpv)
+      _flightDisplayDrawn = _flightDisplay;
+    else
+      {
+        _flightDisplayDrawn.guide.clear ();
+        _flightDisplayDrawn.bodies.count = 0;
+      }
+    auto const &flightDisplay = _flightDisplayDrawn;
     _mutexDisplayData.unlock ();
 
     ++_frameCount;
@@ -1456,6 +1665,12 @@ MotionComponent::renderOpenGL ()
     if (_imageBlend)
       {
         _imageBlend->clear (_imageBlend->getBounds ());
+
+        // Under the ships, and in pixels (see drawFlight).
+        {
+          juce::Graphics gPixels{ *_imageBlend };
+          drawFlight (gPixels, flightDisplay);
+        }
 
         {
           juce::Graphics gFBO{ *_imageBlend };
@@ -1610,6 +1825,7 @@ MotionComponent::setCameraMode (bool on)
   _cameraMode = on;
   _cameraTapMs = 0;
   _cameraFingers.clear ();
+  cancelFloorFinger ();
   if (!on)
     _cameraGrab.reset ();
   else
@@ -1804,6 +2020,86 @@ MotionComponent::drawShips (juce::Graphics &g)
       g.fillPath (ship);
       g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
       g.strokePath (ship, juce::PathStrokeType (outline));
+    }
+}
+
+void
+MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
+{
+  if (!_fpv || _boundsCenterRegion.getWidth () <= 0)
+    return;
+
+  auto const &tuning = _engine.getFlightTuning ();
+  auto const stroke = theme ().strokeThin;
+
+  // The big path: a faint closed line.
+  {
+    juce::Path guide;
+    for (auto const &point : display.guide)
+      if (auto const at = floorToPixel (point))
+        {
+          if (guide.isEmpty ())
+            guide.startNewSubPath (*at);
+          else
+            guide.lineTo (*at);
+        }
+    if (!guide.isEmpty ())
+      {
+        guide.closeSubPath ();
+        g.setColour (toColour (theme ().textPrimary, theme ().alphaGuide));
+        g.strokePath (guide, juce::PathStrokeType (stroke));
+      }
+  }
+
+  auto const bodyWithId = [&display] (int id) -> FlightBody const * {
+    for (auto i = 0; i < display.bodies.count; ++i)
+      if (display.bodies.body[static_cast<size_t> (i)].id == id)
+        return &display.bodies.body[static_cast<size_t> (i)];
+    return nullptr;
+  };
+
+  // A thin line from each escorting ship to its group, in the ship's colour.
+  for (index_t ch = 0; ch < display.escort.size () && ch < _engine.getNumChannels ();
+       ++ch)
+    {
+      auto const *body = bodyWithId (display.escort[ch]);
+      auto const ship = drawnChannelPosition (ch);
+      if (body == nullptr || !ship.isValid ())
+        continue;
+      auto const from
+          = projectToScreen (ship).transformedBy (_transformNormalizedToLocal);
+      auto const to = floorToPixel (body->at);
+      if (!to || !std::isfinite (from.x) || !std::isfinite (from.y))
+        continue;
+      g.setColour (_uiStates[ch]->colour.withMultipliedAlpha (
+          theme ().alphaGuide));
+      g.drawLine ({ from, *to }, stroke);
+    }
+
+  auto const blob = blobDiameterInPixels ();
+  auto const holdBody = _holdBody.load ();
+  for (auto i = 0; i < display.bodies.count; ++i)
+    {
+      auto const &body = display.bodies.body[static_cast<size_t> (i)];
+      auto const centre = floorToPixel (body.at);
+      if (!centre)
+        continue;
+
+      auto const ring = bodyRole (body.mass) == BodyRole::Repel
+                            ? tuning.deadZoneClearance
+                            : tuning.captureRadius * bodyWeightScale (body.mass);
+
+      BodyPaint paint;
+      paint.centre = *centre;
+      paint.radius = bodyRadius (body.mass, blob);
+      paint.mass = body.mass;
+      paint.label = bodyLabel (body.id);
+      paint.pulse = display.pulse;
+      paint.ringRadius = floorLengthInPixels (body.at, ring);
+      paint.holdProgress = body.id == holdBody ? _holdProgress.load () : 0.f;
+      paint.stroke = stroke;
+      paint.fontHeight = theme ().fontSize (FontRole::Body);
+      paintBody (g, paint);
     }
 }
 

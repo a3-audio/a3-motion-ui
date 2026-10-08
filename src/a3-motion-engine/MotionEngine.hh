@@ -26,6 +26,9 @@
 #include <a3-motion-engine/PositionPacer.hh>
 #include <a3-motion-engine/RecMode.hh>
 #include <a3-motion-engine/AsyncCommandQueue.hh>
+#include <a3-motion-engine/flight/FlightBodiesBox.hh>
+#include <a3-motion-engine/flight/FlightTuning.hh>
+#include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 
@@ -38,6 +41,15 @@ namespace a3
 class Channel;
 class Pattern;
 class HeightMap;
+
+/** Who moves a channel: its clip (CLIP), or its ship in the gravity field
+ *  (ORBIT). Engine state, not the view's: the sound does not change because
+ *  a screen did. */
+enum class FlightMode
+{
+  Clip,
+  Orbit
+};
 
 class MotionEngine
 {
@@ -141,6 +153,33 @@ public:
    *  where the decay runs out and the clip is given back. What a button's
    *  "then" is decided from, on the message thread (2026-09-28). */
   unsigned accentEndCount (index_t channel) const;
+
+  /** CLIP or ORBIT, from any thread. The clock thread acts on it at its next
+   *  tick: CLIP -> ORBIT launches the ship where the channel is, ORBIT ->
+   *  CLIP glides back to the clip over one beat. Only the first
+   *  `flightShips` channels can fly; the rest stay on CLIP. A take puts its
+   *  channel back on CLIP. */
+  void setFlightMode (index_t channel, FlightMode mode);
+  FlightMode getFlightMode (index_t channel) const;
+
+  /** What the channel's ship steers for, from any thread: the FlightBody::id
+   *  of a group to escort, or noBodyId (-1) to patrol the big path. An id no
+   *  body has (any more) patrols. */
+  void setFlightTarget (index_t channel, int bodyId);
+
+  /** The breath, from any thread: while on, every ORBIT ship stands still
+   *  through the last beat of each bar and restarts on the one. Off at
+   *  start-up and never saved: it is the A/B the MJ lab asked for. */
+  void setFlightBreath (bool on);
+  bool getFlightBreath () const;
+
+  /** The floor's bodies, from the message thread. Newest wins: the clock
+   *  thread takes whatever was written last, without a queue. */
+  void setFlightBodies (FlightBodies const &bodies);
+
+  /** The constants the ships fly by, for what the UI draws of the field
+   *  (capture rings, the big path, the pulse). */
+  FlightTuning const &getFlightTuning () const { return _flightTuning; }
 
 private:
   /** One tick of every channel's accent. Runs on the tempo-clock thread with
@@ -575,6 +614,47 @@ private:
   std::vector<std::atomic<bool>> _previewMode;
   /** A channel whose position a finger is holding. */
   std::vector<std::atomic<bool>> _positionHeld;
+
+  /** One tick of the ORBIT channels, after playback: launch, glide back,
+   *  one step of the ships, and their positions written through the same
+   *  Channel::setPosition playback uses -- so the send loop and its pacer
+   *  are the ones a clip goes out through. Clock thread only; allocates
+   *  nothing and locks nothing. */
+  void performFlight ();
+  /** The mode atomics, read once at the start of the tick into
+   *  _flightModeThisTick, which playTick and performFlight both use. */
+  void readFlightModes ();
+  /** Whether a finger or a take owns the channel's position this tick. */
+  bool positionTakenOver (index_t channel) const;
+  void startGlide (index_t channel);
+  void glideTowardsTheClip (index_t channel);
+  /** CLIP -> ORBIT: the channel is heard where its clip played it, leant and
+   *  swept, and the ship flies the clip's plain band -- one beat from the one
+   *  to the other, as the glide back. */
+  void startGlideIn (index_t channel);
+  Pos glideIntoTheFlight (index_t channel, Pos const &flown);
+  /** One tick of a one-beat glide; counts `ticksLeft` down. */
+  static Pos glideStep (Pos const &from, Pos const &to, int &ticksLeft);
+
+  FlightTuning const _flightTuning{};
+  /** The ships, the bodies as last read, and per channel what the clock
+   *  thread last acted on and how far a glide back has to go: the clock
+   *  thread's alone. */
+  FlightWorld _flight{ /* seed */ 1, _flightTuning };
+  FlightBodies _flightBodies{};
+  std::vector<FlightMode> _flightModeSeen;
+  std::vector<FlightMode> _flightModeThisTick;
+  std::vector<int> _glideTicksLeft;
+  /** Where each ship was last heard: what a glide back starts from. */
+  std::vector<Pos> _glideFrom;
+  std::vector<int> _glideInTicksLeft;
+  /** Where the channel was heard when its ship launched. */
+  std::vector<Pos> _glideInFrom;
+  /** Written from any thread, read by the clock thread. */
+  std::vector<std::atomic<int>> _flightMode;
+  std::vector<std::atomic<int>> _flightTarget;
+  FlightBodiesBox _bodies;
+  std::atomic<bool> _flightBreath{ false };
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);

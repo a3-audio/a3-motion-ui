@@ -193,3 +193,79 @@ TEST (StatusBarLayout, AnEmptyRowLaysOutNothing)
   EXPECT_TRUE (l.readout.isEmpty ());
   EXPECT_TRUE (l.menuKey.isEmpty ());
 }
+
+// BREATH stands right of the view key in both views (2026-10-08): the A/B the
+// MJ lab asked for, tapped while listening. It was FPV's only at first, which
+// left a breath switched on in FPV running unseen in FULL.
+TEST (StatusBarLayout, BothViewsCarryTheBreathKeyRightOfTheViewKey)
+{
+  auto const l = deviceLayout ();
+
+  EXPECT_EQ (l.breathKey.getX (), l.viewKey.getRight ());
+  EXPECT_EQ (l.breathKey.getWidth (), l.viewKey.getWidth ());
+  EXPECT_EQ (l.breathKey.getHeight (), l.viewKey.getHeight ());
+  EXPECT_LE (l.breathKey.getRight (), l.bpm.getX ());
+}
+
+namespace
+{
+// The header sizes the device can be at: the shipped skin's, and the
+// tallest any shipped skin asks for (see barHeight above).
+constexpr float headerSizes[] = { 14.06f, 18.f };
+
+// JUCE's Label keeps 5 px of air either side of its text.
+constexpr int labelAir = 10;
+}
+
+// The tempo is the one reading on this bar a DJ has to read mid-set. The key
+// BREATH added took its width out of the readings and cut "BPM 120.0" to
+// "BPM 1..." on the device; the readings now say what they need and the beat
+// display gives way, down to a floor, before the tempo does.
+TEST (StatusBarLayout, TheTempoReadsWholeOnTheDevice)
+{
+  for (auto const size : headerSizes)
+    {
+      auto const font = juce::Font (juce::FontOptions (size));
+      auto const bpmNeeds = statusLabelWidth (font, "BPM 000.0", labelAir);
+      auto const readoutNeeds
+          = statusLabelWidth (font, "-- BREATH OFF", labelAir);
+      auto const l = statusBarLayout (rowOf (deviceWidth, barHeight),
+                                      deviceWidth, padding, bpmNeeds,
+                                      readoutNeeds);
+
+      EXPECT_GE (l.bpm.getWidth (), bpmNeeds) << size;
+      EXPECT_GE (l.readout.getWidth (), readoutNeeds) << size;
+      EXPECT_LE (l.readout.getRight (), l.tick.getX ()) << size;
+      EXPECT_EQ (l.tick.getCentreX (), deviceWidth / 2) << size;
+      EXPECT_GE (l.tick.getWidth (),
+                 statusTickMinWidthOfHeight * l.menuKey.getHeight ())
+          << size;
+    }
+}
+
+// What a reading needs: its text at JUCE's strongest squash, plus the label's
+// air. Text that fits that is drawn whole, squashed at most to 0.7.
+TEST (StatusBarLayout, ALabelNeedsItsSquashedTextAndItsAir)
+{
+  auto const font = juce::Font (juce::FontOptions (14.f));
+  auto const text = juce::String ("BPM 000.0");
+  auto const whole = juce::GlyphArrangement::getStringWidth (font, text);
+  auto const needs = statusLabelWidth (font, text, labelAir);
+
+  EXPECT_GE (static_cast<float> (needs - labelAir), whole * 0.7f);
+  EXPECT_LT (static_cast<float> (needs - labelAir), whole * 0.7f + 1.f);
+}
+
+// The beat display gives way to the readings only down to its floor: on a
+// bar too narrow for both, the tempo is cut rather than the display.
+TEST (StatusBarLayout, TheBeatDisplayGivesWayOnlyDownToItsFloor)
+{
+  auto const narrow = 600;
+  auto const l = statusBarLayout (rowOf (narrow, barHeight), narrow, padding,
+                                  1000, 1000);
+
+  EXPECT_EQ (l.tick.getWidth (),
+             statusTickMinWidthOfHeight * l.menuKey.getHeight ());
+  EXPECT_EQ (l.tick.getCentreX (), narrow / 2);
+  EXPECT_LE (l.readout.getRight (), l.tick.getX ());
+}

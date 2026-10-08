@@ -39,7 +39,14 @@ struct FpvChannel
   juce::String clipName;       // empty = no clip
   bool playing = false;
   std::array<float, 3> pots{}; // effective 3D, FREQ, Q (channelPotOrder), 0..1
+  bool orbit = false;          // flies the gravity field rather than its clip
+  int escort = -1;             // the body id it escorts; -1 = patrol
+  float escortMass = 1.f;      // that body's mass, for the size of its disc
 };
+
+/** Where the header's mode pill sits: CLIP hollow, ORBIT filled. The mode is
+ *  a shape before it is a word, so it reads at a glance. */
+juce::Rectangle<float> fpvModePill (juce::Rectangle<int> header);
 
 /** The bottom third in FPV: one strip per channel. Its bounds are the strips'
  *  row only; strip rectangles come from fpvStripRow. Painted from plain data,

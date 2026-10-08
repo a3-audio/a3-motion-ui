@@ -1227,4 +1227,16 @@ Pattern::takeOverKnob (Knob knob)
     setKnobSetting (knob, *played);
 }
 
+bool
+passIsRunning (Pattern const &pattern)
+{
+  auto const status = pattern.getStatus ();
+  auto const statusLast = pattern.getLastStatus ();
+  return status == Pattern::Status::Playing
+         || (status == Pattern::Status::ScheduledForIdle
+             && statusLast == Pattern::Status::Playing)
+         || (status == Pattern::Status::ScheduledForRecording
+             && statusLast == Pattern::Status::Playing);
+}
+
 }

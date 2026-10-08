@@ -22,11 +22,22 @@
 
 #include <a3-motion-ui/io/Workspaces.hh>
 
+#include <cmath>
+
 namespace a3
 {
 
+int
+statusLabelWidth (juce::Font const &font, juce::String const &text, int air)
+{
+  constexpr float strongestSquash = 0.7f;
+  auto const whole = juce::GlyphArrangement::getStringWidth (font, text);
+  return static_cast<int> (std::ceil (whole * strongestSquash)) + air;
+}
+
 StatusBarLayout
-statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
+statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding,
+                 int bpmWidth, int readoutWidth)
 {
   StatusBarLayout out{};
 
@@ -73,6 +84,7 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   out.cleanKey = rest.removeFromRight (keyW);
   out.clockKey = rest.removeFromLeft (keyW);
   out.viewKey = rest.removeFromLeft (keyW);
+  out.breathKey = rest.removeFromLeft (keyW);
 
   // Still centred, but never under a key: on a narrow bar the display gives
   // way rather than the keys.
@@ -81,6 +93,21 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
     out.tick = out.tick.withSizeKeepingCentre (juce::jmax (0, tickRoom),
                                                out.tick.getHeight ());
 
+  // The readings say what they need, and the display gives way to them,
+  // still centred, down to its floor: the tempo is read mid-set, the beat
+  // display is only looked at and still reads narrower.
+  auto const readingsNeed = bpmWidth + readoutWidth + 2 * padding;
+  auto const readingsHave = out.tick.getX () - rest.getX ();
+  if (readingsNeed > readingsHave)
+    {
+      auto const floor = statusTickMinWidthOfHeight * rowHeight;
+      auto const wanted
+          = 2 * (barWidth / 2 - (rest.getX () + readingsNeed));
+      auto const width = juce::jmin (out.tick.getWidth (),
+                                     juce::jmax (floor, wanted));
+      out.tick = out.tick.withSizeKeepingCentre (width, out.tick.getHeight ());
+    }
+
   // What is left of the display's left edge carries the two readings: the
   // tempo, then what was last done, standing against the display so the
   // right end is keys only. The readout gets the larger share, being the
@@ -88,7 +115,8 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding)
   auto left = rest.withRight (juce::jmin (rest.getRight (), out.tick.getX ()))
                   .withTrimmedLeft (padding)
                   .withTrimmedRight (padding);
-  out.bpm = left.removeFromLeft (left.getWidth () * 2 / 5);
+  out.bpm = left.removeFromLeft (juce::jmin (
+      left.getWidth (), juce::jmax (left.getWidth () * 2 / 5, bpmWidth)));
   out.readout = left;
 
   return out;
