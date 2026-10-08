@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
 #include <a3-motion-engine/flight/BeatPulse.hh>
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-engine/flight/ShipDynamics.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -71,6 +72,7 @@ struct Sample
 {
   double beats; // when, after the step
   ShipState ship;
+  Vec2 pull;    // the planets' gravity the step went by
 };
 
 FlightBodies
@@ -82,14 +84,22 @@ bodiesOf (std::initializer_list<FlightBody> list)
   return bodies;
 }
 
-/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity, from the
- *  rabbit's own place and pace. One sample a tick. The gravity's pulse is the
- *  one the engine plays (the gate: pulling only on the one), unless a fixed
- *  `pulse` is given. */
-std::vector<Sample>
-fly (float bars, FlightBodies const &bodies, std::optional<float> pulse = {})
+/** How the ship flies in `fly`: the engine's pulse (the gate) unless a fixed
+ *  one is given; with or without the breath (the rig's default is with). */
+struct Flying
 {
-  FlightTuning const tuning;
+  std::optional<float> pulse;
+  bool breathing = false;
+  FlightTuning tuning;
+};
+
+/** Ship 0 for `bars`, chasing its rabbit with the bodies' gravity, from the
+ *  rabbit's own place and pace. One sample a tick. With the breath the ship
+ *  stands, velocity kept, through beat 4, as FlightWorld holds it. */
+std::vector<Sample>
+fly (float bars, FlightBodies const &bodies, Flying const &how = {})
+{
+  auto const &tuning = how.tuning;
   auto const dt = tickBeats ();
   auto const start = rabbitAt (0., 0, fourFour, tuning);
   ShipState ship{ start.at, start.velocity };
@@ -98,15 +108,18 @@ fly (float bars, FlightBodies const &bodies, std::optional<float> pulse = {})
     {
       auto const now = static_cast<double> (i) * dt;
       auto const pulling
-          = pulse ? *pulse
-                  : gravityPulse (Measure (0, 0, static_cast<int> (i)), fourFour,
-                                  tuning);
-      ShipForces const forces{ rabbitAt (now, 0, fourFour, tuning),
-                               gravityAt (ship.p, bodies, pulling, tuning)
-                                   + deadZonePush (ship.p, bodies, tuning),
-                               {} };
-      ship = stepShip (ship, forces, dt, tuning);
-      path.push_back ({ now + dt, ship });
+          = how.pulse ? *how.pulse
+                      : gravityPulse (Measure (0, 0, static_cast<int> (i)),
+                                      fourFour, tuning);
+      auto const pull = gravityAt (ship.p, bodies, pulling, tuning);
+      if (!(how.breathing && breathHolds (now, fourFour)))
+        {
+          ShipForces const forces{ rabbitAt (now, 0, fourFour, tuning),
+                                   pull + deadZonePush (ship.p, bodies, tuning),
+                                   {} };
+          ship = stepShip (ship, forces, dt, tuning);
+        }
+      path.push_back ({ now + dt, ship, pull });
     }
   return path;
 }
@@ -250,21 +263,39 @@ longestOnTheRim (std::vector<Sample> const &path)
 // (measured 2026-10-08). These tests pin that they still act, where and when
 // they should; they do not ask them to be heard.
 
-// Half the smallest crowd bend measured (0.054): a change that halves the
-// planets' pull fails, the quiet design passes.
+// Breath off: half the smallest crowd bend measured (0.054). A change that
+// halves the planets' pull fails (half a crowd is a G: 0.025 at the least).
 constexpr float measurableBend = 0.03f;
 
-TEST (FlightGravity, ACrowdOrAHotspotBesideThePathStillMovesTheShip)
+// Breath on, the rig's default: the ship stands through beat 4, so a crowd
+// bends 0.058-0.124 and half a crowd 0.032-0.060 (measured 2026-10-08). The
+// bar sits between them, so it too catches a halved pull.
+constexpr float measurableBendBreathing = 0.045f;
+
+static void
+expectPlanetsMoveTheShip (Flying const &how, float bar)
 {
   FlightTuning const t;
-  auto const empty = fly (8.f, {});
+  auto const empty = fly (8.f, {}, how);
   for (auto const mass : { t.crowdMass, t.hotspotMass })
     for (auto const beats : eightPlacesRoundThePath ())
       {
         FlightBody const body{ besideThePath (beats, -0.1f), mass };
-        EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ body })), empty), measurableBend)
+        EXPECT_GE (widestApart (fly (8.f, bodiesOf ({ body }), how), empty), bar)
             << "mass " << mass << " where the rabbit is at beat " << beats;
       }
+}
+
+TEST (FlightGravity, ACrowdOrAHotspotBesideThePathStillMovesTheShip)
+{
+  expectPlanetsMoveTheShip ({}, measurableBend);
+}
+
+TEST (FlightGravity, ACrowdOrAHotspotStillMovesABreathingShip)
+{
+  Flying breathing;
+  breathing.breathing = true;
+  expectPlanetsMoveTheShip (breathing, measurableBendBreathing);
 }
 
 // Towards it, not away: the ship comes closer to a crowd than the empty
@@ -289,23 +320,26 @@ TEST (FlightGravity, APlanetDrawsTheShipTowardsIt)
     }
 }
 
-// The bends land on the one: the flight with a crowd leaves the empty room's
-// flight first during a beat 1, and over beats 2-4 nothing pulls.
+// In flight, too: over beats 2-4 the planets pull with exactly nothing, and
+// on the one they pull. Read from the gravity each step went by.
 TEST (FlightGravity, APlanetActsOnlyOnTheOne)
 {
   FlightTuning const t;
-  auto const empty = fly (4.f, {});
   for (auto const beats : eightPlacesRoundThePath ())
     {
-      auto const path
-          = fly (4.f, bodiesOf ({ { besideThePath (beats, -0.1f), t.crowdMass } }));
-      size_t i = 0;
-      while (i < path.size () && path[i].ship.p == empty[i].ship.p)
-        ++i;
-      ASSERT_LT (i, path.size ()) << "the crowd never moved the ship";
-      auto const beatInBar
-          = static_cast<int> (std::floor (path[i].beats - tickBeats ())) % fourFour;
-      EXPECT_EQ (beatInBar, 0) << "first moved at beat " << path[i].beats;
+      auto pulledOnTheOne = false;
+      for (auto const &sample :
+           fly (4.f, bodiesOf ({ { besideThePath (beats, -0.1f), t.hotspotMass } })))
+        {
+          auto const at = sample.beats - tickBeats ();
+          auto const beatInBar = static_cast<int> (std::floor (at + 1e-9)) % fourFour;
+          if (beatInBar == 0)
+            pulledOnTheOne |= sample.pull.getDistanceFromOrigin () > 0.f;
+          else
+            ASSERT_EQ (sample.pull, (Vec2{ 0.f, 0.f }))
+                << "beat " << beatInBar + 1 << " at " << at;
+        }
+      EXPECT_TRUE (pulledOnTheOne) << "placed where the rabbit is at beat " << beats;
     }
 }
 
@@ -383,7 +417,7 @@ TEST (FlightGravity, EightHeavyGroupsStayFinite)
         }
       bodies.count = maxFlightBodies;
 
-      for (auto const &sample : fly (32.f, bodies, hardestPulse))
+      for (auto const &sample : fly (32.f, bodies, { hardestPulse }))
         {
           ASSERT_TRUE (isFinite (sample.ship.p) && isFinite (sample.ship.v))
               << "seed " << seed << " at beat " << sample.beats;
@@ -395,3 +429,4 @@ TEST (FlightGravity, EightHeavyGroupsStayFinite)
         }
     }
 }
+
