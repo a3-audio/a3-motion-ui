@@ -43,6 +43,8 @@
 #include <a3-motion-engine/elevation/HeightMap.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 #include <a3-motion-engine/util/Timing.hh>
+#include <a3-motion-engine/flight/BeatPulse.hh>
+#include <a3-motion-engine/flight/Handover.hh>
 
 namespace a3
 {
@@ -87,6 +89,26 @@ requireBackend (std::unique_ptr<SpatBackend> backend)
 {
   jassert (backend != nullptr);
   return backend;
+}
+
+/** Whether `pattern`'s pass moves its channel this tick: playing, or
+ *  playing on until a stop or a take scheduled over it lands. */
+bool
+passIsRunning (Pattern const &pattern)
+{
+  auto const status = pattern.getStatus ();
+  auto const statusLast = pattern.getLastStatus ();
+  return status == Pattern::Status::Playing
+         || (status == Pattern::Status::ScheduledForIdle
+             && statusLast == Pattern::Status::Playing)
+         || (status == Pattern::Status::ScheduledForRecording
+             && statusLast == Pattern::Status::Playing);
+}
+
+Vec2
+onTheFloor (Pos const &position2D)
+{
+  return { position2D.x (), position2D.y () };
 }
 }
 
@@ -149,6 +171,13 @@ MotionEngine::createChannels (index_t const numChannels)
   _freqView = std::vector<AccentView> (numChannels);
   _qView = std::vector<AccentView> (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
+  _flightMode = std::vector<std::atomic<int>> (numChannels);
+  _flightTarget = std::vector<std::atomic<int>> (numChannels);
+  for (auto &target : _flightTarget)
+    target.store (noBodyId, std::memory_order_relaxed);
+  _flightModeSeen.assign (numChannels, FlightMode::Clip);
+  _glideTicksLeft.assign (numChannels, 0);
+  _glideFrom.assign (numChannels, Pos::invalid);
 
   auto constexpr spread = 120.f;
   auto const azimuthSpacing = spread / (numChannels - 1);
@@ -717,6 +746,39 @@ MotionEngine::isPreviewMode (index_t channel) const
   return _previewMode[channel].load (std::memory_order_relaxed);
 }
 
+void
+MotionEngine::setFlightMode (index_t channel, FlightMode mode)
+{
+  if (channel >= _flightMode.size ()
+      || channel >= static_cast<index_t> (flightShips))
+    return;
+  _flightMode[channel].store (static_cast<int> (mode),
+                              std::memory_order_relaxed);
+}
+
+FlightMode
+MotionEngine::getFlightMode (index_t channel) const
+{
+  if (channel >= _flightMode.size ())
+    return FlightMode::Clip;
+  return static_cast<FlightMode> (
+      _flightMode[channel].load (std::memory_order_relaxed));
+}
+
+void
+MotionEngine::setFlightTarget (index_t channel, int bodyId)
+{
+  if (channel >= _flightTarget.size ())
+    return;
+  _flightTarget[channel].store (bodyId, std::memory_order_relaxed);
+}
+
+void
+MotionEngine::setFlightBodies (FlightBodies const &bodies)
+{
+  _bodies.write (bodies);
+}
+
 TempoClock::TapResult
 MotionEngine::tap (juce::int64 timeMicros)
 {
@@ -830,6 +892,7 @@ MotionEngine::tickCallback ()
   // we don't need to worry about accumulation errors or sub-stepping granularity.
   // The position is always precisely calculated from elapsed time.
   performPlayback ();
+  performFlight ();
   advanceAccents ();
 
   // Wall clock rather than ticks: a tick is two to eight milliseconds
@@ -1241,6 +1304,11 @@ MotionEngine::startRecording (std::shared_ptr<Pattern> pattern, Measure length,
   
   _patternRecording = pattern;
 
+  // A take is the finger's path, not the physics.
+  if (pattern->getChannel () < _flightMode.size ())
+    _flightMode[pattern->getChannel ()].store (
+        static_cast<int> (FlightMode::Clip), std::memory_order_relaxed);
+
   // A new take starts on its first lap, with no finished one behind it.
   _recordingLastComplete.clear ();
   _recordingTicks = 0;
@@ -1598,13 +1666,8 @@ MotionEngine::performPlayback ()
       if (channel->_patternPlaying)
         {
           auto const status = channel->_patternPlaying->getStatus ();
-          auto const statusLast = channel->_patternPlaying->getLastStatus ();
 
-          if (status == Pattern::Status::Playing
-              || (status == Pattern::Status::ScheduledForIdle
-                  && statusLast == Pattern::Status::Playing)
-              || (status == Pattern::Status::ScheduledForRecording
-                  && statusLast == Pattern::Status::Playing))
+          if (passIsRunning (*channel->_patternPlaying))
             {
               auto const ticksPlaybackLength = Measure::convertToTicks (
                   channel->_patternPlaying->getPlaybackLength (), _tempoClock.getBeatsPerBar ());
@@ -1741,8 +1804,125 @@ MotionEngine::playTick (index_t chIdx, Pattern &playing, float playPosition)
 
   // Shaped, projected through the band and leant -- one call, which the
   // recording side inverts (writtenPosition) and the renderer mirrors.
-  if (position2D.isValid ())
+  //
+  // Not for an ORBIT channel: its ship writes the position, in
+  // performFlight(). Everything above still runs, so the clip comes back in
+  // phase with the bar and with its lanes.
+  if (position2D.isValid () && getFlightMode (chIdx) == FlightMode::Clip)
     channel->setPosition (playedPosition (_heightMap, position2D, playing));
+}
+
+bool
+MotionEngine::positionTakenOver (index_t channel) const
+{
+  if (_positionHeld[channel].load (std::memory_order_relaxed))
+    return true;
+  if (_patternRecording && _patternRecording->getChannel () == channel)
+    return true;
+  return _patternScheduledForRecording && _recordingPosition.isValid ()
+         && _patternScheduledForRecording->getChannel () == channel;
+}
+
+void
+MotionEngine::performFlight ()
+{
+  // Refused mid-write: last tick's floor stays, one tick old. Never waits.
+  _bodies.read (_flightBodies);
+
+  auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
+  auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
+  auto const beats = static_cast<double> (
+                         Measure::convertToTicks (_now, beatsPerBar))
+                     / ticksPerBeat;
+
+  std::array<ShipOrders, flightShips> orders{};
+  std::array<Pattern const *, flightShips> flyingClip{};
+
+  auto const ships
+      = std::min (_channels.size (), static_cast<std::size_t> (flightShips));
+  for (auto ch = 0u; ch < ships; ++ch)
+    {
+      auto const *playing = _channels[ch]->_patternPlaying.get ();
+      auto const running = playing != nullptr && passIsRunning (*playing);
+
+      // A finger or a take wins, as it does over playback; and with no clip
+      // running there is nothing to fly. Either way the ship is no longer
+      // where it was: it launches afresh, from wherever the channel is then.
+      if (positionTakenOver (ch) || !running)
+        {
+          _flightModeSeen[ch] = FlightMode::Clip;
+          _glideTicksLeft[ch] = 0;
+          continue;
+        }
+
+      if (getFlightMode (ch) == FlightMode::Clip)
+        {
+          if (_flightModeSeen[ch] == FlightMode::Orbit)
+            startGlide (ch);
+          _flightModeSeen[ch] = FlightMode::Clip;
+          glideTowardsTheClip (ch);
+          continue;
+        }
+
+      _glideTicksLeft[ch] = 0;
+      if (_flightModeSeen[ch] == FlightMode::Clip)
+        {
+          auto const here = _heightMap.mapTo2D (
+              _channels[ch]->getPosition (), playing->getElevationParams ());
+          _flight.launch (static_cast<int> (ch), onTheFloor (here), beats,
+                          beatsPerBar);
+        }
+      _flightModeSeen[ch] = FlightMode::Orbit;
+
+      auto const target = _flightTarget[ch].load (std::memory_order_relaxed);
+      orders[ch] = { true,
+                     target == noBodyId ? FlightGoal::Patrol
+                                        : FlightGoal::Escort,
+                     target };
+      flyingClip[ch] = playing;
+    }
+
+  _flight.step (orders, _flightBodies, beats, beatsPerBar,
+                gravityPulse (_now, beatsPerBar, _flightTuning),
+                1.f / static_cast<float> (ticksPerBeat));
+
+  for (auto ch = 0u; ch < ships; ++ch)
+    {
+      if (!orders[ch].flying)
+        continue;
+      auto const p = _flight.ship (static_cast<int> (ch)).p;
+      auto const heard
+          = _heightMap.mapTo3D (Pos::fromCartesian (p.x, p.y, 0.f),
+                                flyingClip[ch]->getElevationParams ());
+      _channels[ch]->setPosition (heard);
+      _glideFrom[ch] = heard;
+    }
+}
+
+void
+MotionEngine::startGlide (index_t channel)
+{
+  // From where the ship was last heard, kept by performFlight() rather than
+  // read off the channel: when the switch lands between playTick and here,
+  // playTick has already put the clip's spot on the channel this tick.
+  _glideTicksLeft[channel] = TempoClock::getTicksPerBeat ();
+}
+
+void
+MotionEngine::glideTowardsTheClip (index_t channel)
+{
+  auto &left = _glideTicksLeft[channel];
+  if (left <= 0)
+    return;
+
+  // playTick has just put the clip's own position on the channel; the glide
+  // writes over it. The first tick is still exactly where the ship was.
+  auto const ticksPerBeat = static_cast<float> (TempoClock::getTicksPerBeat ());
+  auto const progress = 1.f - static_cast<float> (left) / ticksPerBeat;
+  auto const clipPosition = _channels[channel]->getPosition ();
+  _channels[channel]->setPosition (
+      handover (_glideFrom[channel], clipPosition, smoothstep (progress)));
+  --left;
 }
 
 index_t
