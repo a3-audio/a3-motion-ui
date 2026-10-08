@@ -190,8 +190,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/ScriptEditor.hh
     components/PotKnob.hh
     components/VuFader.cc
-    components/LedMeter.cc
-    components/LedMeter.hh
+    components/DeskMeter.cc
+    components/DeskMeter.hh
     components/VuMeterView.cc
     components/VuMeterView.hh
     components/VuFader.hh

@@ -20,6 +20,10 @@
 
 #include "VuMeterView.hh"
 
+#include <a3-motion-ui/components/DeskMeter.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
 namespace a3
 {
 
@@ -45,10 +49,28 @@ VuMeterView::setDirection (VuDirection direction)
 }
 
 void
+VuMeterView::setScale (VuMeterScale scale)
+{
+  if (_scale == scale)
+    return;
+
+  _scale = scale;
+  repaint ();
+}
+
+void
 VuMeterView::paint (juce::Graphics &g)
 {
-  paintVuMeter (g, getLocalBounds (), level ? level () : VuReading{},
-                _direction);
+  auto const reading = level ? level () : VuReading{};
+  if (_scale == VuMeterScale::Continuous)
+    {
+      paintVuMeter (g, getLocalBounds (), reading, _direction);
+      return;
+    }
+  // The desk meter leaves its marks' lane and the well's corners to the
+  // ground; this view is opaque, so it fills them first.
+  g.fillAll (toColour (theme ().surfaceRaised));
+  paintDeskMeter (g, getLocalBounds (), reading, _direction);
 }
 
 }

@@ -24,7 +24,7 @@
 #include <cmath>
 
 #include <a3-motion-ui/components/FittedFont.hh>
-#include <a3-motion-ui/components/LedMeter.hh>
+#include <a3-motion-ui/components/DeskMeter.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -379,9 +379,10 @@ FpvStrips::paint (juce::Graphics &g)
       paintHeader (g, strip, static_cast<int> (ch), channel);
       paintClip (g, strip, channel, _tuning);
       paintInstruments (g, strip, channel);
-      paintLedMeter (g, strip.meter.reduced (juce::roundToInt (theme ().padding)),
-                     channelLevel ? channelLevel (static_cast<int> (ch))
-                                  : VuReading{});
+      paintDeskMeter (g, strip.meter.reduced (juce::roundToInt (theme ().padding)),
+                      channelLevel ? channelLevel (static_cast<int> (ch))
+                                   : VuReading{},
+                      VuDirection::Right);
     }
 }
 

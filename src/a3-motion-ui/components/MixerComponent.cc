@@ -256,6 +256,7 @@ MixerComponent::MixerComponent (MixerState &state, VuLevels const &levels)
     {
       auto view = std::make_unique<VuMeterView> ();
       view->setDirection (VuDirection::Right);
+      view->setScale (VuMeterScale::Continuous);
       view->level = [this, meter] {
         return _levels.output (meter, vuNowMs ());
       };

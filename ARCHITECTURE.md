@@ -2104,7 +2104,7 @@ with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is
 `ORBIT` at the right (phase 2). The channel's colour comes in as `ChannelUIState::colour` via
 `FpvChannel::colour`; everything else from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
 `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
-`FpvStripsPaint`, `LedMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+`FpvStripsPaint`, `DeskMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
 
 **The strips wear StemDeck's look in every skin** (2026-10-08; the audit is
 `.claude/notes/stemdeck-look-for-motion.md` in the workspace, steps b and d). The row stands on the
@@ -2119,15 +2119,20 @@ would be the brightest thing under the sphere at rest. The play state is a key a
 end, lit in play's colour (`transportColour`) with the triangle while the clip runs, the idle face
 with the two bars while it does not. 3D / FREQ / Q are slots in the skin's ground with a hairline,
 filled in the channel's colour, their captions muted and a step smaller. The meter is
-`paintLedMeter` (`components/LedMeter`): **the desk's eight channel LEDs**, the same thresholds
-(-36 -24 -18 -12 -9 -6 -3 0 dBFS peak, a3-mixer's `CHANNEL_LED_THRESHOLDS_DB`) and colours (four
-green, two yellow, two red), so a level is the same colour on the desk, StemDeck and here -- it had a
--60..0 scale of its own until 2026-10-08 and showed red where the desk was yellow. Unlit LEDs are a
-ghost of their band at `alphaOutline`, the held peak's LED is lit whole as the desk's firmware does,
-and the colours are `vuBandColour`'s roles. The thresholds are a copy (the truth carries the meters'
-timing, not their scale); `LedMeter.TheCopyAgreesWithTheDesksSource` holds it to the desk's file
-when a3-mixer is checked out beside this repo. FULL's continuous meter (`paintVuMeter`) still uses
-its -60..0 scale with yellow from -18 and red from -6 dBFS. No new colour role: every part is an
+`paintDeskMeter` (`components/DeskMeter`): **a channel's meter as the desk shows it** on its small
+displays. The bar fills exactly n/8 for the n channel LEDs the peak lights (thresholds -36 -24 -18
+-12 -9 -6 -3 0 dBFS, a3-mixer's `CHANNEL_LED_THRESHOLDS_DB` and `bar_fraction`), green to 4/8,
+yellow to 6/8, red above (the LEDs' colours, from the skin's `vuBandColour` roles); a tick beside the
+bar at 4/8 and 6/8 in `textMuted` (the displays' `YELLOW_FROM_FRACTION`/`RED_FROM_FRACTION`, a tenth
+of the bar's thickness long), so the bar reaches the yellow mark exactly when LED 5 lights (-9 dBFS)
+and the red one when LED 7 does (-3 dBFS); the held peak a line in `textPrimary`; an over (held peak
+above full scale) hatched. One definition for FPV's strips and FULL's channel meters (the MIXER
+overlay's channels, the MIX tab, the channel faces) through `VuMeterView`'s `VuMeterScale::Desk`; the
+master column's outputs keep `paintVuMeter`'s -60..0 bar (`VuMeterScale::Continuous`), as the desk
+draws its main meter on rows linear in dB. Until 2026-10-08 every meter here had its own -60..0 scale
+with yellow from -18 and red from -6 dBFS, and showed red where the desk was yellow. The desk's numbers
+are a copy (the truth carries the meters' timing, not their scale); `DeskMeter.TheDesksOwnCodeAgrees`
+runs a3-mixer's own `a3_mixer_meters.py` over a sweep when a3-mixer is checked out beside this repo. No new colour role: every part is an
 existing one, so every skin draws it. The skin `stemdeck.json` adds StemDeck's own greys and the soft
 channel set; it is a choice in the skin menu, not the default. The plate and the two keys look like
 keys but take no touch -- FPV's strips have no taps yet.

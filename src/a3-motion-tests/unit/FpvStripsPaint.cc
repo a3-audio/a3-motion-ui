@@ -425,22 +425,19 @@ TEST (FpvStripsPaint, AnEmptySlotCanBeFoundOnAFlatSkin)
   setTheme (before);
 }
 
-// The meter is a row of LEDs: silent, it still shows its dark segments.
-TEST (FpvStripsPaint, ASilentMeterShowsItsSegments)
+// The meter is the desk's display meter: silent, it is an empty well with
+// its yellow and red marks beside it.
+TEST (FpvStripsPaint, ASilentMeterShowsItsWellAndMarks)
 {
   Fixture f;
   f.strips.channelLevel = [] (int) { return VuReading{}; };
   auto const image = f.paint ();
   auto const &m = f.strips.strips ()[1].meter;
-  auto const ground = toColour (theme ().background);
-  auto ghosts = 0;
-  for (int x = m.getX (); x < m.getRight (); ++x)
-    ghosts += image.getPixelAt (x, m.getCentreY ()) != ground
-                      && image.getPixelAt (x, m.getCentreY ())
-                             != toColour (theme ().surface)
-                  ? 1
-                  : 0;
-  EXPECT_GT (ghosts, m.getWidth () / 2);
+  auto marks = 0;
+  for (int y = m.getY (); y < m.getBottom (); ++y)
+    for (int x = m.getX (); x < m.getRight (); ++x)
+      marks += image.getPixelAt (x, y) == toColour (theme ().textMuted) ? 1 : 0;
+  EXPECT_GT (marks, 0);
 }
 
 // The look this was built for, in its own skin -- the soft channel set and

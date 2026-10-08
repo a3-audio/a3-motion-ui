@@ -29,6 +29,18 @@
 namespace a3
 {
 
+/** Which scale a meter view reads its level on.
+ *
+ *  A channel's level is shown as the desk shows it (`paintDeskMeter`):
+ *  one level, one colour, on the desk, StemDeck and here. The master's
+ *  outputs keep the continuous -60..0 bar (`paintVuMeter`), as the desk
+ *  draws its main meter on rows linear in dB without colour zones. */
+enum class VuMeterScale
+{
+  Desk,
+  Continuous,
+};
+
 /** One meter, as its own component.
  *
  *  **Opaque on purpose.** A meter changes twenty five times a second, and
@@ -53,10 +65,15 @@ public:
   /** Up for a channel's column, Right for one of the master's output bars. */
   void setDirection (VuDirection direction);
 
+  /** Desk unless told otherwise: most meters here show a channel. */
+  void setScale (VuMeterScale scale);
+  VuMeterScale scale () const { return _scale; }
+
   void paint (juce::Graphics &g) override;
 
 private:
   VuDirection _direction = VuDirection::Up;
+  VuMeterScale _scale = VuMeterScale::Desk;
 };
 
 }
