@@ -264,7 +264,7 @@ the sphere as a ship's would, and the group is drawn straight below that point, 
 shader draws the dance floor on (`speakerFloorZ`), so a ship circling it is seen right above it.
 Straight from above it lands where its sphere point is. Its mark, label, swell, ring, the escort
 line and a game's dashed line (both now run from the ship down to the group) and the hit test all
-use that floor point; the ORBIT guide stays on the sphere, because the ships fly there
+use that floor point; a ship's orbit stays on the sphere, because the ships fly there
 (`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
 lifted straight back onto the upper half of the sphere and through `mapTo2D`, the exact inverse.
 A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
@@ -333,6 +333,33 @@ the nearest, once to shade); for a mark one floor intersection per pixel and a l
 circles are a few percent of the picture. Measured on llvmpipe only; on the rig's iGPU it is
 expected to stay small beside the net and the beams, and is to be checked there.
 
+**A ship flying ORBIT shows its orbit, not its clip** (2026-10-09). The clip's trajectory under an
+ORBIT ship is a path it has left, so FPV draws the line it does follow instead, per channel
+(`ShipPath`):
+
+| The ship | Its line on the ball |
+|---|---|
+| CLIP | its clip's trajectory, as in FULL |
+| ORBIT, patrolling | the orbit: the shared ellipse as it stands now (`orbitGuidePoints`), mapped through the clip's own band as the engine flies it (`flightBand`; no squeezes, no lean), in the channel's colour |
+| ORBIT, escorting | the escort's circle round its group (`escortRadius`), held on the disc where it passes the rim, as the ship is |
+| in a game (ORBIT, or a CLIP ship borrowed into it) | none: it steers to a figure no line here knows; the game's dashed line and word mark it |
+
+The orbit goes through the **same line maps** as a trajectory (`drawShipPath` collects its strokes
+into the channel's maps), drawn quieter by a per-channel level (`lineLevelOf`, `orbitLineLevel`;
+the shader's `uLineLevel`). A line and its level are collected in one 2D pass and handed to the
+shader together on the next frame, so a switch (Page, an escort, a game starting or ending) shows
+one line or the other on every frame, never both and never neither. On the way back to CLIP the
+trajectory comes back when the one-beat glide **starts**: the line is where the ship is going,
+and a ship gliding onto its line reads as landing; held back to the end of the glide, the ship
+would spend a beat heading for a line that is not there. The faint shared guide ellipse is gone:
+every ship that flies it draws it now, in its colour, and two ships on the one ellipse add up.
+
+What is not drawn is the ship's exact path: the engine flies the rabbit with an action's swell
+(`swellScale`, a per-ship weight inside `FlightWorld`), a wander offset, gravity's bends and the
+heard sway, tilt and roll (`heardShip`). Drawing that would need the engine to hand out, per ship,
+its swell scale and motion weight and the heard transform as a pure function of the beat --
+the ellipse here is the path it is steered along, not the one gravity bends it onto.
+
 **Groups reach to the speakers; the ships stay on the disc.** A group may stand anywhere out to
 `floorReach` (1.35 sphere radii, `SpeakerLightScaling.hh`), between the four towers: `FloorBodies`
 holds a placed or dragged group there, `onTheFloor` takes a finger up to there and gives the camera
@@ -397,7 +424,7 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 | Code | Files |
 |---|---|
 | physics, pure | `src/a3-motion-engine/flight/` |
-| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`, `FlightScene`) and `SphereShader` (`flightScene`, `markPaint`) |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`, `FlightScene`, `ShipPath`) and `SphereShader` (`flightScene`, `markPaint`) |
 | app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
@@ -415,7 +442,7 @@ lap with a group differs from one without.
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
 `FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`, `GroupsOnTheDanceFloor`,
-`FlightScene`, `FlightSceneRender` (the sphere shader compiled and run offscreen through EGL, its
+`FlightScene`, `ShipPath`, `FlightSceneRender` (the sphere shader compiled and run offscreen through EGL, its
 pixels read back; skipped where there is no GL). They are deterministic:
 one tick per step, seeds through `spreadSeed`, no wall clock. They assert behaviours (bends
 towards, slings out, stays out), except one determinism test. Engines in tests take

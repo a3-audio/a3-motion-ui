@@ -44,6 +44,7 @@
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/fpv/DanceFloor.hh>
 #include <a3-motion-ui/components/fpv/FlightScene.hh>
+#include <a3-motion-ui/components/fpv/ShipPath.hh>
 #include <a3-motion-ui/components/fpv/FloorGesture.hh>
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
@@ -69,7 +70,10 @@ struct FlightDisplay
   /** Per channel, the game its ship plays in (MotionEngine::gameOf), for the
    *  word under it and the leader's line to its target. */
   std::array<std::optional<ShipGame>, fpvShips> game{};
-  /** The big path at its current precession, on the floor. */
+  /** Per channel, whether the engine flies its ship ORBIT. */
+  std::array<bool, fpvShips> orbit{};
+  /** The big path at its current precession, on the floor: the orbit every
+   *  ORBIT ship is drawn on. */
   std::vector<Vec2> guide;
   /** drawnPulse now: the discs swell with it. */
   float pulse = 1.f;
@@ -249,6 +253,13 @@ private:
   void buildFlightScene (FlightDisplay const &display);
   /** The ship's length in the sphere pass's units (its radius is 1). */
   float shipLength () const;
+  /** Which line channel `channel` has on the ball this frame. GL thread. */
+  ShipPathShown shipPathOf (index_t channel, FlightDisplay const &display) const;
+  /** An FPV ship's orbit or escort circle, drawn into its channel's line
+   *  maps in place of its trajectory. GL thread, 2D pass. */
+  void drawShipPath (index_t channel, ShipPathShown shown,
+                     FlightDisplay const &display, Pattern const &playing,
+                     juce::Graphics &g);
   /** The radius of a body's mark on the floor, in sphere radii, before the
    *  swell. */
   float markRadius (float mass) const;
@@ -505,6 +516,10 @@ private:
   // the first, because the first is premultiplied ARGB and every one of its
   // colour channels already carries something.
   std::array<std::vector<MapStroke>, 4> _strandStrokes;
+  /** How brightly each channel's collected line is drawn (lineLevelOf), set
+   *  with its strokes and handed to the shader with its maps, so a line and
+   *  its level change on the same frame. */
+  std::array<float, 4> _lineLevels{ 1.f, 1.f, 1.f, 1.f };
 
   void resetLineMaps ();
   void uploadLineMaps ();

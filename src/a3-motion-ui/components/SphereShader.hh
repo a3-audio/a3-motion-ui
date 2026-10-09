@@ -252,6 +252,9 @@ public:
   /** The braid strands for a channel: red where a strand is, green how
    *  far in front of the cord. 0 means no braid for that channel. */
   void setStrandTexture (int channel, unsigned int textureID);
+  /** How brightly a channel's line is drawn: 1 for a clip's trajectory, the
+   *  default; quieter for an FPV ship's orbit (lineLevelOf). */
+  void setLineLevel (int channel, float level);
   /** How far the line map reaches, in sphere radii. */
   void setLineExtent (float extent) { _lineExtent = extent; }
 
@@ -369,6 +372,7 @@ private:
   GLint _uLineMap[kMaxBlobs] = {};
   GLint _uStrandMap[kMaxBlobs] = {};
   GLint _uLineOn = -1;
+  GLint _uLineLevel = -1;
   GLint _uLineExtent = -1;
   GLint _uLineFarSide = -1;
   GLint _uLineEffects = -1;
@@ -416,6 +420,7 @@ private:
   unsigned int _lineTexture[kMaxBlobs] = {};
   unsigned int _strandTexture[kMaxBlobs] = {};
   float _lineExtent = 1.3f;
+  float _lineLevel[kMaxBlobs] = { 1.f, 1.f, 1.f, 1.f };
 
   GLint _uNumBlobs = -1;
 
