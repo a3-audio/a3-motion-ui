@@ -20,6 +20,10 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/PilotGames.hh>
+#include <a3-motion-engine/flight/PilotLevel.hh>
+#include <a3-motion-engine/preview/LiveMood.hh>
+#include <a3-motion-engine/preview/MusicCue.hh>
 #include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
@@ -601,13 +605,14 @@ private:
   OscAddresses _oscAddresses;
   void applyOscAddresses ();
 
-  /** The beat address again, for the tempo-clock thread.
+  /** The beat address again, kept apart from _oscAddresses.
    *
-   *  tickCallback() runs there, and juce::String is reference counted — so
-   *  reading _oscAddresses.beat from it while the message thread replaces
-   *  the struct is a race. Handed over the same way the send backend gets
-   *  its addresses: stored under the lock, picked up at the top of the tick
-   *  where the flag costs one atomic load. */
+   *  tickCallback() (registered on the message thread) reads it, and
+   *  applyOscAddresses() (the only writer of the pending copy, called from
+   *  the constructor) runs on the message thread too. The lock and the
+   *  pickup at the top of the tick are defensive code from an earlier
+   *  assumption that the beat was sent from the tempo-clock thread; they are
+   *  harmless and stay. */
   juce::String _beatAddress{ "/a3-osc-missing/beat" };
   std::mutex _beatAddressMutex;
   juce::String _pendingBeatAddress;
@@ -637,10 +642,32 @@ private:
     juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
-  /** StemDeck's preview of the music, with its age. Held only,
-   *  nothing acts on it yet; a reader asks
+  /** StemDeck's preview of the music, with its age; the pilots go by it
+   *  while it is fresh (pushMusicCue). A reader asks
    *  _musicPreview.current (now, _engine.getTempoBPM ()). */
   MusicPreview _musicPreview;
+  /** The live mood, the pilots' timing when the preview is stale or absent:
+   *  each bar's level from the channel meters, and what the bars say. */
+  LiveBars _liveBars;
+  /** The bar the preview counts from: the downbeat nearest its arrival. */
+  long long _previewBar{ 0 };
+  /** What the pilots go by now, as last handed to the engine. */
+  MusicCue _musicCue{};
+  /** Per channel, the game last seen there, so a pilot's new game is
+   *  announced once. */
+  std::array<std::optional<ShipGame>, 4> _announcedGames{};
+  /** Works the cue out -- the preview while it is fresh, else the live
+   *  mood -- and hands it to the engine. Message thread. */
+  void pushMusicCue ();
+
+  /** Per channel, the action button a pilot lights at HINT, or -1. Worked
+   *  out on every downbeat and when the level or the view changes. */
+  std::array<int, 4> _hintedButton{ -1, -1, -1, -1 };
+  void refreshPilotHints ();
+  /** "CHn FLY <GAME>" in the readout when a pilot starts a game. */
+  void announcePilotGames ();
+  /** The beat the UI's copy of the clock stands on. */
+  double uiBeats () const;
   /** The engine's own beats, stamped on the clock's thread. */
   TempoClock::PointerT _beatTraceHandle;
 
@@ -740,6 +767,11 @@ private:
    *  carries the view key), puts the four strips below the sphere and turns the blobs into ships; every way into the menu
    *  leads back to FULL. */
   AppView _view = AppView::Full;
+  /** The pilots' level as the DJ set it: kept while FULL is shown (where the
+   *  engine's is OFF), saved with the app settings. Message thread. */
+  PilotLevel _pilotLevel = PilotLevel::Off;
+  /** Sets the level, shows it, saves it and hands it to the engine. */
+  void setPilotLevel (PilotLevel level);
   std::unique_ptr<FpvStrips> _fpvStrips;
   void setView (AppView view);
   /** What the strips show, from the engine and the clips; every UI tick in
@@ -1013,6 +1045,9 @@ private:
     /** The script names a clip at all -- a Cue even when the clip is gone,
      *  so the press does nothing rather than fall through to an accent. */
     bool isCue = false;
+    /** The game its script's Pilot section names, if any: what a pilot at
+     *  HINT looks for on its channel. */
+    std::optional<PilotGame> game;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Works `action`'s source out against the channel's clip and puts what

@@ -184,22 +184,42 @@
 // ---- PILOT: what the channel's ship is asked to play (FPV only) ----------
 //
 // FULL ignores this section; it is read when the button is pressed in FPV.
-// It asks the channel's pilot for a game -- a figure the ship flies against
-// the guests on the floor. No game is played yet: a game asked for
-// waits on the ship and nothing flies differently. Every shipped script carries the three lines commented out.
+// It starts a game: a figure the ship flies against the guests on the
+// floor, timed to the music -- StemDeck's preview of the set, or without
+// it the room's levels. The game starts at once and lands on the next
+// fitting change (a drop, the end of a breakdown), else on the next 4-bar
+// line. Every shipped script carries the three lines commented out.
 //
 //   ~game                    \none  \fakeout  \formation  \hideseek
 //                            \callresponse
-//                            which game. \none calls off one still waiting.
+//                            \fakeout: heads for the target through the
+//                            build, veers off a bar before the drop, hits
+//                            it on the 1. \formation: lines up during the
+//                            build, bursts outward on the 1. \hideseek:
+//                            slips quietly away to one side, reappears
+//                            opposite on the next 1. \callresponse: two
+//                            ships answer each other across the room, a
+//                            bar each. \none ends the game the ship plays.
 //   ~target                  \nearest  \group1 .. \group8  \crowd  \hotspot
 //                            whom it is played against: the nearest guest
 //                            group, the group labelled G1..G8 on the floor,
-//                            or the nearest crowd or hotspot.
+//                            or the nearest crowd or hotspot. Fake-out and
+//                            formation only.
 //   ~with                    \self  \nearest  \all
 //                            which ships the game takes: this channel's
 //                            alone, it and the nearest free ship, or every
-//                            free ship. A ship taken goes back to what it
-//                            was doing when the game ends.
+//                            free ship (a call & response is always two).
+//                            A ship in another game is not taken; a ship
+//                            taken goes back to what it was doing when the
+//                            game ends. A fake-out with several ships flies
+//                            side by side, each on its own lane.
+//
+// The PILOTS key on the status bar (FPV) says how much the pilots do on
+// their own: OFF, games only from these lines; HINT, a pad lights up in
+// the beat when its game fits the moment the music is in; FLY, pilots
+// start games themselves -- a tap of yours that starts a game, or touches
+// a ship in a pilot's game, takes over at once and sets the key back to
+// HINT; one press takes it to FLY again. Leaving FPV ends every game.
 //
 // On a flying ship (ORBIT) the Motion keys mean flight, not figure, for as
 // long as the action's accent lasts: ~spin the bars per lap and the way

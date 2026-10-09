@@ -22,6 +22,7 @@
 
 
 #include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-ui/components/WorkspaceList.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -376,6 +377,13 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
       return;
     }
 
+  if (_layout.pilotKey.contains (at))
+    {
+      if (_fpv && onPilotKeyTapped)
+        onPilotKeyTapped ();
+      return;
+    }
+
   if (_layout.clockKey.contains (at) && onClockKeyTapped)
     onClockKeyTapped ();
 
@@ -435,6 +443,18 @@ StatusBar::paintKeyboardKey (juce::Graphics &g)
 }
 
 void
+StatusBar::paintPilotKey (juce::Graphics &g)
+{
+  if (_layout.pilotKey.isEmpty ())
+    return;
+  auto const face = pilotKeyFace (_pilotLevel, _fpv);
+  paintKeyGround (g, _layout.pilotKey, face.on);
+  g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
+  g.setColour (face.notice ? toColour (theme ().notice) : keyInk (face.available, face.on));
+  g.drawFittedText (face.word, _layout.pilotKey, juce::Justification::centred, 1);
+}
+
+void
 StatusBar::paint (juce::Graphics &g)
 {
   // The window behind this component paints with juce's stock look, which no
@@ -457,6 +477,7 @@ StatusBar::paint (juce::Graphics &g)
   paintWordKey (g, _layout.viewKey,
                 appViewName (_fpv ? AppView::Fpv : AppView::Full), true, _fpv);
   paintWordKey (g, _layout.breathKey, "BREATH", true, _breathing);
+  paintPilotKey (g);
 
   // The switch in StemDeck's look, not the skin's: it is the same key in
   // both apps, named after the app it goes to.
@@ -586,6 +607,15 @@ StatusBar::setBreathing (bool on)
     return;
   _breathing = on;
   repaint (_layout.breathKey);
+}
+
+void
+StatusBar::setPilotLevel (PilotLevel level)
+{
+  if (level == _pilotLevel)
+    return;
+  _pilotLevel = level;
+  repaint (_layout.pilotKey);
 }
 
 }

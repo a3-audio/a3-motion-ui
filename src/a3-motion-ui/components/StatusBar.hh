@@ -24,6 +24,8 @@
 
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
+#include <a3-motion-engine/flight/PilotLevel.hh>
+
 #include <a3-motion-engine/tempo/TempoClock.hh>
 
 #include <a3-motion-ui/components/AppView.hh>
@@ -82,6 +84,14 @@ public:
   std::function<void ()> onBreathKeyTapped;
   /** Whether the ships breathe, so BREATH can wear it. */
   void setBreathing (bool on);
+
+  /** The pilots' level, left of CLEAN: a tap steps OFF -> HINT -> FLY.
+   *  FPV's only: in FULL it shows the level dimmed and takes no tap. */
+  std::function<void ()> onPilotKeyTapped;
+  /** The level the key wears. */
+  void setPilotLevel (PilotLevel level);
+  /** The key in this bar's coordinates; empty on a bar too narrow for it. */
+  juce::Rectangle<int> pilotKeyArea () const { return _layout.pilotKey; }
   /** STEMDECK, at the right end: over to StemDeck's workspace. */
   std::function<void ()> onDeckKeyTapped;
   /** The arrow beside it: list the rig's workspaces. */
@@ -192,6 +202,7 @@ private:
   void paintWordKey (juce::Graphics &g, juce::Rectangle<int> area,
                      juce::String const &word, bool available, bool on);
   void paintKeyboardKey (juce::Graphics &g);
+  void paintPilotKey (juce::Graphics &g);
 
   /** Every rectangle on this bar, from the one pure calculation the test
    *  checks — so paint() draws into what resized() placed. */
@@ -219,6 +230,7 @@ private:
   std::atomic<int> _clockMode{ 0 };
   bool _fpv{ false }; // message thread only
   bool _breathing{ false }; // message thread only
+  PilotLevel _pilotLevel{ PilotLevel::Off }; // message thread only
 };
 
 }

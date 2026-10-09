@@ -145,13 +145,17 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
     if (orders[index (ch)].flying)
       easeMotion (ch, orders[index (ch)], dt);
 
-  // All ships hold together, so a held tick is simply not stepped: nobody
-  // moves, nobody pushes another away, every velocity is kept.
+  // All ships hold together, so a held ship is simply not stepped: it does
+  // not move, does not push another away, keeps its velocity. A ship in a
+  // game flies on: a stop on the beat before its 1 would swallow the figure.
   auto const inTheStop = breathHolds (beats, beatsPerBar);
   if (!inTheStop)
     _breathing = _breathWanted;
-  if (_breathing && inTheStop)
-    return;
+  auto const holds = _breathing && inTheStop;
+  auto const moves = [&orders, holds] (int ch) {
+    auto const &order = orders[index (ch)];
+    return order.flying && (!holds || order.goal == FlightGoal::Steer);
+  };
 
   // Every ship's pulls are taken from where the others were before this
   // tick, so the order the four are stepped in does not matter.
@@ -159,28 +163,35 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   std::array<bool, flightShips> patrolling{};
   for (auto ch = 0; ch < flightShips; ++ch)
     {
-      if (!orders[index (ch)].flying)
+      if (!moves (ch))
         continue;
-      auto const escorted = followOrders (ch, orders[index (ch)], bodies, beats);
-      patrolling[index (ch)] = escorted < 0;
+      auto const &order = orders[index (ch)];
+      auto const escorted = followOrders (ch, order, bodies, beats);
+      auto const steering = order.goal == FlightGoal::Steer;
+      patrolling[index (ch)] = escorted < 0 && !steering;
       auto const &ship = _ships[index (ch)];
+      // A game's figure stands for its target's pull as the escort's circle
+      // stands for the escorted body's: neither tugs at the ship.
+      auto const spared = steering ? indexOfBody (bodies, order.bodyId) : escorted;
       FlightBodies const pulling
-          = escorted < 0 ? bodies : withoutBody (bodies, escorted);
-      forces[index (ch)] = { goalFor (ch, bodies, escorted, beats, beatsPerBar),
-                             gravityAt (ship.p, pulling, pulse, _tuning)
-                                 + deadZonePush (ship.p, bodies, _tuning),
-                             separationOf (ch, orders) };
+          = spared < 0 ? bodies : withoutBody (bodies, spared);
+      forces[index (ch)]
+          = { steering ? order.steer
+                       : goalFor (ch, bodies, escorted, beats, beatsPerBar),
+              gravityAt (ship.p, pulling, pulse, _tuning)
+                  + deadZonePush (ship.p, bodies, _tuning),
+              separationOf (ch, orders) };
     }
 
   for (auto ch = 0; ch < flightShips; ++ch)
-    if (orders[index (ch)].flying)
+    if (moves (ch))
       _ships[index (ch)]
           = stepShip (_ships[index (ch)], forces[index (ch)], dt, _tuning);
 
   // An action's floor keys move only a patrolling ship: an escort's order is
-  // its circle.
+  // its circle, a game's its point.
   for (auto ch = 0; ch < flightShips; ++ch)
-    if (orders[index (ch)].flying && patrolling[index (ch)])
+    if (moves (ch) && patrolling[index (ch)])
       carry (ch, beats + dt, beatsPerBar, dt);
 }
 

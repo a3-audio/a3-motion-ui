@@ -48,6 +48,8 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-ui/components/fpv/ActionReach.hh>
+#include <a3-motion-ui/components/fpv/PilotHint.hh>
+#include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
@@ -1059,6 +1061,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _developerMode = persisted.developerMode;
   _skinBeforeClean = persisted.skinBeforeClean;
   _view = persisted.fpvView ? AppView::Fpv : AppView::Full;
+  _pilotLevel = persisted.pilotLevel;
   refreshCleanKey ();
 
   // The view the room was last looked at from, and saved again whenever a
@@ -1339,6 +1342,7 @@ A3MotionUIComponent::persistSettings () const
   settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
   settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
   settings.fpvView = _view == AppView::Fpv;
+  settings.pilotLevel = _pilotLevel;
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -1449,6 +1453,7 @@ A3MotionUIComponent::createMainUI ()
     _statusBar->setBreathing (on);
     updateControlReadout (on ? "-- BREATH ON" : "-- BREATH OFF");
   };
+  _statusBar->onPilotKeyTapped = [this] { setPilotLevel (nextPilotLevel (_pilotLevel)); };
 
   // Hidden: no longer part of the visible layout (see resized()), but these
   // keep receiving their normal update calls underneath.
@@ -1957,6 +1962,14 @@ A3MotionUIComponent::setView (AppView view)
   _fpvStrips->setVisible (fpv);
   _motionComponent->setFpv (fpv);
   _statusBar->setView (view);
+  // The games are played on the floor FPV shows: leaving it calls every game
+  // and every queued request off, and the pilots rest while FULL is shown.
+  // The level itself is kept and comes back with FPV.
+  if (!fpv)
+    _engine.callOffGames ();
+  _engine.setPilotLevel (fpv ? _pilotLevel : PilotLevel::Off);
+  _statusBar->setPilotLevel (_pilotLevel);
+  refreshPilotHints ();
   if (fpv)
     {
       refreshFpvStrips ();
@@ -1965,6 +1978,17 @@ A3MotionUIComponent::setView (AppView view)
   resized ();
   repaint (); // the ground under FPV is painted in one view only
   updateControlReadout (fpv ? "-- FPV" : "-- FULL");
+  persistSettings ();
+}
+
+void
+A3MotionUIComponent::setPilotLevel (PilotLevel level)
+{
+  _pilotLevel = level;
+  _engine.setPilotLevel (_view == AppView::Fpv ? level : PilotLevel::Off);
+  _statusBar->setPilotLevel (level);
+  refreshPilotHints ();
+  updateControlReadout (pilotLevelReadout (level));
   persistSettings ();
 }
 
@@ -3706,9 +3730,11 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.after.reset ();
   action.cueClip = juce::File{};
   action.isCue = false;
+  action.game.reset ();
 
   if (!file.existsAsFile ())
     {
+      refreshPilotHints ();
       updateActionPage ();
       return;
     }
@@ -3724,6 +3750,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   if (!action.errors.isEmpty ())
     updateControlReadout (action.errors[0]);
 
+  refreshPilotHints ();
   updateActionPage ();
   updateClipSettingsDisplay ();
 }
@@ -3743,6 +3770,8 @@ A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)
   // ACTION writes both there, so the button keeps no values of its own.
   action.feel = actionFeelFrom (result.settings);
   action.after = result.then;
+  // What a pilot at HINT looks for on this channel.
+  action.game = result.pilot.game;
 
   auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
   action.cueClip = cue.file;
@@ -3788,10 +3817,23 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
   if (!fired)
     {
       _engine.setChannelAction (channel, std::nullopt);
+      refreshPilotHints ();
       return;
     }
+
+  // At FLY a DJ who fires a game, or fires anything at a ship a pilot is
+  // playing with, takes over at once: the pilots step back to HINT, which
+  // ends their games. Back to FLY is a deliberate press of the key.
+  auto const order = pilotOrderAtPress (_view, fired->pilot);
+  auto const playing = _engine.gameOf (channel);
+  auto const level = levelAfterTap (_pilotLevel, order.has_value (),
+                                    _view == AppView::Fpv && playing && playing->byPilot);
+  if (level != _pilotLevel)
+    setPilotLevel (level);
+
   _engine.setChannelAction (channel, fired->settings, fired->flight);
-  if (auto const order = pilotOrderAtPress (_view, fired->pilot))
+  refreshPilotHints ();
+  if (order)
     {
       _engine.requestGame (channel, *order);
       updateControlReadout (
@@ -6027,8 +6069,14 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
-  // This thread's own copy of the beat address, taken over here and read
-  // nowhere else.
+  // A bar is over: its level goes to the live mood, and the pilots hear what
+  // the music says now. Judged by the bar number, not the downbeat tick:
+  // these ticks are throttled and coalesced, so tick 0 is often never seen.
+  if (_liveBars.reach (measure.bar ()) > 0)
+    pushMusicCue ();
+
+  // The tick's copy of the beat address, taken over here (see the member's
+  // comment: defensive, both sides run on the message thread).
   applyPendingBeatAddress ();
 
   // A button's "then": decided here, on the message thread, from the
@@ -6524,6 +6572,8 @@ A3MotionUIComponent::pulseTapLED ()
 void
 A3MotionUIComponent::padLEDCallback (int step)
 {
+  // A clip starting or stopping, or a game ending, shows within a pad step.
+  refreshPilotHints ();
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
       auto const channelColour = _channelUIStates[channel]->colour;
@@ -6580,10 +6630,16 @@ A3MotionUIComponent::padLEDCallback (int step)
           auto const paused = function == PadFunction::PlayPause
                               && clipStatus == Pattern::Status::Idle
                               && _patterns[channel][slot]->resumesOnPlay ();
+          // At HINT the pad of an action whose game fits the moment pulses on
+          // the beat in the pilots' colour; a running action's look wins.
+          bool const hinted = function == PadFunction::Action && !actionRunning
+                              && channel < _hintedButton.size ()
+                              && button == _hintedButton[channel];
           auto const colour
-              = paused ? padPausedColour (base, step / stepsPerBeatPadLEDs)
-                       : channelColourForPadStatus (base, status, statusLast,
-                                                    step);
+              = paused   ? padPausedColour (base, step / stepsPerBeatPadLEDs)
+                : hinted ? padHintColour (step, stepsPerBeatPadLEDs)
+                         : channelColourForPadStatus (base, status, statusLast,
+                                                      step);
           // Under the hand, the keyboard while it is up; the screen's PADS
           // page keeps showing the set.
           auto const led
@@ -7161,6 +7217,7 @@ A3MotionUIComponent::timerCallback ()
     {
       refreshFpvStrips ();
       refreshFlightDisplay ();
+      announcePilotGames ();
     }
 
   // At most one theme apply per tick, whatever arrived since the last one --
@@ -7304,6 +7361,10 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
   // falling bar and a held mark need that, and it has to be one memory for
   // every page that draws this channel's meter.
   _vuLevels.setChannel (channel, { peak, rms }, vuNowMs ());
+
+  // And a bar's worth of it for the live mood, the pilots' timing when
+  // StemDeck says nothing.
+  _liveBars.hear (channel, rms);
 }
 
 void
@@ -7615,6 +7676,7 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   if (!ahead)
     {
       _musicPreview.clear ();
+      pushMusicCue ();
       return;
     }
 
@@ -7622,6 +7684,9 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   // so the smoke test can read in the journal what Motion holds.
   auto const before = _musicPreview.current (now, _engine.getTempoBPM ());
   _musicPreview.receive (*ahead, now);
+  // Sent on StemDeck's downbeat: its bars count from the nearest one here.
+  _previewBar = nearestDownbeatBar (uiBeats (), _engine.getBeatsPerBar ());
+  pushMusicCue ();
   if (before && before->ahead.section == ahead->section
       && before->ahead.next == ahead->next)
     return;
@@ -7629,6 +7694,65 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   std::cerr << "A3 Motion: music preview " << wordOf (ahead->section)
             << " -> " << (ahead->next ? wordOf (*ahead->next) : setEndsWord)
             << " in " << ahead->barsUntilNext << " bars" << std::endl;
+}
+
+double
+A3MotionUIComponent::uiBeats () const
+{
+  return static_cast<double> (Measure::convertToTicks (_now, _engine.getBeatsPerBar ()))
+         / TempoClock::getTicksPerBeat ();
+}
+
+void
+A3MotionUIComponent::pushMusicCue ()
+{
+  auto const now = juce::Time::getMillisecondCounterHiRes () / 1000.0;
+  auto const fresh = _musicPreview.current (now, _engine.getTempoBPM ());
+  _musicCue = chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt,
+                         _previewBar, _liveBars.cue ());
+  _engine.setMusicCue (_musicCue);
+  refreshPilotHints ();
+}
+
+void
+A3MotionUIComponent::refreshPilotHints ()
+{
+  // The current bar, as the engine's games count it -- not the bar a preview
+  // arrived on, which stays put until the next one.
+  auto const bar = nearestDownbeatBar (uiBeats (), _engine.getBeatsPerBar ());
+  auto const fitting
+      = fittingGames (_musicCue, bar, _engine.getBeatsPerBar (), _engine.getGameTuning ());
+  for (auto ch = 0u; ch < _hintedButton.size () && ch < _channelActions.size (); ++ch)
+    {
+      std::array<std::optional<PilotGame>, numActionButtons> games{};
+      for (size_t button = 0; button < games.size (); ++button)
+        games[button] = _channelActions[ch][button].game;
+      auto const &clip = _patterns[ch][0];
+      auto const shipIsFree = _engine.getFlightMode (ch) == FlightMode::Orbit
+                              && !_engine.gameOf (ch).has_value () && clip
+                              && clip->getStatus () == Pattern::Status::Playing;
+      _hintedButton[ch] = hintedButton (_pilotLevel, _view, fitting, shipIsFree, games);
+    }
+}
+
+void
+A3MotionUIComponent::announcePilotGames ()
+{
+  for (auto ch = 0; ch < static_cast<int> (_announcedGames.size ()); ++ch)
+    {
+      auto const game = _engine.gameOf (static_cast<index_t> (ch));
+      auto &seen = _announcedGames[static_cast<size_t> (ch)];
+      auto const isNew = game
+                         && (!seen || seen->game != game->game || seen->leader != game->leader
+                             || seen->byPilot != game->byPilot);
+      auto const changed = game.has_value () != seen.has_value ()
+                           || (game && (seen->game != game->game || seen->byPilot != game->byPilot));
+      seen = game;
+      if (changed)
+        refreshPilotHints ();
+      if (isNew && game->byPilot && game->leader == ch)
+        updateControlReadout (pilotGameReadout (ch, game->game));
+    }
 }
 
 void
@@ -7823,8 +7947,8 @@ A3MotionUIComponent::applyOscAddresses ()
     _oscMessageHandler->setAddresses (_oscAddresses);
   _beatArrival.setAddress (_oscAddresses.beatIn);
 
-  // The beat is sent from the tempo-clock thread, so it cannot read the
-  // struct this function just replaced.
+  // Hand the beat address over through the pending copy; both this function
+  // and the tick run on the message thread, so the lock is defensive.
   {
     std::lock_guard<std::mutex> lock{ _beatAddressMutex };
     _pendingBeatAddress = _oscAddresses.beatOut;

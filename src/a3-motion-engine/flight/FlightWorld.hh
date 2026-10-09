@@ -39,11 +39,17 @@ constexpr int flightShips = 4;
 enum class FlightGoal
 {
   Patrol,
-  Escort
+  Escort,
+  /** ShipOrders::steer, as a game sets it tick by tick. The ship is not
+   *  carried by an action's floor keys and flies through the breath's stop:
+   *  a game's figure is counted in beats of its own. */
+  Steer
 };
 
 /** One channel's orders, as the engine reads them each tick. `bodyId` is
- *  the escorted body's FlightBody::id, never its index. */
+ *  the escorted body's FlightBody::id, never its index; for Steer it is the
+ *  body the game is played against, spared its pull like an escorted one
+ *  (noBodyId: none). */
 struct ShipOrders
 {
   bool flying = false;
@@ -55,6 +61,8 @@ struct ShipOrders
    *  while it lets go. */
   FlightMotion motion{};
   bool driven = false;
+  /** Where a game wants the ship this tick, for FlightGoal::Steer. */
+  OrbitPoint steer{};
 };
 
 /** The four ships in one gravity field.

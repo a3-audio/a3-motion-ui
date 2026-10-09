@@ -124,6 +124,10 @@ target_sources("a3-motion-engine" PRIVATE
     tempo/TempoEstimatorIRLS.hh
     preview/MusicPreview.cc
     preview/MusicPreview.hh
+    preview/MusicCue.cc
+    preview/MusicCue.hh
+    preview/LiveMood.cc
+    preview/LiveMood.hh
     backends/SpatBackend.hh
     backends/SpatBackendIEM.cc
     backends/SpatBackendIEM.hh
@@ -159,6 +163,15 @@ target_sources("a3-motion-engine" PRIVATE
     flight/ShipHearing.hh
     flight/PilotDesk.cc
     flight/PilotDesk.hh
+    flight/GameTuning.hh
+    flight/GameMoments.cc
+    flight/GameMoments.hh
+    flight/GameFigures.cc
+    flight/GameFigures.hh
+    flight/PilotLevel.cc
+    flight/PilotLevel.hh
+    flight/PilotGames.cc
+    flight/PilotGames.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh
