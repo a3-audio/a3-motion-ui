@@ -54,8 +54,8 @@ TEST (PilotWiring, TheKeyStepsTheLevelAndTheLevelIsSaved)
   EXPECT_TRUE (set.contains ("persistSettings ()"));
 }
 
-// What the pilots go by: every downbeat closes a bar of the channel meters
-// for the live mood and hands the engine the newest cue; a preview does the
+// What the pilots go by: every bar that passed closes a bar of the channel
+// meters for the live mood and hands the engine the newest cue; a preview does the
 // same from its own downbeat.
 
 TEST (PilotWiring, TheMetersFeedTheLiveMood)
@@ -63,16 +63,22 @@ TEST (PilotWiring, TheMetersFeedTheLiveMood)
   auto const body = a3::test::uiComponentBodyOf (
       "A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)");
   ASSERT_TRUE (body.isNotEmpty ());
-  EXPECT_TRUE (body.contains ("_barMeter.hear (channel, rms)"));
+  EXPECT_TRUE (body.contains ("_liveBars.hear (channel, rms)"));
 }
 
-TEST (PilotWiring, EveryDownbeatClosesABarAndCuesThePilots)
+TEST (PilotWiring, EveryPassedBarClosesAndCuesThePilots)
 {
   auto const body = a3::test::uiComponentBodyOf ("A3MotionUIComponent::tickCallback (Measure measure)");
   ASSERT_TRUE (body.isNotEmpty ());
-  EXPECT_TRUE (body.contains ("_liveMood.addBar ("));
-  EXPECT_TRUE (body.contains ("_barMeter.closeBar ()"));
-  EXPECT_TRUE (body.contains ("pushMusicCue ()"));
+  EXPECT_TRUE (body.contains ("if (_liveBars.reach (measure.bar ()) > 0)\n    pushMusicCue ();"))
+      << "closed by the bar number: the coalesced ticks often skip the downbeat";
+}
+
+TEST (PilotWiring, TheCueReadsTheLiveBars)
+{
+  auto const body = a3::test::uiComponentBodyOf ("A3MotionUIComponent::pushMusicCue ()");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_liveBars.cue ()"));
 }
 
 TEST (PilotWiring, APreviewCuesThePilotsFromItsDownbeat)

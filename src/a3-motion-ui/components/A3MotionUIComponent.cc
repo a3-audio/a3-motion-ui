@@ -6044,12 +6044,10 @@ A3MotionUIComponent::tickCallback (Measure measure)
   _now = measure;
 
   // A bar is over: its level goes to the live mood, and the pilots hear what
-  // the music says now.
-  if (measure.beat () == 0 && measure.tick () == 0 && measure.bar () > 0)
-    {
-      _liveMood.addBar (static_cast<long long> (measure.bar ()) - 1, _barMeter.closeBar ());
-      pushMusicCue ();
-    }
+  // the music says now. Judged by the bar number, not the downbeat tick:
+  // these ticks are throttled and coalesced, so tick 0 is often never seen.
+  if (_liveBars.reach (measure.bar ()) > 0)
+    pushMusicCue ();
 
   // The tick's copy of the beat address, taken over here (see the member's
   // comment: defensive, both sides run on the message thread).
@@ -7335,7 +7333,7 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
 
   // And a bar's worth of it for the live mood, the pilots' timing when
   // StemDeck says nothing.
-  _barMeter.hear (channel, rms);
+  _liveBars.hear (channel, rms);
 }
 
 void
@@ -7680,7 +7678,7 @@ A3MotionUIComponent::pushMusicCue ()
   auto const now = juce::Time::getMillisecondCounterHiRes () / 1000.0;
   auto const fresh = _musicPreview.current (now, _engine.getTempoBPM ());
   _musicCue = chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt,
-                         _previewBar, _liveMood.cue ());
+                         _previewBar, _liveBars.cue ());
   _engine.setMusicCue (_musicCue);
   refreshPilotHints ();
 }

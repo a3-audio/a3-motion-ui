@@ -290,14 +290,18 @@ TEST (LiveMood, ARiseOfExactlyTheStepEntersTheBuildAndJustUnderDoesNot)
   MoodTuning tuning;
   tuning.buildStep = 1.5f;
   tuning.dropRise = 100.f; // out of the way
-  for (auto const last : { 0.84375f, 0.84f })
+  struct Case
+  {
+    float last;
+    MusicSection expected;
+  };
+  for (auto const c : { Case{ 0.84375f, MusicSection::Build }, Case{ 0.84f, MusicSection::Groove } })
     {
       LiveMood mood (tuning);
       auto bar = play (mood, 0, 8, 0.25f);
-      for (auto const level : { 0.375f, 0.5625f, last })
+      for (auto const level : { 0.375f, 0.5625f, c.last })
         mood.addBar (bar++, level);
-      EXPECT_EQ (mood.cue ().section, last == 0.84375f ? MusicSection::Build : MusicSection::Groove)
-          << last;
+      EXPECT_EQ (mood.cue ().section, c.expected) << c.last;
     }
 }
 
@@ -374,4 +378,72 @@ TEST (LiveMood, AHistoryLongerThanWhatIsKeptStillWorks)
   auto const bar = play (mood, 0, 12, 0.2f);
   mood.addBar (bar, 0.9f);
   EXPECT_EQ (mood.cue ().section, MusicSection::Drop);
+}
+
+// The message thread sees the clock throttled and coalesced, so the tick that
+// opens a bar is often never seen: a bar is over when the running bar moves
+// on, whatever tick it is first seen at.
+
+namespace
+{
+/** `count` bars at `level`, each reached somewhere inside the bar; the bar
+ *  running after them. */
+long long
+playLive (LiveBars &bars, long long from, int count, float level)
+{
+  for (auto i = 0; i < count; ++i)
+    {
+      bars.hear (0, level);
+      bars.reach (from + i + 1);
+    }
+  return from + count;
+}
+}
+
+TEST (LiveBars, ABarIsOverWhenTheNextIsSeenWithoutItsDownbeat)
+{
+  LiveBars bars;
+  EXPECT_EQ (bars.reach (0), 0) << "the first bar seen closes nothing";
+  auto bar = playLive (bars, 0, 8, 0.25f);
+  bars.hear (0, 0.9f);
+  EXPECT_EQ (bars.reach (bar), 0) << "the same bar again (a later tick) closes nothing";
+  EXPECT_EQ (bars.reach (bar + 1), 1) << "bar N-1 tick 4, then bar N tick 4: one bar";
+  EXPECT_EQ (bars.cue ().section, MusicSection::Drop)
+      << "the history held: the loud bar is a drop against the eight before it";
+  EXPECT_EQ (bars.cue ().changeBar, bar + 8);
+}
+
+TEST (LiveBars, TwoBarsPassedAtOnceAreBothClosedInOrder)
+{
+  LiveBars bars;
+  bars.reach (0);
+  auto const bar = playLive (bars, 0, 8, 0.25f);
+  bars.hear (0, 0.9f);
+  EXPECT_EQ (bars.reach (bar + 2), 2);
+  EXPECT_EQ (bars.cue ().section, MusicSection::Drop);
+  EXPECT_EQ (bars.cue ().changeBar, bar + 8) << "the drop entered on the first of the two";
+  EXPECT_FLOAT_EQ (bars.cue ().energy, 0.9f) << "both carry the level heard over them";
+}
+
+TEST (LiveBars, ABackwardJumpStartsAfresh)
+{
+  LiveBars bars;
+  bars.reach (0);
+  playLive (bars, 0, 8, 0.25f);
+  bars.hear (0, 0.9f);
+  EXPECT_EQ (bars.reach (2), 0) << "the clock went back: nothing closes";
+  bars.hear (0, 0.9f);
+  EXPECT_EQ (bars.reach (3), 1);
+  EXPECT_EQ (bars.cue ().section, MusicSection::Groove)
+      << "the history before the jump is gone, so the loud bar says nothing yet";
+}
+
+TEST (LiveBars, AForwardJumpPastTheCatchUpStartsAfresh)
+{
+  LiveBars bars;
+  bars.reach (0);
+  auto const bar = playLive (bars, 0, 8, 0.25f);
+  bars.hear (0, 0.9f);
+  EXPECT_EQ (bars.reach (bar + 100), LiveBars::catchUpBars);
+  EXPECT_EQ (bars.cue ().section, MusicSection::Groove) << "a clock jump, not a stall";
 }

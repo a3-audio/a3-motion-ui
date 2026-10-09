@@ -641,8 +641,7 @@ private:
   MusicPreview _musicPreview;
   /** The live mood, the pilots' timing when the preview is stale or absent:
    *  each bar's level from the channel meters, and what the bars say. */
-  BarMeter _barMeter;
-  LiveMood _liveMood;
+  LiveBars _liveBars;
   /** The bar the preview counts from: the downbeat nearest its arrival. */
   long long _previewBar{ 0 };
   /** What the pilots go by now, as last handed to the engine. */

@@ -188,4 +188,38 @@ LiveMood::cue () const
   return cue;
 }
 
+LiveBars::LiveBars (MoodTuning const &tuning) : _mood (tuning) {}
+
+void
+LiveBars::hear (int channel, float rms)
+{
+  _meter.hear (channel, rms);
+}
+
+int
+LiveBars::reach (long long running)
+{
+  auto const last = _running;
+  _running = running;
+  if (last < 0 || running == last)
+    return 0;
+  if (running < last)
+    {
+      _meter.closeBar ();
+      return 0;
+    }
+
+  auto const first = std::max (last, running - catchUpBars);
+  auto const level = _meter.closeBar ();
+  for (auto bar = first; bar < running; ++bar)
+    _mood.addBar (bar, level);
+  return static_cast<int> (running - first);
+}
+
+MusicCue
+LiveBars::cue () const
+{
+  return _mood.cue ();
+}
+
 }

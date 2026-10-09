@@ -99,4 +99,33 @@ private:
   long long _since = 0;
 };
 
+/** The live mood fed from the clock as the message thread sees it: ticks
+ *  arrive throttled and coalesced, so the tick that opens a bar is often
+ *  never seen. A bar is over when the running bar moves on, at whatever tick
+ *  that is first seen. Message thread only. */
+class LiveBars
+{
+public:
+  /** At most this many bars are closed at once (a stalled message thread);
+   *  a longer leap forward is the clock jumping, and the mood starts afresh. */
+  static constexpr int catchUpBars = 4;
+
+  explicit LiveBars (MoodTuning const &tuning = {});
+
+  /** One meter reading of `channel` (0-3), into the running bar. */
+  void hear (int channel, float rms);
+  /** Bar `running` is running now. Every bar before it not yet closed is
+   *  closed, in order, each with the level heard since the last close; a
+   *  bar that is not later than the last one closes nothing, and a jump back
+   *  drops what was heard. Returns how many bars closed. */
+  int reach (long long running);
+  /** What the bars so far say, for the bar now running. */
+  MusicCue cue () const;
+
+private:
+  BarMeter _meter;
+  LiveMood _mood;
+  long long _running = -1;
+};
+
 }
