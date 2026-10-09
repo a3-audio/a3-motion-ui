@@ -37,7 +37,8 @@ struct MoodTuning
   float breakdownFall = 0.5f; // this much quieter: a breakdown
   float buildStep = 1.05f;    // each bar at least this much louder than the last...
   int buildBars = 3;          // ...this many times over: a build
-  int phraseBars = 8;         // a change is expected on the next 8-bar line
+  int phraseBars = 8;         // a change is expected on the next 8-bar line; a build or
+                              // breakdown that sees none by then was just how it plays
   int dropBars = 8;           // a drop is a groove again after this long
   float quiet = 0.02f;        // quieter bars say nothing (a stop, a gap)
 };
@@ -79,11 +80,15 @@ public:
 private:
   static constexpr int kept = 8;
 
+  /** historyBars, as many as are kept before the newest. */
+  int history () const;
   void push (float energy);
   float newest () const;
   /** The mean of the historyBars bars before the newest. */
   float before () const;
   bool rising () const;
+  /** How long the current section lasts without a change of its own. */
+  int dwell () const;
   void enter (MusicSection section, long long since);
 
   MoodTuning _tuning;

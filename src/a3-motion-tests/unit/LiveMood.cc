@@ -22,7 +22,9 @@
 
 #include <a3-motion-engine/preview/LiveMood.hh>
 
+#include <cmath>
 #include <limits>
+#include <random>
 
 using namespace a3;
 
@@ -222,7 +224,7 @@ TEST (LiveMood, ARiseThatFallsBackBreaksTheBuild)
   bar = play (mood, bar, 4, 0.2f);
   for (auto const level : { 0.24f, 0.28f, 0.2f, 0.24f })
     mood.addBar (bar++, level);
-  EXPECT_EQ (mood.cue ().section, MusicSection::Breakdown) << "three in a row, not three of four";
+  EXPECT_NE (mood.cue ().section, MusicSection::Build) << "three in a row, not three of four";
 }
 
 TEST (LiveMood, BarsThatRiseByLessThanTheStepAreNoBuild)
@@ -267,4 +269,109 @@ TEST (LiveMood, TheFirstBarsOfAFreshMoodSayNothingYet)
   mood.addBar (2, 0.1f);
   mood.addBar (3, 0.9f);
   EXPECT_EQ (mood.cue ().section, MusicSection::Groove) << "four bars of history first";
+}
+
+TEST (LiveMood, TheFifthBarIsTheFirstToSayAnything)
+{
+  LiveMood fourth;
+  play (fourth, 0, 3, 0.1f);
+  fourth.addBar (3, 0.9f);
+  EXPECT_EQ (fourth.cue ().section, MusicSection::Groove);
+
+  LiveMood fifth;
+  play (fifth, 0, 4, 0.1f);
+  fifth.addBar (4, 0.9f);
+  EXPECT_EQ (fifth.cue ().section, MusicSection::Drop);
+}
+
+// Levels exact in binary, so the step is hit exactly.
+TEST (LiveMood, ARiseOfExactlyTheStepEntersTheBuildAndJustUnderDoesNot)
+{
+  MoodTuning tuning;
+  tuning.buildStep = 1.5f;
+  tuning.dropRise = 100.f; // out of the way
+  for (auto const last : { 0.84375f, 0.84f })
+    {
+      LiveMood mood (tuning);
+      auto bar = play (mood, 0, 8, 0.25f);
+      for (auto const level : { 0.375f, 0.5625f, last })
+        mood.addBar (bar++, level);
+      EXPECT_EQ (mood.cue ().section, last == 0.84375f ? MusicSection::Build : MusicSection::Groove)
+          << last;
+    }
+}
+
+TEST (LiveMood, ASwellThatPlateausIsAGrooveAfterOnePhrase)
+{
+  LiveMood mood;
+  auto bar = play (mood, 0, 8, 0.5f);
+  bar = play (mood, bar, 4, 0.2f);
+  for (auto const level : { 0.24f, 0.28f, 0.32f })
+    mood.addBar (bar++, level); // the build starts at bar 14
+  ASSERT_EQ (mood.cue ().section, MusicSection::Build);
+  bar = play (mood, bar, 6, 0.32f); // bars 15..20: still the phrase
+  EXPECT_EQ (mood.cue ().section, MusicSection::Build);
+  mood.addBar (bar, 0.32f); // bar 21: the eighth bar of the build
+  EXPECT_EQ (mood.cue ().section, MusicSection::Groove);
+}
+
+TEST (LiveMood, ATrackThatJustPlaysQuieterIsAGrooveAfterOnePhrase)
+{
+  LiveMood mood;
+  auto bar = play (mood, 0, 8, 0.5f);
+  mood.addBar (bar++, 0.2f); // bar 8: the breakdown
+  ASSERT_EQ (mood.cue ().section, MusicSection::Breakdown);
+  bar = play (mood, bar, 6, 0.2f); // bars 9..14
+  EXPECT_EQ (mood.cue ().section, MusicSection::Breakdown);
+  mood.addBar (bar, 0.2f); // bar 15: the eighth bar of the breakdown
+  EXPECT_EQ (mood.cue ().section, MusicSection::Groove);
+  play (mood, bar + 1, 8, 0.2f);
+  EXPECT_EQ (mood.cue ().section, MusicSection::Groove) << "and it stays";
+}
+
+TEST (LiveMood, ABuildThatBecomesADropInsideThePhraseIsTheDrop)
+{
+  LiveMood mood;
+  auto bar = play (mood, 0, 8, 0.5f);
+  bar = play (mood, bar, 4, 0.2f);
+  for (auto const level : { 0.24f, 0.28f, 0.32f })
+    mood.addBar (bar++, level);
+  ASSERT_EQ (mood.cue ().section, MusicSection::Build);
+  mood.addBar (bar, 0.9f);
+  EXPECT_EQ (mood.cue ().section, MusicSection::Drop);
+}
+
+TEST (LiveMood, AJitteryButSteadySignalIsNeverABuild)
+{
+  // +-0.5 dB of wobble around a steady level, 64 bars, a fixed seed.
+  std::mt19937 dice (20261009);
+  LiveMood mood;
+  for (auto bar = 0; bar < 64; ++bar)
+    {
+      auto const unit = static_cast<float> (dice () % 10001) / 10000.f; // 0..1
+      auto const dB = (unit - 0.5f) * 1.f;
+      mood.addBar (bar, 0.3f * std::pow (10.f, dB / 20.f));
+      ASSERT_NE (mood.cue ().section, MusicSection::Build) << bar;
+      ASSERT_NE (mood.cue ().section, MusicSection::Drop) << bar;
+      ASSERT_NE (mood.cue ().section, MusicSection::Breakdown) << bar;
+    }
+}
+
+TEST (LiveMood, TheChangeLineIsTheNextOneStrictlyAfterTheRunningBar)
+{
+  LiveMood mood;
+  auto const bar = play (mood, 0, 15, 0.5f);
+  mood.addBar (bar, 0.2f); // bar 15 is over; bar 16 runs, on a line
+  ASSERT_EQ (mood.cue ().section, MusicSection::Breakdown);
+  EXPECT_EQ (mood.cue ().changeBar, 24);
+}
+
+TEST (LiveMood, AHistoryLongerThanWhatIsKeptStillWorks)
+{
+  MoodTuning tuning;
+  tuning.historyBars = 50;
+  LiveMood mood (tuning);
+  auto const bar = play (mood, 0, 12, 0.2f);
+  mood.addBar (bar, 0.9f);
+  EXPECT_EQ (mood.cue ().section, MusicSection::Drop);
 }

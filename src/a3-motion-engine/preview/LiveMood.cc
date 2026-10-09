@@ -72,10 +72,16 @@ LiveMood::newest () const
   return _count > 0 ? _levels.back () : 0.f;
 }
 
+int
+LiveMood::history () const
+{
+  return std::clamp (_tuning.historyBars, 0, kept - 1);
+}
+
 float
 LiveMood::before () const
 {
-  auto const n = std::min (_tuning.historyBars, _count - 1);
+  auto const n = std::min (history (), _count - 1);
   if (n <= 0)
     return 0.f;
   auto sum = 0.f;
@@ -99,6 +105,12 @@ LiveMood::rising () const
   return true;
 }
 
+int
+LiveMood::dwell () const
+{
+  return _section == MusicSection::Drop ? _tuning.dropBars : _tuning.phraseBars;
+}
+
 void
 LiveMood::enter (MusicSection section, long long since)
 {
@@ -119,10 +131,10 @@ LiveMood::addBar (long long bar, float energy)
   push (energy);
   _lastBar = bar;
 
-  if (_section == MusicSection::Drop && bar - _since + 1 >= _tuning.dropBars)
+  if (_section != MusicSection::Groove && bar - _since + 1 >= dwell ())
     enter (MusicSection::Groove, bar + 1);
 
-  if (_count <= _tuning.historyBars)
+  if (_count <= history ())
     return;
   auto const earlier = before ();
   if (earlier < _tuning.quiet && energy < _tuning.quiet)
@@ -151,6 +163,7 @@ LiveMood::cue () const
   cue.energy = newest ();
   cue.previewed = false;
 
+  // the next line strictly after the running bar, even when it sits on one
   auto const running = std::max (0LL, _lastBar + 1);
   auto const phrase = static_cast<long long> (std::max (1, _tuning.phraseBars));
   auto const nextLine = (running / phrase + 1) * phrase;
