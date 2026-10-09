@@ -174,6 +174,15 @@ TEST (SegmentMeter, LouderPaintsMoreOfTheBar)
   EXPECT_GT (pixelsThatDiffer (quiet, full), 0);
 }
 
+// StemDeck's LEDs, whatever the skin: the two screens stand side by side and
+// read one scale in one set of colours.
+TEST (SegmentMeter, TheZonesWearStemDecksLedColours)
+{
+  EXPECT_EQ (segmentZoneColour (vuGreenBand), juce::Colour (0xff3ec46d));
+  EXPECT_EQ (segmentZoneColour (vuYellowBand), juce::Colour (0xffe8c33d));
+  EXPECT_EQ (segmentZoneColour (vuRedBand), juce::Colour (0xffe04848));
+}
+
 TEST (SegmentMeter, ALitSegmentWearsItsZonesColourAndAnUnlitOneDoesNot)
 {
   Fixture f;
@@ -186,8 +195,8 @@ TEST (SegmentMeter, ALitSegmentWearsItsZonesColourAndAnUnlitOneDoesNot)
                           * static_cast<float> (f.meter.getWidth ()) / 24.f),
         y);
   };
-  EXPECT_EQ (segment (2), vuBandColour (theme (), vuGreenBand));
-  EXPECT_NE (segment (14), vuBandColour (theme (), vuYellowBand))
+  EXPECT_EQ (segment (2), segmentZoneColour (vuGreenBand));
+  EXPECT_NE (segment (14), segmentZoneColour (vuYellowBand))
       << "past the bar's head";
   EXPECT_NE (segment (14), segment (2));
 }
@@ -203,7 +212,7 @@ TEST (SegmentMeter, AHeldPeakIsALineAboveTheBarInItsZonesColour)
   auto found = false;
   for (int x = juce::roundToInt (segmentWidth * static_cast<float> (held));
        x < juce::roundToInt (segmentWidth * static_cast<float> (held + 1)); ++x)
-    found = found || image.getPixelAt (x, y) == vuBandColour (theme (), vuRedBand);
+    found = found || image.getPixelAt (x, y) == segmentZoneColour (vuRedBand);
   EXPECT_TRUE (found);
 }
 
