@@ -56,8 +56,8 @@ struct GamePlan
   /** Radians round the middle: the direction the formation faces, the line
    *  call & response's two sides lie on. Fixed when the game is planned (from
    *  the target's place, or the leader's) and not followed afterwards: a
-   *  target dragged during the game moves the line's place in `target`, never
-   *  the line's direction. */
+   *  target dragged during the game updates `target`, but the line stays
+   *  where it was planned (formationGoal reads only the axis). */
   float axis = 0.f;
   /** Where each ship was when the game started. */
   std::array<Vec2, flightShips> from{};
