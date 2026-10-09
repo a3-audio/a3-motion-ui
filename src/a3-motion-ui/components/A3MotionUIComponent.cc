@@ -7225,6 +7225,9 @@ A3MotionUIComponent::timerCallback ()
   if (_view == AppView::Fpv)
     {
       refreshFpvStrips ();
+      // The meters redraw themselves, each its own rectangle and only when a
+      // segment changed -- the strips around them stay as painted.
+      _fpvStrips->refreshMeters ();
       // Before the display, so the tick a game ends in already holds its label.
       announcePilotGames ();
       refreshFlightDisplay ();

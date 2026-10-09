@@ -330,13 +330,40 @@ FpvStrips::FpvStrips ()
   // It fills every pixel it owns, and it is redrawn at the meters' rate: a
   // see-through component would drag its parent into each of those repaints.
   setOpaque (true);
+  for (auto &meter : _meters)
+    addAndMakeVisible (meter);
 }
 
-void
+bool
+FpvChannel::operator== (FpvChannel const &other) const
+{
+  return colour == other.colour && clipName == other.clipName
+         && playing == other.playing && pots == other.pots
+         && orbit == other.orbit && escort == other.escort
+         && escortMass == other.escortMass;
+}
+
+bool
 FpvStrips::setChannels (std::array<FpvChannel, 4> const &channels)
 {
+  if (channels == _channels)
+    return false;
   _channels = channels;
   repaint ();
+  return true;
+}
+
+int
+FpvStrips::refreshMeters ()
+{
+  int redrawn = 0;
+  for (size_t ch = 0; ch < _meters.size (); ++ch)
+    redrawn += _meters[ch].setReading (
+                   channelLevel ? channelLevel (static_cast<int> (ch))
+                                : VuReading{})
+                   ? 1
+                   : 0;
+  return redrawn;
 }
 
 void
@@ -351,6 +378,9 @@ FpvStrips::resized ()
 {
   _strips = fpvStripRow (getLocalBounds (),
                           juce::roundToInt (theme ().paddingSmall));
+  for (size_t ch = 0; ch < _meters.size (); ++ch)
+    _meters[ch].setBounds (
+        _strips[ch].meter.reduced (juce::roundToInt (theme ().padding)));
 }
 
 std::array<FpvStrip, 4> const &
@@ -379,10 +409,6 @@ FpvStrips::paint (juce::Graphics &g)
       paintHeader (g, strip, static_cast<int> (ch), channel);
       paintClip (g, strip, channel, _tuning);
       paintInstruments (g, strip, channel);
-      paintDeskMeter (g, strip.meter.reduced (juce::roundToInt (theme ().padding)),
-                      channelLevel ? channelLevel (static_cast<int> (ch))
-                                   : VuReading{},
-                      VuDirection::Right);
     }
 }
 
