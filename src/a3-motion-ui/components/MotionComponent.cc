@@ -506,19 +506,16 @@ MotionComponent::blobDiameterInPixels () const
 float
 MotionComponent::bodyHitRadiusInPixels (FlightBody const &body) const
 {
-  auto const &tuning = _engine.getFlightTuning ();
   auto const fingertip = static_cast<float> (displayFingertip ());
-  auto const size = groupBlobSize (body.mass, tuning);
   auto const view = floorView ();
   auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
-  // A dead zone is still the flat mark it always was.
-  if (!size || !feet.isValid ())
-    return bodyHitRadius (body.mass, blobDiameterInPixels (), fingertip, tuning);
+  if (!feet.isValid ())
+    return fingertip / 2.f;
 
   auto const sphereRadiusInPixels
       = static_cast<float> (_boundsCenterRegion.getWidth ()) / 2.f;
   return groupHitRadius (
-      footprintRadiusOnView (feet, size->diameter / 2.f, view.camera)
+      footprintRadiusOnView (feet, markRadius (body.mass), view.camera)
           * sphereRadiusInPixels,
       fingertip);
 }
@@ -2023,7 +2020,7 @@ MotionComponent::buildFlightScene (FlightDisplay const &display)
       course.lose ();
 
   std::array<ShipInScene, maxSceneShips> ships{};
-  std::array<GroupInScene, maxSceneGroups> groups{};
+  std::array<FloorMark, maxSceneMarks> marks{};
   for (auto &at : _shipDrawnAt)
     at.reset ();
 
@@ -2057,22 +2054,25 @@ MotionComponent::buildFlightScene (FlightDisplay const &display)
       _shipDrawnAt[index] = ship.centre;
     }
 
-  auto const &tuning = _engine.getFlightTuning ();
   auto const view = floorView ();
-  auto numGroups = 0;
-  for (auto i = 0; i < display.bodies.count && numGroups < maxSceneGroups; ++i)
+  auto numMarks = 0;
+  for (auto i = 0; i < display.bodies.count && numMarks < maxSceneMarks; ++i)
     {
       auto const &body = display.bodies.body[static_cast<size_t> (i)];
-      auto const size = groupBlobSize (body.mass, tuning);
       auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
-      if (!size || !feet.isValid ())
+      if (!feet.isValid ())
         continue;
-      groups[static_cast<size_t> (numGroups++)]
-          = groupInScene (feet, swollen (*size, display.pulse), camera);
+      marks[static_cast<size_t> (numMarks++)] = floorMarkInScene (
+          feet, swollenMarkRadius (markRadius (body.mass), display.pulse),
+          bodyRole (body.mass), camera);
     }
 
-  _sphereShader.setFlightScene (
-      packFlightScene (ships, numShips, groups, numGroups));
+  auto packed = packFlightScene (ships, numShips, marks, numMarks);
+  // The theme's stroke is in pixels; the shader's screen has the ball's
+  // radius as 1.
+  packed.markStroke = theme ().strokeThin * 2.f
+                      / static_cast<float> (_boundsCenterRegion.getWidth ());
+  _sphereShader.setFlightScene (packed);
 }
 
 std::optional<MotionComponent::ShipPixel>
@@ -2088,25 +2088,19 @@ MotionComponent::drawnShipPixel (index_t channel) const
   return ShipPixel{ at, hiddenByTheBall (seen) };
 }
 
-std::optional<MotionComponent::GroupLabelAt>
-MotionComponent::groupLabelAt (FlightBody const &body, float pulse) const
+float
+MotionComponent::markRadius (float mass) const
 {
-  auto const size = groupBlobSize (body.mass, _engine.getFlightTuning ());
-  if (!size)
-    return std::nullopt;
+  return discMarkRadius (mass, 2.f * _blobScale, _engine.getFlightTuning ());
+}
+
+bool
+MotionComponent::markHidden (FlightBody const &body) const
+{
   auto const view = floorView ();
   auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
-  if (!feet.isValid ())
-    return std::nullopt;
-
-  auto const drawn = swollen (*size, pulse);
-  auto const top = projectToScreen (groupTopInRoom (feet, drawn))
-                       .transformedBy (_transformNormalizedToLocal);
-  if (!std::isfinite (top.x) || !std::isfinite (top.y))
-    return std::nullopt;
-  return GroupLabelAt{
-    top, hiddenByTheBall (groupInScene (feet, drawn, view.camera).centre)
-  };
+  return feet.isValid ()
+         && hiddenByTheBall (toVec3 (asSeenFrom (feet, view.camera)));
 }
 
 void
@@ -2188,11 +2182,7 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
       paint.holdProgress = body.id == holdBody ? _holdProgress.load () : 0.f;
       paint.stroke = stroke;
       paint.fontHeight = theme ().fontSize (FontRole::Body);
-      if (auto const label = groupLabelAt (body, display.pulse))
-        {
-          paint.labelAbove = label->top;
-          paint.hidden = label->hidden;
-        }
+      paint.hidden = markHidden (body);
       paintBody (g, paint);
     }
 }

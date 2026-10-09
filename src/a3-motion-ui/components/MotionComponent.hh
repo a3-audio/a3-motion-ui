@@ -253,15 +253,11 @@ private:
   void buildFlightScene (FlightDisplay const &display);
   /** The ship's length in the sphere pass's units (its radius is 1). */
   float shipLength () const;
-  /** Where a group's label goes, in local pixels, and whether the ball hides
-   *  the group; nothing for a dead zone or a point that does not project. */
-  struct GroupLabelAt
-  {
-    juce::Point<float> top;
-    bool hidden = false;
-  };
-  std::optional<GroupLabelAt> groupLabelAt (FlightBody const &body,
-                                            float pulse) const;
+  /** The radius of a body's mark on the floor, in sphere radii, before the
+   *  swell. */
+  float markRadius (float mass) const;
+  /** Whether the ball hides a body's mark: its label dims like the ghost. */
+  bool markHidden (FlightBody const &body) const;
   /** Where this frame's ship for `channel` was drawn, in local pixels, and
    *  whether the ball hides it. GL thread. */
   struct ShipPixel
@@ -270,7 +266,7 @@ private:
     bool hidden = false;
   };
   std::optional<ShipPixel> drawnShipPixel (index_t channel) const;
-  /** A group is hit on the footprint of its blob, a dead zone on its mark. */
+  /** A body is hit on its mark's footprint as seen. */
   float bodyHitRadiusInPixels (FlightBody const &body) const;
   /** A point on the floor in local pixels, on `surface`: the sphere for
    *  what marks a ship's path, the dance floor for the groups. Nothing when

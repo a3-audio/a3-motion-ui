@@ -89,7 +89,7 @@ put (std::array<float, 4 * maxSceneShips> &into, int i, Vec3 v, float w)
 }
 
 void
-put (std::array<float, 4 * maxSceneGroups> &into, int i, float a, float b,
+put (std::array<float, 4 * maxSceneMarks> &into, int i, float a, float b,
      float c, float d)
 {
   auto const at = static_cast<size_t> (4 * i);
@@ -117,12 +117,12 @@ shipReach (ShipInScene const &ship)
   return ship.length * 0.5f * 1.05f;
 }
 
-/** A group's furthest point from its middle is the larger of its two
- *  semi-axes, whichever way it is seen. */
+/** A disc on the floor never reaches further on the screen than its own
+ *  radius, whichever way it is seen. */
 float
-groupReach (GroupInScene const &group)
+markReach (FloorMark const &mark)
 {
-  return std::max (group.radius, group.halfHeight) * 1.05f;
+  return mark.radius * 1.05f;
 }
 }
 
@@ -169,54 +169,23 @@ normalised (Vec3 v, Vec3 fallback)
 // ── groups ──────────────────────────────────────────────────────────────
 
 float
-metresToSphereRadii (float metres)
+discMarkRadius (float mass, float blobDiameter, FlightTuning const &tuning)
 {
-  return metres * metrePerSphereRadius;
+  return bodyRadius (mass, blobDiameter, tuning);
 }
 
-std::optional<GroupBlobSize>
-groupBlobSize (float mass, FlightTuning const &tuning)
+float
+swollenMarkRadius (float radius, float pulse)
 {
-  if (bodyRole (mass) == BodyRole::Repel)
-    return std::nullopt;
-
-  // Straight between the three weights the floor knows, so a tuned mass
-  // still lands between the sizes it lies between.
-  auto const between = [mass] (float m0, float w0, float m1, float w1) {
-    auto const t = std::clamp ((mass - m0) / (m1 - m0), 0.f, 1.f);
-    return w0 + t * (w1 - w0);
-  };
-  auto const width = mass < tuning.crowdMass
-                         ? between (tuning.groupMass, groupWidthM,
-                                    tuning.crowdMass, crowdWidthM)
-                         : between (tuning.crowdMass, crowdWidthM,
-                                    tuning.hotspotMass, hotspotWidthM);
-  return GroupBlobSize{ metresToSphereRadii (personHeightM),
-                        metresToSphereRadii (width) };
+  return radius * bodyPulseScale (pulse);
 }
 
-GroupBlobSize
-swollen (GroupBlobSize size, float pulse)
+FloorMark
+floorMarkInScene (Pos const &feet, float radius, BodyRole role,
+                  SphereCamera const &camera)
 {
-  auto const wider = bodyPulseScale (pulse);
-  return { size.height * (1.f + (wider - 1.f) * groupSwellOfHeight),
-           size.diameter * wider };
-}
-
-GroupInScene
-groupInScene (Pos const &feet, GroupBlobSize size, SphereCamera const &camera)
-{
-  auto const halfHeight = size.height * 0.5f;
-  auto const middle = Pos::fromCartesian (feet.x (), feet.y (),
-                                          feet.z () + halfHeight);
-  return { toVec3 (asSeenFrom (middle, camera)), size.diameter * 0.5f,
-           halfHeight };
-}
-
-Pos
-groupTopInRoom (Pos const &feet, GroupBlobSize size)
-{
-  return Pos::fromCartesian (feet.x (), feet.y (), feet.z () + size.height);
+  return { toVec3 (asSeenFrom (feet, camera)), radius,
+           role == BodyRole::Repel };
 }
 
 float
@@ -325,8 +294,8 @@ onShaderScreen (Vec3 seen)
 FlightSceneUniforms
 packFlightScene (std::array<ShipInScene, maxSceneShips> const &ships,
                  int numShips,
-                 std::array<GroupInScene, maxSceneGroups> const &groups,
-                 int numGroups)
+                 std::array<FloorMark, maxSceneMarks> const &marks,
+                 int numMarks)
 {
   FlightSceneUniforms packed;
 
@@ -344,17 +313,17 @@ packFlightScene (std::array<ShipInScene, maxSceneShips> const &ships,
       widen (packed.bounds, ship.centre, reach);
     }
 
-  auto const groupCount = std::clamp (numGroups, 0, maxSceneGroups);
-  for (auto i = 0; i < groupCount; ++i)
+  auto const markCount = std::clamp (numMarks, 0, maxSceneMarks);
+  for (auto i = 0; i < markCount; ++i)
     {
-      auto const &group = groups[static_cast<size_t> (i)];
-      if (!(group.radius > 0.f) || !(group.halfHeight > 0.f))
+      auto const &mark = marks[static_cast<size_t> (i)];
+      if (!(mark.radius > 0.f))
         continue;
-      auto const reach = groupReach (group);
-      put (packed.groupAt, i, group.centre.x, group.centre.y, group.centre.z,
-           group.halfHeight);
-      put (packed.groupShape, i, group.radius, reach, 0.f, 0.f);
-      widen (packed.bounds, group.centre, reach);
+      auto const reach = markReach (mark);
+      put (packed.markAt, i, mark.centre.x, mark.centre.y, mark.centre.z,
+           mark.radius);
+      put (packed.markShape, i, mark.deadZone ? 1.f : 0.f, reach, 0.f, 0.f);
+      widen (packed.bounds, mark.centre, reach);
     }
 
   return packed;

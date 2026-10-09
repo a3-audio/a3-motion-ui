@@ -122,6 +122,14 @@ struct Picture
     return (rgba[at] + rgba[at + 1] + rgba[at + 2]) / 3.f;
   }
 
+  float
+  red (std::array<float, 2> uv) const
+  {
+    auto const x = juce::roundToInt (side / 2.f + uv[0] * sphereRadius);
+    auto const y = juce::roundToInt (side / 2.f + uv[1] * sphereRadius);
+    return rgba[static_cast<size_t> (4 * (y * side + x))];
+  }
+
   /** The largest change from `other` anywhere within `radius` of `uv`. */
   float
   changeFrom (Picture const &other, std::array<float, 2> uv, float radius) const
@@ -224,6 +232,29 @@ private:
   bool _ready = false;
 };
 
+/** With A3_SNAPSHOT_DIR set, the picture as a PNG there, to be looked at. */
+void
+writeSnapshot (Picture const &picture, juce::String const &name)
+{
+  auto const dir
+      = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
+  if (dir.isEmpty ())
+    return;
+  juce::Image image (juce::Image::RGB, side, side, false);
+  for (auto y = 0; y < side; ++y)
+    for (auto x = 0; x < side; ++x)
+      {
+        auto const at = static_cast<size_t> (4 * ((side - 1 - y) * side + x));
+        image.setPixelAt (x, y,
+                          juce::Colour (picture.rgba[at], picture.rgba[at + 1],
+                                        picture.rgba[at + 2]));
+      }
+  auto file = juce::File (dir).getChildFile (name);
+  file.deleteFile ();
+  juce::FileOutputStream out (file);
+  juce::PNGImageFormat ().writeImageToStream (image, out);
+}
+
 #define NEEDS_GL(renderer)                                                    \
   if (!(renderer).glThere ())                                                 \
     GTEST_SKIP () << "no OpenGL through EGL here; the shader is not run";     \
@@ -257,11 +288,21 @@ oneShip (ShipInScene const &ship)
 }
 
 FlightSceneUniforms
-oneGroup (GroupInScene const &group)
+oneMark (FloorMark const &mark)
 {
-  std::array<GroupInScene, maxSceneGroups> groups{};
-  groups[0] = group;
-  return packFlightScene ({}, 0, groups, 1);
+  std::array<FloorMark, maxSceneMarks> marks{};
+  marks[0] = mark;
+  auto packed = packFlightScene ({}, 0, marks, 1);
+  packed.markStroke = 2.f / sphereRadius;
+  return packed;
+}
+
+FloorMark
+markAt (float x, float y, SphereCamera const &camera,
+        BodyRole role = BodyRole::Attract, float radius = 0.1f)
+{
+  return floorMarkInScene (Pos::fromCartesian (x, y, speakerFloorZ), radius,
+                           role, camera);
 }
 }
 
@@ -313,31 +354,89 @@ TEST (FlightSceneRender, AShipBehindTheBallIsOnlyItsGhost)
   EXPECT_LT (ghost, shown * 0.4f) << "but it is only a ghost";
 }
 
-TEST (FlightSceneRender, AGroupIsDrawnWhereItStands)
+TEST (FlightSceneRender, AMarkIsPaintedOnTheFloor)
 {
   Renderer renderer;
   NEEDS_GL (renderer);
 
   auto const camera = defaultCamera ();
-  auto const size = *groupBlobSize (FlightTuning{}.hotspotMass, FlightTuning{});
-  auto const visible
-      = groupInScene (Pos::fromCartesian (0.3f, -0.3f, speakerFloorZ), size, camera);
-
+  auto const mark = markAt (0.3f, -0.3f, camera);
   auto const empty = renderer.draw ({}, camera);
-  auto const drawn = renderer.draw (oneGroup (visible), camera);
-  EXPECT_GT (drawn.changeFrom (empty, onShaderScreen (visible.centre), 0.01f), 30.f)
-      << "the crowd is drawn where it stands";
+  auto const drawn = renderer.draw (oneMark (mark), camera);
+  EXPECT_GT (drawn.changeFrom (empty, onShaderScreen (mark.centre), 0.01f), 20.f)
+      << "the fill lies where the group stands";
+  EXPECT_LT (drawn.changeFrom (empty, onShaderScreen (mark.centre), 0.01f), 150.f)
+      << "a soft fill, not a solid body";
+  EXPECT_LT (drawn.changeFrom (empty, { -0.6f, 0.6f }, 0.05f), 1.f)
+      << "and nothing far from it";
 }
 
-TEST (FlightSceneRender, ATowerHidesAGroupBehindIt)
+TEST (FlightSceneRender, ALeanedMarkLiesFlat)
 {
   Renderer renderer;
   NEEDS_GL (renderer);
 
-  // Looking in low over the floor, from behind one of the towers: a group a
-  // little further in stands behind it.
+  // Leaned over, the disc on the floor is an ellipse: it reaches its whole
+  // radius across the view and less up it.
   SphereCamera camera;
-  camera.pitch = 1.5f;
+  camera.pitch = 1.0f;
+  auto const mark = markAt (0.f, 0.f, camera, BodyRole::Attract, 0.3f);
+  auto const empty = renderer.draw ({}, camera);
+  auto const drawn = renderer.draw (oneMark (mark), camera);
+  auto const centre = onShaderScreen (mark.centre);
+  auto const across = drawn.changeFrom (empty, { centre[0] + 0.25f, centre[1] }, 0.f);
+  auto const up = drawn.changeFrom (empty, { centre[0], centre[1] + 0.25f }, 0.f);
+  EXPECT_GT (across, 10.f) << "inside, across";
+  EXPECT_LT (up, 1.f) << "outside, up the view: foreshortened";
+}
+
+TEST (FlightSceneRender, ADeadZoneIsHatchedRed)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  SphereCamera const overhead;
+  auto const mark = markAt (0.3f, 0.2f, overhead, BodyRole::Repel, 0.3f);
+  auto const drawn = renderer.draw (oneMark (mark), overhead);
+  auto const empty = renderer.draw ({}, overhead);
+  auto const centre = onShaderScreen (mark.centre);
+
+  // Across the mark the red comes and goes: stripes, not a fill.
+  auto changes = 0;
+  auto wasRed = false;
+  for (auto dx = -0.2f; dx < 0.2f; dx += 0.5f / sphereRadius)
+    {
+      auto const at = std::array<float, 2>{ centre[0] + dx, centre[1] };
+      auto const red = drawn.red (at) > empty.red (at) + 25.f;
+      changes += red != wasRed ? 1 : 0;
+      wasRed = red;
+    }
+  EXPECT_GE (changes, 4);
+}
+
+TEST (FlightSceneRender, AMarkSwellsOnTheOne)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  SphereCamera const overhead;
+  auto const empty = renderer.draw ({}, overhead);
+  auto const rest = markAt (0.2f, 0.1f, overhead);
+  auto swelled = rest;
+  swelled.radius = swollenMarkRadius (rest.radius, 1.6f);
+  EXPECT_GT (renderer.draw (oneMark (swelled), overhead).pixelsDifferentFrom (empty),
+             renderer.draw (oneMark (rest), overhead).pixelsDifferentFrom (empty));
+}
+
+TEST (FlightSceneRender, ATowerHidesAMarkBehindIt)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  // Looking in low over the floor, from behind one of the towers: a mark a
+  // little further in lies behind it.
+  SphereCamera camera;
+  camera.pitch = 0.9f;
   auto const towards = towardsTheEye (camera);
 
   // The tower on the eye's side (SphereShader's bearings, at its default
@@ -353,55 +452,47 @@ TEST (FlightSceneRender, ATowerHidesAGroupBehindIt)
         tower = b;
       }
   auto const radius = SphereShader::SpotlightConfig{}.speakerRadius;
-  auto const along = [&] (float back) {
-    return Pos::fromCartesian (tower.x * radius - towards.x * back,
-                               tower.y * radius - towards.y * back,
-                               speakerFloorZ);
-  };
-
-  auto const size = *groupBlobSize (FlightTuning{}.groupMass, FlightTuning{});
-  auto const hidden = groupInScene (along (0.35f), size, camera);
-  // The same group, the same distance from the eye, out in the open beside
-  // the tower.
   auto const sideways = Vec3{ -towards.y, towards.x, 0.f };
-  auto const open = groupInScene (
-      Pos::fromCartesian (tower.x * radius - towards.x * 0.35f + sideways.x * 0.5f,
-                          tower.y * radius - towards.y * 0.35f + sideways.y * 0.5f,
-                          speakerFloorZ),
-      size, camera);
+  auto const at = [&] (float aside) {
+    return markAt (tower.x * radius - towards.x * 0.35f + sideways.x * aside,
+                   tower.y * radius - towards.y * 0.35f + sideways.y * aside,
+                   camera, BodyRole::Attract, 0.08f);
+  };
+  auto const hidden = at (0.f);
+  auto const open = at (0.5f);
 
   auto const empty = renderer.draw ({}, camera);
-  auto const shown = renderer.draw (oneGroup (open), camera)
-                         .changeFrom (empty, onShaderScreen (open.centre), 0.005f);
-  auto const behind = renderer.draw (oneGroup (hidden), camera)
-                          .changeFrom (empty, onShaderScreen (hidden.centre), 0.005f);
-  EXPECT_GT (shown, 30.f);
+  auto const openPicture = renderer.draw (oneMark (open), camera);
+  auto const hiddenPicture = renderer.draw (oneMark (hidden), camera);
+  writeSnapshot (hiddenPicture, "fpv-mark-behind-a-tower.png");
+  auto const shown
+      = openPicture.changeFrom (empty, onShaderScreen (open.centre), 0.005f);
+  auto const behind
+      = hiddenPicture.changeFrom (empty, onShaderScreen (hidden.centre), 0.005f);
+  EXPECT_GT (shown, 15.f);
   EXPECT_LT (behind, shown * 0.5f) << "the tower is solid";
 }
 
-TEST (FlightSceneRender, AGroupBehindTheBallIsOnlyItsGhost)
+TEST (FlightSceneRender, AMarkBehindTheBallIsOnlyItsGhost)
 {
   Renderer renderer;
   NEEDS_GL (renderer);
 
-  SphereCamera horizon;
-  horizon.pitch = 1.5f;
-  auto const size = *groupBlobSize (FlightTuning{}.hotspotMass, FlightTuning{});
-  auto const h = towardsTheEye (horizon);
-  auto const near = groupInScene (
-      Pos::fromCartesian (1.2f * h.x, 1.2f * h.y, speakerFloorZ), size, horizon);
-  auto const far = groupInScene (
-      Pos::fromCartesian (-1.2f * h.x, -1.2f * h.y, speakerFloorZ), size, horizon);
+  SphereCamera camera;
+  camera.pitch = 1.2f;
+  auto const h = towardsTheEye (camera);
+  auto const near = markAt (1.2f * h.x, 1.2f * h.y, camera, BodyRole::Attract, 0.15f);
+  auto const far = markAt (-1.2f * h.x, -1.2f * h.y, camera, BodyRole::Attract, 0.15f);
   ASSERT_FALSE (hiddenByTheBall (near.centre));
   ASSERT_TRUE (hiddenByTheBall (far.centre));
 
-  auto const empty = renderer.draw ({}, horizon);
-  auto const shown = renderer.draw (oneGroup (near), horizon)
-                         .changeFrom (empty, onShaderScreen (near.centre), 0.01f);
-  auto const ghost = renderer.draw (oneGroup (far), horizon)
-                         .changeFrom (empty, onShaderScreen (far.centre), 0.01f);
-  EXPECT_GT (ghost, 0.f);
-  EXPECT_LT (ghost, shown * 0.5f);
+  auto const empty = renderer.draw ({}, camera);
+  auto const shown = renderer.draw (oneMark (near), camera)
+                         .changeFrom (empty, onShaderScreen (near.centre), 0.005f);
+  auto const ghost = renderer.draw (oneMark (far), camera)
+                         .changeFrom (empty, onShaderScreen (far.centre), 0.005f);
+  EXPECT_GT (ghost, 0.f) << "its place is not lost";
+  EXPECT_LT (ghost, shown * 0.6f) << "but it is only a ghost";
 }
 
 TEST (FlightSceneRender, AShipOnTheBackSideIsDarker)
@@ -447,32 +538,6 @@ TEST (FlightSceneRender, NothingInTheSceneChangesNoPixel)
       << "outside what it covers, a ship changes nothing";
 }
 
-namespace
-{
-/** With A3_SNAPSHOT_DIR set, the picture as a PNG there, to be looked at. */
-void
-writeSnapshot (Picture const &picture, juce::String const &name)
-{
-  auto const dir
-      = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
-  if (dir.isEmpty ())
-    return;
-  juce::Image image (juce::Image::RGB, side, side, false);
-  for (auto y = 0; y < side; ++y)
-    for (auto x = 0; x < side; ++x)
-      {
-        auto const at = static_cast<size_t> (4 * ((side - 1 - y) * side + x));
-        image.setPixelAt (x, y,
-                          juce::Colour (picture.rgba[at], picture.rgba[at + 1],
-                                        picture.rgba[at + 2]));
-      }
-  auto file = juce::File (dir).getChildFile (name);
-  file.deleteFile ();
-  juce::FileOutputStream out (file);
-  juce::PNGImageFormat ().writeImageToStream (image, out);
-}
-}
-
 TEST (FlightSceneRender, AWholeSceneIsDrawn)
 {
   Renderer renderer;
@@ -498,16 +563,18 @@ TEST (FlightSceneRender, AWholeSceneIsDrawn)
           ship.g = colours[i][1];
           ship.b = colours[i][2];
         }
-      std::array<GroupInScene, maxSceneGroups> groups{};
-      groups[0] = groupInScene (Pos::fromCartesian (0.4f, 0.2f, speakerFloorZ),
-                                *groupBlobSize (tuning.groupMass, tuning), camera);
-      groups[1] = groupInScene (Pos::fromCartesian (-0.3f, 0.5f, speakerFloorZ),
-                                *groupBlobSize (tuning.crowdMass, tuning), camera);
-      groups[2] = groupInScene (Pos::fromCartesian (1.1f, -0.6f, speakerFloorZ),
-                                *groupBlobSize (tuning.hotspotMass, tuning), camera);
-
+      std::array<FloorMark, maxSceneMarks> marks{};
+      auto const size = [&] (float mass) {
+        return discMarkRadius (mass, 0.1f, tuning);
+      };
+      marks[0] = markAt (0.4f, 0.2f, camera, BodyRole::Attract, size (tuning.groupMass));
+      marks[1] = markAt (-0.3f, 0.5f, camera, BodyRole::Attract, size (tuning.crowdMass));
+      marks[2] = markAt (1.1f, -0.6f, camera, BodyRole::Attract, size (tuning.hotspotMass));
+      marks[3] = markAt (-0.5f, -0.5f, camera, BodyRole::Repel, size (tuning.deadZoneMass));
       auto const empty = renderer.draw ({}, camera);
-      auto const scene = renderer.draw (packFlightScene (ships, 4, groups, 3), camera);
+      auto packed = packFlightScene (ships, 4, marks, 4);
+      packed.markStroke = 2.f / sphereRadius;
+      auto const scene = renderer.draw (packed, camera);
       EXPECT_GT (scene.pixelsDifferentFrom (empty), 200) << name;
       writeSnapshot (empty, juce::String ("fpv-scene-empty-") + name + ".png");
       writeSnapshot (scene, juce::String ("fpv-scene-") + name + ".png");

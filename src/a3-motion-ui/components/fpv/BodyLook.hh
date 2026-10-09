@@ -22,8 +22,6 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include <optional>
-
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -57,11 +55,6 @@ float bodyRadius (float mass, float blobDiameter, FlightTuning const &tuning);
  *  as a breath and not as a jump. */
 float bodyPulseScale (float pulse);
 
-/** Where a finger finds the body: as drawn, but never less than a
- *  fingertip across. */
-float bodyHitRadius (float mass, float blobDiameter, float fingertip,
-                     FlightTuning const &tuning);
-
 /** "G1".."G8": the body id counted from one. */
 juce::String bodyLabel (int id);
 
@@ -81,22 +74,16 @@ struct BodyPaint
   float holdProgress = 0.f; // 0..1 towards removal (FloorGesture)
   float stroke = 1.f;       // a line, in the Graphics' units
   float fontHeight = 1.f;   // the label, in the Graphics' units
-  /** Where a group's blob has its top: the label stands on it. Unset, the
-   *  label sits in the middle of the mark (a dead zone). */
-  std::optional<juce::Point<float> > labelAbove;
-  /** The group is hidden (the ball stands in front): its label dims. */
+  /** The ball stands in front of the mark: its label dims. */
   bool hidden = false;
 };
 
-/** The box a label standing on `above` is written in: centred over it, its
- *  foot on it. */
-juce::Rectangle<float> bodyLabelBox (juce::Point<float> above, float fontHeight);
-
-/** A group: its label and a faint capture ring; its body is the blob the
- *  sphere shader stands on the floor. A dead zone: a red, hatched disc with
- *  its clearance ring -- the only red and the only hatched thing on the
- *  floor. A held body gets a red ring filling clockwise from the top towards
- *  its removal. */
+/** What the 2D pass keeps of a body: its label in the middle of the mark
+ *  and a faint ring -- a group's capture ring, a dead zone's clearance. The
+ *  mark itself (a group's neutral disc, a dead zone's red hatched one, the
+ *  only red and the only hatched thing on the floor) is painted on the dance
+ *  floor by the sphere shader. A held body gets a red ring filling clockwise
+ *  from the top towards its removal. */
 void paintBody (juce::Graphics &g, BodyPaint const &body);
 
 }

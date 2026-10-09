@@ -262,7 +262,7 @@ in its band.
 **Groups stand on the dance floor; the ships fly on the sphere.** A group's floor point maps onto
 the sphere as a ship's would, and the group is drawn straight below that point, on the plane the
 shader draws the dance floor on (`speakerFloorZ`), so a ship circling it is seen right above it.
-Straight from above it lands where its sphere point is. Its blob, label, swell, ring, the escort
+Straight from above it lands where its sphere point is. Its mark, label, swell, ring, the escort
 line and a game's dashed line (both now run from the ship down to the group) and the hit test all
 use that floor point; the ORBIT guide stays on the sphere, because the ships fly there
 (`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
@@ -270,24 +270,31 @@ lifted straight back onto the upper half of the sphere and through `mapTo2D`, th
 A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
 the shader does not draw either) is not floor, so the camera has it.
 
-**Ships and groups are things in the room, raytraced by the sphere shader** (2026-10-09). They
-were flat 2D arrows and discs painted over the finished GL picture, which looked bare and could
-not go behind anything. Now `buildFlightScene` (GL thread, every frame, before the sphere pass)
-turns the field into a `FlightScene` (`components/fpv/FlightScene`), packed into fixed uniform
-arrays (`packFlightScene`: 4 ships, 8 groups, four floats an entry, no allocation) the way the
-blobs are; FULL hands the shader an empty scene, and the shader skips the whole path on one
-compare, so FULL's picture is what it was.
+**Ships fly in the room and the groups are marked on its floor, both drawn by the sphere shader**
+(2026-10-09). They were flat 2D arrows and discs painted over the finished GL picture, which
+looked bare, lay on the glass rather than on the floor, and could not go behind anything. Now
+`buildFlightScene` (GL thread, every frame, before the sphere pass) turns the field into a
+`FlightScene` (`components/fpv/FlightScene`), packed into fixed uniform arrays (`packFlightScene`:
+4 ships, 8 marks, four floats an entry, no allocation) the way the blobs are; FULL hands the
+shader an empty scene, and the shader skips the whole path on one compare, so FULL's picture is
+what it was.
 
-| | Shape | Size |
+| | Look | Size |
 |---|---|---|
-| group G / C / H | an upright spheroid, feet on the dance floor (`speakerFloorZ`), lit and soft-edged, darker at the feet, with a little noise in it | one person tall, 1.75 m; wide by weight, 1.4 / 2.0 / 2.6 m (about 3 / 6 / 10 people), straight between the masses (`groupBlobSize`); metres through `metrePerSphereRadius` (the ball's radius is about 8.5 m) |
-| dead zone X | stays the flat red hatched mark on the floor, in the 2D pass: no people | as before |
+| group G / C / H | the 2D disc as it was -- a neutral fill (`alphaFillEmphasis`) and an outline (`alphaSecondary`, the theme's thin stroke) -- painted on the dance floor (`speakerFloorZ`), so a lean foreshortens it into an ellipse like paint on the floor. No height, no shading | the disc's: `bodyRadius` against the blob size (`discMarkRadius`), swelling on the one by `bodyPulseScale` (`swollenMarkRadius`) |
+| dead zone X | the same disc in the danger colour, hatched (`alphaTextStrong`, lines as far apart as the 2D hatch's) | a crowd's, as before |
 | ship | a long hull ellipsoid with a flat pair of wings set back: an arrowhead, with a hot engine at the tail, in the channel's colour | `shipLengthOfBlob` blob diameters long, as the arrow was; hovering `shipHoverOfLength` over the ball so it never sinks into it |
 
-Every shape is an ellipsoid intersected exactly (a quadratic, not a marched distance field), and
-`ellipsoidEdge` also gives the pixel's distance from the outline on the screen, which is what the
-antialiased edge and the ghost's line are drawn from. The beat swell (`drawnPulse`) widens a group
-by `bodyPulseScale` and lifts it by half that (`swollen`).
+The groups were upright lit blobs, one person tall and 1.4 / 2.0 / 2.6 m wide by weight, for a
+few hours; on the rig they were too much, and the maintainer asked for the disc back, lying on the
+floor (2026-10-09). The marks keep the disc's size rather than those metric widths: compared side
+by side the metric marks came out about 1.4 times the disc and read as something new.
+
+A ship's ellipsoids are intersected exactly (a quadratic, not a marched distance field), and
+`ellipsoidEdge` also gives the pixel's distance from the outline on the screen, which the
+antialiased edge and the ghost's line are drawn from. A mark is the floor plane under the pixel
+(as `danceFloor()` finds it); the floor is a plane and the view orthographic, so the same
+distance on the screen comes out of it for its outline (`markPaint`).
 
 A ship points along its course **in the room** (`ShipCourse`, from its last step long enough to
 read), not on the glass: the 2D arrow needed a screen heading, a craft in the room needs the
@@ -295,28 +302,30 @@ room's, and so it turns with the camera like everything else. `shipInScene` take
 along the ball and the ball's normal as the ship's up.
 
 **Depth decides what is seen** (`sceneHidden` in the shader, `hiddenByTheBall` on the CPU). A ship
-or group is hidden where the ball lies between it and the eye (the point is beyond the ball's far
-side along its ray), where a tower stands in front of it (the tower's own depth), or where another
-ship or group is nearer. Hidden, it leaves only a **ghost**: a thin dimmed line round its outline
-in its colour and a faint breath of its body, so its place is never lost. Inside the ball nothing
-is hidden by it: the glass is the sound field the guests stand in, and most groups stand under it.
-A ship on the far half of the ball (seen farther than the ball's middle plane) is also drawn
-smaller and darker (`shipDepthCue`, eased over `shipBackSideBand`), and on the far half it is
-behind the ball, so it is that ghost.
+or a mark is hidden where the ball lies between it and the eye (the point is beyond the ball's far
+side along its ray) or where a tower stands in front of it (the tower's own depth); a ship also
+where another ship is nearer. The marks lie under the ships, which paint over them. Hidden, a
+thing leaves only a **ghost**: a thin dimmed line round its outline in its colour and a faint
+breath of its body, so its place is never lost; a mark's ghost is half a ship's, so it stays
+below the mark's own outline. Inside the ball nothing is hidden by it: the glass is the sound
+field the guests stand in, and most marks lie under it. A ship on the far half of the ball (seen
+farther than the ball's middle plane) is also drawn smaller and darker (`shipDepthCue`, eased
+over `shipBackSideBand`), and on the far half it is behind the ball, so it is that ghost.
 
-The 2D pass keeps the words: a group's `G1`..`G8` stands on top of its blob (`groupLabelAt`,
-`bodyLabelBox`), a game's word under the drawn ship, the escort and game lines start at the drawn
-craft (`drawnShipPixel`), and a hidden one's label is dimmed like its ghost (`labelAlpha`; the
-labels know the ball, not the towers). The touch stays on the 2D floor point; a group's hit
-circle is its blob's footprint as the camera sees it (`footprintRadiusOnView`, the mean of the
-circle's two axes), never less than a fingertip (`groupHitRadius`); a dead zone is hit on its mark.
+The 2D pass keeps the words and the rings: a body's `G1`..`G8` in the middle of its mark, as
+before, a game's word under the drawn ship, the escort and game lines from the drawn craft
+(`drawnShipPixel`), and a hidden one's label dimmed like its ghost (`labelAlpha`; the labels know
+the ball, not the towers). The capture, clearance and hold rings are still circles on the glass.
+The touch stays on the 2D floor point; a body's hit circle is its mark's footprint as the camera
+sees it (`footprintRadiusOnView`, the mean of the circle's two axes), never less than a fingertip
+(`groupHitRadius`).
 
-**Cost.** A pixel outside the box all ships and groups lie in (`uFlightBounds`) pays four
-compares. Inside it, each of the twelve entries is a circle test (a subtraction and a dot) twice,
-and only a pixel inside a thing's own circle pays its intersections: two ellipsoids for a ship,
-one for a group, each done twice (once to find the nearest, once to shade), plus one value noise
-for a group. Those circles are a few percent of the picture. Measured on llvmpipe only; on the
-rig's iGPU it is expected to stay small beside the net and the beams, and is to be checked there.
+**Cost.** A pixel outside the box all ships and marks lie in (`uFlightBounds`) pays four
+compares. Inside it, each of the twelve entries is a circle test (a subtraction and a dot), and
+only a pixel inside a thing's own circle pays more: for a ship two ellipsoids, twice (once to find
+the nearest, once to shade); for a mark one floor intersection per pixel and a length. Those
+circles are a few percent of the picture. Measured on llvmpipe only; on the rig's iGPU it is
+expected to stay small beside the net and the beams, and is to be checked there.
 
 **Groups reach to the speakers; the ships stay on the disc.** A group may stand anywhere out to
 `floorReach` (1.35 sphere radii, `SpeakerLightScaling.hh`), between the four towers: `FloorBodies`
@@ -382,7 +391,7 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 | Code | Files |
 |---|---|
 | physics, pure | `src/a3-motion-engine/flight/` |
-| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`, `FlightScene`) and `SphereShader` (`flightScene`) |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`, `FlightScene`) and `SphereShader` (`flightScene`, `markPaint`) |
 | app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
@@ -2282,7 +2291,8 @@ and who may be touched.
 camera sitting in a ship instead of a second renderer. What changes is the content:
 `MotionComponent::setFpv` stops the shader drawing blobs and has it draw each channel as a ship
 instead: a small lit craft over the ball, raytraced in the same pass, pointing along its course in
-the room (see "Ships and groups are things in the room" under the gravity flight). Phase 1 drew a
+the room (see "Ships fly in the room and the groups are marked on its floor" under the gravity
+flight). Phase 1 drew a
 flat dart in the 2D pass with a heading taken on the screen; that was taken out once the shader's
 craft drew. The app takes only the sizes from `ShipShape` now (`shipLengthOfBlob`,
 `shipStepOfLength`); its dart and screen heading (`shipPath`, `ShipHeading`) are no longer called.

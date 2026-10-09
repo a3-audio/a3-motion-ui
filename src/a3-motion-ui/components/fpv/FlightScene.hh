@@ -23,6 +23,7 @@
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
+#include <a3-motion-ui/components/fpv/BodyLook.hh>
 
 #include <array>
 #include <optional>
@@ -53,54 +54,31 @@ float length (Vec3 v);
 /** `fallback` where `v` has no direction of its own. */
 Vec3 normalised (Vec3 v, Vec3 fallback);
 
-// ── groups: people on the dance floor ───────────────────────────────────
+// ── groups: marks on the dance floor ───────────────────────────────────
 
-/** One person standing, in metres: the height every group blob is drawn. */
-constexpr float personHeightM = 1.75f;
-/** How wide a group stands, in metres, by weight: about 3, 6 and 10 people
- *  close together. */
-constexpr float groupWidthM = 1.4f;
-constexpr float crowdWidthM = 2.0f;
-constexpr float hotspotWidthM = 2.6f;
-/** The beat swell lifts a blob by half of what it widens it: a crowd that
- *  breathes, not one that jumps. */
-constexpr float groupSwellOfHeight = 0.5f;
+/** The radius of a body's mark, in sphere radii: the 2D disc's, bodyRadius
+ *  against a blob `blobDiameter` (sphere radii) across, so a mark is the
+ *  disc that was, laid on the floor. (Marked by the people in it instead --
+ *  1.4 / 2.0 / 2.6 m across -- it came out about 1.4 times the disc and read
+ *  as something new.) */
+float discMarkRadius (float mass, float blobDiameter,
+                      FlightTuning const &tuning);
 
-/** Metres into sphere radii (metrePerSphereRadius). */
-float metresToSphereRadii (float metres);
+/** The mark at drawnPulse `pulse`: it swells on the one as the disc did. */
+float swollenMarkRadius (float radius, float pulse);
 
-struct GroupBlobSize
-{
-  float height = 0.f;   // sphere radii
-  float diameter = 0.f; // sphere radii
-};
-
-/** The blob a body is drawn as: a group's width by its weight, through G, C
- *  and H's masses in FlightTuning and straight between them, one person
- *  tall. A dead zone has none: it stays a mark on the floor. */
-std::optional<GroupBlobSize> groupBlobSize (float mass,
-                                            FlightTuning const &tuning);
-
-/** The blob at drawnPulse `pulse`: wider by bodyPulseScale, taller by
- *  groupSwellOfHeight of that. */
-GroupBlobSize swollen (GroupBlobSize size, float pulse);
-
-/** A group as the shader draws it: an upright spheroid with its feet on the
- *  floor. `centre` is its middle, seen. */
-struct GroupInScene
+/** A body as the shader draws it: a disc lying on the dance floor, seen. */
+struct FloorMark
 {
   Vec3 centre;
   float radius = 0.f;
-  float halfHeight = 0.f;
+  bool deadZone = false;
 };
 
-/** `feet` is where the group stands, in the room (floorPointInRoom on the
+/** `feet` is where the body stands, in the room (floorPointInRoom on the
  *  dance floor). */
-GroupInScene groupInScene (Pos const &feet, GroupBlobSize size,
-                           SphereCamera const &camera);
-
-/** The top of the blob, in the room: where its label goes. */
-Pos groupTopInRoom (Pos const &feet, GroupBlobSize size);
+FloorMark floorMarkInScene (Pos const &feet, float radius, BodyRole role,
+                            SphereCamera const &camera);
 
 /** How wide a footprint of `radius` round `feet` looks, in view units (the
  *  sphere's radius is 1): the mean of its two axes as the camera sees them.
@@ -173,7 +151,8 @@ ShipInScene shipInScene (Pos const &direction, std::optional<Vec3> course,
 
 /** Whether the ball stands between the eye and a seen point: the point lies
  *  beyond the ball's far side along its ray. Inside the ball nothing is
- *  hidden by it -- the glass is the sound field the groups stand in. */
+ *  hidden by it -- the glass is the sound field the guests stand in, and
+ *  the floor under it is where most of them are. */
 bool hiddenByTheBall (Vec3 seen);
 
 /** A hidden thing's label is dimmed to this, like its ghost: still there,
@@ -182,14 +161,14 @@ constexpr float ghostLabelAlpha = 0.4f;
 
 float labelAlpha (bool hidden);
 
-/** Where a finger finds a group: its footprint as drawn, never less than a
- *  fingertip across. Both in pixels. */
+/** Where a finger finds a body: its mark's footprint as seen, never less
+ *  than a fingertip across. Both in pixels. */
 float groupHitRadius (float footprintRadius, float fingertip);
 
 // ── into the shader ─────────────────────────────────────────────────────
 
 constexpr int maxSceneShips = 4;
-constexpr int maxSceneGroups = maxFlightBodies;
+constexpr int maxSceneMarks = maxFlightBodies;
 
 /** The uniforms the shader reads, packed four floats to an entry, the way
  *  glUniform4fv takes them. An unused entry has zero size, which the shader
@@ -204,14 +183,17 @@ struct FlightSceneUniforms
   std::array<float, 4 * maxSceneShips> shipUp{};
   /** r, g, b, unused */
   std::array<float, 4 * maxSceneShips> shipColour{};
-  /** centre xyz, half height */
-  std::array<float, 4 * maxSceneGroups> groupAt{};
-  /** radius, reach on the screen, unused, unused */
-  std::array<float, 4 * maxSceneGroups> groupShape{};
+  /** centre xyz, radius */
+  std::array<float, 4 * maxSceneMarks> markAt{};
+  /** 1 for a dead zone, reach on the screen, unused, unused */
+  std::array<float, 4 * maxSceneMarks> markShape{};
   /** On the shader's screen (x right, y up, the ball's radius 1): the box
-   *  every ship and group lies in, min x, min y, max x, max y. Empty (min
+   *  every ship and mark lies in, min x, min y, max x, max y. Empty (min
    *  over max) with nothing in it, so a pixel outside costs one compare. */
   std::array<float, 4> bounds{ 1.f, 1.f, -1.f, -1.f };
+  /** How wide a mark's outline and hatch are drawn, on the shader's screen:
+   *  the theme's thin stroke, so the floor's lines are the 2D pass's. */
+  float markStroke = 0.f;
 };
 
 /** Where a seen point lands on the shader's screen: (-y, x). */
@@ -220,7 +202,7 @@ std::array<float, 2> onShaderScreen (Vec3 seen);
 FlightSceneUniforms
 packFlightScene (std::array<ShipInScene, maxSceneShips> const &ships,
                  int numShips,
-                 std::array<GroupInScene, maxSceneGroups> const &groups,
-                 int numGroups);
+                 std::array<FloorMark, maxSceneMarks> const &marks,
+                 int numMarks);
 
 }

@@ -58,83 +58,31 @@ seen (Pos const &room, SphereCamera const &c)
 
 // ── groups ──────────────────────────────────────────────────────────────
 
-TEST (FlightScene, AGroupIsOnePersonTall)
+TEST (FlightScene, AMarkTheDiscsSizeIsTheDiscs)
 {
   FlightTuning const t;
-  for (auto mass : { t.groupMass, t.crowdMass, t.hotspotMass })
-    {
-      auto const size = groupBlobSize (mass, t);
-      ASSERT_TRUE (size.has_value ());
-      EXPECT_NEAR (size->height, 1.75f * metrePerSphereRadius, tolerance);
-    }
+  for (auto mass : { t.groupMass, t.crowdMass, t.hotspotMass, t.deadZoneMass })
+    EXPECT_FLOAT_EQ (discMarkRadius (mass, 0.1f, t), bodyRadius (mass, 0.1f, t));
 }
 
-TEST (FlightScene, AGroupIsAsWideAsThePeopleInIt)
+TEST (FlightScene, AMarkSwellsOnTheOneAsTheDiscDid)
 {
-  FlightTuning const t;
-  EXPECT_NEAR (groupBlobSize (t.groupMass, t)->diameter,
-               1.4f * metrePerSphereRadius, tolerance);
-  EXPECT_NEAR (groupBlobSize (t.crowdMass, t)->diameter,
-               2.0f * metrePerSphereRadius, tolerance);
-  EXPECT_NEAR (groupBlobSize (t.hotspotMass, t)->diameter,
-               2.6f * metrePerSphereRadius, tolerance);
+  EXPECT_FLOAT_EQ (swollenMarkRadius (0.1f, 1.f), 0.1f);
+  EXPECT_FLOAT_EQ (swollenMarkRadius (0.1f, 1.6f), 0.1f * bodyPulseScale (1.6f));
 }
 
-TEST (FlightScene, TheBallIsAboutEightAndAHalfMetresAcross)
+TEST (FlightScene, AMarkLiesOnTheFloor)
 {
-  // The ball's radius, which every size here is measured against.
-  EXPECT_NEAR (1.f / metresToSphereRadii (1.f), 8.5f, 0.05f);
-}
-
-TEST (FlightScene, AWeightBetweenTwoIsDrawnBetweenThem)
-{
-  FlightTuning const t;
-  auto const between = groupBlobSize ((t.groupMass + t.crowdMass) / 2.f, t);
-  ASSERT_TRUE (between.has_value ());
-  EXPECT_GT (between->diameter, groupBlobSize (t.groupMass, t)->diameter);
-  EXPECT_LT (between->diameter, groupBlobSize (t.crowdMass, t)->diameter);
-  EXPECT_NEAR (groupBlobSize (5.f, t)->diameter,
-               groupBlobSize (t.hotspotMass, t)->diameter, tolerance)
-      << "nothing wider than a hotspot";
-}
-
-TEST (FlightScene, ADeadZoneHasNoPeople)
-{
-  FlightTuning const t;
-  EXPECT_FALSE (groupBlobSize (t.deadZoneMass, t).has_value ());
-}
-
-TEST (FlightScene, TheBeatSwellsTheBlobWiderThanTaller)
-{
-  GroupBlobSize const rest{ 0.2f, 0.16f };
-  auto const same = swollen (rest, 1.f);
-  EXPECT_FLOAT_EQ (same.height, rest.height);
-  EXPECT_FLOAT_EQ (same.diameter, rest.diameter);
-
-  auto const big = swollen (rest, 1.6f);
-  auto const wider = big.diameter / rest.diameter;
-  auto const taller = big.height / rest.height;
-  EXPECT_FLOAT_EQ (wider, bodyPulseScale (1.6f));
-  EXPECT_GT (taller, 1.f);
-  EXPECT_LT (taller, wider);
-}
-
-TEST (FlightScene, AGroupStandsOnTheFloor)
-{
-  GroupBlobSize const size{ 0.2f, 0.16f };
   auto const feet = Pos::fromCartesian (0.3f, -0.2f, speakerFloorZ);
   for (auto const c : { camera (0.f, 0.f), camera (0.7f, 1.2f) })
     {
-      auto const group = groupInScene (feet, size, c);
-      EXPECT_NEAR (group.radius, 0.08f, tolerance);
-      EXPECT_NEAR (group.halfHeight, 0.1f, tolerance);
-      expectNear (group.centre,
-                  seen (Pos::fromCartesian (0.3f, -0.2f, speakerFloorZ + 0.1f),
-                        c));
+      auto const mark = floorMarkInScene (feet, 0.08f, BodyRole::Attract, c);
+      EXPECT_FLOAT_EQ (mark.radius, 0.08f);
+      EXPECT_FALSE (mark.deadZone);
+      expectNear (mark.centre, seen (feet, c));
     }
-  auto const top = groupTopInRoom (feet, size);
-  EXPECT_NEAR (top.z (), speakerFloorZ + 0.2f, tolerance);
-  EXPECT_NEAR (top.x (), 0.3f, tolerance);
+  EXPECT_TRUE (floorMarkInScene (feet, 0.08f, BodyRole::Repel, camera (0.f, 0.f))
+                   .deadZone);
 }
 
 TEST (FlightScene, AFootprintSeenFromAboveIsItsOwnSize)
@@ -261,26 +209,24 @@ TEST (FlightScene, TheBallHidesWhatIsBehindIt)
       << "inside the glass, as a group on the floor under the listener is";
 }
 
-TEST (FlightScene, AGroupUnderTheListenerIsNotHiddenFromAbove)
+TEST (FlightScene, AMarkUnderTheListenerIsNotHiddenFromAbove)
 {
-  GroupBlobSize const size{ 0.2f, 0.16f };
-  auto const group = groupInScene (Pos::fromCartesian (0.2f, 0.f, speakerFloorZ),
-                                   size, camera (0.f, 0.f));
-  EXPECT_FALSE (hiddenByTheBall (group.centre));
+  auto const mark = floorMarkInScene (Pos::fromCartesian (0.2f, 0.f, speakerFloorZ),
+                                      0.08f, BodyRole::Attract, camera (0.f, 0.f));
+  EXPECT_FALSE (hiddenByTheBall (mark.centre));
 }
 
-TEST (FlightScene, AGroupBeyondTheBallIsHiddenFromTheHorizon)
+TEST (FlightScene, AMarkBeyondTheBallIsHiddenFromTheHorizon)
 {
-  // Looking in from the horizon, a group past the rim on the far side stands
+  // Looking in from the horizon, a mark past the rim on the far side lies
   // behind the ball.
   auto const c = camera (1.5f, 0.f);
-  GroupBlobSize const size{ 0.2f, 0.16f };
-  auto const near = groupInScene (Pos::fromCartesian (-1.2f, 0.f, speakerFloorZ),
-                                  size, c);
-  auto const far = groupInScene (Pos::fromCartesian (1.2f, 0.f, speakerFloorZ),
-                                 size, c);
+  auto const near = floorMarkInScene (Pos::fromCartesian (-1.2f, 0.f, speakerFloorZ),
+                                      0.08f, BodyRole::Attract, c);
+  auto const far = floorMarkInScene (Pos::fromCartesian (1.2f, 0.f, speakerFloorZ),
+                                     0.08f, BodyRole::Attract, c);
   EXPECT_NE (hiddenByTheBall (near.centre), hiddenByTheBall (far.centre))
-      << "one of the two stands behind the ball";
+      << "one of the two lies behind the ball";
 }
 
 // ── into the shader ─────────────────────────────────────────────────────
@@ -299,7 +245,7 @@ TEST (FlightScene, NothingPackedIsAnEmptyScene)
   EXPECT_GT (packed.bounds[1], packed.bounds[3]);
   for (auto v : packed.shipAt)
     EXPECT_FLOAT_EQ (v, 0.f);
-  for (auto v : packed.groupAt)
+  for (auto v : packed.markAt)
     EXPECT_FLOAT_EQ (v, 0.f);
 }
 
@@ -337,18 +283,20 @@ TEST (FlightScene, AShipIsPackedFourToAnEntry)
   EXPECT_GE (packed.bounds[3], 0.1f + reach);
 }
 
-TEST (FlightScene, AGroupIsPackedWithItsReach)
+TEST (FlightScene, AMarkIsPackedWithItsReach)
 {
-  std::array<GroupInScene, maxSceneGroups> groups{};
-  groups[0] = { { -0.4f, 0.3f, -0.1f }, 0.08f, 0.1f };
-  auto const packed = packFlightScene ({}, 0, groups, 1);
-  EXPECT_FLOAT_EQ (packed.groupAt[0], -0.4f);
-  EXPECT_FLOAT_EQ (packed.groupAt[3], 0.1f);
-  EXPECT_FLOAT_EQ (packed.groupShape[0], 0.08f);
-  EXPECT_GE (packed.groupShape[1], 0.1f) << "reaches its height on the screen";
-  EXPECT_FLOAT_EQ (packed.groupAt[4 + 3], 0.f) << "the rest are empty";
+  std::array<FloorMark, maxSceneMarks> marks{};
+  marks[0] = { { -0.4f, 0.3f, -0.1f }, 0.08f, false };
+  marks[1] = { { 0.2f, 0.1f, -0.1f }, 0.1f, true };
+  auto const packed = packFlightScene ({}, 0, marks, 2);
+  EXPECT_FLOAT_EQ (packed.markAt[0], -0.4f);
+  EXPECT_FLOAT_EQ (packed.markAt[3], 0.08f) << "its radius";
+  EXPECT_FLOAT_EQ (packed.markShape[0], 0.f);
+  EXPECT_FLOAT_EQ (packed.markShape[4], 1.f) << "a dead zone";
+  EXPECT_GE (packed.markShape[1], 0.08f) << "reaches its radius on the screen";
+  EXPECT_FLOAT_EQ (packed.markAt[8 + 3], 0.f) << "the rest are empty";
 
-  auto const reach = packed.groupShape[1];
+  auto const reach = packed.markShape[1];
   EXPECT_LE (packed.bounds[0], -0.3f - reach);
   EXPECT_GE (packed.bounds[3], -0.4f + reach);
 }
@@ -372,10 +320,10 @@ TEST (FlightScene, AHiddenThingsLabelDimsLikeItsGhost)
   EXPECT_GT (labelAlpha (true), 0.f) << "dimmed, never gone";
 }
 
-TEST (FlightScene, AGroupIsHitWhereItStands)
+TEST (FlightScene, AMarkIsHitWhereItLies)
 {
   auto const fingertip = 34.f;
   EXPECT_FLOAT_EQ (groupHitRadius (60.f, fingertip), 60.f)
-      << "a blob bigger than a fingertip is hit on its footprint";
+      << "a mark bigger than a fingertip is hit on its footprint";
   EXPECT_FLOAT_EQ (groupHitRadius (5.f, fingertip), fingertip / 2.f);
 }
