@@ -423,8 +423,10 @@ TEST (GameFigures, ACrewKeepsItsOrderThroughEveryPhaseAndItsLanesApart)
               return key (a) < key (b);
             });
             if (!first)
-              EXPECT_EQ (order, orderBefore)
-                  << "group at " << degrees << " deg, radius " << radius << ", beat " << beats;
+              {
+                EXPECT_EQ (order, orderBefore)
+                    << "group at " << degrees << " deg, radius " << radius << ", beat " << beats;
+              }
             orderBefore = order;
             first = false;
             for (size_t a = 0; a < flightShips; ++a)

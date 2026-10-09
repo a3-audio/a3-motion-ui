@@ -325,7 +325,9 @@ TEST (PilotGames, OnePilotGameAtATime)
   games.step (flying (), {}, cue, PilotLevel::Fly, 4., fourFour); // a new bar, still a moment
   for (auto s = 0; s < flightShips; ++s)
     if (auto const played = games.gameOf (s); played && played->byPilot)
-      EXPECT_EQ (played->leader, first->leader) << s;
+      {
+        EXPECT_EQ (played->leader, first->leader) << s;
+      }
 }
 
 TEST (PilotGames, LeavingFlyEndsThePilotsGamesButNotTheDjs)

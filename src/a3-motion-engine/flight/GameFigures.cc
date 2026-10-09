@@ -270,7 +270,7 @@ planFakeOut (GamePlan &plan, juce::Random &dice, FlightTuning const &flight,
   // when the leader comes in on the target's own line through the middle.
   auto const thrown = dice.nextBool () ? 1.f : -1.f;
   auto const side = sideOf (plan.from[at (plan.leader)], plan.target);
-  auto const way = side != 0.f ? -side : thrown;
+  auto const way = !juce::exactlyEqual (side, 0.f) ? -side : thrown;
 
   // A crew veers together, as one pack, each ship in its own lane: the
   // same figure turned a lane further round the middle, flown in step, so
