@@ -20,6 +20,7 @@
 
 #include "GameLabel.hh"
 
+#include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include <algorithm>
@@ -79,6 +80,46 @@ gameInk (bool byPilot)
   return { theme ().alphaSecondary, theme ().alphaMuted, true };
 }
 
+bool
+sameGame (std::optional<ShipGame> const &a, std::optional<ShipGame> const &b)
+{
+  if (a.has_value () != b.has_value ())
+    return false;
+  return !a || (a->game == b->game && a->leader == b->leader && a->byPilot == b->byPilot);
+}
+
+HeldGame
+heldGame (std::optional<ShipGame> const &now, std::optional<ShipGame> const &last,
+          double endedAtBeat, double beats, int beatsPerBar)
+{
+  if (now && now->game != PilotGame::None)
+    return { now, 1.f };
+  if (!last || last->game == PilotGame::None || beatsPerBar <= 0)
+    return {};
+  auto const elapsedBars = (beats - endedAtBeat) / beatsPerBar;
+  if (!(elapsedBars >= 0.0) || elapsedBars >= 1.0)
+    return {};
+  return { last, static_cast<float> (1.0 - elapsedBars) };
+}
+
+std::string
+gameStartLine (int channel, ShipGame const &game)
+{
+  auto const target = game.target == noBodyId ? juce::String ("none") : bodyLabel (game.target);
+  return (juce::String ("A3 Motion: game start ch") + juce::String (channel + 1) + " "
+          + gameWord (game.game) + " by " + (game.byPilot ? "pilot" : "dj") + " leader ch"
+          + juce::String (game.leader + 1) + " target " + target)
+      .toStdString ();
+}
+
+std::string
+gameEndLine (int channel, PilotGame game)
+{
+  return (juce::String ("A3 Motion: game end ch") + juce::String (channel + 1) + " "
+          + gameWord (game))
+      .toStdString ();
+}
+
 std::array<std::optional<int>, fpvShips>
 gameLines (std::array<std::optional<ShipGame>, fpvShips> const &games,
            FlightBodies const &bodies)
@@ -111,7 +152,7 @@ void
 paintGameLabel (juce::Graphics &g, GameLabelPaint const &label)
 {
   auto const word = gameWord (label.game);
-  if (word.isEmpty ())
+  if (word.isEmpty () || label.alpha <= 0.f)
     return;
 
   auto const ink = gameInk (label.byPilot);
@@ -126,13 +167,13 @@ paintGameLabel (juce::Graphics &g, GameLabelPaint const &label)
                                  { width, wordFont.getHeight () }, label.floor);
 
   g.setFont (wordFont);
-  g.setColour (label.colour.withMultipliedAlpha (ink.word));
+  g.setColour (label.colour.withMultipliedAlpha (ink.word * label.alpha));
   g.drawText (word, box.withWidth (wordWidth), juce::Justification::centredLeft, false);
 
   if (!ink.showsTag)
     return;
   g.setFont (tagFont);
-  g.setColour (label.colour.withMultipliedAlpha (ink.tag));
+  g.setColour (label.colour.withMultipliedAlpha (ink.tag * label.alpha));
   g.drawText ("AUTO", box.withTrimmedLeft (wordWidth + gap), juce::Justification::centredLeft,
               false);
 }

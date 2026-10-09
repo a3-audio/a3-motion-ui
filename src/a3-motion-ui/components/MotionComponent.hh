@@ -69,6 +69,9 @@ struct FlightDisplay
   /** Per channel, the game its ship plays in (MotionEngine::gameOf), for the
    *  word under it and the leader's line to its target. */
   std::array<std::optional<ShipGame>, fpvShips> game{};
+  /** Per channel, how much ink its game's label and leader line get: 1 while
+   *  the game runs, fading to 0 over the bar after it. */
+  std::array<float, fpvShips> gameAlpha{ 1.f, 1.f, 1.f, 1.f };
   /** The big path at its current precession, on the floor. */
   std::vector<Vec2> guide;
   /** drawnPulse now: the discs swell with it. */
