@@ -59,6 +59,7 @@ constexpr Group groups[] = {
                 "alphaDisabled", "alphaInactive", "alphaFill", "alphaOutline",
                 "alphaGuide", "alphaFillEmphasis", "alphaMuted",
                 "alphaSecondary", "alphaTextStrong", "alphaActive" } },
+  { "Meters", { "meterNormal", "meterHot", "meterOver" } },
   { "Channels", { "channels.*" } },
   { "Sphere", { "sphereSurface", "sphereRim", "sphereEnvironment",
                 "sphereScale", "sphereLimb", "sphereGrid", "boltCore",

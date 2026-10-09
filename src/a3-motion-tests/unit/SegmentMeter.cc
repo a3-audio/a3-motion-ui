@@ -174,13 +174,14 @@ TEST (SegmentMeter, LouderPaintsMoreOfTheBar)
   EXPECT_GT (pixelsThatDiffer (quiet, full), 0);
 }
 
-// StemDeck's LEDs, whatever the skin: the two screens stand side by side and
-// read one scale in one set of colours.
-TEST (SegmentMeter, TheZonesWearStemDecksLedColours)
+// StemDeck's LEDs unless a skin says otherwise: the two screens stand side by
+// side and read one scale in one set of colours.
+TEST (SegmentMeter, TheZonesWearStemDecksLedColoursByDefault)
 {
-  EXPECT_EQ (segmentZoneColour (vuGreenBand), juce::Colour (0xff3ec46d));
-  EXPECT_EQ (segmentZoneColour (vuYellowBand), juce::Colour (0xffe8c33d));
-  EXPECT_EQ (segmentZoneColour (vuRedBand), juce::Colour (0xffe04848));
+  Theme const defaults;
+  EXPECT_EQ (segmentZoneColour (defaults, vuGreenBand), juce::Colour (0xff3ec46d));
+  EXPECT_EQ (segmentZoneColour (defaults, vuYellowBand), juce::Colour (0xffe8c33d));
+  EXPECT_EQ (segmentZoneColour (defaults, vuRedBand), juce::Colour (0xffe04848));
 }
 
 TEST (SegmentMeter, ALitSegmentWearsItsZonesColourAndAnUnlitOneDoesNot)
@@ -195,8 +196,8 @@ TEST (SegmentMeter, ALitSegmentWearsItsZonesColourAndAnUnlitOneDoesNot)
                           * static_cast<float> (f.meter.getWidth ()) / 24.f),
         y);
   };
-  EXPECT_EQ (segment (2), segmentZoneColour (vuGreenBand));
-  EXPECT_NE (segment (14), segmentZoneColour (vuYellowBand))
+  EXPECT_EQ (segment (2), segmentZoneColour (theme (), vuGreenBand));
+  EXPECT_NE (segment (14), segmentZoneColour (theme (), vuYellowBand))
       << "past the bar's head";
   EXPECT_NE (segment (14), segment (2));
 }
@@ -212,7 +213,7 @@ TEST (SegmentMeter, AHeldPeakIsALineAboveTheBarInItsZonesColour)
   auto found = false;
   for (int x = juce::roundToInt (segmentWidth * static_cast<float> (held));
        x < juce::roundToInt (segmentWidth * static_cast<float> (held + 1)); ++x)
-    found = found || image.getPixelAt (x, y) == segmentZoneColour (vuRedBand);
+    found = found || image.getPixelAt (x, y) == segmentZoneColour (theme (), vuRedBand);
   EXPECT_TRUE (found);
 }
 

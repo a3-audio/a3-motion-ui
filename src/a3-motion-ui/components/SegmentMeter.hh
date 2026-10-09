@@ -52,9 +52,9 @@ int segmentsLit (float amplitude, int segments);
  *  eighth its end stands in. */
 std::size_t segmentBand (int index, int segments);
 
-/** The colour of a zone: StemDeck's LED colours, not the skin's, so the
- *  meters on both screens read alike. */
-juce::Colour segmentZoneColour (std::size_t band);
+/** The colour of a zone, from the theme's meter roles -- which default to
+ *  StemDeck's LED colours, so the meters on both screens read alike. */
+juce::Colour segmentZoneColour (Theme const &theme, std::size_t band);
 
 /** How many segments a meter this long draws: 24 where there is room, fewer
  *  where a segment would shrink under what can be seen, never none. */

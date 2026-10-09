@@ -84,6 +84,12 @@ struct Theme
    *  something you do for as long as you hold it. Neither the green of
    *  "running" nor the red of "this writes over something". */
   ThemeColour highlight{ 255, 214, 10 };
+  /** The level meters' zones, under -12 dBFS, at -9 and -6, and above.
+   *  StemDeck's LED colours, so Motion's meters read like the deck's beside
+   *  them. */
+  ThemeColour meterNormal{ 0x3e, 0xc4, 0x6d };
+  ThemeColour meterHot{ 0xe8, 0xc3, 0x3d };
+  ThemeColour meterOver{ 0xe0, 0x48, 0x48 };
   float alphaDisabled = 0.35f;
   float alphaInactive = 0.6f;
 
