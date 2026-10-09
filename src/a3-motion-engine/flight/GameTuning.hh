@@ -58,9 +58,17 @@ struct GameTuning
   float veerMinRadius = 0.5f;      // nearer the middle every direction is close [guess]
   float strikeBeats = 2.f;         // the dive at the target starts this long before the 1 [sweep]
   float lonelyTargetRadius = 0.6f; // with no group on the floor it aims across the room [guess]
+  // A crew flies the figure in lanes this far apart round the middle, so no
+  // two ships share a point and each is heard at its own place. Below about
+  // 18 deg the steering's overshoot at the strike brings two lanes nearer
+  // than the ships' separation core (0.08) [sweep].
+  float crewLaneDegrees = 22.f;
 
   // Formation & scatter.
-  float formationDistance = 0.5f; // the line's distance from the middle [guess]
+  // The line's distance from the middle. At 0.5 a line facing a group near
+  // the rim stands on it, and the group's well draws two ships together
+  // while they line up [sweep].
+  float formationDistance = 0.4f;
   float formationSpacing = 0.2f;  // between two places in it [guess]
   float burstRadius = 0.85f;      // where the burst ends, inside the soft wall at 0.9 [guess]
 

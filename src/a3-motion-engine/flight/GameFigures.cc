@@ -112,23 +112,63 @@ sideOf (Vec2 from, Vec2 target)
   return cross > 1e-6f ? 1.f : (cross < -1e-6f ? -1.f : 0.f);
 }
 
-void
-planFakeOut (GamePlan &plan, juce::Random &dice)
+Vec2
+rotated (Vec2 p, float angle)
 {
-  auto way = dice.nextBool () ? 1.f : -1.f;
+  auto const c = std::cos (angle);
+  auto const s = std::sin (angle);
+  return { c * p.x - s * p.y, s * p.x + c * p.y };
+}
+
+/** Where a ship's approach ends before its lane is applied: short of the
+ *  target, on the side it comes in from. */
+Vec2
+approachEnd (GamePlan const &plan, int ship, GameTuning const &tuning)
+{
+  return plan.target
+         + unitOr (plan.from[at (ship)] - plan.target, { 1.f, 0.f }) * tuning.approachStandOff;
+}
+
+/** A fake-out ship's lane, in radians round the middle: 0 for a lone ship,
+ *  the crew spread a lane apart about the target. */
+float
+laneAngle (GamePlan const &plan, int ship, GameTuning const &tuning)
+{
+  auto const offset = static_cast<float> (plan.part[at (ship)])
+                      - 0.5f * static_cast<float> (plan.crewSize - 1);
+  return offset * radians (tuning.crewLaneDegrees);
+}
+
+void
+planFakeOut (GamePlan &plan, juce::Random &dice, GameTuning const &tuning)
+{
   // The veer is measured from the target, but the approach ends off to the
   // side it comes in on, and near the middle that offset is wide: veering
-  // the same way would leave only the difference to be heard. A lone ship
-  // veers to the far side; a crew keeps the dice's alternating ways.
-  if (plan.crewSize == 1)
-    if (auto const side = sideOf (plan.from[at (plan.leader)], plan.target); side != 0.f)
-      way = -side;
+  // the same way would leave only the difference to be heard. So the game
+  // veers away from the side its leader comes in on; the dice decide only
+  // when the leader comes in on the target's own line through the middle.
+  auto const thrown = dice.nextBool () ? 1.f : -1.f;
+  auto const side = sideOf (plan.from[at (plan.leader)], plan.target);
+  auto const way = side != 0.f ? -side : thrown;
+
+  // A crew veers together, as one pack, each ship in its own lane, in the
+  // order its approach already ends round the target, so nobody crosses
+  // another's lane. Two halves veering apart met head-on in the strike.
+  std::array<int, flightShips> order{};
+  auto count = 0;
   for (auto s = 0; s < flightShips; ++s)
     if (plan.crew[at (s)])
-      {
-        plan.turn[at (s)] = way;
-        way = -way;
-      }
+      order[at (count++)] = s;
+  auto const toward = angleOf (plan.target);
+  sortStable (order, count, [&] (int ship) {
+    return std::remainder (angleOf (approachEnd (plan, ship, tuning)) - toward,
+                           2.f * pi<float> ());
+  });
+  for (auto lane = 0; lane < count; ++lane)
+    {
+      plan.part[at (order[at (lane)])] = lane;
+      plan.turn[at (order[at (lane)])] = way;
+    }
 }
 
 void
@@ -178,21 +218,20 @@ fakeOutGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
 {
   auto const veerFrom = plan.climaxBeats - beatsPerBar;
   auto const strikeFrom = plan.climaxBeats - tuning.strikeBeats;
-  auto const from = plan.from[at (ship)];
-  auto const shortOf
-      = plan.target + unitOr (from - plan.target, { 1.f, 0.f }) * tuning.approachStandOff;
+  auto const lane = laneAngle (plan, ship, tuning);
 
   if (beats < veerFrom)
-    return glide (from, shortOf, beats, plan.startBeats, veerFrom);
+    return glide (plan.from[at (ship)], rotated (approachEnd (plan, ship, tuning), lane), beats,
+                  plan.startBeats, veerFrom);
   if (beats < strikeFrom)
     {
       auto const radius
           = std::max (plan.target.getDistanceFromOrigin (), tuning.veerMinRadius);
-      return standAt (polar (angleOf (plan.target)
+      return standAt (polar (angleOf (plan.target) + lane
                                  + plan.turn[at (ship)] * radians (tuning.veerDegrees),
                              radius));
     }
-  return standAt (plan.target);
+  return standAt (rotated (plan.target, lane));
 }
 
 OrbitPoint
@@ -340,7 +379,7 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
   switch (game)
     {
     case PilotGame::FakeOut:
-      planFakeOut (plan, dice);
+      planFakeOut (plan, dice, tuning);
       break;
     case PilotGame::Formation:
       planFormation (plan);

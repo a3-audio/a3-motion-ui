@@ -212,13 +212,13 @@ TEST (GameFigures, AShipStartingOnItsTargetStillGetsAFiniteFigure)
     EXPECT_TRUE (finite (figureGoal (plan, 0, beats, fourFour, tuning))) << beats;
 }
 
-TEST (GameFigures, ACrewsFakeOutsVeerToBothSides)
+TEST (GameFigures, ACrewsFakeOutVeersTogetherToOneSide)
 {
+  // The leader stands at 0 deg, clockwise of the group: the whole crew
+  // veers counter-clockwise, away from the side the leader comes in on.
   auto const plan = planned (PilotGame::FakeOut, everyone, oneGroupAt ({ -0.5f, 0.3f }));
-  auto const left = std::count (plan.turn.begin (), plan.turn.end (), 1.f);
-  auto const right = std::count (plan.turn.begin (), plan.turn.end (), -1.f);
-  EXPECT_EQ (left, 2);
-  EXPECT_EQ (right, 2);
+  for (auto s = 0; s < flightShips; ++s)
+    EXPECT_EQ (plan.turn[static_cast<size_t> (s)], 1.f) << s;
 }
 
 TEST (GameFigures, ALoneFakeOutVeersAwayFromTheSideItComesInOn)
@@ -237,6 +237,44 @@ TEST (GameFigures, ALoneFakeOutVeersAwayFromTheSideItComesInOn)
                                     fourFour, dice, flight, tuning);
         EXPECT_EQ (plan.turn[0], side) << "seed " << seed << ", group at " << side * 45.f;
       }
+}
+
+TEST (GameFigures, ACrewsFakeOutFliesInLanesSoNoTwoShipsShareAPoint)
+{
+  // Every point of the figure -- the approach's end, the veer, the strike --
+  // is a lane of its own per ship: neighbours a lane apart seen from the
+  // middle, the pack centred on the target.
+  auto const target = Vec2{ -0.5f, 0.3f };
+  auto const plan = planned (PilotGame::FakeOut, everyone, oneGroupAt (target));
+  for (auto const beats : { 11.9, 12.5, 16. })
+    {
+      std::array<float, flightShips> angles{};
+      for (auto s = 0; s < flightShips; ++s)
+        angles[static_cast<size_t> (s)]
+            = std::remainder (degreesOf (figureGoal (plan, s, beats, fourFour, tuning).at)
+                                  - degreesOf (target),
+                              360.f);
+      std::sort (angles.begin (), angles.end ());
+      for (size_t i = 1; i < angles.size (); ++i)
+        EXPECT_GE (angles[i] - angles[i - 1], tuning.crewLaneDegrees - 0.01f)
+            << "beat " << beats << ", lanes " << i - 1 << " and " << i;
+    }
+  auto pack = 0.f;
+  for (auto s = 0; s < flightShips; ++s)
+    pack += std::remainder (degreesOf (figureGoal (plan, s, 16., fourFour, tuning).at)
+                                - degreesOf (target),
+                            360.f);
+  EXPECT_NEAR (pack, 0.f, 0.01f) << "the strike's lanes centre on the target";
+
+  // Neighbouring strike points lie further apart than the core of the push
+  // between two ships, so the floor keeps them apart, not only the ear.
+  std::array<Vec2, flightShips> strike{};
+  for (auto s = 0; s < flightShips; ++s)
+    strike[static_cast<size_t> (plan.part[static_cast<size_t> (s)])]
+        = figureGoal (plan, s, 16., fourFour, tuning).at;
+  for (size_t lane = 1; lane < strike.size (); ++lane)
+    EXPECT_GE (strike[lane].getDistanceFrom (strike[lane - 1]), flight.separationSoftening)
+        << "lanes " << lane - 1 << " and " << lane;
 }
 
 TEST (GameFigures, TheFormationStandsInALineAcrossItsAxis)

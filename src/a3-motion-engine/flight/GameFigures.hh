@@ -58,8 +58,9 @@ struct GamePlan
   float axis = 0.f;
   /** Where each ship was when the game started. */
   std::array<Vec2, flightShips> from{};
-  /** Formation: the ship's place in the line, from one end; call &
-   *  response: 0 for the leader, 1 for its partner. */
+  /** Formation: the ship's place in the line, from one end; fake-out: its
+   *  lane round the target, clockwise first; call & response: 0 for the
+   *  leader, 1 for its partner. */
   std::array<int, flightShips> part{};
   /** Fake-out: +1 or -1, the veer's way round; hide & seek: the angle, in
    *  radians, it hides at. */
@@ -82,8 +83,9 @@ std::optional<Vec2> bodyPlace (FlightBodies const &bodies, int id);
 float burstAngle (int crewSize, int place);
 
 /** `game` set up for `crew` at `beats`: its 1 from the cue, the target, the
- *  parts. `dice` throws a crew's fake-out ways round; a lone ship veers
- *  away from the side its approach comes in on. Pure apart from the dice. */
+ *  parts. A fake-out veers away from the side its leader comes in on, the
+ *  whole crew together; `dice` throws the way only when the leader comes
+ *  in on the target's own line. Pure apart from the dice. */
 GamePlan planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
                    std::array<ShipState, flightShips> const &ships, PilotTarget target,
                    FlightBodies const &bodies, MusicCue const &cue, double beats,

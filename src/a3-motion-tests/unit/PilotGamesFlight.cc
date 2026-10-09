@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-engine/flight/BeatPulse.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -67,6 +68,16 @@ FlightBodies
 oneGroup ()
 {
   return oneGroupAt ({ -0.5f, 0.3f });
+}
+
+/** The clock's place at `beats`, as the engine hands it to the pulse. */
+Measure
+measureAt (double beats)
+{
+  auto const perBeat = TempoClock::getTicksPerBeat ();
+  auto const ticks = static_cast<int> (std::llround (beats * perBeat));
+  auto const wholeBeats = ticks / perBeat;
+  return { wholeBeats / fourFour, wholeBeats % fourFour, ticks % perBeat };
 }
 
 MusicCue
@@ -131,7 +142,9 @@ struct Floor
                 order.steer = *goal;
               }
           }
-        world.step (orders, bodies, beats, fourFour, 1.f, static_cast<float> (dt));
+        world.step (orders, bodies, beats, fourFour,
+                    gravityPulse (measureAt (beats), fourFour, FlightTuning{}),
+                    static_cast<float> (dt));
         beats += dt;
         if (look)
           look (beats);
@@ -200,6 +213,30 @@ float
 swingDegreesPerBeat (Vec2 before, Vec2 after)
 {
   return degreesBetween (before, after) * static_cast<float> (TempoClock::getTicksPerBeat ());
+}
+/** The nearest two ships of a game come to each other from now to beat
+ *  `until`, and when. */
+struct NearestPair
+{
+  float distance = 2.f;
+  double beat = 0.;
+};
+
+NearestPair
+nearestPairUntil (Floor &floor, double until, MusicCue const &cue)
+{
+  NearestPair nearest;
+  floor.runTo (until, cue, [&] (double beat) {
+    for (auto a = 0; a < flightShips; ++a)
+      for (auto b = a + 1; b < flightShips; ++b)
+        {
+          if (!floor.games.plays (a) || !floor.games.plays (b))
+            continue;
+          if (auto const d = floor.at (a).getDistanceFrom (floor.at (b)); d < nearest.distance)
+            nearest = { d, beat };
+        }
+  });
+  return nearest;
 }
 }
 
@@ -395,4 +432,42 @@ TEST (PilotGamesFlight, AFakeOutWithNoGroupCrossesTheRoomAndIsHeardOnTheOne)
   RecordProperty ("closestDegrees", juce::String (heard.closest, 1).toStdString ());
   EXPECT_GE (heard.widest - heard.approached, tuning.heardBendDegrees);
   EXPECT_LE (heard.closest, 15.f);
+}
+
+// Two ships that meet on one point are heard as one. The softening core of
+// the push between ships is the nearest two of a crew may come.
+float const apart = FlightTuning{}.separationSoftening;
+
+TEST (PilotGamesFlight, ACrewsFakeOutKeepsItsShipsApart)
+{
+  Floor floor;
+  auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4); // the 1 on beat 16
+  ASSERT_TRUE (floor.ask (PilotGame::FakeOut, 0, PilotRecruit::All, cue));
+  auto const nearest = nearestPairUntil (floor, 20., cue);
+  RecordProperty ("nearestDistance", juce::String (nearest.distance, 3).toStdString ());
+  RecordProperty ("nearestBeat", juce::String (nearest.beat, 2).toStdString ());
+  EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
+}
+
+TEST (PilotGamesFlight, AFormationKeepsItsShipsApart)
+{
+  Floor floor;
+  auto const cue = heading (MusicSection::Build, MusicSection::Drop, 3); // the 1 on beat 12
+  ASSERT_TRUE (floor.ask (PilotGame::Formation, 0, PilotRecruit::All, cue));
+  auto const nearest = nearestPairUntil (floor, 16., cue);
+  RecordProperty ("nearestDistance", juce::String (nearest.distance, 3).toStdString ());
+  RecordProperty ("nearestBeat", juce::String (nearest.beat, 2).toStdString ());
+  EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
+}
+
+TEST (PilotGamesFlight, ACallAndItsAnswerKeepTheirShipsApart)
+{
+  Floor floor (FlightBodies{});
+  MusicCue groove;
+  groove.energy = 0.5f;
+  ASSERT_TRUE (floor.ask (PilotGame::CallAndResponse, 0, PilotRecruit::Self, groove));
+  auto const nearest = nearestPairUntil (floor, 24., groove);
+  RecordProperty ("nearestDistance", juce::String (nearest.distance, 3).toStdString ());
+  RecordProperty ("nearestBeat", juce::String (nearest.beat, 2).toStdString ());
+  EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
 }
