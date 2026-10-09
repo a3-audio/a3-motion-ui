@@ -126,6 +126,8 @@ target_sources("a3-motion-engine" PRIVATE
     preview/MusicPreview.hh
     preview/MusicCue.cc
     preview/MusicCue.hh
+    preview/LiveMood.cc
+    preview/LiveMood.hh
     backends/SpatBackend.hh
     backends/SpatBackendIEM.cc
     backends/SpatBackendIEM.hh
