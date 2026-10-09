@@ -605,7 +605,8 @@ TEST (ShippedLibrary, SpaceButtonsMakeChangesARoomCanHear)
 // A1 and A3 move towards "more", A2 and A4 towards "less", as each script's
 // own Mood: line says. Break and Float carried Width Breathe, a "less", on
 // A3 (docs question 9, 2026-10-08). The four mood sets use A1..A4 for
-// gestures of their own mood and are not held to it.
+// gestures of their own mood and are not held to it, nor is FPV Games, whose
+// A1..A4 are its games.
 TEST (ShippedLibrary, PhaseSetsPutMoreLeftAndLessRight)
 {
   juce::StringArray const moodSets{ "Tribal", "Tension", "Acid", "Ambient" };
@@ -626,7 +627,7 @@ TEST (ShippedLibrary, PhaseSetsPutMoreLeftAndLessRight)
     {
       auto const set = loadSession (f, 4, 1);
       auto const name = juce::String (set.name);
-      if (moodSets.contains (name))
+      if (moodSets.contains (name) || name == fpvGamesSet)
         continue;
       for (auto const &channel : set.channels)
         for (int b = 0; b < 4; ++b)
