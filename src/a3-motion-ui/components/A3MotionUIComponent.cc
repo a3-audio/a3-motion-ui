@@ -6051,8 +6051,8 @@ A3MotionUIComponent::tickCallback (Measure measure)
       pushMusicCue ();
     }
 
-  // This thread's own copy of the beat address, taken over here and read
-  // nowhere else.
+  // The tick's copy of the beat address, taken over here (see the member's
+  // comment: defensive, both sides run on the message thread).
   applyPendingBeatAddress ();
 
   // A button's "then": decided here, on the message thread, from the
@@ -7918,8 +7918,8 @@ A3MotionUIComponent::applyOscAddresses ()
     _oscMessageHandler->setAddresses (_oscAddresses);
   _beatArrival.setAddress (_oscAddresses.beatIn);
 
-  // The beat is sent from the tempo-clock thread, so it cannot read the
-  // struct this function just replaced.
+  // Hand the beat address over through the pending copy; both this function
+  // and the tick run on the message thread, so the lock is defensive.
   {
     std::lock_guard<std::mutex> lock{ _beatAddressMutex };
     _pendingBeatAddress = _oscAddresses.beatOut;

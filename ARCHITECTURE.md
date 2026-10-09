@@ -427,7 +427,8 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
   current moment pulses in the notice colour on every beat (`hintedButton`, `padHintColour`),
   while the channel's ship flies ORBIT and plays no game; FLY, on a downbeat a moment opens, a
   pilot starts one game on free ORBIT ships (dice) and rests 4 bars after. The hints go by the
-  current bar and are refreshed whenever a fire, a clip, a script or a game changes. A DJ's tap at
+  current bar and are refreshed whenever a fire, a clip, a script or a game changes, on every
+  step, on each music-cue push, and when the level or the view changes. A DJ's tap at
   FLY that fires a game, or fires anything at a ship in a pilot's game, drops the level to HINT
   (`levelAfterTap`), which ends the pilots' games; FLY again is one press. Leaving FPV calls every
   game and request off (`callOffGames`) and keeps the engine's level OFF until FPV is back.

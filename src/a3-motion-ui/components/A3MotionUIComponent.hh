@@ -600,11 +600,12 @@ private:
 
   /** The beat address again, kept apart from _oscAddresses.
    *
-   *  tickCallback() is registered on the tempo clock but runs on the message
-   *  thread, so today this copy is read where it is replaced. The lock and
-   *  the pickup at the top of the tick are kept from when the tick ran on the
-   *  clock's own thread: juce::String is reference counted, and reading
-   *  _oscAddresses.beat while the struct is replaced would be a race. */
+   *  tickCallback() (registered on the message thread) reads it, and
+   *  applyOscAddresses() (the only writer of the pending copy, called from
+   *  the constructor) runs on the message thread too. The lock and the
+   *  pickup at the top of the tick are defensive code from an earlier
+   *  assumption that the beat was sent from the tempo-clock thread; they are
+   *  harmless and stay. */
   juce::String _beatAddress{ "/a3-osc-missing/beat" };
   std::mutex _beatAddressMutex;
   juce::String _pendingBeatAddress;
