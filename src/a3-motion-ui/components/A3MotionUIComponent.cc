@@ -3708,6 +3708,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
 
   if (!file.existsAsFile ())
     {
+      refreshPilotHints ();
       updateActionPage ();
       return;
     }
@@ -3723,6 +3724,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   if (!action.errors.isEmpty ())
     updateControlReadout (action.errors[0]);
 
+  refreshPilotHints ();
   updateActionPage ();
   updateClipSettingsDisplay ();
 }
@@ -3789,6 +3791,7 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
   if (!fired)
     {
       _engine.setChannelAction (channel, std::nullopt);
+      refreshPilotHints ();
       return;
     }
 
@@ -3803,6 +3806,7 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
     setPilotLevel (level);
 
   _engine.setChannelAction (channel, fired->settings, fired->flight);
+  refreshPilotHints ();
   if (order)
     {
       _engine.requestGame (channel, *order);
@@ -6539,6 +6543,8 @@ A3MotionUIComponent::pulseTapLED ()
 void
 A3MotionUIComponent::padLEDCallback (int step)
 {
+  // A clip starting or stopping, or a game ending, shows within a pad step.
+  refreshPilotHints ();
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
       auto const channelColour = _channelUIStates[channel]->colour;
@@ -7682,8 +7688,11 @@ A3MotionUIComponent::pushMusicCue ()
 void
 A3MotionUIComponent::refreshPilotHints ()
 {
-  auto const fitting = fittingGames (_musicCue, _previewBar, _engine.getBeatsPerBar (),
-                                     _engine.getGameTuning ());
+  // The current bar, as the engine's games count it -- not the bar a preview
+  // arrived on, which stays put until the next one.
+  auto const bar = nearestDownbeatBar (uiBeats (), _engine.getBeatsPerBar ());
+  auto const fitting
+      = fittingGames (_musicCue, bar, _engine.getBeatsPerBar (), _engine.getGameTuning ());
   for (auto ch = 0u; ch < _hintedButton.size () && ch < _channelActions.size (); ++ch)
     {
       std::array<std::optional<PilotGame>, numActionButtons> games{};
@@ -7707,7 +7716,11 @@ A3MotionUIComponent::announcePilotGames ()
       auto const isNew = game
                          && (!seen || seen->game != game->game || seen->leader != game->leader
                              || seen->byPilot != game->byPilot);
+      auto const changed = game.has_value () != seen.has_value ()
+                           || (game && (seen->game != game->game || seen->byPilot != game->byPilot));
       seen = game;
+      if (changed)
+        refreshPilotHints ();
       if (isNew && game->byPilot && game->leader == ch)
         updateControlReadout (pilotGameReadout (ch, game->game));
     }

@@ -120,3 +120,20 @@ TEST (PilotHint, ThePadsPagePaintsAHintedPad)
       }
   EXPECT_TRUE (found);
 }
+
+TEST (PilotHint, TheBuildHintGoesDarkAsTheCurrentBarNearsTheDrop)
+{
+  MusicCue cue;
+  cue.section = MusicSection::Build;
+  cue.next = MusicSection::Drop;
+  cue.changeBar = 16;
+  cue.energy = 1.f;
+  GameTuning const tuning;
+  auto const games = withGames ({ { 0, PilotGame::FakeOut } });
+  auto const at = [&] (long long bar) {
+    return hintedButton (PilotLevel::Hint, AppView::Fpv, fittingGames (cue, bar, 4, tuning), true,
+                         games);
+  };
+  EXPECT_EQ (at (10), 0);
+  EXPECT_EQ (at (15), -1) << "one bar left: too late for a fake-out";
+}

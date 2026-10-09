@@ -162,3 +162,24 @@ TEST (PilotWiring, OnlyTheComponentQueuesForTheGames)
         EXPECT_FALSE (text.contains (call)) << file.getFullPathName () << " calls " << call;
     }
 }
+
+TEST (PilotWiring, TheHintsGoByTheCurrentBarNotTheBarAPreviewArrived)
+{
+  auto const refresh = a3::test::uiComponentBodyOf ("A3MotionUIComponent::refreshPilotHints ()");
+  ASSERT_TRUE (refresh.isNotEmpty ());
+  EXPECT_TRUE (refresh.contains ("nearestDownbeatBar (uiBeats ()"));
+  EXPECT_FALSE (refresh.contains ("_previewBar"));
+}
+
+TEST (PilotWiring, TheHintsFollowWhatChangesThem)
+{
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::sendFiredAction (index_t channel,")
+                   .contains ("refreshPilotHints ()"));
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::setButtonAction (index_t channel, int button,")
+                   .contains ("refreshPilotHints ()"));
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()")
+                   .contains ("refreshPilotHints ()"));
+  // A clip starting or stopping shows on the next pad step.
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::padLEDCallback (int step)")
+                   .contains ("refreshPilotHints ()"));
+}
