@@ -30,13 +30,17 @@
 namespace a3
 {
 
-/** The game a ship plays in: which, who leads it, and whether a pilot
- *  started it at FLY or the DJ did with an action. */
+/** The game a ship plays in: which, who leads it, whether a pilot started
+ *  it at FLY or the DJ did with an action, and the group it is played
+ *  against (noBodyId for a game played against none). The flight spares a
+ *  ship in a game that group's pull, as it spares an escort its own: the
+ *  figure already stands for it. */
 struct ShipGame
 {
   PilotGame game = PilotGame::None;
   bool byPilot = false;
   int leader = -1;
+  int target = noBodyId;
 };
 
 /** One ship as the games see it this tick. */

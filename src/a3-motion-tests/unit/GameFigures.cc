@@ -50,6 +50,35 @@ degreesBetween (Vec2 a, Vec2 b)
   return std::abs (std::remainder (degreesOf (a) - degreesOf (b), 360.f));
 }
 
+float
+cross (Vec2 a, Vec2 b)
+{
+  return a.x * b.y - a.y * b.x;
+}
+
+/** Whether the segments a0-a1 and b0-b1 meet. */
+bool
+segmentsCross (Vec2 a0, Vec2 a1, Vec2 b0, Vec2 b1)
+{
+  auto const d = cross (a1 - a0, b1 - b0);
+  if (std::abs (d) < 1e-9f)
+    return false;
+  auto const t = cross (b0 - a0, b1 - b0) / d;
+  auto const u = cross (b0 - a0, a1 - a0) / d;
+  return t >= 0.f && t <= 1.f && u >= 0.f && u <= 1.f;
+}
+
+/** How far `p` is from the segment a-b. */
+float
+distanceToSegment (Vec2 p, Vec2 a, Vec2 b)
+{
+  auto const along = b - a;
+  auto const length = along.getDistanceSquaredFromOrigin ();
+  auto const u = length > 0.f ? std::clamp ((p - a).getDotProduct (along) / length, 0.f, 1.f)
+                              : 0.f;
+  return p.getDistanceFrom (a + along * u);
+}
+
 std::array<Vec2, flightShips> const spread{ Vec2{ 0.7f, 0.f }, Vec2{ 0.f, 0.7f },
                                             Vec2{ -0.7f, 0.f }, Vec2{ 0.f, -0.7f } };
 
@@ -246,7 +275,7 @@ TEST (GameFigures, ACrewsFakeOutFliesInLanesSoNoTwoShipsShareAPoint)
   // middle, the pack centred on the target.
   auto const target = Vec2{ -0.5f, 0.3f };
   auto const plan = planned (PilotGame::FakeOut, everyone, oneGroupAt (target));
-  for (auto const beats : { 11.9, 12.5, 16. })
+  for (auto const beats : { 12., 13., 16. }) // the stand-off, mid-veer, the strike
     {
       std::array<float, flightShips> angles{};
       for (auto s = 0; s < flightShips; ++s)
@@ -277,6 +306,65 @@ TEST (GameFigures, ACrewsFakeOutFliesInLanesSoNoTwoShipsShareAPoint)
         << "lanes " << lane - 1 << " and " << lane;
 }
 
+TEST (GameFigures, ACrewsApproachWaitsAndThenGlidesAtItsPace)
+{
+  // A goal creeping below the ships' least speed is circled, not followed:
+  // a crew ship's stand-off goal stays where the ship started until the
+  // glide can run at crewApproachPace, then glides and arrives on the
+  // veer's beat (12). A lone ship glides from the start.
+  auto const target = Vec2{ -0.5f, 0.3f };
+  auto const crew = planned (PilotGame::FakeOut, everyone, oneGroupAt (target));
+  for (auto s = 0; s < flightShips; ++s)
+    {
+      auto const from = crew.from[static_cast<size_t> (s)];
+      auto const standOff = figureGoal (crew, s, 11.999, fourFour, tuning).at;
+      auto const beatsAtPace = from.getDistanceFrom (standOff) / tuning.crewApproachPace;
+      ASSERT_LT (beatsAtPace, 12.) << s;
+      auto const glideFrom = 12. - beatsAtPace;
+      EXPECT_EQ (figureGoal (crew, s, glideFrom - 0.5, fourFour, tuning).at, from) << s;
+      EXPECT_NEAR (figureGoal (crew, s, glideFrom + 1., fourFour, tuning)
+                       .velocity.getDistanceFromOrigin (),
+                   tuning.crewApproachPace, 1e-4f)
+          << s;
+    }
+  auto const lone = planned (PilotGame::FakeOut, only (0), oneGroupAt (target));
+  EXPECT_NE (figureGoal (lone, 0, 1., fourFour, tuning).at, lone.from[0]);
+}
+
+TEST (GameFigures, ACrewsVeerSweepsRoundTheMiddleAndItsStrikeDives)
+{
+  // A lone ship's goal jumps to the veer point and later to the target. A
+  // crew's goals move, so the pack flies in step: the veer sweeps round the
+  // middle from the stand-off to the veer point over the veer bar, keeping
+  // between their radii, and the strike glides from the veer point.
+  auto const target = Vec2{ -0.5f, 0.3f };
+  auto const crew = planned (PilotGame::FakeOut, everyone, oneGroupAt (target));
+  auto const strikeFrom = 16. - tuning.strikeBeats;
+  for (auto s = 0; s < flightShips; ++s)
+    {
+      auto const glideEnd = figureGoal (crew, s, 12. - 1e-6, fourFour, tuning).at;
+      auto const sweeping = figureGoal (crew, s, 12., fourFour, tuning);
+      auto const standOff = sweeping.at;
+      auto const veer = figureGoal (crew, s, strikeFrom - 1e-6, fourFour, tuning).at;
+      auto const strike = figureGoal (crew, s, 16., fourFour, tuning).at;
+      EXPECT_NEAR (standOff.getDistanceFrom (glideEnd), 0.f, 1e-4f) << s;
+      EXPECT_GT (sweeping.velocity.getDistanceFromOrigin (), 0.f) << s;
+      auto const midVeer = figureGoal (crew, s, (12. + strikeFrom) / 2., fourFour, tuning).at;
+      EXPECT_NEAR (degreesBetween (midVeer, standOff), degreesBetween (midVeer, veer), 0.01f)
+          << s;
+      EXPECT_GE (midVeer.getDistanceFromOrigin (),
+                 std::min (standOff.getDistanceFromOrigin (), veer.getDistanceFromOrigin ())
+                     - 1e-5f)
+          << s;
+      auto const midStrike = figureGoal (crew, s, (strikeFrom + 16.) / 2., fourFour, tuning).at;
+      EXPECT_NEAR (midStrike.getDistanceFrom ((veer + strike) * 0.5f), 0.f, 1e-5f) << s;
+    }
+  auto const lone = planned (PilotGame::FakeOut, only (0), oneGroupAt (target));
+  auto const jumped = figureGoal (lone, 0, 12., fourFour, tuning);
+  EXPECT_GT (jumped.at.getDistanceFrom (figureGoal (lone, 0, 11.999, fourFour, tuning).at), 0.3f);
+  EXPECT_EQ (jumped.velocity, Vec2{});
+}
+
 TEST (GameFigures, ACrewsStrikePointsStayApartAtAGroupNearTheMiddle)
 {
   // Lanes are angles, and near the middle an angle is a short way: there
@@ -301,6 +389,53 @@ TEST (GameFigures, ACrewsStrikePointsStayApartAtAGroupNearTheMiddle)
       }
 }
 
+TEST (GameFigures, ACrewKeepsItsOrderThroughEveryPhaseAndItsLanesApart)
+{
+  // The crew flies one figure a lane apart round the middle, in step: the
+  // ships stand in the same order round the middle at the stand-off, the
+  // veer and the strike, and no two goals come nearer than the lanes'
+  // clearance in any phase -- whichever side each ship comes in on, and
+  // however near the middle the group stands.
+  for (auto const radius : { 0.58f, 0.3f, 0.2f })
+    for (auto degrees = 0; degrees < 360; degrees += 45)
+      {
+        auto const angle = static_cast<float> (degrees) * pi<float> () / 180.f;
+        auto const plan = planned (PilotGame::FakeOut, everyone,
+                                   oneGroupAt ({ radius * std::cos (angle),
+                                                 radius * std::sin (angle) }));
+        std::array<int, flightShips> orderBefore{};
+        auto first = true;
+        for (auto const beats : { 11.99, 12., 15.99, 16. })
+          {
+            std::array<Vec2, flightShips> goal{};
+            for (auto s = 0; s < flightShips; ++s)
+              goal[static_cast<size_t> (s)] = figureGoal (plan, s, beats, fourFour, tuning).at;
+            auto centre = Vec2{};
+            for (auto const &g : goal)
+              centre += g;
+            std::array<int, flightShips> order{ 0, 1, 2, 3 };
+            std::sort (order.begin (), order.end (), [&] (int a, int b) {
+              auto const key = [&] (int s) {
+                return std::remainder (degreesOf (goal[static_cast<size_t> (s)])
+                                           - degreesOf (centre),
+                                       360.f);
+              };
+              return key (a) < key (b);
+            });
+            if (!first)
+              EXPECT_EQ (order, orderBefore)
+                  << "group at " << degrees << " deg, radius " << radius << ", beat " << beats;
+            orderBefore = order;
+            first = false;
+            for (size_t a = 0; a < flightShips; ++a)
+              for (size_t b = a + 1; b < flightShips; ++b)
+                EXPECT_GE (goal[a].getDistanceFrom (goal[b]), plan.laneClearance - 1e-4f)
+                    << "group at " << degrees << " deg, radius " << radius << ", beat "
+                    << beats << ", ships " << a << " and " << b;
+          }
+      }
+}
+
 TEST (GameFigures, ALoneShipStillStrikesItsTargetAtTheMiddle)
 {
   auto const plan = planned (PilotGame::FakeOut, only (0), oneGroupAt ({ 0.05f, 0.f }));
@@ -314,7 +449,7 @@ TEST (GameFigures, TheFormationStandsInALineAcrossItsAxis)
   std::array<float, flightShips> across{};
   for (auto s = 0; s < flightShips; ++s)
     {
-      auto const slot = figureGoal (plan, s, 8., fourFour, tuning).at;
+      auto const slot = figureGoal (plan, s, 15.5, fourFour, tuning).at;
       EXPECT_NEAR (slot.y, tuning.formationDistance, 1e-5f) << s;
       across[static_cast<size_t> (s)] = slot.x;
     }
@@ -328,8 +463,31 @@ TEST (GameFigures, WithNoGroupTheFormationFacesItsLeadersSide)
   auto const plan = planned (PilotGame::Formation, everyone, FlightBodies{});
   EXPECT_NEAR (plan.axis, 0.f, 1e-5f) << "the leader stands at 0 deg";
   for (auto s = 0; s < flightShips; ++s)
-    EXPECT_NEAR (figureGoal (plan, s, 8., fourFour, tuning).at.x, tuning.formationDistance, 1e-5f)
+    EXPECT_NEAR (figureGoal (plan, s, 15.5, fourFour, tuning).at.x, tuning.formationDistance,
+                 1e-5f)
         << s;
+}
+
+TEST (GameFigures, TheLineIsGlidedToAndStandsABeatBeforeTheOne)
+{
+  // A place rushed at from across the room is overshot, and two neighbours
+  // 0.2 apart swing through each other for bars: the place is glided to,
+  // at an even pace, and stands lineUpSettleBeats before the 1 (beat 16).
+  auto const plan = planned (PilotGame::Formation, everyone, oneGroupAt ({ 0.f, 0.8f }));
+  auto const standFrom = 16. - tuning.lineUpSettleBeats;
+  for (auto s = 0; s < flightShips; ++s)
+    {
+      auto const from = plan.from[static_cast<size_t> (s)];
+      auto const place = figureGoal (plan, s, standFrom, fourFour, tuning).at;
+      auto const halfway = figureGoal (plan, s, standFrom / 2., fourFour, tuning);
+      EXPECT_EQ (figureGoal (plan, s, 0., fourFour, tuning).at, from) << s;
+      EXPECT_NEAR (halfway.at.getDistanceFrom ((from + place) * 0.5f), 0.f, 1e-5f) << s;
+      EXPECT_NEAR (halfway.velocity.getDistanceFromOrigin (),
+                   from.getDistanceFrom (place) / static_cast<float> (standFrom), 1e-5f)
+          << s;
+      EXPECT_EQ (figureGoal (plan, s, 15.9, fourFour, tuning).at, place) << s;
+      EXPECT_EQ (figureGoal (plan, s, 15.9, fourFour, tuning).velocity, Vec2{}) << s;
+    }
 }
 
 TEST (GameFigures, NoShipCrossesAnotherToTakeItsPlace)
@@ -363,21 +521,61 @@ TEST (GameFigures, EveryShipBurstsAHeardBendFromItsPlaceOnTheOne)
     }
 }
 
-TEST (GameFigures, TheBurstTableIsMirroredAndNeverReadPastItsEdge)
+TEST (GameFigures, NoShipsBurstCutsThroughAnothersPlace)
+{
+  // The ways out of the line never cross, and none passes nearer than the
+  // ships' core to where another ship stands when the burst begins: a ship
+  // bursts along its own side of the line, outward from behind it.
+  for (auto n = 2; n <= flightShips; ++n)
+    for (auto degrees = 0; degrees < 360; degrees += 30)
+      {
+        std::array<bool, flightShips> crew{};
+        for (auto s = 0; s < n; ++s)
+          crew[static_cast<size_t> (s)] = true;
+        auto const angle = static_cast<float> (degrees) * pi<float> () / 180.f;
+        auto const plan = planned (PilotGame::Formation, crew,
+                                   oneGroupAt ({ 0.6f * std::cos (angle),
+                                                 0.6f * std::sin (angle) }));
+        std::array<Vec2, flightShips> place{};
+        std::array<Vec2, flightShips> burst{};
+        for (auto s = 0; s < n; ++s)
+          {
+            place[static_cast<size_t> (s)]
+                = figureGoal (plan, s, plan.climaxBeats - 0.1, fourFour, tuning).at;
+            burst[static_cast<size_t> (s)]
+                = figureGoal (plan, s, plan.climaxBeats, fourFour, tuning).at;
+          }
+        for (size_t a = 0; a < static_cast<size_t> (n); ++a)
+          for (size_t b = 0; b < static_cast<size_t> (n); ++b)
+            {
+              if (a == b)
+                continue;
+              EXPECT_FALSE (segmentsCross (place[a], burst[a], place[b], burst[b]))
+                  << n << " ships at " << degrees << " deg, ships " << a << " and " << b;
+              EXPECT_GE (distanceToSegment (place[b], place[a], burst[a]),
+                         flight.separationSoftening)
+                  << n << " ships at " << degrees << " deg, ship " << a << "'s way past "
+                  << b;
+            }
+      }
+}
+
+TEST (GameFigures, TheBurstIsMirroredAndNeverReadPastTheLinesEnds)
 {
   // Mirrored in the axis: the two ends burst the same angle to either side
   // (180 deg and -180 deg being the same way).
   for (auto n = 1; n <= flightShips; ++n)
     for (auto place = 0; place < n; ++place)
-      EXPECT_NEAR (std::remainder (burstAngle (n, place) + burstAngle (n, n - 1 - place),
+      EXPECT_NEAR (std::remainder (burstAngle (n, place, tuning)
+                                       + burstAngle (n, n - 1 - place, tuning),
                                    2.f * pi<float> ()),
                    0.f, 1e-6f)
           << n << " ships, place " << place;
-  EXPECT_FLOAT_EQ (burstAngle (0, 0), burstAngle (1, 0));
-  EXPECT_FLOAT_EQ (burstAngle (flightShips + 3, 0), burstAngle (flightShips, 0));
-  EXPECT_FLOAT_EQ (burstAngle (flightShips, flightShips + 5),
-                   burstAngle (flightShips, flightShips - 1));
-  EXPECT_FLOAT_EQ (burstAngle (2, -1), burstAngle (2, 0));
+  EXPECT_FLOAT_EQ (burstAngle (0, 0, tuning), burstAngle (1, 0, tuning));
+  EXPECT_FLOAT_EQ (burstAngle (flightShips + 3, 0, tuning), burstAngle (flightShips, 0, tuning));
+  EXPECT_FLOAT_EQ (burstAngle (flightShips, flightShips + 5, tuning),
+                   burstAngle (flightShips, flightShips - 1, tuning));
+  EXPECT_FLOAT_EQ (burstAngle (2, -1, tuning), burstAngle (2, 0, tuning));
 }
 
 TEST (GameFigures, TheHiderSlipsAwayToOneSideAndRunsAcrossBeforeTheOne)
@@ -529,6 +727,17 @@ TEST (GameFigures, TheNearestGroupIsTheTargetAndADeadZoneIsNobody)
   EXPECT_EQ (*bodyPlace (bodies, 2), (Vec2{ -0.6f, 0.f }));
   EXPECT_FALSE (bodyPlace (bodies, 7).has_value ());
   EXPECT_FALSE (bodyPlace (bodies, noBodyId).has_value ());
+}
+
+TEST (GameFigures, OnlyTheFakeOutAndTheFormationArePlayedAgainstAGroup)
+{
+  // Hide & seek and call & response ignore the target: they name no group,
+  // so the flight spares them none.
+  auto const bodies = oneGroupAt ({ -0.5f, 0.3f }, 7);
+  EXPECT_EQ (planned (PilotGame::FakeOut, only (0), bodies).targetBodyId, 7);
+  EXPECT_EQ (planned (PilotGame::Formation, everyone, bodies).targetBodyId, 7);
+  EXPECT_EQ (planned (PilotGame::HideAndSeek, only (0), bodies).targetBodyId, noBodyId);
+  EXPECT_EQ (planned (PilotGame::CallAndResponse, everyone, bodies).targetBodyId, noBodyId);
 }
 
 TEST (GameFigures, TwoGroupsAsNearAsEachOtherGoToTheFirstListed)

@@ -1074,3 +1074,38 @@ TEST (FlightSteer, ASteeringShipIsStillPulledByTheGroups)
   run (pulled, orders, bodies, ticksIn (2.));
   EXPECT_NE (alone.ship (0).p, pulled.ship (0).p);
 }
+
+TEST (FlightSteer, ASteeringShipIsSparedThePullOfTheBodyItPlaysAgainst)
+{
+  // A game's figure already stands for its target's pull, as an escort's
+  // circle does: named in the orders, that body no longer tugs at the ship,
+  // while every other body still does. Ship 0 flies alone, so no other
+  // ship's push tells the worlds apart.
+  constexpr int targetId = 3;
+  constexpr int otherId = 4;
+  FlightBodies target;
+  target.body[0] = { { -0.3f, 0.2f }, FlightTuning{}.groupMass, targetId };
+  target.count = 1;
+  auto both = target;
+  both.body[1] = { { 0.4f, -0.4f }, FlightTuning{}.groupMass, otherId };
+  both.count = 2;
+  FlightBodies other;
+  other.body[0] = both.body[1];
+  other.count = 1;
+
+  std::array<ShipOrders, 4> pulled{};
+  pulled[0] = { true, FlightGoal::Steer, noBodyId };
+  pulled[0].steer = { { -0.7f, 0.f }, {} };
+  auto spared = pulled;
+  spared[0].bodyId = targetId;
+  auto const flownAlone = [] (std::array<ShipOrders, 4> const &orders, FlightBodies const &bodies) {
+    FlightWorld world (aSeed);
+    world.launch (0, rabbitAt (0., 0, fourFour, FlightTuning{}).at, 0., fourFour);
+    run (world, orders, bodies, ticksIn (2.));
+    return world.ship (0).p;
+  };
+
+  EXPECT_EQ (flownAlone (spared, target), flownAlone (pulled, {}));
+  EXPECT_NE (flownAlone (pulled, target), flownAlone (pulled, {}));
+  EXPECT_EQ (flownAlone (spared, both), flownAlone (pulled, other));
+}

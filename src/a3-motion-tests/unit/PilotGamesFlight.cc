@@ -95,8 +95,9 @@ heading (MusicSection now, std::optional<MusicSection> next, long long changeBar
  *  the engine steps them: the games first, then the world with their goals. */
 struct Floor
 {
-  explicit Floor (FlightBodies floorBodies = oneGroup (), juce::int64 seed = 3)
-      : bodies (floorBodies), games (seed)
+  explicit Floor (FlightBodies floorBodies = oneGroup (), juce::int64 seed = 3,
+                  GameTuning const &gameTuning = {})
+      : bodies (floorBodies), games (seed, FlightTuning{}, gameTuning)
   {
     FlightTuning const flight;
     for (auto ch = 0; ch < flightShips; ++ch)
@@ -140,6 +141,7 @@ struct Floor
               {
                 order.goal = FlightGoal::Steer;
                 order.steer = *goal;
+                order.bodyId = games.gameOf (ch)->target;
               }
           }
         world.step (orders, bodies, beats, fourFour,
@@ -518,15 +520,72 @@ TEST (PilotGamesFlight, ACrewsFakeOutKeepsItsShipsApart)
   EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
 }
 
+TEST (PilotGamesFlight, ACrewsFakeOutAtAGroupNearTheMiddleKeepsItsShipsApart)
+{
+  auto nearestOfAll = 2.f;
+  for (auto const radius : { 0.2f, 0.3f })
+    for (auto degrees = 0; degrees < 360; degrees += 45)
+      {
+        Floor floor (oneGroupAt (onCircle (static_cast<float> (degrees), radius)));
+        auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4);
+        ASSERT_TRUE (floor.ask (PilotGame::FakeOut, 0, PilotRecruit::All, cue));
+        auto const nearest = nearestPairUntil (floor, 20., cue);
+        nearestOfAll = std::min (nearestOfAll, nearest.distance);
+        EXPECT_GE (nearest.distance, apart) << "group at " << degrees << " deg, radius "
+                                            << radius << ", beat " << nearest.beat;
+      }
+  RecordProperty ("nearestDistance", juce::String (nearestOfAll, 3).toStdString ());
+}
+
 TEST (PilotGamesFlight, AFormationKeepsItsShipsApart)
 {
-  Floor floor;
-  auto const cue = heading (MusicSection::Build, MusicSection::Drop, 3); // the 1 on beat 12
-  ASSERT_TRUE (floor.ask (PilotGame::Formation, 0, PilotRecruit::All, cue));
-  auto const nearest = nearestPairUntil (floor, 16., cue);
-  RecordProperty ("nearestDistance", juce::String (nearest.distance, 3).toStdString ());
-  RecordProperty ("nearestBeat", juce::String (nearest.beat, 2).toStdString ());
-  EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
+  // A group near the rim, which the line faces, and one on the other side
+  // of the room, across the ships' paths to their places.
+  auto nearestOfAll = 2.f;
+  for (auto const group : { Vec2{ -0.5f, 0.3f }, Vec2{ 0.3f, -0.6f } })
+    {
+      Floor floor (oneGroupAt (group));
+      auto const cue = heading (MusicSection::Build, MusicSection::Drop, 3); // the 1 on beat 12
+      ASSERT_TRUE (floor.ask (PilotGame::Formation, 0, PilotRecruit::All, cue));
+      auto const nearest = nearestPairUntil (floor, 16., cue);
+      nearestOfAll = std::min (nearestOfAll, nearest.distance);
+      EXPECT_GE (nearest.distance, apart)
+          << "group at " << group.x << ", " << group.y << ", beat " << nearest.beat;
+      RecordProperty ("nearest " + juce::String (group.x).toStdString () + ","
+                          + juce::String (group.y).toStdString (),
+                      juce::String (nearest.distance, 3).toStdString ());
+    }
+  RecordProperty ("nearestDistance", juce::String (nearestOfAll, 3).toStdString ());
+}
+
+TEST (PilotGamesFlight, AFormationAnywhereRoundTheRoomKeepsItsShipsApartAndBurstsAHeardBend)
+{
+  // The line faces a group anywhere round the room: the four ships stay the
+  // core apart through the line-up, the burst and the bar after it, and
+  // every ship's burst point lies at least 45 deg from its place.
+  auto nearestOfAll = 2.f;
+  auto narrowestBurst = 180.f;
+  for (auto const radius : { 0.4f, 0.6f, 0.8f })
+    for (auto degrees = 0; degrees < 360; degrees += 30)
+      {
+        Floor floor (oneGroupAt (onCircle (static_cast<float> (degrees), radius)));
+        auto const cue = heading (MusicSection::Build, MusicSection::Drop, 3); // the 1 on beat 12
+        ASSERT_TRUE (floor.ask (PilotGame::Formation, 0, PilotRecruit::All, cue));
+        for (auto ch = 0; ch < flightShips; ++ch)
+          {
+            auto const place = floor.games.steerOf (ch, 11.9, fourFour)->at;
+            auto const burst = floor.games.steerOf (ch, 12., fourFour)->at;
+            narrowestBurst = std::min (narrowestBurst, degreesBetween (place, burst));
+            EXPECT_GE (degreesBetween (place, burst), 45.f)
+                << "group at " << degrees << " deg, radius " << radius << ", ship " << ch;
+          }
+        auto const nearest = nearestPairUntil (floor, 16., cue);
+        nearestOfAll = std::min (nearestOfAll, nearest.distance);
+        EXPECT_GE (nearest.distance, apart) << "group at " << degrees << " deg, radius "
+                                            << radius << ", beat " << nearest.beat;
+      }
+  RecordProperty ("nearestDistance", juce::String (nearestOfAll, 3).toStdString ());
+  RecordProperty ("narrowestBurstDegrees", juce::String (narrowestBurst, 1).toStdString ());
 }
 
 TEST (PilotGamesFlight, ACallAndItsAnswerKeepTheirShipsApart)

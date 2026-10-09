@@ -64,11 +64,17 @@ struct GameTuning
   // than the ships' separation core (0.08) [sweep].
   float crewLaneDegrees = 22.f;
   // Near the middle an angle is a short way: the lanes widen until
-  // neighbours stand the ships' separation core plus this apart [guess],
-  float crewLaneMargin = 0.02f;
-  // and a crew's strike points stay at least this far out, so a group at
-  // the very middle still leaves room for a lane each [guess].
-  float crewLaneMinRadius = 0.2f;
+  // neighbours stand the ships' separation core plus this apart anywhere
+  // along the figure. The margin covers the circling of a ship held at a
+  // point, which the flight's least speed makes about 0.05 wide [sweep],
+  float crewLaneMargin = 0.1f;
+  // and a crew's figure runs at least this far out, so a group at the very
+  // middle still leaves room for a lane each [sweep].
+  float crewLaneMinRadius = 0.3f;
+  // A crew glides to its stand-offs at this pace at least, floor units per
+  // beat, waiting first if the approach is long: above the ships' least
+  // speed (0.08), so the goal is followed, not circled [sweep].
+  float crewApproachPace = 0.12f;
 
   // Formation & scatter.
   // The line's distance from the middle. At 0.5 a line facing a group near
@@ -76,7 +82,12 @@ struct GameTuning
   // while they line up [sweep].
   float formationDistance = 0.4f;
   float formationSpacing = 0.2f;  // between two places in it [guess]
+  float lineUpSettleBeats = 1.f;  // the line stands this long before the 1 [guess]
   float burstRadius = 0.85f;      // where the burst ends, inside the soft wall at 0.9 [guess]
+  // The burst fans out from a point this far behind the line's centre, each
+  // ship along the ray through its own place: the ways out never cross, the
+  // ends of the line go round the sides and the middle goes back [sweep].
+  float burstFocusBehind = 0.2f;
 
   // Hide & seek.
   float hideRadius = 0.85f;

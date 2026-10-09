@@ -170,8 +170,11 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
       auto const steering = order.goal == FlightGoal::Steer;
       patrolling[index (ch)] = escorted < 0 && !steering;
       auto const &ship = _ships[index (ch)];
+      // A game's figure stands for its target's pull as the escort's circle
+      // stands for the escorted body's: neither tugs at the ship.
+      auto const spared = steering ? indexOfBody (bodies, order.bodyId) : escorted;
       FlightBodies const pulling
-          = escorted < 0 ? bodies : withoutBody (bodies, escorted);
+          = spared < 0 ? bodies : withoutBody (bodies, spared);
       forces[index (ch)]
           = { steering ? order.steer
                        : goalFor (ch, bodies, escorted, beats, beatsPerBar),

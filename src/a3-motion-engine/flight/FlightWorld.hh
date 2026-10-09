@@ -47,7 +47,9 @@ enum class FlightGoal
 };
 
 /** One channel's orders, as the engine reads them each tick. `bodyId` is
- *  the escorted body's FlightBody::id, never its index. */
+ *  the escorted body's FlightBody::id, never its index; for Steer it is the
+ *  body the game is played against, spared its pull like an escorted one
+ *  (noBodyId: none). */
 struct ShipOrders
 {
   bool flying = false;

@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace a3
 {
@@ -84,6 +85,29 @@ glide (Vec2 a, Vec2 b, double beats, double from, double to)
   return { a + (b - a) * u, (b - a) / static_cast<float> (to - from) };
 }
 
+/** A goal sweeping round the middle from `a` to `b` between beats `from`
+ *  and `to`, radius and angle each at an even pace, going round the way
+ *  `turning` says (+1 counter-clockwise, -1 clockwise) even when the other
+ *  way is shorter, with its velocity. */
+OrbitPoint
+sweep (Vec2 a, Vec2 b, float turning, double beats, double from, double to)
+{
+  if (to <= from || beats >= to)
+    return standAt (b);
+  auto const u = static_cast<float> (std::clamp ((beats - from) / (to - from), 0., 1.));
+  auto const span = static_cast<float> (to - from);
+  auto const radiusA = a.getDistanceFromOrigin ();
+  auto const radiusB = b.getDistanceFromOrigin ();
+  auto turn = std::remainder (angleOf (b) - angleOf (a), 2.f * pi<float> ());
+  if (turning * turn < 0.f)
+    turn += turning * 2.f * pi<float> ();
+  auto const angle = angleOf (a) + turn * u;
+  auto const radius = radiusA + (radiusB - radiusA) * u;
+  Vec2 const out{ std::cos (angle), std::sin (angle) };
+  Vec2 const along{ -out.y, out.x };
+  return { out * radius, (out * (radiusB - radiusA) + along * (radius * turn)) / span };
+}
+
 /** Call & response: how many calls `part` has made before phrase `phrase`. */
 int
 callsBefore (int part, int phrase)
@@ -112,14 +136,6 @@ sideOf (Vec2 from, Vec2 target)
   return cross > 1e-6f ? 1.f : (cross < -1e-6f ? -1.f : 0.f);
 }
 
-Vec2
-rotated (Vec2 p, float angle)
-{
-  auto const c = std::cos (angle);
-  auto const s = std::sin (angle);
-  return { c * p.x - s * p.y, s * p.x + c * p.y };
-}
-
 /** Where a ship's approach ends before its lane is applied: short of the
  *  target, on the side it comes in from. */
 Vec2
@@ -129,34 +145,107 @@ approachEnd (GamePlan const &plan, int ship, GameTuning const &tuning)
          + unitOr (plan.from[at (ship)] - plan.target, { 1.f, 0.f }) * tuning.approachStandOff;
 }
 
-/** How far out a crew's lanes turn: the target's radius, but never nearer
- *  the middle than crewLaneMinRadius. */
+/** How far from the origin the segment a-b comes. */
+float
+nearestToTheMiddle (Vec2 a, Vec2 b)
+{
+  auto const along = b - a;
+  auto const length = along.getDistanceSquaredFromOrigin ();
+  auto const u = length > 0.f ? std::clamp (-a.getDotProduct (along) / length, 0.f, 1.f) : 0.f;
+  return (a + along * u).getDistanceFromOrigin ();
+}
+
+/** How far out the veer runs: the target's radius, but never nearer the
+ *  middle than veerMinRadius. */
+float
+veerRadius (GamePlan const &plan, GameTuning const &tuning)
+{
+  return std::max (plan.target.getDistanceFromOrigin (), tuning.veerMinRadius);
+}
+
+/** The circle a crew's figure runs on: the target's radius, but never
+ *  nearer the middle than crewLaneMinRadius. */
 float
 laneRadius (GamePlan const &plan, GameTuning const &tuning)
 {
   return std::max (plan.target.getDistanceFromOrigin (), tuning.crewLaneMinRadius);
 }
 
+/** The point a ship veers to, `lane` radians round the middle from the
+ *  figure's own: the target's direction turned the ship's way round. */
+Vec2
+veerPoint (GamePlan const &plan, int ship, float lane, GameTuning const &tuning)
+{
+  return polar (angleOf (plan.target) + lane + plan.turn[at (ship)] * radians (tuning.veerDegrees),
+                veerRadius (plan, tuning));
+}
+
+/** A crew's stand-off, `lane` round from the figure's own: on the lane
+ *  circle, approachStandOff round from the target on the side the crew
+ *  comes in on, which is the side it veers away from. */
+Vec2
+crewStandOff (GamePlan const &plan, int ship, float lane, GameTuning const &tuning)
+{
+  auto const radius = laneRadius (plan, tuning);
+  auto const chord = std::min (1.f, tuning.approachStandOff / (2.f * radius));
+  auto const round = 2.f * std::asin (chord);
+  return polar (angleOf (plan.target) - plan.turn[at (ship)] * round + lane, radius);
+}
+
+/** Where a crew ship strikes, `lane` round from the target: its lane's
+ *  point beside it on the lane circle. */
+Vec2
+crewStrike (GamePlan const &plan, float lane, GameTuning const &tuning)
+{
+  return polar (angleOf (plan.target) + lane, laneRadius (plan, tuning));
+}
+
 /** Radians between neighbouring lanes: crewLaneDegrees, or wider where the
- *  lanes are near the middle, so neighbours stand laneClearance apart. */
+ *  figure runs near the middle. Every lane flies the same figure turned
+ *  round the middle, in step, so two neighbours stand 2 r sin (step / 2)
+ *  apart where the figure passes radius r: the step is widened until that
+ *  is laneClearance at the nearest the figure comes to the middle. */
 float
 laneStep (GamePlan const &plan, GameTuning const &tuning)
 {
-  auto const radius = laneRadius (plan, tuning);
-  auto const chord = std::min (1.f, plan.laneClearance / (2.f * radius));
+  auto const leader = plan.leader;
+  auto const standOff = crewStandOff (plan, leader, 0.f, tuning);
+  auto const veer = veerPoint (plan, leader, 0.f, tuning);
+  auto const strike = crewStrike (plan, 0.f, tuning);
+  // The veer sweeps round the middle, never nearer than the lane circle or
+  // the veer's; the strike dives along a chord.
+  auto const nearest = std::max (1e-3f, std::min ({ standOff.getDistanceFromOrigin (),
+                                                    veer.getDistanceFromOrigin (),
+                                                    nearestToTheMiddle (veer, strike) }));
+  auto const chord = std::min (1.f, plan.laneClearance / (2.f * nearest));
   return std::max (radians (tuning.crewLaneDegrees), 2.f * std::asin (chord));
 }
 
-/** A fake-out ship's lane, in radians round the middle: 0 for a lone ship,
- *  the crew spread a lane apart about the target. */
+/** Lane `lane` of the crew, in radians round the middle: 0 for a lone ship,
+ *  the crew spread a lane apart about the figure. */
 float
-laneAngle (GamePlan const &plan, int ship, GameTuning const &tuning)
+laneAngleOf (GamePlan const &plan, int lane, GameTuning const &tuning)
 {
   if (plan.crewSize <= 1)
     return 0.f;
-  auto const offset = static_cast<float> (plan.part[at (ship)])
-                      - 0.5f * static_cast<float> (plan.crewSize - 1);
+  auto const offset = static_cast<float> (lane) - 0.5f * static_cast<float> (plan.crewSize - 1);
   return offset * laneStep (plan, tuning);
+}
+
+float
+laneAngle (GamePlan const &plan, int ship, GameTuning const &tuning)
+{
+  return laneAngleOf (plan, plan.part[at (ship)], tuning);
+}
+
+/** Where the approach ends: a lone ship short of the target on the side it
+ *  comes in from, a crew ship at its lane's stand-off. */
+Vec2
+approachGoal (GamePlan const &plan, int ship, GameTuning const &tuning)
+{
+  if (plan.crewSize <= 1)
+    return approachEnd (plan, ship, tuning);
+  return crewStandOff (plan, ship, laneAngle (plan, ship, tuning), tuning);
 }
 
 /** Where a fake-out ship strikes: a lone ship the target itself, a crew
@@ -166,8 +255,7 @@ strikePoint (GamePlan const &plan, int ship, GameTuning const &tuning)
 {
   if (plan.crewSize <= 1)
     return plan.target;
-  return polar (angleOf (plan.target) + laneAngle (plan, ship, tuning),
-                laneRadius (plan, tuning));
+  return crewStrike (plan, laneAngle (plan, ship, tuning), tuning);
 }
 
 void
@@ -184,24 +272,45 @@ planFakeOut (GamePlan &plan, juce::Random &dice, FlightTuning const &flight,
   auto const side = sideOf (plan.from[at (plan.leader)], plan.target);
   auto const way = side != 0.f ? -side : thrown;
 
-  // A crew veers together, as one pack, each ship in its own lane, in the
-  // order its approach already ends round the target, so nobody crosses
-  // another's lane. Two halves veering apart met head-on in the strike.
-  std::array<int, flightShips> order{};
+  // A crew veers together, as one pack, each ship in its own lane: the
+  // same figure turned a lane further round the middle, flown in step, so
+  // the crew keeps its order through every phase and no two ships cross.
+  // The lanes are dealt so that the crew's glides to its stand-offs are the
+  // shortest in all: two glides that crossed could be swapped for two
+  // shorter ones, so the shortest never cross. Two halves veering apart met
+  // head-on in the strike.
+  std::array<int, flightShips> crew{};
   auto count = 0;
   for (auto s = 0; s < flightShips; ++s)
     if (plan.crew[at (s)])
-      order[at (count++)] = s;
-  auto const toward = angleOf (plan.target);
-  sortStable (order, count, [&] (int ship) {
-    return std::remainder (angleOf (approachEnd (plan, ship, tuning)) - toward,
-                           2.f * pi<float> ());
-  });
+      {
+        crew[at (count++)] = s;
+        plan.turn[at (s)] = way;
+      }
+  std::array<int, flightShips> lanes{};
   for (auto lane = 0; lane < count; ++lane)
+    lanes[at (lane)] = lane;
+  auto dealt = lanes;
+  auto shortest = std::numeric_limits<float>::infinity ();
+  do
     {
-      plan.part[at (order[at (lane)])] = lane;
-      plan.turn[at (order[at (lane)])] = way;
+      auto length = 0.f;
+      for (auto i = 0; i < count; ++i)
+        {
+          auto const ship = crew[at (i)];
+          auto const standOff
+              = crewStandOff (plan, ship, laneAngleOf (plan, lanes[at (i)], tuning), tuning);
+          length += plan.from[at (ship)].getDistanceFrom (standOff);
+        }
+      if (length < shortest)
+        {
+          shortest = length;
+          dealt = lanes;
+        }
     }
+  while (std::next_permutation (lanes.begin (), lanes.begin () + count));
+  for (auto i = 0; i < count; ++i)
+    plan.part[at (crew[at (i)])] = dealt[at (i)];
 }
 
 void
@@ -254,17 +363,33 @@ fakeOutGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
   auto const lane = laneAngle (plan, ship, tuning);
 
   if (beats < veerFrom)
-    return glide (plan.from[at (ship)], rotated (approachEnd (plan, ship, tuning), lane), beats,
-                  plan.startBeats, veerFrom);
+    {
+      auto const from = plan.from[at (ship)];
+      auto const standOff = approachGoal (plan, ship, tuning);
+      if (plan.crewSize <= 1)
+        return glide (from, standOff, beats, plan.startBeats, veerFrom);
+      // A crew's glide keeps a pace a ship can fly: a goal creeping below
+      // the ships' least speed is circled, not followed, and the crew would
+      // reach its stand-offs out of step. So the glide waits, then goes.
+      auto const beatsAtPace = from.getDistanceFrom (standOff) / tuning.crewApproachPace;
+      return glide (from, standOff, beats, std::max (plan.startBeats, veerFrom - beatsAtPace),
+                    veerFrom);
+    }
+  // A lone ship's goal jumps, and the ship flies hard for it. A crew's goals
+  // sweep, so the pack flies in step and its lanes stay a lane apart: the
+  // veer round the middle over the veer bar, the strike a dive from the
+  // veer point.
   if (beats < strikeFrom)
     {
-      auto const radius
-          = std::max (plan.target.getDistanceFromOrigin (), tuning.veerMinRadius);
-      return standAt (polar (angleOf (plan.target) + lane
-                                 + plan.turn[at (ship)] * radians (tuning.veerDegrees),
-                             radius));
+      if (plan.crewSize <= 1)
+        return standAt (veerPoint (plan, ship, lane, tuning));
+      return sweep (approachGoal (plan, ship, tuning), veerPoint (plan, ship, lane, tuning),
+                    plan.turn[at (ship)], beats, veerFrom, strikeFrom);
     }
-  return standAt (strikePoint (plan, ship, tuning));
+  if (plan.crewSize <= 1)
+    return standAt (strikePoint (plan, ship, tuning));
+  return glide (veerPoint (plan, ship, lane, tuning), strikePoint (plan, ship, tuning), beats,
+                strikeFrom, plan.climaxBeats);
 }
 
 OrbitPoint
@@ -272,13 +397,18 @@ formationGoal (GamePlan const &plan, int ship, double beats, GameTuning const &t
 {
   auto const place = plan.part[at (ship)];
   if (beats >= plan.climaxBeats)
-    return standAt (polar (plan.axis + burstAngle (plan.crewSize, place), tuning.burstRadius));
+    return standAt (
+        polar (plan.axis + burstAngle (plan.crewSize, place, tuning), tuning.burstRadius));
 
   Vec2 const along{ -std::sin (plan.axis), std::cos (plan.axis) };
   auto const offset = (static_cast<float> (place)
                        - 0.5f * static_cast<float> (plan.crewSize - 1))
                       * tuning.formationSpacing;
-  return standAt (polar (plan.axis, tuning.formationDistance) + along * offset);
+  auto const placeAt = polar (plan.axis, tuning.formationDistance) + along * offset;
+  // Glided to, not rushed: a ship sent straight at a place 0.2 from its
+  // neighbour's overshoots it and the two swing through each other for bars.
+  auto const standFrom = std::max (plan.startBeats, plan.climaxBeats - tuning.lineUpSettleBeats);
+  return glide (plan.from[at (ship)], placeAt, beats, plan.startBeats, standFrom);
 }
 
 OrbitPoint
@@ -369,20 +499,28 @@ bodyPlace (FlightBodies const &bodies, int id)
 }
 
 float
-burstAngle (int crewSize, int place)
+burstAngle (int crewSize, int place, GameTuning const &tuning)
 {
-  // From one end of the line to the other. Checked against the line's places
-  // at formationDistance 0.5 and spacing 0.2: no ship ends nearer than 45 deg
-  // to where it stood (GameFigures test EveryShipBurstsAHeardBendFromItsPlaceOnTheOne).
-  static constexpr std::array<std::array<float, flightShips>, flightShips> degrees{ {
-      { 180.f, 0.f, 0.f, 0.f },
-      { -90.f, 90.f, 0.f, 0.f },
-      { -120.f, 180.f, 120.f, 0.f },
-      { -150.f, -60.f, 60.f, 150.f },
-  } };
+  // Each ship bursts along the ray from one focus behind the line's centre
+  // through its own place, out to the burst radius: rays from one point
+  // never cross, and the further out along the line a ship stands, the
+  // further round it goes. In the axis frame: x along the axis, y along the
+  // line.
   auto const n = std::clamp (crewSize, 1, flightShips);
   auto const i = std::clamp (place, 0, n - 1);
-  return radians (degrees[at (n - 1)][at (i)]);
+  auto const offset = (static_cast<float> (i) - 0.5f * static_cast<float> (n - 1))
+                      * tuning.formationSpacing;
+  Vec2 const focus{ tuning.formationDistance + tuning.burstFocusBehind, 0.f };
+  Vec2 const ray{ -tuning.burstFocusBehind, offset };
+  // |focus + u ray| = burstRadius, the root beyond the place (u > 1 when the
+  // place lies inside the burst circle, as it does at the tuned distances).
+  auto const a = ray.getDistanceSquaredFromOrigin ();
+  auto const b = 2.f * focus.getDotProduct (ray);
+  auto const c = focus.getDistanceSquaredFromOrigin () - tuning.burstRadius * tuning.burstRadius;
+  auto const root = std::sqrt (std::max (0.f, b * b - 4.f * a * c));
+  auto const u = a > 0.f ? (-b + root) / (2.f * a) : 0.f;
+  auto const out = focus + ray * u;
+  return std::atan2 (out.y, out.x);
 }
 
 GamePlan
@@ -402,8 +540,11 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
   for (auto s = 0; s < flightShips; ++s)
     plan.from[at (s)] = ships[at (s)].p;
 
+  // Hide & seek and call & response are played against no group: whatever
+  // the order names, they follow none and are spared none.
   auto const lead = plan.from[at (plan.leader)];
-  plan.targetBodyId = targetBody (target, lead, bodies, flight);
+  auto const playedAgainstAGroup = game == PilotGame::FakeOut || game == PilotGame::Formation;
+  plan.targetBodyId = playedAgainstAGroup ? targetBody (target, lead, bodies, flight) : noBodyId;
   if (auto const place = bodyPlace (bodies, plan.targetBodyId))
     plan.target = *place;
   else

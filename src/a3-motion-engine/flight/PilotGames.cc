@@ -301,7 +301,8 @@ PilotGames::gameOf (int ship) const
   if (!plays (ship))
     return std::nullopt;
   auto const &running = _games[at (_slotOf[at (ship)])];
-  return ShipGame{ running.plan.game, running.byPilot, running.plan.leader };
+  return ShipGame{ running.plan.game, running.byPilot, running.plan.leader,
+                   running.plan.targetBodyId };
 }
 
 }

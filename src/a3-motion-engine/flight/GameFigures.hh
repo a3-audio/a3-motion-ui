@@ -59,14 +59,15 @@ struct GamePlan
   /** Where each ship was when the game started. */
   std::array<Vec2, flightShips> from{};
   /** Formation: the ship's place in the line, from one end; fake-out: its
-   *  lane round the target, clockwise first; call & response: 0 for the
+   *  lane round the middle, clockwise first; call & response: 0 for the
    *  leader, 1 for its partner. */
   std::array<int, flightShips> part{};
   /** Fake-out: +1 or -1, the veer's way round; hide & seek: the angle, in
    *  radians, it hides at. */
   std::array<float, flightShips> turn{};
-  /** Fake-out: how far apart neighbouring lanes stand at least, floor
-   *  units: the core of the push between ships plus a margin. */
+  /** Fake-out: how far apart neighbouring lanes stand at least, anywhere
+   *  along the figure, floor units: the core of the push between ships
+   *  plus a margin. */
   float laneClearance = 0.f;
 };
 
@@ -81,9 +82,11 @@ int targetBody (PilotTarget target, Vec2 from, FlightBodies const &bodies,
 std::optional<Vec2> bodyPlace (FlightBodies const &bodies, int id);
 
 /** Where place `place` of a line of `crewSize` bursts to, in radians from
- *  the formation's axis: every ship ends at least 45 deg from its place,
- *  seen from the middle, with the line's spacing as tuned. */
-float burstAngle (int crewSize, int place);
+ *  the formation's axis: along the ray from a focus burstFocusBehind the
+ *  line's centre through the place, so no two ships' ways out cross, and
+ *  every ship ends at least 45 deg from its place, seen from the middle,
+ *  with the line as tuned. */
+float burstAngle (int crewSize, int place, GameTuning const &tuning);
 
 /** `game` set up for `crew` at `beats`: its 1 from the cue, the target, the
  *  parts. A fake-out veers away from the side its leader comes in on, the
