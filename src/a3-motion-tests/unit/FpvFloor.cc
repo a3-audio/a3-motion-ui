@@ -40,11 +40,13 @@ floorWith (std::initializer_list<FlightBody> list)
 
 // --- where a finger goes ---------------------------------------------------
 
-TEST (FpvFloor, OnlyTheFloorUnderTheSphereIsFloor)
+// Groups stand on the dance floor, which a leaned view shows partly beside
+// the ball: the sphere's outline no longer bounds the floor, the room does.
+TEST (FpvFloor, OnlyTheFloorInsideTheRoomIsFloor)
 {
-  EXPECT_TRUE (onTheFloor (0.5f, { 0.3f, 0.2f }));
-  EXPECT_FALSE (onTheFloor (1.2f, { 0.3f, 0.2f })) << "beside the sphere";
-  EXPECT_FALSE (onTheFloor (0.9f, { 1.1f, 0.f })) << "below the horizon";
+  EXPECT_TRUE (onTheFloor (Vec2{ 0.3f, 0.2f }));
+  EXPECT_FALSE (onTheFloor (Vec2{ 1.1f, 0.f })) << "beyond the room's edge";
+  EXPECT_FALSE (onTheFloor (std::nullopt)) << "a ray that never meets the floor";
 }
 
 TEST (FpvFloor, AFingerAloneOnTheFloorIsTheGroupGesture)

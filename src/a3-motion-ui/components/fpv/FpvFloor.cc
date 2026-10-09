@@ -26,9 +26,9 @@ namespace a3
 {
 
 bool
-onTheFloor (float screenRadius, Vec2 floorPoint)
+onTheFloor (std::optional<Vec2> floorPoint)
 {
-  return screenRadius <= 1.f && floorPoint.getDistanceFromOrigin () <= 1.f;
+  return floorPoint && floorPoint->getDistanceFromOrigin () <= 1.f;
 }
 
 std::optional<int>

@@ -259,6 +259,19 @@ Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The pla
 floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
 in its band.
 
+**Groups stand on the dance floor; the ships fly on the sphere.** A group's floor point maps onto
+the sphere as a ship's would, and the group is drawn straight below that point, on the plane the
+shader draws the dance floor on (`speakerFloorZ`), so a ship circling it is seen right above it.
+Straight from above it lands where its sphere point is. Its disc, label, swell, ring, the escort
+line and a game's dashed line (both now run from the ship down to the group) and the hit test all
+use that floor point; the ORBIT guide stays on the sphere, because the ships fly there
+(`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
+lifted straight back onto the upper half of the sphere and through `mapTo2D`, the exact inverse.
+A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
+the shader does not draw either) is not floor, so the camera has it; only points inside the room
+(radius 1) are floor, the sphere's outline no longer bounds it. The groups are painted in the 2D
+pass, over the GL picture, so a group under the ball is not hidden by it.
+
 **Switching never jumps.** CLIP to ORBIT starts at the channel's position with the path's tangent
 as velocity and the rabbit at the nearest phase on the ellipse. ORBIT to CLIP glides over one
 beat (`handover`). The glide is skipped while the channel is stopped or held: it cuts on Play. The
@@ -310,7 +323,7 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 | Code | Files |
 |---|---|
 | physics, pure | `src/a3-motion-engine/flight/` |
-| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`) |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`) |
 | app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
@@ -327,7 +340,7 @@ lap with a group differs from one without.
 
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
-`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`. They are deterministic:
+`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`, `GroupsOnTheDanceFloor`. They are deterministic:
 one tick per step, seeds through `spreadSeed`, no wall clock. They assert behaviours (bends
 towards, slings out, stays out), except one determinism test. Engines in tests take
 `offlineBackend ()`, so nothing is sent.

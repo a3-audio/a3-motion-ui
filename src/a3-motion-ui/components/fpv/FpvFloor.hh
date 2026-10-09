@@ -38,11 +38,11 @@ namespace a3
  *  whom a ship escorts and what the Page pad did. Pure, so the app's wiring
  *  only carries out what is tested here. */
 
-/** Whether a touch lands on the dance floor: inside the sphere as seen
- *  (`screenRadius`, the sphere's radius = 1) and inside the room on the
- *  floor (`floorPoint`, the room's edge = 1). Off it is the rim or the
- *  background, where the camera's own gestures live. */
-bool onTheFloor (float screenRadius, Vec2 floorPoint);
+/** Whether a touch lands on the dance floor: its ray meets the floor
+ *  (`floorPoint`, empty when it does not) inside the room (the room's edge
+ *  = 1). Off it is the rim or the background, where the camera's own
+ *  gestures live. */
+bool onTheFloor (std::optional<Vec2> floorPoint);
 
 enum class FpvFingerDown
 {

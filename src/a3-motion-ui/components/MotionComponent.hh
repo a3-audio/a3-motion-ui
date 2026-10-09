@@ -42,6 +42,7 @@
 #include <a3-motion-ui/components/CameraFingers.hh>
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
+#include <a3-motion-ui/components/fpv/DanceFloor.hh>
 #include <a3-motion-ui/components/fpv/FloorGesture.hh>
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-ui/components/fpv/ShipShape.hh>
@@ -246,14 +247,19 @@ private:
    *  up. GL thread. */
   void drawFlight (juce::Graphics &g, FlightDisplay const &display);
   void drawGames (juce::Graphics &g, FlightDisplay const &display, float blob);
-  /** A point on the floor, where a ship over it would be heard (default
-   *  ElevationParams), in local pixels; nothing when it does not project. */
-  std::optional<juce::Point<float> > floorToPixel (Vec2 at) const;
-  /** A floor length at `at`, in pixels: the mean of its projection along
-   *  both axes, so it shrinks where the band compresses. */
+  /** A point on the floor in local pixels, on `surface`: the sphere for
+   *  what marks a ship's path, the dance floor for the groups. Nothing when
+   *  it does not project. */
+  std::optional<juce::Point<float> > floorToPixel (Vec2 at,
+                                                   FloorSurface surface) const;
+  /** A floor length at a group's point `at`, in pixels on the dance floor:
+   *  the mean of its projection along both axes, so it shrinks where the
+   *  band compresses and the view foreshortens. */
   float floorLengthInPixels (Vec2 at, float length) const;
-  /** And back: the floor under a pixel. */
-  Vec2 floorAt (juce::Point<float> posPixel) const;
+  /** And back: the floor point whose group would stand under a pixel;
+   *  nothing where the pixel's ray never meets the dance floor. */
+  std::optional<Vec2> floorAt (juce::Point<float> posPixel) const;
+  FloorView floorView () const;
   float blobDiameterInPixels () const;
   /** The body under a finger, by the bodies as last set. Message thread. */
   std::optional<int> bodyAt (juce::Point<float> posPixel) const;
