@@ -33,9 +33,16 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+#include <a3-motion-engine/elevation/HeightMapSphere.hh>
+#include <a3-motion-engine/flight/BaseOrbit.hh>
+#include <a3-motion-ui/components/LineMapGeometry.hh>
+#include <a3-motion-ui/components/LineMapRenderer.hh>
+#include <a3-motion-ui/components/LineMapStrokes.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/FlightScene.hh>
+#include <a3-motion-ui/components/fpv/ShipPath.hh>
 
 #include <cmath>
 #include <vector>
@@ -198,10 +205,51 @@ public:
       glDeleteFramebuffers (1, &_frameBuffer);
     if (_texture != 0)
       glDeleteTextures (1, &_texture);
+    if (_lineTexture != 0)
+      glDeleteTextures (1, &_lineTexture);
   }
 
   bool glThere () const { return _gl.ready (); }
+  SphereShader &shader () { return _shader; }
+  juce::OpenGLContext &juceContext () { return _juceContext; }
   bool ready () const { return _ready; }
+
+  /** A line map lying everywhere on the picture for `channel`: the line
+   *  is near every pixel, so how brightly it is drawn is all that differs. */
+  void
+  lineEverywhere (int channel, float level)
+  {
+    if (_lineTexture == 0)
+      {
+        std::vector<unsigned char> texels (static_cast<size_t> (4 * 16 * 16), 0);
+        for (size_t i = 0; i < texels.size (); i += 4)
+          {
+            texels[i] = 200;     // nearness
+            texels[i + 1] = 128; // along the figure
+            texels[i + 2] = 255; // no depth fade
+            texels[i + 3] = 255;
+          }
+        glGenTextures (1, &_lineTexture);
+        glBindTexture (GL_TEXTURE_2D, _lineTexture);
+        glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA,
+                      GL_UNSIGNED_BYTE, texels.data ());
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      }
+    _shader.setNumBlobs (4);
+    _shader.setLineTexture (channel, _lineTexture);
+    _shader.setLineLevel (channel, level);
+  }
+
+  void
+  noLines ()
+  {
+    for (auto ch = 0; ch < SphereShader::kMaxBlobs; ++ch)
+      {
+        _shader.setLineTexture (ch, 0);
+        _shader.setLineLevel (ch, 1.f);
+      }
+  }
 
   Picture
   draw (FlightSceneUniforms const &scene, SphereCamera camera = {})
@@ -228,6 +276,7 @@ private:
   juce::OpenGLContext _juceContext;
   SphereShader _shader;
   GLuint _texture = 0;
+  GLuint _lineTexture = 0;
   GLuint _frameBuffer = 0;
   bool _ready = false;
 };
@@ -628,4 +677,144 @@ TEST (FlightSceneRender, AWholeSceneIsDrawn)
       writeSnapshot (empty, juce::String ("fpv-scene-empty-") + name + ".png");
       writeSnapshot (scene, juce::String ("fpv-scene-") + name + ".png");
     }
+}
+
+// An orbit is drawn through the same line maps as a trajectory, so that it
+// and the trajectory it replaces change over on one frame; only its level
+// makes it quieter.
+TEST (FlightSceneRender, AnOrbitsLineIsAQuieterTrajectory)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  SphereCamera const overhead;
+  renderer.noLines ();
+  auto const empty = renderer.draw ({}, overhead);
+  renderer.lineEverywhere (0, 1.f);
+  auto const trajectory = renderer.draw ({}, overhead);
+  renderer.lineEverywhere (0, lineLevelOf (ShipPathShown::Orbit));
+  auto const orbit = renderer.draw ({}, overhead);
+  renderer.lineEverywhere (0, 0.f);
+  auto const off = renderer.draw ({}, overhead);
+
+  std::array<float, 2> const at{ 0.3f, -0.2f };
+  auto const full = trajectory.changeFrom (empty, at, 0.02f);
+  auto const quiet = orbit.changeFrom (empty, at, 0.02f);
+  EXPECT_GT (full, 10.f) << "the line is drawn";
+  EXPECT_GT (quiet, 2.f) << "the orbit is drawn";
+  EXPECT_LT (quiet, full * 0.8f) << "and quieter";
+  EXPECT_EQ (off.pixelsDifferentFrom (empty), 0) << "a level of nothing is no line";
+}
+
+namespace
+{
+juce::Path
+pathThrough (std::vector<Vec2> const &points)
+{
+  juce::Path path;
+  path.startNewSubPath (points.front ().x, points.front ().y);
+  for (size_t i = 1; i < points.size (); ++i)
+    path.lineTo (points[i].x, points[i].y);
+  return path;
+}
+
+std::vector<Vec2>
+circleOn (Vec2 centre, float radius)
+{
+  return escortPathPoints (centre, radius, 64);
+}
+}
+
+// What MotionComponent does for every playing channel, through the same
+// maps: a CLIP ship's line is its clip, an ORBIT ship's is the orbit, quieter,
+// and its clip is not drawn at all.
+TEST (FlightSceneRender, AnOrbitShipsLineReplacesItsTrajectory)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+  LineMapRenderer lines{ lineMapSize };
+  LineMapRenderer strands{ strandMapSize };
+  ASSERT_TRUE (lines.initialise (renderer.juceContext ()));
+  ASSERT_TRUE (strands.initialise (renderer.juceContext ()));
+
+  HeightMapSphere heightMap;
+  SphereCamera const camera = defaultCamera ();
+  FlightTuning const tuning;
+  auto const guide = orbitGuidePoints (0.0, 4, 96, tuning);
+  // The clips each channel has loaded: a small ring in its own corner.
+  std::array<std::vector<Vec2>, 4> const clips{
+    circleOn ({ 0.45f, 0.45f }, 0.15f), circleOn ({ -0.45f, 0.45f }, 0.15f),
+    circleOn ({ -0.45f, -0.45f }, 0.15f), circleOn ({ 0.45f, -0.45f }, 0.15f)
+  };
+  std::array<bool, 4> const orbit{ true, false, true, false };
+  float const colours[][3] = { { 1.f, 0.3f, 0.6f }, { 0.3f, 0.8f, 1.f },
+                               { 1.f, 0.8f, 0.2f }, { 0.5f, 1.f, 0.4f } };
+  SheathRing const braid{ theme ().braidRadius, theme ().braidTurns,
+                          theme ().braidSpin,
+                          juce::roundToInt (theme ().braidStrands) };
+
+  auto &shader = renderer.shader ();
+  shader.setLineExtent (lineMapExtent);
+  shader.setNumBlobs (4);
+  auto const drawLines = [&] (bool fpv) {
+    for (auto ch = 0; ch < 4; ++ch)
+      {
+        SphereShader::BlobData blob;
+        blob.r = colours[ch][0];
+        blob.g = colours[ch][1];
+        blob.b = colours[ch][2];
+        shader.setBlob (ch, blob);
+
+        ShipPathFacts facts;
+        facts.fpv = fpv;
+        facts.orbit = orbit[static_cast<size_t> (ch)];
+        auto const shown = shipPathShown (facts);
+        auto const points
+            = drawsTrajectory (shown)
+                  ? clips[static_cast<size_t> (ch)]
+                  : shipPathPoints (shown, guide, {}, noBodyId, tuning);
+        auto const line = projectLine (pathThrough (points), ElevationParams{},
+                                       heightMap, PlaneShaping{}, camera,
+                                       SpaceTurn{});
+        shader.setLineTexture (ch, lines.paint (ch, lineMapStrokes (line)));
+        shader.setStrandTexture (
+            ch, strands.paint (ch, strandMapStrokes (braidCord (line, braid, 0.f))));
+        shader.setLineLevel (ch, lineLevelOf (shown));
+      }
+  };
+
+  renderer.noLines ();
+  auto const empty = renderer.draw ({}, camera);
+  drawLines (false);
+  auto const full = renderer.draw ({}, camera);
+  drawLines (true);
+  auto const fpv = renderer.draw ({}, camera);
+  writeSnapshot (full, "fpv-lines-full.png");
+  writeSnapshot (fpv, "fpv-lines-orbit-and-clip.png");
+
+  auto const onScreen = [&] (Vec2 floor) {
+    auto const room = heightMap.mapTo3D (Pos::fromCartesian (floor.x, floor.y, 0.f),
+                                         ElevationParams{});
+    return onShaderScreen (toVec3 (asSeenFrom (room, camera)));
+  };
+  auto const changeAt = [&] (Picture const &picture, Vec2 floor) {
+    return picture.changeFrom (empty, onScreen (floor), 1.5f / sphereRadius);
+  };
+
+  for (auto ch = 0; ch < 4; ++ch)
+    {
+      auto const onClip = clips[static_cast<size_t> (ch)][8];
+      EXPECT_GT (changeAt (full, onClip), 8.f) << "FULL draws every clip, " << ch;
+      if (orbit[static_cast<size_t> (ch)])
+        EXPECT_LT (changeAt (fpv, onClip), changeAt (full, onClip) * 0.3f)
+            << "an ORBIT ship's clip is gone, " << ch;
+      else
+        EXPECT_GT (changeAt (fpv, onClip), 8.f) << "a CLIP ship keeps it, " << ch;
+    }
+  EXPECT_GT (changeAt (fpv, guide[10]), 4.f) << "the orbit is drawn";
+  EXPECT_LT (changeAt (full, guide[10]), changeAt (fpv, guide[10]))
+      << "and only where a ship flies it";
+
+  lines.shutdown ();
+  strands.shutdown ();
 }

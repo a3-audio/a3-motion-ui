@@ -2109,6 +2109,9 @@ A3MotionUIComponent::refreshFlightDisplay ()
       display.game[slot] = held.game;
       display.gameAlpha[slot] = held.alpha;
     }
+  for (auto ch = 0; ch < fpvShips; ++ch)
+    display.orbit[static_cast<size_t> (ch)]
+        = _engine.getFlightMode (static_cast<index_t> (ch)) == FlightMode::Orbit;
   constexpr int guidePoints = 96;
   display.guide = orbitGuidePoints (beats, beatsPerBar, guidePoints, tuning);
   display.pulse = drawnPulse (_now, beatsPerBar, tuning);

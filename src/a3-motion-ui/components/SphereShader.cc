@@ -217,6 +217,7 @@ uniform sampler2D uStrandMap2;
 uniform sampler2D uStrandMap3;
 // Which of the four have anything in them, and how far the maps reach.
 uniform vec4  uLineOn;
+uniform vec4  uLineLevel;     // how brightly each channel's line is drawn
 uniform float uSphereLimb;   // how far the ball's light fades before its edge
 uniform float uLineExtent;
 uniform float uLineFarSide;    // dimmest a line goes at the far pole
@@ -655,6 +656,16 @@ float braidWeaveAt (float u)
     }
 
     return 0.5 + 0.5 * best;
+}
+
+/** 1 for a clip's trajectory; quieter for an FPV ship's orbit, which goes
+ *  through the same maps (ShipPath.hh). */
+float lineLevel (int i)
+{
+    if (i == 0) return uLineLevel.x;
+    if (i == 1) return uLineLevel.y;
+    if (i == 2) return uLineLevel.z;
+    return uLineLevel.w;
 }
 
 float lineOn (int i)
@@ -2555,10 +2566,11 @@ void main ()
         float strandCover;
         braidLight (uvScene, b, strandBack, strandFront, strandCover);
 
-        blobs += lineGlow (uvScene, b);
-        blobs += strandBack * (1.0 - blobBody (uvScene, b));
-        blobs += blobLight (uvScene, b) * (1.0 - 0.8 * strandCover);
-        blobs += strandFront;
+        float level = lineLevel (b);
+        blobs += lineGlow (uvScene, b) * level;
+        blobs += strandBack * level * (1.0 - blobBody (uvScene, b));
+        blobs += blobLight (uvScene, b) * (1.0 - 0.8 * strandCover * level);
+        blobs += strandFront * level;
     }
 
     // Behind a cabinet, dimmed by it. Light is not occluded by the glass it
@@ -2800,6 +2812,7 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uStrandMap[2]  = glGetUniformLocation (pid, "uStrandMap2");
   _uStrandMap[3]  = glGetUniformLocation (pid, "uStrandMap3");
   _uLineOn        = glGetUniformLocation (pid, "uLineOn");
+  _uLineLevel     = glGetUniformLocation (pid, "uLineLevel");
   _uLineExtent    = glGetUniformLocation (pid, "uLineExtent");
   _uLineFarSide   = glGetUniformLocation (pid, "uLineFarSide");
   _uLineEffects   = glGetUniformLocation (pid, "uLineEffects");
@@ -3117,6 +3130,9 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
 
     if (_uLineOn >= 0)
       glUniform4f (_uLineOn, on[0], on[1], on[2], on[3]);
+    if (_uLineLevel >= 0)
+      glUniform4f (_uLineLevel, _lineLevel[0], _lineLevel[1], _lineLevel[2],
+                   _lineLevel[3]);
     if (_uLineExtent >= 0)
       glUniform1f (_uLineExtent, _lineExtent);
   if (_uLineFarSide >= 0)
@@ -3385,6 +3401,12 @@ void SphereShader::setLineTexture (int channel, unsigned int textureID)
 {
   if (channel >= 0 && channel < kMaxBlobs)
     _lineTexture[channel] = textureID;
+}
+
+void SphereShader::setLineLevel (int channel, float level)
+{
+  if (channel >= 0 && channel < kMaxBlobs)
+    _lineLevel[channel] = level;
 }
 
 void SphereShader::setStrandTexture (int channel, unsigned int textureID)

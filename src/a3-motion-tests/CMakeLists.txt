@@ -231,6 +231,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BodyLook.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightScene.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightSceneRender.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShipPath.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GroupsOnTheDanceFloor.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameLabel.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/AppView.cc"

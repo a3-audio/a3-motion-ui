@@ -648,6 +648,7 @@ MotionComponent::resetLineMaps ()
     strokes.clear ();
   for (auto &strokes : _strandStrokes)
     strokes.clear ();
+  _lineLevels.fill (1.f);
 }
 
 void
@@ -656,6 +657,7 @@ MotionComponent::uploadLineMaps ()
   for (auto channel = 0; channel < 4; ++channel)
     {
       auto const index = static_cast<std::size_t> (channel);
+      _sphereShader.setLineLevel (channel, _lineLevels[index]);
       if (_lineStrokes[index].empty ())
         {
           _sphereShader.setLineTexture (channel, 0);
@@ -1497,6 +1499,7 @@ MotionComponent::renderOpenGL ()
       {
         _flightDisplayDrawn.guide.clear ();
         _flightDisplayDrawn.bodies.count = 0;
+        _flightDisplayDrawn.orbit.fill (false);
       }
   }
 
@@ -1748,8 +1751,17 @@ MotionComponent::renderOpenGL ()
               // downbeat it was asked to stop on, and its line vanished the
               // instant the key went down. The blob kept travelling along a
               // line that was no longer drawn.
-              if (patternIsRunning (pattern->getStatus ()))
+              if (!patternIsRunning (pattern->getStatus ()))
+                continue;
+              // In FPV a ship flying ORBIT has left its clip: its line is
+              // the orbit it flies, drawn into the same maps so the two
+              // change over on one frame.
+              auto const ch = pattern->getChannel ();
+              auto const shown = shipPathOf (ch, flightDisplay);
+              if (drawsTrajectory (shown))
                 drawPlayingTrajectory (*pattern, displayData, gFBO);
+              else
+                drawShipPath (ch, shown, flightDisplay, *pattern, gFBO);
             }
 
         }
@@ -2080,6 +2092,21 @@ MotionComponent::drawnShipPixel (index_t channel) const
   return ShipPixel{ at, hiddenByTheBall (seen) };
 }
 
+ShipPathShown
+MotionComponent::shipPathOf (index_t channel, FlightDisplay const &display) const
+{
+  ShipPathFacts facts;
+  facts.fpv = _fpv;
+  if (channel < display.orbit.size ())
+    {
+      auto const &game = display.game[channel];
+      facts.orbit = display.orbit[channel];
+      facts.inGame = game && game->game != PilotGame::None;
+      facts.escorting = display.escort[channel] != noBodyId;
+    }
+  return shipPathShown (facts);
+}
+
 float
 MotionComponent::markRadius (float mass) const
 {
@@ -2103,26 +2130,6 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
 
   auto const &tuning = _engine.getFlightTuning ();
   auto const stroke = theme ().strokeThin;
-
-  // The big path: a faint closed line. On the sphere, where the ships fly
-  // it; the groups that bend it stand on the floor below.
-  {
-    juce::Path guide;
-    for (auto const &point : display.guide)
-      if (auto const at = floorToPixel (point, FloorSurface::Sphere))
-        {
-          if (guide.isEmpty ())
-            guide.startNewSubPath (*at);
-          else
-            guide.lineTo (*at);
-        }
-    if (!guide.isEmpty ())
-      {
-        guide.closeSubPath ();
-        g.setColour (toColour (theme ().textPrimary, theme ().alphaGuide));
-        g.strokePath (guide, juce::PathStrokeType (stroke));
-      }
-  }
 
   auto const bodyWithId = [&display] (int id) -> FlightBody const * {
     for (auto i = 0; i < display.bodies.count; ++i)
@@ -2732,6 +2739,34 @@ MotionComponent::drawPlayingTrajectory (Pattern const &pattern,
                     _sphereShader.getCamera (), spaceTurnOf (pattern),
                     lineStrokesFor (static_cast<int> (ch)),
                     strandStrokesFor (static_cast<int> (ch)));
+}
+
+void
+MotionComponent::drawShipPath (index_t channel, ShipPathShown shown,
+                               FlightDisplay const &display,
+                               Pattern const &playing, juce::Graphics &g)
+{
+  auto const points
+      = shipPathPoints (shown, display.guide, display.bodies,
+                        display.escort[channel], _engine.getFlightTuning ());
+  if (points.size () < 2)
+    return;
+
+  juce::Path path;
+  path.startNewSubPath (points.front ().x, points.front ().y);
+  for (auto i = size_t{ 1 }; i < points.size (); ++i)
+    path.lineTo (points[i].x, points[i].y);
+
+  // Through the clip's own band, as the engine flies the ship
+  // (MotionEngine::flightBand), and with none of the clip's squeezes or
+  // lean, which the flight does not take.
+  auto const index = static_cast<int> (channel);
+  drawPathOnSphere (path, theme ().trajectoryThickness, 1.0f,
+                    _uiStates[channel]->colour, true,
+                    playing.getElevationParams (), _engine.getHeightMap (), g,
+                    PlaneShaping{}, _sphereShader.getCamera (), SpaceTurn{},
+                    lineStrokesFor (index), strandStrokesFor (index));
+  _lineLevels[static_cast<size_t> (channel)] = lineLevelOf (shown);
 }
 
 juce::Point<float>
