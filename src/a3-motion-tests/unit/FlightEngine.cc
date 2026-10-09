@@ -32,11 +32,14 @@
 #include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-engine/flight/PilotGames.hh>
+#include <a3-motion-engine/preview/MusicCue.hh>
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 using namespace a3;
@@ -130,6 +133,14 @@ public:
   {
     std::lock_guard<std::mutex> lock (_mutex);
     return _samples.size ();
+  }
+
+  /** The tick last sampled, -1 before the first. */
+  long long
+  lastTick ()
+  {
+    std::lock_guard<std::mutex> lock (_mutex);
+    return _samples.empty () ? -1 : _samples.back ().tick;
   }
 
 private:
@@ -618,22 +629,241 @@ TEST (FlightEngine, ASecondPressChangesOverUnderTheCap)
   EXPECT_LE (widestStep (samples), capPerTick () * 1.05);
 }
 
-TEST (FlightEngine, AGameRequestWaitsOnItsShip)
+// -- Games --------------------------------------------------------------------
+// The board on the clock thread: a request is taken on the next tick and
+// played; a game borrows a ship without touching the DJ's mode, and gives it
+// back when it ends.
+
+namespace
+{
+PilotOrder
+playing (PilotGame game, PilotRecruit with = PilotRecruit::Self)
+{
+  PilotOrder order;
+  order.game = game;
+  order.with = with;
+  return order;
+}
+
+/** The bar the clock is in, read off a tick it has just run. */
+long long
+barNow (MotionEngine &engine)
+{
+  TickRecorder recorder (engine);
+  if (!waitUntil ([&] { return recorder.count () > 0; }))
+    return 0;
+  auto const ticksPerBar
+      = static_cast<long long> (TempoClock::getTicksPerBeat ()) * engine.getBeatsPerBar ();
+  return recorder.samples ().back ().tick / ticksPerBar;
+}
+
+MusicCue
+headingFor (MusicSection now, MusicSection next, long long changeBar)
+{
+  MusicCue cue;
+  cue.section = now;
+  cue.next = next;
+  cue.changeBar = changeBar;
+  cue.energy = 0.5f;
+  return cue;
+}
+
+/** The widest step channel 1 (Sample::clip) took from one tick to the next. */
+double
+widestStepOfChannelOne (std::vector<Sample> const &samples)
+{
+  auto widest = 0.;
+  for (size_t i = 1; i < samples.size (); ++i)
+    widest = std::max (widest, degreesBetween (samples[i - 1].clip, samples[i].clip));
+  return widest;
+}
+}
+
+TEST (FlightEngine, AGameRequestStartsAGameOnItsShips)
 {
   Flight flight;
   ASSERT_TRUE (flight.playing ());
-  PilotOrder order;
-  order.game = PilotGame::Formation;
-  order.with = PilotRecruit::All;
-  flight.engine->requestGame (0, order);
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->requestGame (0, playing (PilotGame::Formation, PilotRecruit::All));
   ASSERT_TRUE (waitUntil ([&] {
-    return flight.engine->pendingGame (0)
-           == std::optional<PilotGame> (PilotGame::Formation);
+    auto const leader = flight.engine->gameOf (0);
+    auto const borrowed = flight.engine->gameOf (1);
+    return leader && leader->game == PilotGame::Formation && borrowed
+           && borrowed->game == PilotGame::Formation;
   }));
-  EXPECT_FALSE (flight.engine->pendingGame (1).has_value ());
+  EXPECT_FALSE (flight.engine->pendingGame (0).has_value ()) << "taken, not waiting";
+  EXPECT_FALSE (flight.engine->gameOf (1)->byPilot);
+  EXPECT_EQ (flight.engine->gameOf (1)->leader, 0);
+  EXPECT_EQ (flight.engine->getFlightMode (1), FlightMode::Clip)
+      << "a game never writes the DJ's mode";
+  EXPECT_FALSE (flight.engine->gameOf (2).has_value ()) << "no clip runs on channel 3";
 
-  order.game = PilotGame::None;
-  flight.engine->requestGame (0, order);
-  EXPECT_TRUE (waitUntil (
-      [&] { return !flight.engine->pendingGame (0).has_value (); }));
+  flight.engine->requestGame (0, playing (PilotGame::None));
+  EXPECT_TRUE (waitUntil ([&] {
+    return !flight.engine->gameOf (0).has_value () && !flight.engine->gameOf (1).has_value ();
+  }));
+}
+
+TEST (FlightEngine, AGameOnAChannelThatCannotFlyStartsNothing)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->requestGame (2, playing (PilotGame::FakeOut)); // no clip runs on channel 3
+  juce::Thread::sleep (200);
+  EXPECT_FALSE (flight.engine->gameOf (2).has_value ());
+  EXPECT_FALSE (flight.engine->pendingGame (2).has_value ()) << "dropped, not left to start later";
+  EXPECT_FALSE (flight.engine->gameOf (0).has_value ());
+}
+
+TEST (FlightEngine, ABorrowedClipShipGlidesBackToItsClipWhenTheGameEnds)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  auto const onItsClip = flight.engine->getChannelPosition (1);
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->setMusicCue (
+      headingFor (MusicSection::Build, MusicSection::Drop, barNow (*flight.engine) + 2));
+  flight.engine->requestGame (0, playing (PilotGame::Formation, PilotRecruit::All));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (1).has_value (); }));
+  ASSERT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (1).has_value (); }, 6000));
+  juce::Thread::sleep (600); // the glide back is a beat, 250 ms at 240 BPM
+  EXPECT_LT (degreesBetween (flight.engine->getChannelPosition (1), onItsClip), 1.);
+}
+
+TEST (FlightEngine, TheDjsPagePressTakesAShipOutOfItsGame)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->requestGame (0, playing (PilotGame::Formation, PilotRecruit::All));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (1).has_value (); }));
+  flight.engine->setFlightMode (1, FlightMode::Orbit);
+  EXPECT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (1).has_value (); }));
+  EXPECT_TRUE (flight.engine->gameOf (0).has_value ()) << "the rest play on";
+}
+
+TEST (FlightEngine, CallingOffEndsEveryGameAndDropsWhatWaits)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->requestGame (0, playing (PilotGame::Formation, PilotRecruit::Self));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (0).has_value (); }));
+  flight.engine->requestGame (1, playing (PilotGame::HideAndSeek));
+  flight.engine->callOffGames ();
+  EXPECT_TRUE (waitUntil ([&] {
+    return !flight.engine->gameOf (0).has_value () && !flight.engine->gameOf (1).has_value ()
+           && !flight.engine->pendingGame (1).has_value ();
+  }));
+  juce::Thread::sleep (200);
+  EXPECT_FALSE (flight.engine->gameOf (1).has_value ())
+      << "a request queued before the call-off does not start after it";
+}
+
+TEST (FlightEngine, AtFlyAPilotStartsAGameOfItsOwnAndStopsBelowIt)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->setMusicCue (
+      headingFor (MusicSection::Breakdown, MusicSection::Build, barNow (*flight.engine) + 6));
+  flight.engine->setPilotLevel (PilotLevel::Fly);
+  ASSERT_TRUE (waitUntil (
+      [&] {
+        auto const game = flight.engine->gameOf (0);
+        return game && game->byPilot && game->game == PilotGame::HideAndSeek;
+      },
+      3000));
+  EXPECT_FALSE (flight.engine->gameOf (1).has_value ()) << "a pilot takes no ship off its clip";
+  flight.engine->setPilotLevel (PilotLevel::Hint);
+  EXPECT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (0).has_value (); }));
+}
+
+TEST (FlightEngine, AGameNeverTurnsAHeardShipFasterThanTheCap)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->setFlightMode (1, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  flight.engine->setMusicCue (
+      headingFor (MusicSection::Breakdown, MusicSection::Build, barNow (*flight.engine) + 4));
+  TickRecorder recorder (*flight.engine);
+  // Hide & seek for two flying ships: the slip, the run across the middle and
+  // the hand-back to their own flight, all in one recording. (A ship borrowed
+  // from its clip glides back over the clip's own one-beat handover, which is
+  // not this limit's: ABorrowedClipShipGlidesBackToItsClipWhenTheGameEnds.)
+  flight.engine->requestGame (0, playing (PilotGame::HideAndSeek, PilotRecruit::Nearest));
+  juce::Thread::sleep (5500); // four bars and the one after, at 240 BPM
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  EXPECT_LE (widestStep (samples), capPerTick () * 1.05);
+  EXPECT_LE (widestStepOfChannelOne (samples), capPerTick () * 1.05);
+}
+
+// The group a game is played against does not tug at the ship in it: the
+// figure already stands for it, as an escort's circle does for the escorted
+// group. The world spares the body the orders name, so the engine has to
+// name it.
+
+namespace
+{
+/** One heavy group, the only body on the floor. */
+FlightBodies
+aHeavyGroupAt (Vec2 at)
+{
+  FlightBodies bodies;
+  bodies.count = 1;
+  bodies.body[0] = { at, 3.f, 1 };
+  return bodies;
+}
+
+/** Where channel 0 stands on the floor, read back through its clip's band. */
+Vec2
+floorPointOf (Flight &flight, Pos const &heard)
+{
+  auto const p = flight.heightMap.mapTo2D (heard, flight.clip0->getElevationParams ());
+  return { p.x (), p.y () };
+}
+
+/** The sample of `tick`, or none when it was not recorded. */
+std::optional<Sample>
+sampleAt (std::vector<Sample> const &samples, long long tick)
+{
+  for (auto const &sample : samples)
+    if (sample.tick == tick)
+      return sample;
+  return std::nullopt;
+}
+}
+
+TEST (FlightEngine, AShipInAGameIsSparedItsTargetsPull)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  // A formation of one lines up at 0.4 from the middle on its group's side
+  // and bursts back across the middle on the 1 -- the one beat a bar the
+  // groups pull. A heavy group 0.1 beyond the line pulls as hard as a ship
+  // can steer: pulled, the ship stays put for the beat; spared, it leaves.
+  flight.engine->setFlightBodies (aHeavyGroupAt ({ 0.5f, 0.f }));
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  auto const climaxBar = barNow (*flight.engine) + 3;
+  flight.engine->setMusicCue (headingFor (MusicSection::Build, MusicSection::Drop, climaxBar));
+  TickRecorder recorder (*flight.engine);
+  flight.engine->requestGame (0, playing (PilotGame::Formation));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (0).has_value (); }));
+  EXPECT_EQ (flight.engine->gameOf (0)->target, 1);
+
+  auto const ticksPerBeat = static_cast<long long> (TempoClock::getTicksPerBeat ());
+  auto const burstTick = climaxBar * ticksPerBeat * flight.engine->getBeatsPerBar ();
+  ASSERT_TRUE (waitUntil ([&] { return recorder.lastTick () > burstTick + ticksPerBeat; }, 6000));
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  auto const onTheOne = sampleAt (samples, burstTick);
+  auto const aBeatLater = sampleAt (samples, burstTick + ticksPerBeat);
+  ASSERT_TRUE (onTheOne && aBeatLater);
+  auto const place = floorPointOf (flight, onTheOne->orbit);
+  EXPECT_NEAR (place.x, 0.4f, 0.1f) << "not lined up on the group's side";
+  EXPECT_GT (floorPointOf (flight, aBeatLater->orbit).getDistanceFrom (place), 0.25f)
+      << "held at its place by the group's pull through the burst beat";
 }

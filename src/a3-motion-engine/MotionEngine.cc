@@ -97,6 +97,28 @@ onTheFloor (Pos const &position2D)
 {
   return { position2D.x (), position2D.y () };
 }
+
+/** A ship's game as one int for an atomic, so a reader never sees half of
+ *  a change: the game in bits 0-3, a pilot's in bit 4, the leader in bits
+ *  5-7, the target's id plus one in bits 8-15 (0: played against none; the
+ *  floor's ids stay below maxFlightBodies); -1 for none. */
+int
+encodeGame (std::optional<ShipGame> const &game)
+{
+  if (!game)
+    return -1;
+  return static_cast<int> (game->game) | (game->byPilot ? 0x10 : 0)
+         | ((game->leader & 0x7) << 5) | (((game->target + 1) & 0xff) << 8);
+}
+
+std::optional<ShipGame>
+decodeGame (int code)
+{
+  if (code < 0)
+    return std::nullopt;
+  return ShipGame{ static_cast<PilotGame> (code & 0xf), (code & 0x10) != 0, (code >> 5) & 0x7,
+                   ((code >> 8) & 0xff) - 1 };
+}
 }
 
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
@@ -160,6 +182,9 @@ MotionEngine::createChannels (index_t const numChannels)
   _turnTrailing.assign (numChannels, 0);
   _pendingGameView = std::vector<std::atomic<int>> (numChannels);
   for (auto &game : _pendingGameView)
+    game.store (-1, std::memory_order_relaxed);
+  _gameView = std::vector<std::atomic<int>> (numChannels);
+  for (auto &game : _gameView)
     game.store (-1, std::memory_order_relaxed);
   _accentView = std::vector<AccentView> (numChannels);
   _freqView = std::vector<AccentView> (numChannels);
@@ -1122,6 +1147,19 @@ MotionEngine::handleFifoMessage (Message const &message)
         postGame (message.channel, message.pilot);
         break;
       }
+    case Message::Command::SetMusicCue:
+      {
+        _musicCue = message.cue;
+        break;
+      }
+    case Message::Command::CallOffGames:
+      {
+        for (auto ship = 0; ship < flightShips; ++ship)
+          _pilotDesk.take (ship);
+        _games.endAll ();
+        publishGames ();
+        break;
+      }
     case Message::Command::ArmFollow:
       {
         if (message.channel < _follow.size ())
@@ -1358,6 +1396,8 @@ MotionEngine::handleStartStopMessages ()
         case Message::Command::SetRecordingMode:
         case Message::Command::ArmFollow:
         case Message::Command::RequestGame:
+        case Message::Command::SetMusicCue:
+        case Message::Command::CallOffGames:
         case Message::Command::StopAtEnd:
         case Message::Command::CancelScheduledPlay:
         case Message::Command::CancelScheduledRecording:
@@ -2069,9 +2109,13 @@ MotionEngine::readFlightModes ()
 {
   // One read per channel per tick: playTick and performFlight must agree on
   // the mode, or a switch landing between them could leave the channel with
-  // two writers or none for that tick.
+  // two writers or none for that tick. A ship in a game flies whatever the
+  // DJ's mode says; that mode is what it goes back to.
   for (auto ch = 0u; ch < _flightModeThisTick.size (); ++ch)
-    _flightModeThisTick[ch] = getFlightMode (ch);
+    _flightModeThisTick[ch] = ch < static_cast<index_t> (flightShips)
+                                      && _games.plays (static_cast<int> (ch))
+                                  ? FlightMode::Orbit
+                                  : getFlightMode (ch);
 }
 
 void
@@ -2083,6 +2127,8 @@ MotionEngine::performFlight ()
   auto const beatsPerBar = _tempoClock.getBeatsPerBar ();
   auto const ticksPerBeat = TempoClock::getTicksPerBeat ();
   auto const beats = beatsNow ();
+
+  playGames (beats, beatsPerBar);
 
   std::array<ShipOrders, flightShips> orders{};
   std::array<ElevationParams, flightShips> flyingBand{};
@@ -2132,10 +2178,16 @@ MotionEngine::performFlight ()
       auto const target = _flightTarget[ch].load (std::memory_order_relaxed);
       auto const driven
           = _accentRestore[ch].has_value () && _flightMotion[ch].any ();
-      orders[ch] = { true,
-                     target == noBodyId ? FlightGoal::Patrol
-                                        : FlightGoal::Escort,
-                     target, _flightMotion[ch], driven };
+      // A game's ship steers for the figure and is spared the pull of the
+      // group the game is played against, as an escort is its own: the
+      // world spares only the body the orders name.
+      if (auto const steer = _games.steerOf (static_cast<int> (ch), beats, beatsPerBar))
+        orders[ch] = { true, FlightGoal::Steer, _games.gameOf (static_cast<int> (ch))->target,
+                       _flightMotion[ch], driven, *steer };
+      else
+        orders[ch] = { true,
+                       target == noBodyId ? FlightGoal::Patrol : FlightGoal::Escort,
+                       target, _flightMotion[ch], driven };
       flyingBand[ch] = band;
     }
 
@@ -2196,10 +2248,99 @@ MotionEngine::postGame (index_t channel, PilotOrder const &order)
   request.leader = static_cast<int> (channel);
   request.postedBeats = beatsNow ();
   _pilotDesk.post (request);
-  auto const pending = _pilotDesk.pending (static_cast<int> (channel));
-  _pendingGameView[channel].store (
-      pending ? static_cast<int> (*pending->order.game) : -1,
-      std::memory_order_relaxed);
+  // \none written out calls off what its ship is doing: a request still
+  // waiting, and the game it plays in.
+  if (order.game && *order.game == PilotGame::None)
+    _games.endGameOn (static_cast<int> (channel));
+  publishGames ();
+}
+
+void
+MotionEngine::setPilotLevel (PilotLevel level)
+{
+  _pilotLevel.store (static_cast<int> (level), std::memory_order_relaxed);
+}
+
+PilotLevel
+MotionEngine::getPilotLevel () const
+{
+  return static_cast<PilotLevel> (_pilotLevel.load (std::memory_order_relaxed));
+}
+
+void
+MotionEngine::setMusicCue (MusicCue const &cue)
+{
+  Message message;
+  message.command = Message::Command::SetMusicCue;
+  message.cue = cue;
+  submitFifoMessage (message);
+}
+
+void
+MotionEngine::callOffGames ()
+{
+  Message message;
+  message.command = Message::Command::CallOffGames;
+  submitFifoMessage (message);
+}
+
+std::optional<ShipGame>
+MotionEngine::gameOf (index_t channel) const
+{
+  if (channel >= _gameView.size ())
+    return std::nullopt;
+  return decodeGame (_gameView[channel].load (std::memory_order_relaxed));
+}
+
+GameShips
+MotionEngine::gameShips () const
+{
+  GameShips ships{};
+  auto const count = std::min (_channels.size (), static_cast<std::size_t> (flightShips));
+  for (auto ch = 0u; ch < count; ++ch)
+    {
+      auto const *playing = _channels[ch]->_patternPlaying.get ();
+      auto &ship = ships[ch];
+      ship.canFly = playing != nullptr && passIsRunning (*playing) && !positionTakenOver (ch);
+      // The DJ's choice as the atomics hold it: a game never writes them, so
+      // a ship it borrowed from its clip still reads CLIP here.
+      ship.now = { getFlightMode (ch) == FlightMode::Orbit,
+                   _flightTarget[ch].load (std::memory_order_relaxed) };
+      if (_flightModeSeen[ch] == FlightMode::Orbit)
+        ship.state = _flight.ship (static_cast<int> (ch));
+      else if (playing != nullptr)
+        ship.state = { onTheFloor (_heightMap.mapTo2D (_channels[ch]->getPosition (),
+                                                       flightBand (ch, *playing))),
+                       {} };
+    }
+  return ships;
+}
+
+void
+MotionEngine::playGames (double beats, int beatsPerBar)
+{
+  auto const ships = gameShips ();
+  _games.step (ships, _flightBodies, _musicCue, getPilotLevel (), beats, beatsPerBar);
+  // Taken at once: a request that cannot be played now is dropped, so
+  // nothing asked in FPV starts later somewhere else.
+  for (auto ship = 0; ship < flightShips; ++ship)
+    if (auto const request = _pilotDesk.take (ship))
+      _games.request (*request, ships, _flightBodies, _musicCue, beats, beatsPerBar);
+  publishGames ();
+}
+
+void
+MotionEngine::publishGames ()
+{
+  auto const count = std::min (_gameView.size (), static_cast<std::size_t> (flightShips));
+  for (auto ch = 0u; ch < count; ++ch)
+    {
+      _gameView[ch].store (encodeGame (_games.gameOf (static_cast<int> (ch))),
+                           std::memory_order_relaxed);
+      auto const pending = _pilotDesk.pending (static_cast<int> (ch));
+      _pendingGameView[ch].store (pending ? static_cast<int> (*pending->order.game) : -1,
+                                  std::memory_order_relaxed);
+    }
 }
 
 double
@@ -2223,8 +2364,8 @@ Pos
 MotionEngine::turnLimitedHeard (index_t channel, Pos const &shaped)
 {
   auto &trailing = _turnTrailing[channel];
-  if (_flight.motionWeight (static_cast<int> (channel)) <= 0.f
-      && trailing == 0)
+  if (_flight.motionWeight (static_cast<int> (channel)) <= 0.f && trailing == 0
+      && !_games.plays (static_cast<int> (channel)))
     return shaped;
   auto const perTick = _flightTuning.angularCapDegreesPerBeat
                        / static_cast<float> (TempoClock::getTicksPerBeat ());

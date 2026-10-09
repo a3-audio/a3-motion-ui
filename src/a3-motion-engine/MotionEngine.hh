@@ -33,6 +33,9 @@
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/flight/PilotDesk.hh>
+#include <a3-motion-engine/flight/PilotGames.hh>
+#include <a3-motion-engine/flight/PilotLevel.hh>
+#include <a3-motion-engine/preview/MusicCue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
 
@@ -188,12 +191,38 @@ public:
 
   /** An action's Pilot section asked `channel`'s pilot for a game, from the
    *  message thread only (the queue it goes through has a single producer):
-   *  kept on the clock thread as the ship's pending request until a game
-   *  takes it. A game of None calls off one still waiting. Channels beyond
-   *  the ships are ignored. */
+   *  posted on the clock thread as the ship's request, which the next tick
+   *  takes and plays -- or drops, when its leader cannot fly. A game of None
+   *  calls off a request still waiting and the game the ship plays in.
+   *  Channels beyond the ships are ignored. */
   void requestGame (index_t channel, PilotOrder const &order);
-  /** The game waiting on `channel`'s ship, from any thread; empty: none. */
+  /** The game waiting on `channel`'s ship, from any thread; empty: none. A
+   *  request is taken on the next tick, so this is empty almost always. */
   std::optional<PilotGame> pendingGame (index_t channel) const;
+
+  /** How much the pilots do of their own accord, from any thread. At FLY
+   *  they start games at musical moments; below it the games they started
+   *  end at the next tick (the DJ's go on). The UI keeps it OFF while FULL
+   *  is shown. */
+  void setPilotLevel (PilotLevel level);
+  PilotLevel getPilotLevel () const;
+
+  /** Where the music is and when it changes, from the message thread only
+   *  (the queue it goes through has a single producer). A game plans its 1
+   *  by the newest. */
+  void setMusicCue (MusicCue const &cue);
+
+  /** Ends every game and drops every request still waiting, from the
+   *  message thread only: the view left FPV, the floor the games are played
+   *  on. */
+  void callOffGames ();
+
+  /** The game `channel`'s ship plays in, from any thread; empty: none. */
+  std::optional<ShipGame> gameOf (index_t channel) const;
+
+  /** The constants the games play by, for what the UI decides of them (the
+   *  moments a hint lights). */
+  GameTuning const &getGameTuning () const { return _gameTuning; }
 
   /** The constants the ships fly by, for what the UI draws of the field
    *  (capture rings, the big path, the pulse). */
@@ -222,11 +251,18 @@ private:
    *  on `playing`, else what `playing` projects through. */
   ElevationParams flightBand (index_t channel, Pattern const &playing) const;
   /** `shaped`, turned no faster than the angular cap from where the ship was
-   *  last heard -- while an action drives the ship, or the heard ship still
-   *  trails one. The plain flight never comes near the cap and is left as it
-   *  was. */
+   *  last heard -- while an action drives the ship, a game plays with it, or
+   *  the heard ship still trails one. The plain flight never comes near the
+   *  cap and is left as it was. */
   Pos turnLimitedHeard (index_t channel, Pos const &shaped);
   void postGame (index_t channel, PilotOrder const &order);
+  /** What the games need of each ship this tick. Clock thread. */
+  GameShips gameShips () const;
+  /** One tick of the games, before the ships are ordered: who leaves, who
+   *  ends, what FLY starts, and every request waiting on the desk taken. */
+  void playGames (double beats, int beatsPerBar);
+  /** Writes the games and the desk where the other threads read them. */
+  void publishGames ();
 
 public:
 
@@ -453,6 +489,10 @@ private:
       ArmFollow,
       /** An action's Pilot section. Same reason. */
       RequestGame,
+      /** Where the music is, for the games. Same reason. */
+      SetMusicCue,
+      /** The view left FPV: every game and request off. Same reason. */
+      CallOffGames,
     } command;
 
     /** A Stop that keeps the pass, for the next start to go on from: a
@@ -477,6 +517,8 @@ private:
     FlightMotion flight;
     /** What it asks of the pilot, for RequestGame. */
     PilotOrder pilot;
+    /** Where the music is, for SetMusicCue. */
+    MusicCue cue;
 
     friend bool
     operator> (const Message &lhs, const Message &rhs)
@@ -751,6 +793,15 @@ private:
    *  may read of them: the game as an int, -1 for none. */
   PilotDesk _pilotDesk;
   std::vector<std::atomic<int>> _pendingGameView;
+  /** The games: the clock thread's alone, like the desk. `_musicCue` is the
+   *  newest cue the message thread sent. */
+  GameTuning const _gameTuning{};
+  PilotGames _games{ /* seed */ 2, _flightTuning, _gameTuning };
+  MusicCue _musicCue{};
+  std::atomic<int> _pilotLevel{ static_cast<int> (PilotLevel::Off) };
+  /** What any thread may read of the games: per channel the game it plays
+   *  in, packed into one int (encodeGame), -1 for none. */
+  std::vector<std::atomic<int>> _gameView;
 
   void notifyPatternStatusListeners (PatternStatusMessage::Status status,
                                      std::shared_ptr<Pattern> pattern);
