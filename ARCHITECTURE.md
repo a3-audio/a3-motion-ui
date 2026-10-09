@@ -2123,8 +2123,9 @@ filled in the channel's colour, their captions muted and a step smaller. FPV's m
 the skin's `background`, unlit ones faintly in their zone's colour, the held peak a short line in
 the segment it stands on. The scale is StemDeck's `barFraction` (the desk's LED thresholds -36 -24
 -18 -12 -9 -6 -3 0 dBFS at k/8, linear in dB between them), the zones the LEDs' eighths (green to
--12, yellow at -9 and -6, red above) in StemDeck's own LED colours (`segmentZoneColour`: #3ec46d,
-#e8c33d, #e04848), not the skin's, because the two screens stand side by side and must read alike. Its ballistics are
+-12, yellow at -9 and -6, red above) in the theme's meter roles `meterNormal`, `meterHot`, `meterOver`
+(`segmentZoneColour`), which default to StemDeck's LED colours #3ec46d, #e8c33d, #e04848: the two
+screens stand side by side and must read alike, and a skin can still reach them. Its ballistics are
 `VuLevels`/`MeterBallistics`, the same decided numbers as StemDeck's `PeakMeter` (attack, 20 dB/s
 release, 1.5 s hold), so nothing was ported. **Each meter is a child component of `FpvStrips`**,
 opaque, in its strip's meter section; `FpvStrips::refreshMeters` (called from `timerCallback` in FPV)
