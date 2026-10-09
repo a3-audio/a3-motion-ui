@@ -1006,3 +1006,71 @@ TEST (FlightMotionWorld, ACarriedShipStaysOnThePath)
   auto const carried = furthestOffThePath (run (spun, driven, {}, ticksIn (16.)), tuning);
   EXPECT_LT (carried, free + 0.01f) << "free " << free;
 }
+
+// -- A game's steering goal -----------------------------------------------------
+// A game never moves a ship itself: it hands the world a point, and the world
+// flies to it under the same steering, gravity and walls as everything else.
+
+namespace
+{
+std::array<ShipOrders, 4>
+shipZeroSteeringFor (OrbitPoint goal)
+{
+  auto orders = allPatrolling ();
+  orders[0].goal = FlightGoal::Steer;
+  orders[0].steer = goal;
+  return orders;
+}
+}
+
+TEST (FlightSteer, AShipFliesToThePointItIsGiven)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  Vec2 const point{ -0.5f, 0.3f };
+  run (world, shipZeroSteeringFor ({ point, {} }), {}, ticksIn (barsToBeats (2.f)));
+  EXPECT_LT (world.ship (0).p.getDistanceFrom (point), 0.15f);
+}
+
+TEST (FlightSteer, ASteeringShipIsNotCarriedByAnAction)
+{
+  FlightWorld plain (aSeed), driven (aSeed);
+  launchAll (plain);
+  launchAll (driven);
+  OrbitPoint const goal{ { 0.2f, -0.4f }, {} };
+  auto withSpin = shipZeroSteeringFor (goal);
+  withSpin[0].motion.spin = 8;
+  withSpin[0].driven = true;
+  run (plain, shipZeroSteeringFor (goal), {}, ticksIn (8.));
+  run (driven, withSpin, {}, ticksIn (8.));
+  EXPECT_EQ (plain.ship (0).p, driven.ship (0).p);
+  EXPECT_EQ (plain.ship (0).v, driven.ship (0).v);
+}
+
+TEST (FlightSteer, ASteeringShipFliesThroughTheBreathsStop)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  world.setBreathing (true);
+  auto const orders = shipZeroSteeringFor ({ { -0.6f, -0.2f }, {} });
+  run (world, orders, {}, ticksIn (3.)); // up to beat 4, the stop
+  auto const steererBefore = world.ship (0).p;
+  auto const patrollerBefore = world.ship (1).p;
+  run (world, orders, {}, ticksIn (0.5), 3.); // inside the stop
+  EXPECT_NE (world.ship (0).p, steererBefore);
+  EXPECT_EQ (world.ship (1).p, patrollerBefore);
+}
+
+TEST (FlightSteer, ASteeringShipIsStillPulledByTheGroups)
+{
+  FlightBodies bodies;
+  bodies.body[0] = { { 0.f, 0.3f }, FlightTuning{}.hotspotMass, 0 };
+  bodies.count = 1;
+  FlightWorld alone (aSeed), pulled (aSeed);
+  launchAll (alone);
+  launchAll (pulled);
+  auto const orders = shipZeroSteeringFor ({ { -0.7f, 0.f }, {} });
+  run (alone, orders, {}, ticksIn (2.));
+  run (pulled, orders, bodies, ticksIn (2.));
+  EXPECT_NE (alone.ship (0).p, pulled.ship (0).p);
+}
