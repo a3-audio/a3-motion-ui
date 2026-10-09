@@ -278,3 +278,12 @@ TEST (BodyLookPaint, ADeadZoneOfNoSizePaintsAndReturns)
   juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
   SUCCEED ();
 }
+
+TEST (BodyLook, AGroupsLabelSitsOnTopOfItsBlob)
+{
+  juce::Point<float> const top{ 120.f, 80.f };
+  auto const box = bodyLabelBox (top, 12.f);
+  EXPECT_FLOAT_EQ (box.getCentreX (), top.x);
+  EXPECT_NEAR (box.getBottom (), top.y, 0.5f) << "standing on the head";
+  EXPECT_GE (box.getHeight (), 12.f);
+}

@@ -43,6 +43,7 @@
 #include <a3-motion-ui/components/TouchGrabs.hh>
 #include <a3-motion-ui/components/EnergyMap.hh>
 #include <a3-motion-ui/components/fpv/DanceFloor.hh>
+#include <a3-motion-ui/components/fpv/FlightScene.hh>
 #include <a3-motion-ui/components/fpv/FloorGesture.hh>
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-ui/components/fpv/ShipShape.hh>
@@ -247,6 +248,30 @@ private:
    *  up. GL thread. */
   void drawFlight (juce::Graphics &g, FlightDisplay const &display);
   void drawGames (juce::Graphics &g, FlightDisplay const &display, float blob);
+  /** FPV's ships and groups for the shader, from this frame's field. GL
+   *  thread, before the sphere pass; FULL hands the shader an empty scene. */
+  void buildFlightScene (FlightDisplay const &display);
+  /** The ship's length in the sphere pass's units (its radius is 1). */
+  float shipLength () const;
+  /** Where a group's label goes, in local pixels, and whether the ball hides
+   *  the group; nothing for a dead zone or a point that does not project. */
+  struct GroupLabelAt
+  {
+    juce::Point<float> top;
+    bool hidden = false;
+  };
+  std::optional<GroupLabelAt> groupLabelAt (FlightBody const &body,
+                                            float pulse) const;
+  /** Where this frame's ship for `channel` was drawn, in local pixels, and
+   *  whether the ball hides it. GL thread. */
+  struct ShipPixel
+  {
+    juce::Point<float> at;
+    bool hidden = false;
+  };
+  std::optional<ShipPixel> drawnShipPixel (index_t channel) const;
+  /** A group is hit on the footprint of its blob, a dead zone on its mark. */
+  float bodyHitRadiusInPixels (FlightBody const &body) const;
   /** A point on the floor in local pixels, on `surface`: the sphere for
    *  what marks a ship's path, the dance floor for the groups. Nothing when
    *  it does not project. */
@@ -288,6 +313,12 @@ private:
    *  thread: the headings start over whenever the view changes. */
   std::atomic<bool> _resetShipHeadings{ false };
   std::array<ShipHeading, 4> _shipHeadings; // GL thread: the 2D pass only
+  /** The same, for the ships the shader draws: their course in the room. */
+  std::atomic<bool> _resetShipCourses{ false };
+  std::array<ShipCourse, 4> _shipCourses; // GL thread
+  /** Where each ship was drawn this frame, seen, so the words under it and
+   *  the lines from it start at the drawn craft. GL thread. */
+  std::array<std::optional<Vec3>, 4> _shipDrawnAt;
 
   /** The field as the GL thread draws it: guarded by _mutexDisplayData. */
   FlightDisplay _flightDisplay;

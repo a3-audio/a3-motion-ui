@@ -268,8 +268,55 @@ use that floor point; the ORBIT guide stays on the sphere, because the ships fly
 (`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
 lifted straight back onto the upper half of the sphere and through `mapTo2D`, the exact inverse.
 A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
-the shader does not draw either) is not floor, so the camera has it. The groups are painted in the
-2D pass, over the GL picture, so a group under the ball is not hidden by it.
+the shader does not draw either) is not floor, so the camera has it.
+
+**Ships and groups are things in the room, raytraced by the sphere shader** (2026-10-09). They
+were flat 2D arrows and discs painted over the finished GL picture, which looked bare and could
+not go behind anything. Now `buildFlightScene` (GL thread, every frame, before the sphere pass)
+turns the field into a `FlightScene` (`components/fpv/FlightScene`), packed into fixed uniform
+arrays (`packFlightScene`: 4 ships, 8 groups, four floats an entry, no allocation) the way the
+blobs are; FULL hands the shader an empty scene, and the shader skips the whole path on one
+compare, so FULL's picture is what it was.
+
+| | Shape | Size |
+|---|---|---|
+| group G / C / H | an upright spheroid, feet on the dance floor (`speakerFloorZ`), lit and soft-edged, darker at the feet, with a little noise in it | one person tall, 1.75 m; wide by weight, 1.4 / 2.0 / 2.6 m (about 3 / 6 / 10 people), straight between the masses (`groupBlobSize`); metres through `metrePerSphereRadius` (the ball's radius is about 8.5 m) |
+| dead zone X | stays the flat red hatched mark on the floor, in the 2D pass: no people | as before |
+| ship | a long hull ellipsoid with a flat pair of wings set back: an arrowhead, with a hot engine at the tail, in the channel's colour | `shipLengthOfBlob` blob diameters long, as the arrow was; hovering `shipHoverOfLength` over the ball so it never sinks into it |
+
+Every shape is an ellipsoid intersected exactly (a quadratic, not a marched distance field), and
+`ellipsoidEdge` also gives the pixel's distance from the outline on the screen, which is what the
+antialiased edge and the ghost's line are drawn from. The beat swell (`drawnPulse`) widens a group
+by `bodyPulseScale` and lifts it by half that (`swollen`).
+
+A ship points along its course **in the room** (`ShipCourse`, from its last step long enough to
+read), not on the glass: the 2D arrow needed a screen heading, a craft in the room needs the
+room's, and so it turns with the camera like everything else. `shipInScene` takes the course
+along the ball and the ball's normal as the ship's up.
+
+**Depth decides what is seen** (`sceneHidden` in the shader, `hiddenByTheBall` on the CPU). A ship
+or group is hidden where the ball lies between it and the eye (the point is beyond the ball's far
+side along its ray), where a tower stands in front of it (the tower's own depth), or where another
+ship or group is nearer. Hidden, it leaves only a **ghost**: a thin dimmed line round its outline
+in its colour and a faint breath of its body, so its place is never lost. Inside the ball nothing
+is hidden by it: the glass is the sound field the guests stand in, and most groups stand under it.
+A ship on the far half of the ball (seen farther than the ball's middle plane) is also drawn
+smaller and darker (`shipDepthCue`, eased over `shipBackSideBand`), and on the far half it is
+behind the ball, so it is that ghost.
+
+The 2D pass keeps the words: a group's `G1`..`G8` stands on top of its blob (`groupLabelAt`,
+`bodyLabelBox`), a game's word under the drawn ship, the escort and game lines start at the drawn
+craft (`drawnShipPixel`), and a hidden one's label is dimmed like its ghost (`labelAlpha`; the
+labels know the ball, not the towers). The touch stays on the 2D floor point; a group's hit
+circle is its blob's footprint as the camera sees it (`footprintRadiusOnView`, the mean of the
+circle's two axes), never less than a fingertip (`groupHitRadius`); a dead zone is hit on its mark.
+
+**Cost.** A pixel outside the box all ships and groups lie in (`uFlightBounds`) pays four
+compares. Inside it, each of the twelve entries is a circle test (a subtraction and a dot) twice,
+and only a pixel inside a thing's own circle pays its intersections: two ellipsoids for a ship,
+one for a group, each done twice (once to find the nearest, once to shade), plus one value noise
+for a group. Those circles are a few percent of the picture. Measured on llvmpipe only; on the
+rig's iGPU it is expected to stay small beside the net and the beams, and is to be checked there.
 
 **Groups reach to the speakers; the ships stay on the disc.** A group may stand anywhere out to
 `floorReach` (1.35 sphere radii, `SpeakerLightScaling.hh`), between the four towers: `FloorBodies`
@@ -335,7 +382,7 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 | Code | Files |
 |---|---|
 | physics, pure | `src/a3-motion-engine/flight/` |
-| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`) |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`, `FlightScene`) and `SphereShader` (`flightScene`) |
 | app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
@@ -352,7 +399,9 @@ lap with a group differs from one without.
 
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
-`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`, `GroupsOnTheDanceFloor`. They are deterministic:
+`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`, `GroupsOnTheDanceFloor`,
+`FlightScene`, `FlightSceneRender` (the sphere shader compiled and run offscreen through EGL, its
+pixels read back; skipped where there is no GL). They are deterministic:
 one tick per step, seeds through `spreadSeed`, no wall clock. They assert behaviours (bends
 towards, slings out, stays out), except one determinism test. Engines in tests take
 `offlineBackend ()`, so nothing is sent.

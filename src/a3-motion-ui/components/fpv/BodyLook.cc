@@ -20,6 +20,7 @@
 
 #include "BodyLook.hh"
 
+#include <a3-motion-ui/components/fpv/FlightScene.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
 #include <cmath>
@@ -32,6 +33,7 @@ namespace
 constexpr float hatchOfRadius = 0.3f;    // the gap between two hatch lines
 constexpr float holdRingOfRadius = 1.2f; // the removal ring round the disc
 constexpr float holdRingOfStroke = 3.f;  // it is heavier than an outline
+constexpr float labelBoxOfFont = 1.2f;
 
 void
 paintRing (juce::Graphics &g, BodyPaint const &body, ThemeColour colour)
@@ -124,6 +126,17 @@ bodyLabel (int id)
   return "G" + juce::String (id + 1);
 }
 
+juce::Rectangle<float>
+bodyLabelBox (juce::Point<float> above, float fontHeight)
+{
+  // Wide enough for "G8" at any font, and a little taller than the font so
+  // descenders do not reach into the head below.
+  auto const height = fontHeight * labelBoxOfFont;
+  return juce::Rectangle<float> (height * 3.f, height)
+      .withCentre (above)
+      .withY (above.y - height);
+}
+
 void
 paintBody (juce::Graphics &g, BodyPaint const &body)
 {
@@ -149,9 +162,14 @@ paintBody (juce::Graphics &g, BodyPaint const &body)
   g.setColour (toColour (colour, theme ().alphaSecondary));
   g.drawEllipse (disc, body.stroke);
 
-  g.setColour (toColour (theme ().textPrimary));
+  g.setColour (toColour (theme ().textPrimary,
+                         body.hidden ? ghostLabelAlpha : 1.f));
   g.setFont (juce::Font (juce::FontOptions (body.fontHeight)));
-  g.drawText (body.label, disc, juce::Justification::centred, false);
+  if (body.labelAbove)
+    g.drawText (body.label, bodyLabelBox (*body.labelAbove, body.fontHeight),
+                juce::Justification::centredBottom, false);
+  else
+    g.drawText (body.label, disc, juce::Justification::centred, false);
 
   paintHoldRing (g, body, radius);
 }
