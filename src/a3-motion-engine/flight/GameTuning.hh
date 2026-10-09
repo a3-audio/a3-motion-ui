@@ -63,6 +63,12 @@ struct GameTuning
   // 18 deg the steering's overshoot at the strike brings two lanes nearer
   // than the ships' separation core (0.08) [sweep].
   float crewLaneDegrees = 22.f;
+  // Near the middle an angle is a short way: the lanes widen until
+  // neighbours stand the ships' separation core plus this apart [guess],
+  float crewLaneMargin = 0.02f;
+  // and a crew's strike points stay at least this far out, so a group at
+  // the very middle still leaves room for a lane each [guess].
+  float crewLaneMinRadius = 0.2f;
 
   // Formation & scatter.
   // The line's distance from the middle. At 0.5 a line facing a group near

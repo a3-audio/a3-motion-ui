@@ -129,19 +129,52 @@ approachEnd (GamePlan const &plan, int ship, GameTuning const &tuning)
          + unitOr (plan.from[at (ship)] - plan.target, { 1.f, 0.f }) * tuning.approachStandOff;
 }
 
+/** How far out a crew's lanes turn: the target's radius, but never nearer
+ *  the middle than crewLaneMinRadius. */
+float
+laneRadius (GamePlan const &plan, GameTuning const &tuning)
+{
+  return std::max (plan.target.getDistanceFromOrigin (), tuning.crewLaneMinRadius);
+}
+
+/** Radians between neighbouring lanes: crewLaneDegrees, or wider where the
+ *  lanes are near the middle, so neighbours stand laneClearance apart. */
+float
+laneStep (GamePlan const &plan, GameTuning const &tuning)
+{
+  auto const radius = laneRadius (plan, tuning);
+  auto const chord = std::min (1.f, plan.laneClearance / (2.f * radius));
+  return std::max (radians (tuning.crewLaneDegrees), 2.f * std::asin (chord));
+}
+
 /** A fake-out ship's lane, in radians round the middle: 0 for a lone ship,
  *  the crew spread a lane apart about the target. */
 float
 laneAngle (GamePlan const &plan, int ship, GameTuning const &tuning)
 {
+  if (plan.crewSize <= 1)
+    return 0.f;
   auto const offset = static_cast<float> (plan.part[at (ship)])
                       - 0.5f * static_cast<float> (plan.crewSize - 1);
-  return offset * radians (tuning.crewLaneDegrees);
+  return offset * laneStep (plan, tuning);
+}
+
+/** Where a fake-out ship strikes: a lone ship the target itself, a crew
+ *  ship its lane's point beside it. */
+Vec2
+strikePoint (GamePlan const &plan, int ship, GameTuning const &tuning)
+{
+  if (plan.crewSize <= 1)
+    return plan.target;
+  return polar (angleOf (plan.target) + laneAngle (plan, ship, tuning),
+                laneRadius (plan, tuning));
 }
 
 void
-planFakeOut (GamePlan &plan, juce::Random &dice, GameTuning const &tuning)
+planFakeOut (GamePlan &plan, juce::Random &dice, FlightTuning const &flight,
+             GameTuning const &tuning)
 {
+  plan.laneClearance = flight.separationSoftening + tuning.crewLaneMargin;
   // The veer is measured from the target, but the approach ends off to the
   // side it comes in on, and near the middle that offset is wide: veering
   // the same way would leave only the difference to be heard. So the game
@@ -231,7 +264,7 @@ fakeOutGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
                                  + plan.turn[at (ship)] * radians (tuning.veerDegrees),
                              radius));
     }
-  return standAt (rotated (plan.target, lane));
+  return standAt (strikePoint (plan, ship, tuning));
 }
 
 OrbitPoint
@@ -379,7 +412,7 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
   switch (game)
     {
     case PilotGame::FakeOut:
-      planFakeOut (plan, dice, tuning);
+      planFakeOut (plan, dice, flight, tuning);
       break;
     case PilotGame::Formation:
       planFormation (plan);

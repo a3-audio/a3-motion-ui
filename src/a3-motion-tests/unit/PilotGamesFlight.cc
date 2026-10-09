@@ -321,23 +321,62 @@ TEST (PilotGamesFlight, TwoShipsAreHeardAnsweringEachOtherABarEach)
   EXPECT_GE (degreesBetween (floor.at (partner), partnerMid), tuning.heardBendDegrees);
 }
 
+/** Every ship's state at every tick from now to beat `until`. */
+std::vector<ShipState>
+pathUntil (Floor &floor, double until, MusicCue const &cue)
+{
+  std::vector<ShipState> path;
+  floor.runTo (until, cue, [&] (double) {
+    for (auto ch = 0; ch < flightShips; ++ch)
+      path.push_back (floor.world.ship (ch));
+  });
+  return path;
+}
+
+bool
+samePath (std::vector<ShipState> const &a, std::vector<ShipState> const &b)
+{
+  return a.size () == b.size ()
+         && std::memcmp (a.data (), b.data (), a.size () * sizeof (ShipState)) == 0;
+}
+
 TEST (PilotGamesFlight, SameSeedSameSkyWithGames)
 {
   auto const fly = [] {
     Floor floor;
     auto const cue = heading (MusicSection::Build, MusicSection::Drop, 3);
     floor.ask (PilotGame::Formation, 0, PilotRecruit::All, cue);
-    std::vector<ShipState> path;
-    floor.runTo (20., cue, [&] (double) {
-      for (auto ch = 0; ch < flightShips; ++ch)
-        path.push_back (floor.world.ship (ch));
-    });
-    return path;
+    return pathUntil (floor, 20., cue);
   };
-  auto const a = fly ();
-  auto const b = fly ();
-  ASSERT_EQ (a.size (), b.size ());
-  EXPECT_EQ (std::memcmp (a.data (), b.data (), a.size () * sizeof (ShipState)), 0);
+  EXPECT_TRUE (samePath (fly (), fly ()));
+}
+
+TEST (PilotGamesFlight, SameSeedSameSkyWhenTheDiceChooseTheVeer)
+{
+  // The leader comes in on the group's own line through the middle, so
+  // neither side is the one it comes in on and the dice choose the veer.
+  Vec2 const onTheLeadersLine{ -0.5f, 0.f };
+  auto const fly = [&] (juce::int64 seed, float &veerSide) {
+    Floor floor (oneGroupAt (onTheLeadersLine), seed);
+    auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4);
+    floor.ask (PilotGame::FakeOut, 0, PilotRecruit::Self, cue);
+    veerSide = floor.games.steerOf (0, 13., fourFour)->at.y;
+    return pathUntil (floor, 20., cue);
+  };
+  auto clockwise = 0;
+  auto counterClockwise = 0;
+  for (juce::int64 seed = 1; seed <= 8; ++seed)
+    {
+      auto sideA = 0.f;
+      auto sideB = 0.f;
+      auto const a = fly (seed, sideA);
+      auto const b = fly (seed, sideB);
+      EXPECT_TRUE (samePath (a, b)) << "seed " << seed;
+      EXPECT_EQ (sideA, sideB) << "seed " << seed;
+      (sideA < 0.f ? clockwise : counterClockwise) += 1;
+    }
+  EXPECT_GT (clockwise, 0) << "the dice never chose clockwise";
+  EXPECT_GT (counterClockwise, 0) << "the dice never chose counter-clockwise";
 }
 
 TEST (PilotGamesFlight, AFakeOutAtAGroupNearTheMiddleStillTurnsAHeardBendAway)
@@ -437,6 +476,36 @@ TEST (PilotGamesFlight, AFakeOutWithNoGroupCrossesTheRoomAndIsHeardOnTheOne)
 // Two ships that meet on one point are heard as one. The softening core of
 // the push between ships is the nearest two of a crew may come.
 float const apart = FlightTuning{}.separationSoftening;
+
+TEST (PilotGamesFlight, ACrewMemberFromTheOtherSideIsHeardTurningAway)
+{
+  // The crew veers the way its leader's approach says. A member coming in
+  // on the target's other side turns from its own approach's end, and must
+  // be heard turning too.
+  Floor floor;
+  auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4); // the 1 on beat 16
+  ASSERT_TRUE (floor.ask (PilotGame::FakeOut, 0, PilotRecruit::All, cue));
+  auto const target = floor.bodies.body[0].at;
+  floor.runTo (12., cue);
+  auto const sideOf = [&] (Vec2 p) { return target.x * p.y - target.y * p.x < 0.f; };
+  std::array<Vec2, flightShips> approachEnd{};
+  auto member = -1;
+  for (auto ch = 0; ch < flightShips; ++ch)
+    {
+      approachEnd[static_cast<size_t> (ch)] = floor.at (ch);
+      if (ch != 0 && member < 0 && sideOf (floor.at (ch)) != sideOf (floor.at (0)))
+        member = ch;
+    }
+  ASSERT_GE (member, 0) << "no member comes in on the other side";
+  auto turned = 0.f;
+  floor.runTo (16. - tuning.strikeBeats, cue, [&] (double) {
+    turned = std::max (turned, degreesBetween (floor.at (member),
+                                               approachEnd[static_cast<size_t> (member)]));
+  });
+  RecordProperty ("member", member);
+  RecordProperty ("turnedDegrees", juce::String (turned, 1).toStdString ());
+  EXPECT_GE (turned, tuning.heardBendDegrees) << "member " << member;
+}
 
 TEST (PilotGamesFlight, ACrewsFakeOutKeepsItsShipsApart)
 {

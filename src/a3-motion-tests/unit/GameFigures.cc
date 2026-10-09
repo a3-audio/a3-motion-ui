@@ -277,6 +277,36 @@ TEST (GameFigures, ACrewsFakeOutFliesInLanesSoNoTwoShipsShareAPoint)
         << "lanes " << lane - 1 << " and " << lane;
 }
 
+TEST (GameFigures, ACrewsStrikePointsStayApartAtAGroupNearTheMiddle)
+{
+  // Lanes are angles, and near the middle an angle is a short way: there
+  // the lanes widen so neighbouring strike points keep the ships' core
+  // apart, and at the very middle they still stand apart.
+  for (auto const radius : { 0.3f, 0.2f, 0.15f, 0.05f, 0.f })
+    for (auto degrees = 0; degrees < 360; degrees += 45)
+      {
+        auto const angle = static_cast<float> (degrees) * pi<float> () / 180.f;
+        auto const plan = planned (PilotGame::FakeOut, everyone,
+                                   oneGroupAt ({ radius * std::cos (angle),
+                                                 radius * std::sin (angle) }));
+        std::array<Vec2, flightShips> strike{};
+        for (auto s = 0; s < flightShips; ++s)
+          strike[static_cast<size_t> (plan.part[static_cast<size_t> (s)])]
+              = figureGoal (plan, s, 16., fourFour, tuning).at;
+        for (size_t a = 0; a < strike.size (); ++a)
+          for (size_t b = a + 1; b < strike.size (); ++b)
+            EXPECT_GE (strike[a].getDistanceFrom (strike[b]), flight.separationSoftening)
+                << "group at " << degrees << " deg, radius " << radius << ", lanes " << a
+                << " and " << b;
+      }
+}
+
+TEST (GameFigures, ALoneShipStillStrikesItsTargetAtTheMiddle)
+{
+  auto const plan = planned (PilotGame::FakeOut, only (0), oneGroupAt ({ 0.05f, 0.f }));
+  EXPECT_EQ (figureGoal (plan, 0, 16., fourFour, tuning).at, (Vec2{ 0.05f, 0.f }));
+}
+
 TEST (GameFigures, TheFormationStandsInALineAcrossItsAxis)
 {
   auto const plan = planned (PilotGame::Formation, everyone, oneGroupAt ({ 0.f, 0.8f }));

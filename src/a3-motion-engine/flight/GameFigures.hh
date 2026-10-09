@@ -65,6 +65,9 @@ struct GamePlan
   /** Fake-out: +1 or -1, the veer's way round; hide & seek: the angle, in
    *  radians, it hides at. */
   std::array<float, flightShips> turn{};
+  /** Fake-out: how far apart neighbouring lanes stand at least, floor
+   *  units: the core of the push between ships plus a margin. */
+  float laneClearance = 0.f;
 };
 
 /** The id of the body `target` names, as seen from `from`: \nearest the
