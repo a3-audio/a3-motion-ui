@@ -38,9 +38,9 @@ constexpr float padCorner = 4.f;
  *  on a shipped device). Enough to be seen from
  *  the corner of an eye, not so much that the channel colour is lost. */
 constexpr float pressedLift = 0.35f;
-/** A scene pad belongs to no channel: a neutral skin colour, lifted a little
- *  off the raised surface so it reads as a pad and not as a gap. */
-constexpr float sceneLift = 0.12f;
+/** A function key belongs to no channel: a neutral skin colour, lifted a
+ *  little off the raised surface so it reads as a key and not as a gap. */
+constexpr float keyLift = 0.12f;
 
 /** What a pad is called on the screen. The panel says it with a position and
  *  a colour; here there is room for a word, and a word beats a glyph nobody
@@ -121,49 +121,23 @@ ControllerComponent::ControllerComponent ()
         }
     }
 
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (std::size_t row = 0; row < numSceneRows; ++row)
-      {
-        auto touch = std::make_unique<TouchControl> ();
-        touch->setIdentity (static_cast<int> (slot), static_cast<int> (row));
-        // On press, like the pads: a scene is fired when it is touched.
-        touch->onPress = [this] (int s, int r) {
-          auto const slotIndex = static_cast<index_t> (s);
-          auto const rowIndex = static_cast<std::size_t> (r);
-          setPressed (_scenePressed[slotIndex][rowIndex], true,
-                      _layout.scenes[slotIndex][rowIndex]);
-          if (onScenePressed)
-            onScenePressed (slotIndex, rowIndex);
-        };
-        touch->onRelease = [this] (int s, int r) {
-          auto const slotIndex = static_cast<index_t> (s);
-          auto const rowIndex = static_cast<std::size_t> (r);
-          setPressed (_scenePressed[slotIndex][rowIndex], false,
-                      _layout.scenes[slotIndex][rowIndex]);
-          if (onSceneReleased)
-            onSceneReleased (slotIndex, rowIndex);
-        };
-        addAndMakeVisible (*touch);
-        _sceneTouch[slot][row] = std::move (touch);
-      }
-
   for (std::size_t i = 0; i < numPanelKeys; ++i)
     {
       auto touch = std::make_unique<TouchControl> ();
       touch->setIdentity (static_cast<int> (i));
-      // Down on touch and up on release, never a tap: SHIFT and REC modify
-      // what another finger presses for as long as they are held.
+      // Down on touch and up on release, never a tap: SHIFT modifies what
+      // another finger presses, and an action lasts, for as long as held.
       touch->onPress = [this] (int index, int) {
         auto const k = static_cast<std::size_t> (index);
         setPressed (_keyPressed[k], true, _layout.keys[k]);
         if (onKeyPressed)
-          onKeyPressed (panelKeyFunction (k));
+          onKeyPressed (endKeyOnPage (k));
       };
       touch->onRelease = [this] (int index, int) {
         auto const k = static_cast<std::size_t> (index);
         setPressed (_keyPressed[k], false, _layout.keys[k]);
         if (onKeyReleased)
-          onKeyReleased (panelKeyFunction (k));
+          onKeyReleased (endKeyOnPage (k));
       };
       addAndMakeVisible (*touch);
       _keyTouch[i] = std::move (touch);
@@ -200,9 +174,11 @@ ControllerComponent::setPadPlaying (index_t channel, index_t pad,
 }
 
 void
-ControllerComponent::setFunctionKeyLook (FunctionKeyLook const &look)
+ControllerComponent::setEndKeyLook (FunctionKeyLook const &keys,
+                                    RoomLook const &room)
 {
-  _keyLook = look;
+  _keyLook = keys;
+  _roomLook = room;
   for (auto const &key : _layout.keys)
     repaint (key);
 }
@@ -237,10 +213,6 @@ ControllerComponent::resized ()
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       _padTouch[channel][pad]->setBounds (_layout.pads[channel][pad]);
 
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (std::size_t row = 0; row < numSceneRows; ++row)
-      _sceneTouch[slot][row]->setBounds (_layout.scenes[slot][row]);
-
   for (std::size_t i = 0; i < numPanelKeys; ++i)
     _keyTouch[i]->setBounds (_layout.keys[i]);
 }
@@ -263,10 +235,6 @@ ControllerComponent::paint (juce::Graphics &g)
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
       paintPad (g, _layout.pads[channel][pad], channel, pad);
-
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (std::size_t row = 0; row < numSceneRows; ++row)
-      paintScene (g, slot, row);
 
   for (std::size_t i = 0; i < numPanelKeys; ++i)
     paintKey (g, i);
@@ -332,61 +300,33 @@ ControllerComponent::paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
 }
 
 void
-ControllerComponent::paintScene (juce::Graphics &g, index_t slot,
-                                 std::size_t row)
-{
-  auto const bounds = _layout.scenes[slot][row];
-  if (bounds.isEmpty ())
-    return;
-
-  auto const neutral = toColour (theme ().surfaceRaised)
-                           .interpolatedWith (toColour (theme ().textPrimary),
-                                              sceneLift);
-  auto const ground
-      = _scenePressed[slot][row]
-            ? neutral.interpolatedWith (toColour (theme ().textPrimary), pressedLift)
-            : neutral;
-
-  g.setColour (ground);
-  g.fillRoundedRectangle (bounds.toFloat (), padCorner);
-  g.setColour (toColour (theme ().textPrimary, edgeWash));
-  g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
-
-  // The mark of the pad it fires across the channels, black or white like
-  // every pad's -- Stop where the channels have Page: the scene block stops
-  // them all, since the panel lost its Stop pads (2026-09-27).
-  auto const function = padFunctionByPadIndex[row];
-  auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
-      bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
-  g.setColour (padGlyphInk (ground));
-  drawTransportGlyph (g, glyph,
-                      function == PadFunction::Page
-                          ? TransportKey::Stop
-                          : transportKeyForPad (function));
-}
-
-
-void
 ControllerComponent::paintKey (juce::Graphics &g, std::size_t index)
 {
   auto const bounds = _layout.keys[index];
   if (bounds.isEmpty ())
     return;
 
-  // The scene pads' neutral face: on the panel these are the same kind of
-  // key as the pads beside them, and belong to no channel.
-  auto const key = panelKeyFunction (index);
-  auto const tint = functionKeyColour (key, _keyLook);
+  auto const key = endKeyOnPage (index);
+  auto const face = endKeyFace (key, _keyLook.shiftHeld);
+  auto const colour = endKeyColour (key, _keyLook, _roomLook);
+
+  // PLAY all and the actions are pads across every channel, so they wear the
+  // pad's face -- filled with the colour the panel's LED shows. A function
+  // keeps the neutral face the key words have always had: its colour is in
+  // the word, the ground says only whether it is doing something. A key with
+  // nothing under SHIFT is the bare surface, as dark as its LED.
   auto const neutral = toColour (theme ().surfaceRaised)
                            .interpolatedWith (toColour (theme ().textPrimary),
-                                              sceneLift);
-
-  // The word carries the key's colour and the ground what it is doing, as
-  // in the bar: washed in that colour while it is lit -- SHIFT held, a take
-  // running, the menu open -- and lifted under a finger.
-  auto ground = neutral;
-  if (functionKeyLit (key, _keyLook) && !tint.isTransparent ())
-    ground = ground.interpolatedWith (tint, theme ().alphaFillEmphasis);
+                                              keyLift);
+  auto ground = toColour (theme ().surface);
+  if (face.scene)
+    ground = colour;
+  else if (face.function)
+    {
+      ground = neutral;
+      if (functionKeyLit (*face.function, _keyLook) && !colour.isTransparent ())
+        ground = ground.interpolatedWith (colour, theme ().alphaFillEmphasis);
+    }
   if (_keyPressed[index])
     ground = ground.interpolatedWith (toColour (theme ().textPrimary),
                                       pressedLift);
@@ -396,7 +336,18 @@ ControllerComponent::paintKey (juce::Graphics &g, std::size_t index)
   g.setColour (toColour (theme ().textPrimary, edgeWash));
   g.drawRoundedRectangle (bounds.toFloat (), padCorner, theme ().strokeThin);
 
-  auto const word = keyWord (key, _keyLook);
+  if (face.function)
+    paintKeyWord (g, bounds, *face.function);
+  else if (face.scene)
+    paintKeyGlyph (g, bounds, *face.scene, ground);
+}
+
+void
+ControllerComponent::paintKeyWord (juce::Graphics &g,
+                                   juce::Rectangle<int> bounds,
+                                   FunctionKey key)
+{
+  auto const tint = functionKeyColour (key, _keyLook);
   auto const inner = bounds.reduced (bounds.getWidth () / 10);
   // The bar's header size, as the status bar's keys are written; a word that
   // is wider than the key is squeezed by drawFittedText, not cut.
@@ -406,7 +357,27 @@ ControllerComponent::paintKey (juce::Graphics &g, std::size_t index)
                              .withStyle ("Bold")));
   g.setColour (tint.isTransparent () ? toColour (theme ().textPrimary)
                                      : tint);
-  g.drawFittedText (word, inner, juce::Justification::centred, 1, 0.5f);
+  g.drawFittedText (keyWord (key, _keyLook), inner,
+                    juce::Justification::centred, 1, 0.5f);
+}
+
+void
+ControllerComponent::paintKeyGlyph (juce::Graphics &g,
+                                    juce::Rectangle<int> bounds,
+                                    PadFunction scene, juce::Colour ground)
+{
+  // The mark of the pad it fires across the channels, black or white like
+  // every pad's; PLAY all wears ❚❚ while anything plays, since a press then
+  // pauses.
+  auto const glyph = bounds.toFloat ().withSizeKeepingCentre (
+      bounds.getHeight () * 0.32f, bounds.getHeight () * 0.32f);
+  g.setColour (padGlyphInk (ground));
+  if (scene == PadFunction::PlayPause && _roomLook.anythingPlays)
+    {
+      drawTransportGlyph (g, glyph, TransportFace::Pause);
+      return;
+    }
+  drawTransportGlyph (g, glyph, transportKeyForPad (scene));
 }
 
 }

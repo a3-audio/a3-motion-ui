@@ -30,7 +30,7 @@
 namespace a3
 {
 
-/** The controller page: the panel's pads, on the screen.
+/** The controller page: the panel's pads and end keys, on the screen.
  *
  *  The device cannot be played without pads, and a plain build has no panel
  *  (`HARDWARE_INTERFACE_ENABLED` is off by default), so without these the
@@ -44,56 +44,30 @@ namespace a3
  *  the same tables the hardware is read with, so the screen cannot quietly
  *  come to mean something else.
  */
-/** The scene column is the panel's left column (2026-09-30), the left half
- *  of a channel: `scenes[0][pad]` for pads 0..3 -- Play all, then A1, A3, A5
- *  across every channel. It was a block of two until then; the second
- *  column (Stop all, A2, A4, A6) went, so the page is the panel key for
- *  key. */
-constexpr std::size_t numSceneRows = numPadsPerChannel / 2;
+/** Every end-column key the PADS page shows, and where: both columns, all
+ *  six rows, as on the panel -- left column top to bottom, then the right.
+ *  Derived from endKeyTable (io/FunctionKeys.hh), which says what stands
+ *  there; this only fixes the order the page's keys are counted in. */
+constexpr std::size_t numPanelKeys = 2 * numEndRows;
 
-/** Which end of the panel a function key stands at. */
-enum class PanelSide
+constexpr std::array<EndPlace, numPanelKeys>
+everyEndPlace ()
 {
-  Left,
-  Right,
-};
+  std::array<EndPlace, numPanelKeys> places{};
+  std::size_t i = 0;
+  for (auto const side : { PanelSide::Left, PanelSide::Right })
+    for (int row = 0; row < numEndRows; ++row)
+      places[i++] = { side, row };
+  return places;
+}
 
-/** A function key's place on the PADS page, said in the panel's own terms:
- *  which end column, and which row -- 0 at the top, the pads standing in rows
- *  2-5 between the two columns (InputOutputAdapterV3.hh). What the key does
- *  comes from its row through `functionKeyOrder`, the way the panel is wired.
- */
-struct PanelKeyPlace
-{
-  PanelSide side;
-  int row;
-};
-
-/** Every function key the PADS page shows, and where (2026-09-28).
- *
- *  The right-hand column is the panel's col9, all six. On the left the scene
- *  column stands in col0's rows 2-5, so only col0's top two rows, TAP and
- *  clock, are keys there.
- *  Every key is reachable on the right; the left pair is the reach for the
- *  left hand, as on the panel. The one table to change if that is wrong. */
-constexpr std::array<PanelKeyPlace, 8> panelKeyPlaces{ {
-    { PanelSide::Right, 0 },
-    { PanelSide::Right, 1 },
-    { PanelSide::Right, 2 },
-    { PanelSide::Right, 3 },
-    { PanelSide::Right, 4 },
-    { PanelSide::Right, 5 },
-    { PanelSide::Left, 0 },
-    { PanelSide::Left, 1 },
-} };
-
-constexpr std::size_t numPanelKeys = panelKeyPlaces.size ();
+constexpr std::array<EndPlace, numPanelKeys> panelKeyPlaces = everyEndPlace ();
 
 /** What the key at `panelKeyPlaces[i]` is. */
-constexpr FunctionKey
-panelKeyFunction (std::size_t i)
+constexpr EndKey
+endKeyOnPage (std::size_t i)
 {
-  return functionKeyOrder[static_cast<std::size_t> (panelKeyPlaces[i].row)];
+  return endKeyAt (panelKeyPlaces[i].side, panelKeyPlaces[i].row);
 }
 
 struct ControllerLayout
@@ -107,11 +81,6 @@ struct ControllerLayout
   std::array<std::array<juce::Rectangle<int>, numPadsPerChannel>,
              numChannelColumns>
       pads;
-  /** The block left of the channels: `scenes[0][pad]`, lined up with the pad
-   *  it fires and as wide as one, so it reads as one more pad rather than a
-   *  margin. */
-  std::array<std::array<juce::Rectangle<int>, numSceneRows>, numPadSlots>
-      scenes;
   /** The function keys, `keys[i]` standing at `panelKeyPlaces[i]`. */
   std::array<juce::Rectangle<int>, numPanelKeys> keys;
 };

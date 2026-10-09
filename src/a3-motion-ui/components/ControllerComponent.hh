@@ -70,29 +70,25 @@ public:
   std::function<void (index_t channel, index_t pad)> onPadPressed;
   std::function<void (index_t channel, index_t pad)> onPadReleased;
 
-  /** A scene pad went down or came up. `row` is a pad index (0..3, a
-   *  channel's left column): that pad on every channel. The release matters
-   *  for the same reason a pad's does -- an action lasts for as long as it
-   *  is held. */
-  std::function<void (index_t slot, std::size_t row)> onScenePressed;
-  std::function<void (index_t slot, std::size_t row)> onSceneReleased;
+  /** An end key on the page went down or came up. Both matter: SHIFT is
+   *  held as a modifier and an action lasts while it is held, on the screen
+   *  as on the panel. What a key does is not decided here -- it goes into the
+   *  same handling the panel's keys reach, SHIFT layer included. */
+  std::function<void (EndKey key)> onKeyPressed;
+  std::function<void (EndKey key)> onKeyReleased;
 
-  /** A function key on the page went down or came up (2026-09-28). Both
-   *  matter: SHIFT and REC are held as modifiers, on the screen as on the
-   *  panel. What a key does is not decided here -- it goes into the same
-   *  handling the panel's keys reach. */
-  std::function<void (FunctionKey key)> onKeyPressed;
-  std::function<void (FunctionKey key)> onKeyReleased;
-
-  /** What the function keys look like right now, from the same look the
-   *  panel's LEDs are written from. */
-  void setFunctionKeyLook (FunctionKeyLook const &look);
+  /** What the end keys look like right now, from the same looks the panel's
+   *  LEDs are written from. */
+  void setEndKeyLook (FunctionKeyLook const &keys, RoomLook const &room);
 
 private:
   void paintKey (juce::Graphics &g, std::size_t index);
   void paintPad (juce::Graphics &g, juce::Rectangle<int> bounds,
                  index_t channel, index_t pad);
-  void paintScene (juce::Graphics &g, index_t slot, std::size_t row);
+  void paintKeyWord (juce::Graphics &g, juce::Rectangle<int> bounds,
+                     FunctionKey key);
+  void paintKeyGlyph (juce::Graphics &g, juce::Rectangle<int> bounds,
+                      PadFunction scene, juce::Colour ground);
   void setPressed (bool &pressed, bool down, juce::Rectangle<int> area);
 
   ControllerLayout _layout;
@@ -110,12 +106,8 @@ private:
    *  because what it does is make a pad go dark. */
   std::array<std::array<bool, numPadsPerChannel>, numChannelColumns>
       _padPressed{};
-  std::array<std::array<bool, numSceneRows>, numPadSlots> _scenePressed{};
-  std::array<std::array<std::unique_ptr<TouchControl>, numSceneRows>,
-             numPadSlots>
-      _sceneTouch;
-
   FunctionKeyLook _keyLook;
+  RoomLook _roomLook;
   std::array<bool, numPanelKeys> _keyPressed{};
   std::array<std::unique_ptr<TouchControl>, numPanelKeys> _keyTouch;
 };

@@ -36,10 +36,10 @@ TEST (LedCache, AColourThatChangesNothingIsNotWrittenAgain)
 {
   LedCache cache;
 
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Menu, blue));
-  EXPECT_FALSE (cache.shouldWrite (FunctionKey::Menu, blue));
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Menu, red));
-  EXPECT_FALSE (cache.shouldWrite (FunctionKey::Menu, red));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::PlayAll, blue));
+  EXPECT_FALSE (cache.shouldWrite (EndKey::PlayAll, blue));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::PlayAll, red));
+  EXPECT_FALSE (cache.shouldWrite (EndKey::PlayAll, red));
 }
 
 // Six keys, six answers. A key is not spoken for by its neighbour.
@@ -47,10 +47,10 @@ TEST (LedCache, EachKeyIsRememberedOnItsOwn)
 {
   LedCache cache;
 
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Menu, blue));
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Record, blue));
-  EXPECT_FALSE (cache.shouldWrite (FunctionKey::Menu, blue));
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Tap, red));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::PlayAll, blue));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::Action1, blue));
+  EXPECT_FALSE (cache.shouldWrite (EndKey::PlayAll, blue));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::Tap, red));
 }
 
 // This is the bug, in one test. Something wrote past the record -- a probe on
@@ -62,14 +62,14 @@ TEST (LedCache, ForgettingWhatIsShownLetsEveryKeyBeWrittenAgain)
 {
   LedCache cache;
 
-  ASSERT_TRUE (cache.shouldWrite (FunctionKey::Menu, blue));
-  ASSERT_TRUE (cache.shouldWrite (FunctionKey::Record, red));
-  ASSERT_FALSE (cache.shouldWrite (FunctionKey::Menu, blue));
+  ASSERT_TRUE (cache.shouldWrite (EndKey::PlayAll, blue));
+  ASSERT_TRUE (cache.shouldWrite (EndKey::Action1, red));
+  ASSERT_FALSE (cache.shouldWrite (EndKey::PlayAll, blue));
 
   cache.forgetWhatIsShown ();
 
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Menu, blue));
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Record, red));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::PlayAll, blue));
+  EXPECT_TRUE (cache.shouldWrite (EndKey::Action1, red));
 }
 
 // What to write after forgetting has to come from somewhere, or the keys go
@@ -80,21 +80,21 @@ TEST (LedCache, WhatAKeyWasAskedForSurvivesForgetting)
 {
   LedCache cache;
 
-  cache.remember (FunctionKey::Menu, blue);
-  cache.remember (FunctionKey::Shift, juce::Colour{});
-  ASSERT_TRUE (cache.shouldWrite (FunctionKey::Menu, blue));
-  ASSERT_TRUE (cache.shouldWrite (FunctionKey::Shift, cyan));
+  cache.remember (EndKey::PlayAll, blue);
+  cache.remember (EndKey::Shift, juce::Colour{});
+  ASSERT_TRUE (cache.shouldWrite (EndKey::PlayAll, blue));
+  ASSERT_TRUE (cache.shouldWrite (EndKey::Shift, cyan));
 
   cache.forgetWhatIsShown ();
 
-  ASSERT_TRUE (cache.wantedFor (FunctionKey::Menu).has_value ());
-  EXPECT_EQ (*cache.wantedFor (FunctionKey::Menu), blue);
+  ASSERT_TRUE (cache.wantedFor (EndKey::PlayAll).has_value ());
+  EXPECT_EQ (*cache.wantedFor (EndKey::PlayAll), blue);
 
   // Transparent is a colour here, not an absence: it means "nothing to
   // report", and outputButtonLED resolves it to the resting light. Losing it
   // would lose the key.
-  ASSERT_TRUE (cache.wantedFor (FunctionKey::Shift).has_value ());
-  EXPECT_TRUE (cache.wantedFor (FunctionKey::Shift)->isTransparent ());
+  ASSERT_TRUE (cache.wantedFor (EndKey::Shift).has_value ());
+  EXPECT_TRUE (cache.wantedFor (EndKey::Shift)->isTransparent ());
 }
 
 // A key nobody has asked for yet has nothing to be put back to, and says so
@@ -103,10 +103,10 @@ TEST (LedCache, AKeyNeverAskedForHasNoWantedColour)
 {
   LedCache cache;
 
-  EXPECT_FALSE (cache.wantedFor (FunctionKey::ClockMode).has_value ());
+  EXPECT_FALSE (cache.wantedFor (EndKey::Action2).has_value ());
 
-  cache.remember (FunctionKey::ClockMode, red);
-  EXPECT_TRUE (cache.wantedFor (FunctionKey::ClockMode).has_value ());
+  cache.remember (EndKey::Action2, red);
+  EXPECT_TRUE (cache.wantedFor (EndKey::Action2).has_value ());
 }
 
 // The wanted colour and the shown colour are two different things, and the
@@ -116,11 +116,11 @@ TEST (LedCache, WantedAndShownAreNotTheSameThing)
 {
   LedCache cache;
 
-  cache.remember (FunctionKey::Shift, juce::Colour{});
-  ASSERT_TRUE (cache.shouldWrite (FunctionKey::Shift, cyan));
+  cache.remember (EndKey::Shift, juce::Colour{});
+  ASSERT_TRUE (cache.shouldWrite (EndKey::Shift, cyan));
 
   // Same wanted colour, a different resting light behind it.
-  cache.remember (FunctionKey::Shift, juce::Colour{});
-  EXPECT_TRUE (cache.shouldWrite (FunctionKey::Shift, red))
+  cache.remember (EndKey::Shift, juce::Colour{});
+  EXPECT_TRUE (cache.shouldWrite (EndKey::Shift, red))
       << "a changed resting light must reach the key";
 }

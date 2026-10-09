@@ -42,10 +42,11 @@ class InputOutputAdapter : public juce::Thread,
                            public juce::Value::Listener
 {
 public:
-  /** The device's function keys — the panel's two mirrored columns and the
-   *  global strip's six, which are the same set. See io/FunctionKeys.hh for
-   *  the order they are in and why there is only one of it. */
-  using Button = FunctionKey;
+  /** The keys in the panel's two end columns, by what they are without
+   *  SHIFT. What a key means -- SHIFT layer and all -- is decided above this,
+   *  where the PADS page's keys arrive too (io/EndKeyLayer.hh); the adapter
+   *  only says which key is down. */
+  using Button = EndKey;
 
   InputOutputAdapter ();
   virtual ~InputOutputAdapter ();
@@ -118,7 +119,7 @@ protected:
   static auto constexpr numChannels = 4u;
   static auto constexpr numPotsPerChannel = 2u;
   static auto constexpr numEncodersPerChannel = 2u;
-  static auto constexpr numButtons = numFunctionKeys;
+  static auto constexpr numButtons = numEndKeys;
 
   struct PadIndex
   {

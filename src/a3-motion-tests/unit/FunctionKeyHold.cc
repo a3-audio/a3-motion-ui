@@ -26,26 +26,26 @@
 using namespace a3;
 
 // The panel and the PADS page are two places to press one key, the way the
-// panel's two end columns already are. A key is down while either is down, and
-// what the key means is handled once per real change, not once per place.
+// panel's two end columns are. A key is down while either is down, and what
+// the key means is handled once per real change, not once per place.
 
 TEST (FunctionKeyHold, AScreenPressIsAPress)
 {
-  FunctionKeyHold hold;
+  EndKeyHold hold;
 
-  EXPECT_EQ (hold.set (FunctionKey::Shift, KeySource::Screen, true), true);
-  EXPECT_TRUE (hold.isDown (FunctionKey::Shift));
+  EXPECT_EQ (hold.set (EndKey::Shift, KeySource::Screen, true), true);
+  EXPECT_TRUE (hold.isDown (EndKey::Shift));
 
-  EXPECT_EQ (hold.set (FunctionKey::Shift, KeySource::Screen, false), false);
-  EXPECT_FALSE (hold.isDown (FunctionKey::Shift));
+  EXPECT_EQ (hold.set (EndKey::Shift, KeySource::Screen, false), false);
+  EXPECT_FALSE (hold.isDown (EndKey::Shift));
 }
 
 TEST (FunctionKeyHold, APanelPressIsAPress)
 {
-  FunctionKeyHold hold;
+  EndKeyHold hold;
 
-  EXPECT_EQ (hold.set (FunctionKey::Record, KeySource::Panel, true), true);
-  EXPECT_TRUE (hold.isDown (FunctionKey::Record));
+  EXPECT_EQ (hold.set (EndKey::PlayAll, KeySource::Panel, true), true);
+  EXPECT_TRUE (hold.isDown (EndKey::PlayAll));
 }
 
 // Holding SHIFT on the panel and touching it on the screen too must not read
@@ -53,38 +53,47 @@ TEST (FunctionKeyHold, APanelPressIsAPress)
 // release while the other is still held.
 TEST (FunctionKeyHold, TheKeyIsDownWhileEitherPlaceHoldsIt)
 {
-  FunctionKeyHold hold;
+  EndKeyHold hold;
 
-  ASSERT_EQ (hold.set (FunctionKey::Shift, KeySource::Panel, true), true);
-  EXPECT_EQ (hold.set (FunctionKey::Shift, KeySource::Screen, true),
-             std::nullopt);
-  EXPECT_EQ (hold.set (FunctionKey::Shift, KeySource::Panel, false),
-             std::nullopt);
-  EXPECT_TRUE (hold.isDown (FunctionKey::Shift));
+  ASSERT_EQ (hold.set (EndKey::Shift, KeySource::Panel, true), true);
+  EXPECT_EQ (hold.set (EndKey::Shift, KeySource::Screen, true), std::nullopt);
+  EXPECT_EQ (hold.set (EndKey::Shift, KeySource::Panel, false), std::nullopt);
+  EXPECT_TRUE (hold.isDown (EndKey::Shift));
 
-  EXPECT_EQ (hold.set (FunctionKey::Shift, KeySource::Screen, false), false);
-  EXPECT_FALSE (hold.isDown (FunctionKey::Shift));
+  EXPECT_EQ (hold.set (EndKey::Shift, KeySource::Screen, false), false);
+  EXPECT_FALSE (hold.isDown (EndKey::Shift));
+}
+
+// The same rule joins the panel's two end columns: TAP on the left and TAP on
+// the right are one key.
+TEST (FunctionKeyHold, TheTwoSidesOfThePanelAreOneKey)
+{
+  EndColumnHold hold;
+
+  ASSERT_EQ (hold.set (EndKey::Tap, PanelSide::Left, true), true);
+  EXPECT_EQ (hold.set (EndKey::Tap, PanelSide::Right, true), std::nullopt);
+  EXPECT_EQ (hold.set (EndKey::Tap, PanelSide::Left, false), std::nullopt);
+  EXPECT_EQ (hold.set (EndKey::Tap, PanelSide::Right, false), false);
 }
 
 // A repeated report of the same state is no change: a juce::Value can be told
 // the same thing twice.
 TEST (FunctionKeyHold, TheSameStateTwiceIsNoChange)
 {
-  FunctionKeyHold hold;
+  EndKeyHold hold;
 
-  EXPECT_EQ (hold.set (FunctionKey::Tap, KeySource::Screen, false),
-             std::nullopt);
-  ASSERT_EQ (hold.set (FunctionKey::Tap, KeySource::Screen, true), true);
-  EXPECT_EQ (hold.set (FunctionKey::Tap, KeySource::Screen, true),
-             std::nullopt);
+  EXPECT_EQ (hold.set (EndKey::Tap, KeySource::Screen, false), std::nullopt);
+  ASSERT_EQ (hold.set (EndKey::Tap, KeySource::Screen, true), true);
+  EXPECT_EQ (hold.set (EndKey::Tap, KeySource::Screen, true), std::nullopt);
 }
 
-// Six keys, six states: holding one says nothing about another.
+// Nine keys, nine states: holding one says nothing about another -- A1 on the
+// left and A2 beside it on the right are two keys.
 TEST (FunctionKeyHold, EachKeyIsHeldOnItsOwn)
 {
-  FunctionKeyHold hold;
-  hold.set (FunctionKey::Shift, KeySource::Screen, true);
+  EndKeyHold hold;
+  hold.set (EndKey::Action1, KeySource::Screen, true);
 
-  for (auto const key : functionKeyOrder)
-    EXPECT_EQ (hold.isDown (key), key == FunctionKey::Shift);
+  for (auto const key : allEndKeys)
+    EXPECT_EQ (hold.isDown (key), key == EndKey::Action1);
 }

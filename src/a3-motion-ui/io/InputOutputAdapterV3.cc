@@ -418,16 +418,11 @@ InputOutputAdapterV3::parseButtons (const uint8_t *raw, int offset)
 
 namespace
 {
-// Record/Tap/Menu/Shift are each wired to a mirrored pair of physical buttons
-// (left + right hand side); both share one logical Button and light together.
-// ClockMode was a V2-only physical button with no LED on V3 hardware, so it
-// has no entry — and therefore stays dark, which is what a key with no
-// function should do.
-/** The two firmware indices of each function-key row, left column then
- *  right, top row first. Read off the panel's RC labels: col0 is
+/** The two firmware indices of each end-column row, left column then right,
+ *  top row first. Read off the panel's RC labels: col0 is
  *  "00","10","20","30","40","50" and col9 is "09","19","29","39","49","59".
- *  What each row *does* is not here — it is functionKeyOrder. */
-constexpr int functionRowHwIndices[numFunctionKeys][2] = {
+ *  Which key stands there is not here -- it is endKeyTable. */
+constexpr int endRowHwIndices[numEndRows][2] = {
   { 40, 42 }, // row 0
   { 41, 43 }, // row 1
   {  2, 36 }, // row 2
@@ -435,6 +430,12 @@ constexpr int functionRowHwIndices[numFunctionKeys][2] = {
   {  0, 39 }, // row 4
   {  3, 37 }, // row 5
 };
+
+constexpr int
+hwIndexAt (PanelSide side, int row)
+{
+  return endRowHwIndices[row][side == PanelSide::Left ? 0 : 1];
+}
 }
 
 void
@@ -465,7 +466,7 @@ InputOutputAdapterV3::reapplyButtonLeds ()
   // only that; what each key was *asked* for is what we are putting back.
   _ledCache.forgetWhatIsShown ();
 
-  for (auto const key : functionKeyOrder)
+  for (auto const key : allEndKeys)
     if (auto const wanted = _ledCache.wantedFor (key))
       outputButtonLED (key, *wanted);
 }
@@ -507,31 +508,27 @@ InputOutputAdapterV3::dispatchButtonEvent (int idx, bool pressed)
     {
     case ButtonRole::Function:
       {
-        // Which row this is comes from the panel; what the row *does* comes
-        // from functionKeyOrder — the same list the global strip is laid out
-        // from, so the hand learns one arrangement and not two.
-        auto const row = static_cast<std::size_t> (m.functionRow);
-        if (row >= functionKeyOrder.size ())
+        // Which row and side this is comes from the panel; which key stands
+        // there comes from endKeyTable -- the same table the PADS page is
+        // laid out from, so the hand learns one arrangement and not two.
+        auto const row = static_cast<int> (m.functionRow);
+        if (row >= numEndRows)
           break;
 
-        auto const key = functionKeyOrder[row];
+        auto const side = isRightHandColumn (idx) ? PanelSide::Right
+                                                  : PanelSide::Left;
+        auto const key = endKeyAt (side, row);
 
-        // The two end columns are two places to press one key. Tracked apart
-        // so that holding one side and pressing the other is not a release —
-        // which is the whole point of their being mirrored.
-        auto const side = isRightHandColumn (idx) ? 1u : 0u;
-        auto &state = _functionKeyState[row];
-
-        bool const wasDown = state[0] || state[1];
-        state[side] = pressed;
-        bool const isDown = state[0] || state[1];
-
-        if (isDown == wasDown)
+        auto const changed = _endKeys.set (key, side, pressed);
+        if (!changed)
           break;
 
-        inputButtonValue (key, isDown);
+        inputButtonValue (key, *changed);
 
-        if (key == FunctionKey::Tap && isDown)
+        // Taken for every TAP press, here where the timing is true; whether
+        // it is a tap at all -- SHIFT+TAP is the clock -- is decided where
+        // SHIFT is known, as the time arrives.
+        if (key == EndKey::Tap && *changed)
           {
             auto ticks = juce::Time::getHighResolutionTicks ();
             auto freq = juce::Time::getHighResolutionTicksPerSecond ();
@@ -684,10 +681,6 @@ InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
   // A transparent colour is a key with nothing to report: it takes the resting
   // light, which is not darkness — a key that has a function should say so
   // while nobody is touching it.
-  auto const row = functionKeyPosition (button);
-  if (row < 0)
-    return;
-
   // Remembered as asked for, before it is resolved: the resting light is a
   // config value and can change under a key whose own colour did not, and then
   // this is the only record of what the key was meant to show.
@@ -707,10 +700,13 @@ InputOutputAdapterV3::outputButtonLED (Button button, juce::Colour colour)
   if (!_ledCache.shouldWrite (button, lit))
     return;
 
-  // Both sides of the key light: they are one key with two places to press
-  // it, and a lit left with a dark right would say they were two.
-  for (auto const idx : functionRowHwIndices[row])
-    writeSetLed (hwIndexToLedId[idx], lit);
+  // Every place the key stands lights: TAP, SHIFT and PLAY all are one key
+  // with two places to press it, and a lit left with a dark right would say
+  // they were two.
+  for (int row = 0; row < numEndRows; ++row)
+    for (auto const side : { PanelSide::Left, PanelSide::Right })
+      if (endKeyAt (side, row) == button)
+        writeSetLed (hwIndexToLedId[hwIndexAt (side, row)], lit);
 }
 
 void

@@ -181,8 +181,8 @@ TEST (PanelKeyboard, TheKeysStandWherePadsHasTheirCells)
   };
   EXPECT_EQ (capOf ({ 2, 1 }), pads.pads[0][0]);
   EXPECT_EQ (capOf ({ 5, 8 }), pads.pads[3][7]);
-  EXPECT_EQ (capOf ({ 0, 9 }), pads.keys[0]) << "BKSP where TAP is";
-  EXPECT_EQ (capOf ({ 2, 0 }), pads.scenes[0][0]);
+  EXPECT_EQ (capOf ({ 0, 9 }), pads.keys[numEndRows]) << "BKSP where TAP is";
+  EXPECT_EQ (capOf ({ 2, 0 }), pads.keys[2]) << "where the left PLAY all is";
 }
 
 // The four space cells are one bar on the screen -- on the panel they stay

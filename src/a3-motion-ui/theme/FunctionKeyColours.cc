@@ -20,6 +20,8 @@
 
 #include "FunctionKeyColours.hh"
 
+#include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 
@@ -107,6 +109,52 @@ functionKeyLit (FunctionKey key, FunctionKeyLook const &look)
     }
 
   return false;
+}
+
+EndKeyFace
+endKeyFace (EndKey key, bool shiftHeld)
+{
+  if (shiftHeld && key != EndKey::Shift)
+    return { shiftedFunction (key), std::nullopt };
+  if (auto const function = plainFunction (key))
+    return { function, std::nullopt };
+  if (key == EndKey::PlayAll)
+    return { std::nullopt, PadFunction::PlayPause };
+  return { std::nullopt, PadFunction::Action };
+}
+
+namespace
+{
+/** A channel's pad rule, with no channel to colour it. */
+juce::Colour
+scenePadColour (PadFunction function, bool active, bool assigned)
+{
+  auto const base = padBaseColour (function, active, active,
+                                   toColour (theme ().textPrimary));
+  // Shaded by its own state, the way an action pad is: there is no single
+  // clip whose status it could follow.
+  auto const status = padShadeStatus (PadFunction::Action,
+                                      Pattern::Status::Empty, assigned, active);
+  return padStatusColour (base, status, status, 0, false);
+}
+}
+
+juce::Colour
+endKeyColour (EndKey key, FunctionKeyLook const &keys, RoomLook const &room)
+{
+  auto const face = endKeyFace (key, keys.shiftHeld);
+  if (face.function)
+    return functionKeyColour (*face.function, keys);
+  if (!face.scene)
+    return juce::Colours::black;
+
+  if (*face.scene == PadFunction::PlayPause)
+    return scenePadColour (PadFunction::PlayPause, room.anythingPlays,
+                           room.anyClip);
+
+  auto const button = static_cast<std::size_t> (endKeyActionButton (key));
+  return scenePadColour (PadFunction::Action, room.actionRuns[button],
+                         room.actionAssigned[button]);
 }
 
 }

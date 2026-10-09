@@ -33,8 +33,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/ChannelStrip.hh
     components/BrowserComponent.cc
     components/BrowserComponent.hh
-    components/ControllerComponent.cc
-    components/ControllerComponent.hh
     components/LineMapRenderer.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
@@ -314,6 +312,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/MixerStripComponent.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
+    components/ControllerComponent.cc
+    components/ControllerComponent.hh
     components/ColourPickerComponent.cc
     components/ColourPickerComponent.hh
     components/FittedFont.cc

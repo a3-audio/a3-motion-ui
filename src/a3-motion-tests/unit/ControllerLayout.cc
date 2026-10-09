@@ -60,8 +60,6 @@ everyTarget (ControllerLayout const &l)
   for (auto const &channel : l.pads)
     for (auto const &pad : channel)
       all.push_back (pad);
-  for (auto const &scene : l.scenes[0])
-    all.push_back (scene);
   for (auto const &key : l.keys)
     all.push_back (key);
   return all;
@@ -232,30 +230,53 @@ TEST (ControllerLayout, ThePadsStandAsThePanelDoes)
     }
 }
 
-// The scene column is the panel's left column (2026-09-30: "in PADS muss die
-// zweite reihe von links weg"): one column, the left half of a channel -- Play
-// all and A1, A3, A5 across every channel -- where the panel's col0 stands,
-// under TAP and the clock key.
-TEST (ControllerLayout, TheScenesAreThePanelsLeftColumn)
+// Both end columns are keys, rows 0-5, as on the panel (2026-10-10): the left
+// one where the scene column stood -- its rows 2-5 are still PLAY all and A1,
+// A3, A5 across every channel, only now as the panel's keys.
+TEST (ControllerLayout, BothEndColumnsAreSixKeysTopToBottom)
 {
   auto const l = defaultLayout ();
-  auto const left = keysAt (l, PanelSide::Left);
-  ASSERT_FALSE (left.empty ());
-
-  ASSERT_EQ (numSceneRows, 4u);
-  for (std::size_t pad = 0; pad < numSceneRows; ++pad)
+  for (auto const side : { PanelSide::Left, PanelSide::Right })
     {
-      auto const scene = l.scenes[0][pad];
-      ASSERT_FALSE (scene.isEmpty ()) << pad;
-      EXPECT_EQ (scene.getX (), left.front ().second.getX ()) << pad;
-      EXPECT_EQ (scene.getY (), l.pads[0][pad].getY ()) << pad;
-      // The pad it fires is in a channel's left column.
-      EXPECT_EQ (l.pads[0][pad].getX (), l.clipBoxes[0][0].getX ()) << pad;
+      auto const keys = keysAt (l, side);
+      ASSERT_EQ (keys.size (), static_cast<std::size_t> (numEndRows));
+      for (std::size_t i = 0; i < keys.size (); ++i)
+        {
+          EXPECT_EQ (keys[i].first, static_cast<int> (i));
+          EXPECT_EQ (keys[i].second.getX (), keys[0].second.getX ());
+          EXPECT_EQ (keys[i].second.getWidth (), l.pads[0][0].getWidth ());
+          if (i > 0)
+            EXPECT_GE (keys[i].second.getY (), keys[i - 1].second.getBottom ());
+        }
     }
+
+  EXPECT_LE (keysAt (l, PanelSide::Left).front ().second.getRight (),
+             l.clipBoxes[0][0].getX ());
+  EXPECT_GE (keysAt (l, PanelSide::Right).front ().second.getX (),
+             l.clipBoxes[numChannelColumns - 1][0].getRight ());
+}
+
+// A key on the page is the panel's key at that place: what the table says
+// stands there.
+TEST (ControllerLayout, TheKeysOnThePageAreThePanelsEndColumns)
+{
+  ASSERT_EQ (numPanelKeys, static_cast<std::size_t> (2 * numEndRows));
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    EXPECT_EQ (endKeyOnPage (i),
+               endKeyAt (panelKeyPlaces[i].side, panelKeyPlaces[i].row))
+        << i;
+
+  std::vector<EndKey> left;
+  for (std::size_t i = 0; i < numPanelKeys; ++i)
+    if (panelKeyPlaces[i].side == PanelSide::Left)
+      left.push_back (endKeyOnPage (i));
+  EXPECT_EQ (left, (std::vector<EndKey>{ EndKey::Tap, EndKey::Shift,
+                                         EndKey::PlayAll, EndKey::Action1,
+                                         EndKey::Action3, EndKey::Action5 }));
 }
 
 // The page is the panel, key for key: 44 targets, ten columns across -- the
-// scene column, four channels of two, the right-hand keys -- so a key on the
+// two end columns and four channels of two between them -- so a key on the
 // screen stands where its key on the panel does.
 TEST (ControllerLayout, ThePageHoldsThePanelsFortyFourKeys)
 {
@@ -266,7 +287,9 @@ TEST (ControllerLayout, ThePageHoldsThePanelsFortyFourKeys)
   auto const step = l.pads[0][4].getX () - l.pads[0][0].getX ();
   auto const right = keysAt (l, PanelSide::Right);
   ASSERT_FALSE (right.empty ());
-  EXPECT_EQ (right.front ().second.getX () - l.scenes[0][0].getX (), 9 * step);
+  auto const left = keysAt (l, PanelSide::Left);
+  EXPECT_EQ (right.front ().second.getX () - left.front ().second.getX (),
+             9 * step);
   EXPECT_GT (step, cell);
 }
 
@@ -287,67 +310,13 @@ TEST (ControllerLayout, EverythingStaysInsideTheBar)
 }
 
 
-// -- The scene column --------------------------------------------------------
-//
-// A block shaped like a channel, left of the four: each of its pads fires the
-// same pad across every channel -- Play all, Stop all where a channel has
-// Page, and each action on every channel. Asked for on 2026-09-22 as a column,
-// the way a scene is launched on a deck-side controller; a block since one clip
-// per channel (2026-09-27).
-
-TEST (ControllerLayout, TheScenePadsStandLeftOfEveryChannel)
-{
-  auto const layout = defaultLayout ();
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (auto const &scene : layout.scenes[slot])
-      {
-        EXPECT_FALSE (scene.isEmpty ());
-        EXPECT_LE (scene.getRight (), layout.clipBoxes[0][slot].getX ());
-      }
-}
-
-TEST (ControllerLayout, EachScenePadLinesUpWithThePadRowItFires)
-{
-  auto const layout = defaultLayout ();
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (std::size_t row = 0; row < numSceneRows; ++row)
-      {
-        // The scene block is shaped like a channel: its pad `row` stands
-        // level with every channel's pad `row` (2026-09-27).
-        auto const pad = layout.pads[0][row];
-        EXPECT_EQ (layout.scenes[slot][row].getY (), pad.getY ());
-        EXPECT_EQ (layout.scenes[slot][row].getHeight (), pad.getHeight ());
-      }
-}
-
-// It reads as one more pad, not as a margin or a heading.
-TEST (ControllerLayout, AScenePadIsAsWideAsAPad)
-{
-  auto const layout = defaultLayout ();
-  EXPECT_EQ (layout.scenes[0][0].getWidth (), layout.pads[0][0].getWidth ());
-}
-
-TEST (ControllerLayout, TheScenePadsStayInsideTheBarAndOffThePads)
-{
-  auto const layout = defaultLayout ();
-  for (index_t slot = 0; slot < numPadSlots; ++slot)
-    for (auto const &scene : layout.scenes[slot])
-      {
-        EXPECT_TRUE (area.contains (scene));
-        for (index_t channel = 0; channel < numChannelColumns; ++channel)
-          for (auto const &pad : layout.pads[channel])
-            EXPECT_FALSE (scene.intersects (pad));
-      }
-}
-
-
 // -- The panel, not a grid stretched to fill ---------------------------------
 //
 // Asked for on 2026-09-28: "die PADS sind gestretcht". A pad is square on the
 // panel, so it is square here, and the page keeps the panel's proportions in
 // whatever area it is given instead of pulling the pads tall.
 
-TEST (ControllerLayout, EveryPadSceneAndKeyIsSquare)
+TEST (ControllerLayout, EveryPadAndKeyIsSquare)
 {
   for (auto const &given : { area, sphereArea, tallArea, wideArea })
     for (auto const &r : everyTarget (layOutController (given, headerSize,
@@ -387,78 +356,27 @@ TEST (ControllerLayout, ThePanelStandsCentredAndFillsOneWay)
 
 // -- The panel's function keys -----------------------------------------------
 //
-// Asked for on 2026-09-28: "rechts fehlt noch eine reihe mit 6 vertikalen und
-// links über den grauen fehlen noch 2 buttons". On the panel the six keys are
-// a column at each end, rows 0-5, and the pads stand in rows 2-5 between them
-// (InputOutputAdapterV3.hh). A key does what its row does on the panel --
-// functionKeyOrder -- wherever it stands.
-
-TEST (ControllerLayout, TheRightHandColumnIsAllSixKeysTopToBottom)
-{
-  auto const l = defaultLayout ();
-  auto const right = keysAt (l, PanelSide::Right);
-
-  ASSERT_EQ (right.size (), static_cast<std::size_t> (numFunctionKeys));
-  for (std::size_t i = 0; i < right.size (); ++i)
-    {
-      EXPECT_EQ (right[i].first, static_cast<int> (i));
-      EXPECT_EQ (right[i].second.getX (), right[0].second.getX ());
-      EXPECT_EQ (right[i].second.getWidth (), l.pads[0][0].getWidth ());
-      if (i > 0)
-        {
-          EXPECT_GE (right[i].second.getY (),
-                     right[i - 1].second.getBottom ());
-        }
-    }
-
-  EXPECT_GE (right[0].second.getX (),
-             l.clipBoxes[numChannelColumns - 1][0].getRight ());
-}
+// On the panel the end keys are a column at each end, rows 0-5, and the pads
+// stand in rows 2-5 between them (InputOutputAdapterV3.hh). A key on the page
+// is what endKeyAt() says stands at its place, as on the panel.
 
 TEST (ControllerLayout, TheKeysStandInThePanelsRows)
 {
   auto const l = defaultLayout ();
 
   // Rows 2-5 beside the pads, level with them; rows 0 and 1 above them.
-  for (auto const &[row, key] : keysAt (l, PanelSide::Right))
-    {
-      if (row < 2)
-        {
-          EXPECT_LE (key.getBottom (), l.pads[0][0].getY ()) << row;
-          continue;
-        }
-      EXPECT_EQ (key.getY (),
-                 l.pads[0][static_cast<index_t> (row - 2)].getY ())
-          << row;
-    }
-}
-
-TEST (ControllerLayout, TwoKeysStandOverTheSceneBlockAtTheOuterEdge)
-{
-  auto const l = defaultLayout ();
-  auto const left = keysAt (l, PanelSide::Left);
-  auto const right = keysAt (l, PanelSide::Right);
-
-  ASSERT_EQ (left.size (), 2u);
-  for (auto const &[row, key] : left)
-    {
-      EXPECT_EQ (key.getX (), l.scenes[0][0].getX ()) << row;
-      EXPECT_LE (key.getBottom (), l.scenes[0][0].getY ()) << row;
-      EXPECT_EQ (key.getY (), right[static_cast<std::size_t> (row)].second.getY ())
-          << row;
-    }
-}
-
-// The top two rows of the panel's left column: TAP and clock.
-TEST (ControllerLayout, TheLeftKeysAreTapAndClock)
-{
-  std::vector<FunctionKey> left;
-  for (std::size_t i = 0; i < numPanelKeys; ++i)
-    if (panelKeyPlaces[i].side == PanelSide::Left)
-      left.push_back (panelKeyFunction (i));
-
-  EXPECT_EQ (left, (std::vector<FunctionKey>{ FunctionKey::Tap,
-                                              FunctionKey::ClockMode }));
+  for (auto const side : { PanelSide::Left, PanelSide::Right })
+    for (auto const &[row, key] : keysAt (l, side))
+      {
+        if (row < 2)
+          {
+            EXPECT_LE (key.getBottom (), l.pads[0][0].getY ()) << row;
+            continue;
+          }
+        EXPECT_EQ (key.getY (),
+                   l.pads[0][static_cast<index_t> (row - 2)].getY ())
+            << row;
+      }
 }
 
 TEST (ControllerLayout, NoTargetOverlapsAnotherOrLeavesTheArea)

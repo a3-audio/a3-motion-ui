@@ -53,14 +53,14 @@ constexpr int minPadding = 4;
 
 /** The panel as a grid of equal square cells (InputOutputAdapterV3.hh):
  *  six rows, the pads in rows 2-5 between the key columns. Across: the
- *  panel's ten -- the left column (TAP and clock over the scene column), two
- *  per channel, and the right-hand key column. The panel's rows 0-1 over the pads carry its pots, which the
+ *  panel's ten -- the left key column, two per channel, and the right key
+ *  column. The panel's rows 0-1 over the pads carry its pots, which the
  *  screen has elsewhere, so that band stays empty here as it is on the
  *  panel. */
 constexpr int firstPadRow = firstPanelPadRow;
-constexpr int sceneColumns = 1;
+constexpr int keyColumns = 1;
 constexpr int gridColumns
-    = sceneColumns + 2 * static_cast<int> (numChannelColumns) + 1;
+    = keyColumns + 2 * static_cast<int> (numChannelColumns) + 1;
 static_assert (gridColumns == panelColumns, "the page is the panel");
 constexpr int rightKeyColumn = gridColumns - 1;
 constexpr int leftKeyColumn = 0;
@@ -129,7 +129,7 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
 
   for (index_t channel = 0; channel < numChannelColumns; ++channel)
     {
-      auto const firstColumn = sceneColumns + 2 * static_cast<int> (channel);
+      auto const firstColumn = keyColumns + 2 * static_cast<int> (channel);
       for (index_t pad = 0; pad < numPadsPerChannel; ++pad)
         {
           auto const cell = padCellInBox (pad);
@@ -140,14 +140,6 @@ layOutController (juce::Rectangle<int> contentArea, float, int)
       out.clipBoxes[channel][0]
           = grid.at (firstColumn, firstPadRow)
                 .getUnion (grid.at (firstColumn + 1, panelRows - 1));
-    }
-
-  // The scene column, in the panel's left column: its pad `p` level with
-  // every channel's pad `p`.
-  for (std::size_t pad = 0; pad < numSceneRows; ++pad)
-    {
-      auto const cell = padCellInBox (static_cast<index_t> (pad));
-      out.scenes[0][pad] = grid.at (leftKeyColumn, firstPadRow + cell.y);
     }
 
   for (std::size_t i = 0; i < numPanelKeys; ++i)

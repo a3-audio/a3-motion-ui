@@ -20,20 +20,75 @@
 
 #pragma once
 
+#include <vector>
+
 #include <a3-motion-engine/Pattern.hh>
+#include <a3-motion-ui/components/PlayPausePress.hh>
 
 namespace a3
 {
 
-/** Whether a scene's Play pad starts this clip.
+/** Which channels a press on PLAY all reaches.
  *
- *  Only a clip that stands still. A single Play pad toggles, but a scene that
- *  toggled would start half a row and stop the other half -- mid-set, a
- *  surprise nobody asked for. Running and waiting clips are left alone. */
-constexpr bool
-sceneStartsClip (Pattern::Status status)
+ *  **The room toggles as one**: if anything plays -- or waits to start --
+ *  PLAY all reaches what plays and pauses it; if nothing does, it reaches
+ *  every clip that stands still and starts it. A toggle per channel would
+ *  start half the room and stop the other half. A take is REC's and is never
+ *  reached. Each reached channel then goes through its own Play|Pause, so a
+ *  paused clip resumes and a waiting start is called off, as on its pad.
+ *
+ *  **Two taps go back to the top** for the channels the first tap reached,
+ *  each running its own double tap; asking the rule again would pick another
+ *  set, because the first tap has already turned the room over. A twin of one
+ *  touch reaches the same channels too, where every Play|Pause ignores it. */
+class PlayAllPress
 {
-  return status == Pattern::Status::Idle;
-}
+public:
+  std::vector<bool>
+  press (std::vector<Pattern::Status> const &room, long long nowMs)
+  {
+    if (_lastMs != 0)
+      {
+        auto const msAgo = nowMs - _lastMs;
+        if (msAgo < twinWindowMs)
+          return _lastPicks;
+        if (msAgo <= doubleTapWindowMs)
+          {
+            _lastMs = 0;
+            return _lastPicks;
+          }
+      }
+
+    _lastPicks = toggle (room);
+    _lastMs = nowMs == 0 ? 1 : nowMs;
+    return _lastPicks;
+  }
+
+private:
+  static bool
+  runs (Pattern::Status status)
+  {
+    return status == Pattern::Status::Playing
+           || status == Pattern::Status::ScheduledForPlaying;
+  }
+
+  static std::vector<bool>
+  toggle (std::vector<Pattern::Status> const &room)
+  {
+    auto anythingRuns = false;
+    for (auto const status : room)
+      anythingRuns = anythingRuns || runs (status);
+
+    std::vector<bool> picks;
+    for (auto const status : room)
+      picks.push_back (anythingRuns ? runs (status)
+                                    : status == Pattern::Status::Idle);
+    return picks;
+  }
+
+  /** 0: no press to pair with. */
+  long long _lastMs = 0;
+  std::vector<bool> _lastPicks;
+};
 
 }
