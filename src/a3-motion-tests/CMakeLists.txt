@@ -188,6 +188,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PatternProgressBar.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/VuMeter.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/DeskMeter.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SegmentMeter.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MeterBallistics.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/WaitUntil.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MixerHitAreas.cc"

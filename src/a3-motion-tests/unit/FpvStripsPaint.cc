@@ -52,6 +52,7 @@ struct Fixture
     strips.setBounds (0, 0, 1280, 250);
     strips.setChannels (fourChannels ());
     strips.channelLevel = [] (int) { return VuReading{ 0.8f, 0.9f }; };
+    strips.refreshMeters ();
   }
 
   ~Fixture () { juce::LookAndFeel::setDefaultLookAndFeel (nullptr); }
@@ -148,6 +149,7 @@ TEST (FpvStripsPaint, TheMeterShowsItsSignal)
   Fixture f;
   auto const loud = f.paint ();
   f.strips.channelLevel = [] (int) { return VuReading{}; };
+  f.strips.refreshMeters ();
   auto const silent = f.paint ();
   auto const &m = f.strips.strips ()[1].meter;
   auto differ = 0;
@@ -185,6 +187,7 @@ TEST (FpvStripsPaint, NoLevelSourceStillPaints)
 {
   Fixture f;
   f.strips.channelLevel = nullptr;
+  f.strips.refreshMeters ();
   EXPECT_TRUE (f.paint ().isValid ());
 }
 
@@ -425,19 +428,25 @@ TEST (FpvStripsPaint, AnEmptySlotCanBeFoundOnAFlatSkin)
   setTheme (before);
 }
 
-// The meter is the desk's display meter: silent, it is an empty well with
-// its yellow and red marks beside it.
-TEST (FpvStripsPaint, ASilentMeterShowsItsWellAndMarks)
+// Silent, the meter still shows its scale: every segment faintly in its
+// zone's colour, so the yellow and the red are there before they light.
+TEST (FpvStripsPaint, ASilentMeterShowsItsScaleInItsZones)
 {
   Fixture f;
   f.strips.channelLevel = [] (int) { return VuReading{}; };
+  f.strips.refreshMeters ();
   auto const image = f.paint ();
   auto const &m = f.strips.strips ()[1].meter;
-  auto marks = 0;
-  for (int y = m.getY (); y < m.getBottom (); ++y)
-    for (int x = m.getX (); x < m.getRight (); ++x)
-      marks += image.getPixelAt (x, y) == toColour (theme ().textMuted) ? 1 : 0;
-  EXPECT_GT (marks, 0);
+  auto const at = [&] (float share) {
+    auto const meter = m.reduced (juce::roundToInt (theme ().padding));
+    return image.getPixelAt (
+        meter.getX () + juce::roundToInt (share * static_cast<float> (meter.getWidth ())),
+        meter.getCentreY ());
+  };
+  auto const green = at (6.5f / 24.f), yellow = at (15.5f / 24.f), red = at (21.5f / 24.f);
+  EXPECT_NE (green, toColour (theme ().background));
+  EXPECT_NE (green, yellow);
+  EXPECT_NE (yellow, red);
 }
 
 // The look this was built for, in its own skin -- the soft channel set and
@@ -529,4 +538,71 @@ TEST (FpvStripsPaint, ItStillPaintsAfterASkinChange)
   f.paint ();
   f.strips.applyTheme ();
   EXPECT_TRUE (f.paint ().isValid ());
+}
+
+// The meters are the only thing a level moves. Everything outside their
+// rectangles must stay as painted, so repainting them alone is enough.
+TEST (FpvStripsPaint, ALevelChangeMovesPixelsOnlyInsideTheMeters)
+{
+  Fixture f;
+  auto const before = f.paint ();
+  f.strips.channelLevel = [] (int ch) {
+    return ch == 1 ? VuReading{ 0.1f, 0.1f } : VuReading{ 0.8f, 0.9f };
+  };
+  ASSERT_EQ (f.strips.refreshMeters (), 1);
+  auto const after = f.paint ();
+
+  auto outside = 0;
+  auto inside = 0;
+  for (int y = 0; y < before.getHeight (); ++y)
+    for (int x = 0; x < before.getWidth (); ++x)
+      {
+        if (before.getPixelAt (x, y) == after.getPixelAt (x, y))
+          continue;
+        auto const &meter = f.strips.strips ()[1].meter;
+        (meter.contains (x, y) ? inside : outside)++;
+      }
+  EXPECT_GT (inside, 0);
+  EXPECT_EQ (outside, 0);
+}
+
+TEST (FpvStripsPaint, AnUnchangedLevelRedrawsNothing)
+{
+  Fixture f;
+  EXPECT_EQ (f.strips.refreshMeters (), 0);
+}
+
+TEST (FpvStripsPaint, OnlyTheMetersWhoseSegmentsMovedAreRedrawn)
+{
+  Fixture f;
+  f.strips.channelLevel = [] (int ch) {
+    return ch < 2 ? VuReading{ 1.f, 1.f } : VuReading{ 0.8f, 0.9f };
+  };
+  EXPECT_EQ (f.strips.refreshMeters (), 2);
+  EXPECT_EQ (f.strips.refreshMeters (), 0);
+}
+
+// refreshFpvStrips runs every UI tick; handing the strips what they already
+// show must not repaint them.
+TEST (FpvStripsPaint, TheSameChannelsAreNotAChange)
+{
+  Fixture f;
+  EXPECT_FALSE (f.strips.setChannels (fourChannels ()));
+  EXPECT_TRUE (f.strips.setChannels (orbiting ()));
+  EXPECT_FALSE (f.strips.setChannels (orbiting ()));
+}
+
+TEST (FpvStripsPaint, EachMeterSitsInsideItsStripsMeterSection)
+{
+  Fixture f;
+  for (auto const &strip : f.strips.strips ())
+    {
+      auto found = false;
+      for (int i = 0; i < f.strips.getNumChildComponents (); ++i)
+        found = found
+                || (strip.meter.contains (
+                        f.strips.getChildComponent (i)->getBounds ())
+                    && !f.strips.getChildComponent (i)->getBounds ().isEmpty ());
+      EXPECT_TRUE (found);
+    }
 }

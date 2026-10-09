@@ -2104,7 +2104,7 @@ with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is
 `ORBIT` at the right (phase 2). The channel's colour comes in as `ChannelUIState::colour` via
 `FpvChannel::colour`; everything else from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
 `a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
-`FpvStripsPaint`, `DeskMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
+`FpvStripsPaint`, `DeskMeter`, `SegmentMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
 
 **The strips wear StemDeck's look in every skin** (2026-10-08; the audit is
 `.claude/notes/stemdeck-look-for-motion.md` in the workspace, steps b and d). The row stands on the
@@ -2118,16 +2118,26 @@ dimmed, hue kept, to no lighter than `textMuted` (`fpvPlateColour`), because fou
 would be the brightest thing under the sphere at rest. The play state is a key at the clip row's
 end, lit in play's colour (`transportColour`) with the triangle while the clip runs, the idle face
 with the two bars while it does not. 3D / FREQ / Q are slots in the skin's ground with a hairline,
-filled in the channel's colour, their captions muted and a step smaller. The meter is
-`paintDeskMeter` (`components/DeskMeter`): **a channel's meter as the desk shows it** on its small
-displays. The bar fills exactly n/8 for the n channel LEDs the peak lights (thresholds -36 -24 -18
--12 -9 -6 -3 0 dBFS, a3-mixer's `CHANNEL_LED_THRESHOLDS_DB` and `bar_fraction`), green to 4/8,
-yellow to 6/8, red above (the LEDs' colours, from the skin's `vuBandColour` roles); a tick beside the
+filled in the channel's colour, their captions muted and a step smaller. FPV's meter is
+`SegmentMeter` (`components/SegmentMeter`), **StemDeck's LED meter**: up to 24 segments in a well in
+the skin's `background`, unlit ones faintly in their zone's colour, the held peak a short line in
+the segment it stands on. The scale is StemDeck's `barFraction` (the desk's LED thresholds -36 -24
+-18 -12 -9 -6 -3 0 dBFS at k/8, linear in dB between them), the zones the LEDs' eighths (green to
+-12, yellow at -9 and -6, red above; `vuBandColour`, so no new colour role). Its ballistics are
+`VuLevels`/`MeterBallistics`, the same decided numbers as StemDeck's `PeakMeter` (attack, 20 dB/s
+release, 1.5 s hold), so nothing was ported. **Each meter is a child component of `FpvStrips`**,
+opaque, in its strip's meter section; `FpvStrips::refreshMeters` (called from `timerCallback` in FPV)
+feeds them and each repaints only its own rectangle, only when a lit or held segment changed
+(`SegmentMeter::setReading`). `setChannels` repaints the strips only when a channel's data differs, so
+a tick that changed nothing paints nothing. FULL's channel meters (the MIXER overlay, the MIX tab, the
+channel faces) keep `paintDeskMeter` (`components/DeskMeter`): **a channel's meter as the desk shows it** on its small
+displays. The bar fills exactly n/8 for the n channel LEDs the peak lights (thresholds as above, a3-mixer's
+`CHANNEL_LED_THRESHOLDS_DB` and `bar_fraction`), green to 4/8,
+yellow to 6/8, red above; a tick beside the
 bar at 4/8 and 6/8 in `textMuted` (the displays' `YELLOW_FROM_FRACTION`/`RED_FROM_FRACTION`, a tenth
 of the bar's thickness long), so the bar reaches the yellow mark exactly when LED 5 lights (-9 dBFS)
 and the red one when LED 7 does (-3 dBFS); the held peak a line in `textPrimary`; an over (held peak
-above full scale) hatched. One definition for FPV's strips and FULL's channel meters (the MIXER
-overlay's channels, the MIX tab, the channel faces) through `VuMeterView`'s `VuMeterScale::Desk`; the
+above full scale) hatched, through `VuMeterView`'s `VuMeterScale::Desk`; the
 master column's outputs keep `paintVuMeter`'s -60..0 bar (`VuMeterScale::Continuous`), as the desk
 draws its main meter on rows linear in dB. Until 2026-10-08 every meter here had its own -60..0 scale
 with yellow from -18 and red from -6 dBFS, and showed red where the desk was yellow. The desk's numbers

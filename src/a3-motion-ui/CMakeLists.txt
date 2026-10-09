@@ -192,6 +192,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/VuFader.cc
     components/DeskMeter.cc
     components/DeskMeter.hh
+    components/SegmentMeter.cc
+    components/SegmentMeter.hh
     components/VuMeterView.cc
     components/VuMeterView.hh
     components/VuFader.hh

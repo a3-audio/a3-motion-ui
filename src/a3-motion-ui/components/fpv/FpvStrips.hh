@@ -26,6 +26,7 @@
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/flight/FlightTuning.hh>
+#include <a3-motion-ui/components/SegmentMeter.hh>
 #include <a3-motion-ui/components/VuMeter.hh>
 #include <a3-motion-ui/components/fpv/FpvLayout.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -43,6 +44,8 @@ struct FpvChannel
   bool orbit = false;          // flies the gravity field rather than its clip
   int escort = -1;             // the body id it escorts; -1 = patrol
   float escortMass = FlightTuning{}.groupMass; // that body's mass, for the size of its disc
+
+  bool operator== (FpvChannel const &other) const;
 };
 
 /** The header's channel plate: "CH n" on the channel's colour, StemDeck's
@@ -76,13 +79,20 @@ class FpvStrips : public juce::Component, public ThemedComponent
 public:
   FpvStrips ();
 
-  void setChannels (std::array<FpvChannel, 4> const &channels);
+  /** Repaints the strips only if something a strip draws has changed: it is
+   *  called every UI tick, and a tick that changed nothing must cost nothing.
+   *  Returns whether anything did. */
+  bool setChannels (std::array<FpvChannel, 4> const &channels);
   /** The engine's flight tuning: the escort disc is sized by its masses. */
   void setFlightTuning (FlightTuning const &tuning) { _tuning = tuning; }
 
   /** The meter reading of a channel; unset, the meters read silence. */
   std::function<VuReading (int channel)> channelLevel;
 
+  /** Reads every channel's level into its meter. Each meter repaints its own
+   *  rectangle and only when a segment changes; the strips around it are not
+   *  painted again. Returns how many meters were redrawn. */
+  int refreshMeters ();
   /** Colours come with setChannels, the rest is read while painting. */
   void applyTheme () override;
   void paint (juce::Graphics &) override;
@@ -95,6 +105,7 @@ private:
   std::array<FpvChannel, 4> _channels;
   FlightTuning _tuning;
   std::array<FpvStrip, 4> _strips;
+  std::array<SegmentMeter, 4> _meters;
 };
 
 }
