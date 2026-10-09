@@ -30,10 +30,8 @@ namespace a3
 
 namespace
 {
-constexpr float hatchOfRadius = 0.3f;    // the gap between two hatch lines
 constexpr float holdRingOfRadius = 1.2f; // the removal ring round the disc
 constexpr float holdRingOfStroke = 3.f;  // it is heavier than an outline
-constexpr float labelBoxOfFont = 1.2f;
 
 void
 paintRing (juce::Graphics &g, BodyPaint const &body, ThemeColour colour)
@@ -45,24 +43,6 @@ paintRing (juce::Graphics &g, BodyPaint const &body, ThemeColour colour)
                                          2.f * body.ringRadius)
                      .withCentre (body.centre),
                  body.stroke);
-}
-
-void
-paintHatch (juce::Graphics &g, juce::Rectangle<float> disc, float stroke)
-{
-  juce::Path clip;
-  clip.addEllipse (disc);
-  juce::Graphics::ScopedSaveState state (g);
-  g.reduceClipRegion (clip);
-
-  auto const gap = disc.getWidth () / 2.f * hatchOfRadius;
-  // A disc of no size has nothing to hatch, and a zero step never ends.
-  if (!(gap > 0.f))
-    return;
-  auto const span = disc.getWidth ();
-  for (auto offset = -span; offset <= span; offset += gap)
-    g.drawLine (disc.getX () + offset, disc.getBottom (),
-                disc.getX () + offset + span, disc.getY (), stroke);
 }
 
 void
@@ -113,28 +93,10 @@ bodyPulseScale (float pulse)
   return 1.f + (pulse - 1.f) * bodyPulseOfGravity;
 }
 
-float
-bodyHitRadius (float mass, float blobDiameter, float fingertip,
-               FlightTuning const &tuning)
-{
-  return std::max (bodyRadius (mass, blobDiameter, tuning), fingertip / 2.f);
-}
-
 juce::String
 bodyLabel (int id)
 {
   return "G" + juce::String (id + 1);
-}
-
-juce::Rectangle<float>
-bodyLabelBox (juce::Point<float> above, float fontHeight)
-{
-  // Wide enough for "G8" at any font, and a little taller than the font so
-  // descenders do not reach into the head below.
-  auto const height = fontHeight * labelBoxOfFont;
-  return juce::Rectangle<float> (height * 3.f, height)
-      .withCentre (above)
-      .withY (above.y - height);
 }
 
 void
@@ -148,23 +110,11 @@ paintBody (juce::Graphics &g, BodyPaint const &body)
 
   paintRing (g, body, colour);
 
-  // A group's body is the shader's, a blob standing on the floor; only a
-  // dead zone, which has no people, is still a mark painted here.
-  if (role == BodyRole::Repel)
-    {
-      g.setColour (toColour (colour, theme ().alphaTextStrong));
-      paintHatch (g, disc, body.stroke);
-      g.setColour (toColour (colour, theme ().alphaSecondary));
-      g.drawEllipse (disc, body.stroke);
-    }
-
+  // The mark itself -- a group's fill and outline, a dead zone's hatch -- is
+  // the sphere shader's, painted on the dance floor so it lies there.
   g.setColour (toColour (theme ().textPrimary, labelAlpha (body.hidden)));
   g.setFont (juce::Font (juce::FontOptions (body.fontHeight)));
-  if (body.labelAbove)
-    g.drawText (body.label, bodyLabelBox (*body.labelAbove, body.fontHeight),
-                juce::Justification::centredBottom, false);
-  else
-    g.drawText (body.label, disc, juce::Justification::centred, false);
+  g.drawText (body.label, disc, juce::Justification::centred, false);
 
   paintHoldRing (g, body, radius);
 }

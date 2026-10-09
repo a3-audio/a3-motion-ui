@@ -290,16 +290,19 @@ uniform vec3  uBlobCol2;
 uniform vec3  uBlobCol3;
 uniform float uNumBlobs;
 
-// FPV's ships and groups, standing in the room (FlightScene.hh packs them).
+// FPV's ships and the groups' marks on the floor (FlightScene.hh packs them).
 // Arrays, indexed only by a loop counter. Seen frame, sphere radii; an entry
 // with no size is empty.
 uniform vec4  uShipAt[4];      // centre xyz, half length
 uniform vec4  uShipNose[4];    // nose xyz, shade
 uniform vec4  uShipUp[4];      // up xyz, reach on the screen
 uniform vec4  uShipColour[4];  // rgb
-uniform vec4  uGroupAt[8];     // centre xyz, half height
-uniform vec4  uGroupShape[8];  // radius, reach on the screen
-uniform vec3  uGroupColour;
+uniform vec4  uMarkAt[8];      // centre xyz on the floor, radius
+uniform vec4  uMarkShape[8];   // 1 for a dead zone, reach on the screen
+uniform vec3  uGroupColour;    // a group's mark
+uniform vec3  uDeadZoneColour; // a dead zone's
+uniform vec4  uMarkAlpha;      // fill, outline, hatch -- the 2D disc's
+uniform float uMarkStroke;     // outline and hatch width, screen units
 uniform vec4  uFlightBounds;   // the box they all lie in; empty in FULL
 
 // ─── helpers ────────────────────────────────────────────────────
@@ -1920,11 +1923,12 @@ vec4 speakerBoxes (vec2 uv, out float depth)
     return out4;
 }
 
-// ─── FPV: the ships and the groups, as things in the room ──────
+// ─── FPV: the ships, and the groups' marks on the floor ────────
 
-// Every shape here is an ellipsoid, intersected exactly: a quadratic per
-// shape and pixel, where a marched distance field would take dozens of
-// steps -- and only for pixels inside a shape's own circle on the screen.
+// A ship is ellipsoids, intersected exactly: a quadratic per shape and
+// pixel, where a marched distance field would take dozens of steps; a mark
+// is a disc on the floor plane. Both only for pixels inside their own circle
+// on the screen.
 
 /** A ray falling down the seen z against an ellipsoid with unit axes e1, e2,
  *  e3 and semi-axes `s`, centred on `c`.
@@ -1992,21 +1996,6 @@ float shipEdge (int i, vec3 ro, vec2 uv, out float t, out vec3 n,
     return min (eH, eW);
 }
 
-/** One group: an upright spheroid standing on the floor, its axis the room's
- *  own up. Round that axis any pair of crosswise axes will do. */
-float groupEdge (int i, vec3 ro, vec2 uv, out float t, out vec3 n,
-                 out vec3 local)
-{
-    vec4 at = uGroupAt[i];
-    float radius = uGroupShape[i].x;
-    vec3 up = uRoomUp;
-    vec3 across = abs (up.x) < 0.9 ? vec3 (1.0, 0.0, 0.0) : vec3 (0.0, 1.0, 0.0);
-    vec3 e1 = normalize (cross (up, across));
-    vec3 e2 = cross (up, e1);
-    return ellipsoidEdge (ro, at.xyz, e1, e2, up,
-                          vec3 (radius, radius, at.w), uv, t, n, local);
-}
-
 bool sceneShipNear (int i, vec2 uv, float margin)
 {
     vec4 at = uShipAt[i];
@@ -2017,20 +2006,20 @@ bool sceneShipNear (int i, vec2 uv, float margin)
     return dot (d, d) < reach * reach;
 }
 
-bool sceneGroupNear (int i, vec2 uv, float margin)
+bool sceneMarkNear (int i, vec2 uv, float margin)
 {
-    vec4 at = uGroupAt[i];
+    vec4 at = uMarkAt[i];
     if (at.w <= 0.0)
         return false;
     vec2 d = uv - seenToScreen (at.xyz);
-    float reach = uGroupShape[i].y + margin;
+    float reach = uMarkShape[i].y + margin;
     return dot (d, d) < reach * reach;
 }
 
 /** Whether something at depth `t` on this pixel's ray is out of sight: the
  *  ball between (the point lies beyond its far side -- inside the glass
  *  nothing is hidden, it is the sound field the groups stand in), a tower in
- *  front of it, or another ship or group nearer the eye. */
+ *  front of it, or another ship nearer the eye. */
 bool sceneHidden (float t, vec2 uv, float dist, float boxDepth, bool boxHit,
                   float nearest)
 {
@@ -2080,23 +2069,54 @@ vec3 shadeShip (int i, vec3 n, float hullX)
     return lit * uShipNose[i].w;
 }
 
-vec3 shadeGroup (int i, vec3 n, vec3 local)
+/** One body's mark at this pixel, painted on the floor as the 2D disc was
+ *  on the glass: a group a fill and an outline, a dead zone a hatch
+ *  and an outline. `off` is the floor point under the pixel less the mark's
+ *  centre, both seen; it lies in the floor's plane.
+ *
+ *  The floor is a plane and the view orthographic, so a disc on it is an
+ *  ellipse round its centre's image, and the distance across the disc in
+ *  its own radii is a norm on the screen round that image: the outline
+ *  along this pixel's line from the centre lies at r / m, as for the ships. */
+vec4 markPaint (int i, vec2 uv, vec3 off, float px, out float edge)
 {
-    vec3 l = sceneLight ();
-    // Wrapped, so the shadow side stays a body rather than a hole.
-    float wrap = dot (n, l) * 0.5 + 0.5;
-    float rim = pow (1.0 - max (n.z, 0.0), 2.0);
-    // Feet in the dark, heads in the light.
-    float rise = mix (0.55, 1.0, clamp (local.z * 0.5 + 0.5, 0.0, 1.0));
-    // A little unevenness in it: a crowd, not a balloon.
-    float people = 0.85 + 0.30 * valueNoise (local * 3.0 + vec3 (float (i) * 7.1));
+    vec4 at = uMarkAt[i];
+    float m = length (off) / at.w;
+    float r = length (uv - seenToScreen (at.xyz));
+    edge = r * (1.0 - 1.0 / max (m, 1e-4));
 
-    return uGroupColour * (0.18 + 0.50 * wrap) * rise * people
-         + uGroupColour * rim * 0.25;
+    bool deadZone = uMarkShape[i].x > 0.5;
+    vec3 colour = deadZone ? uDeadZoneColour : uGroupColour;
+    float inside = clamp (0.5 - edge / px, 0.0, 1.0);
+    float halfStroke = max (uMarkStroke, px) * 0.5;
+    float outline = 1.0 - smoothstep (halfStroke, halfStroke + px, abs (edge));
+
+    float body;
+    if (deadZone)
+    {
+        // Diagonal lines across it, as far apart as the disc's hatch was,
+        // lying in the floor so they lean with it.
+        vec3 across = abs (uRoomUp.x) < 0.9 ? vec3 (1.0, 0.0, 0.0)
+                                             : vec3 (0.0, 1.0, 0.0);
+        vec3 e1 = normalize (cross (uRoomUp, across));
+        vec3 e2 = cross (uRoomUp, e1);
+        float gap = at.w * 0.3 * 0.70710678;
+        float along = (dot (off, e1) + dot (off, e2)) * 0.70710678;
+        float toLine = abs (fract (along / gap) - 0.5) * gap;
+        float hatch = 1.0 - smoothstep (halfStroke, halfStroke + px, toLine);
+        body = hatch * inside * uMarkAlpha.z;
+    }
+    else
+        body = inside * uMarkAlpha.x;
+
+    vec4 paint = vec4 (colour, 1.0) * body;
+    float line = outline * uMarkAlpha.y;
+    return paint * (1.0 - line) + vec4 (colour, 1.0) * line;
 }
 
-/** FPV's ships and groups at this pixel: what is seen, premultiplied by its
- *  cover in a, and what is hidden, as `ghost`, to be added. */
+/** FPV's ships and the groups' marks at this pixel: what is seen,
+ *  premultiplied by its cover in a, and what is hidden, as `ghost`, to be
+ *  added. */
 vec4 flightScene (vec2 uv, float dist, float boxDepth, bool boxHit,
                   out vec3 ghost)
 {
@@ -2110,36 +2130,47 @@ vec4 flightScene (vec2 uv, float dist, float boxDepth, bool boxHit,
     vec3 ro = vec3 (uv.y, -uv.x, 4.0);
     float t;
     vec3 n;
-    vec3 local;
     float hullX;
 
-    // Who is nearest the eye here, so the others behind it are its ghosts.
+    // Who is nearest the eye here, so the ships behind it are its ghosts.
     float nearest = 1000.0;
     for (int i = 0; i < 4; i++)
         if (sceneShipNear (i, uv, margin)
             && shipEdge (i, ro, uv, t, n, hullX) < 0.0)
             nearest = min (nearest, t);
-    for (int i = 0; i < 8; i++)
-        if (sceneGroupNear (i, uv, margin)
-            && groupEdge (i, ro, uv, t, n, local) < 0.0)
-            nearest = min (nearest, t);
 
     vec4 seen = vec4 (0.0);
-    for (int i = 0; i < 8; i++)
+
+    // The marks lie on the floor, under everything else of the scene: hidden
+    // only by the ball and the towers, and painted over by the ships. Where
+    // this pixel's ray meets the floor, as danceFloor() finds it.
+    float denom = -uRoomUp.z;
+    float tFloor = abs (denom) < 0.001 ? -1.0
+                                       : (uFloorZ - dot (ro, uRoomUp)) / denom;
+    if (tFloor >= 0.0)
     {
-        if (!sceneGroupNear (i, uv, margin))
-            continue;
-        float edge = groupEdge (i, ro, uv, t, n, local);
-        if (sceneHidden (t, uv, dist, boxDepth, boxHit, nearest))
+        vec3 onFloor = ro - vec3 (0.0, 0.0, tFloor);
+        bool hidden = sceneHidden (tFloor, uv, dist, boxDepth, boxHit, 1000.0);
+        for (int i = 0; i < 8; i++)
         {
-            ghost += sceneGhost (uGroupColour, edge, px);
-            continue;
+            if (!sceneMarkNear (i, uv, margin))
+                continue;
+            float edge;
+            vec4 paint = markPaint (i, uv, onFloor - uMarkAt[i].xyz, px, edge);
+            if (hidden)
+            {
+                // Half a ship's: a mark is paint, fainter than a craft, and
+                // its ghost has to stay below its own outline.
+                ghost += sceneGhost ((uMarkShape[i].x > 0.5 ? uDeadZoneColour
+                                                            : uGroupColour)
+                                         * 0.5,
+                                     edge, px);
+                continue;
+            }
+            seen = seen * (1.0 - paint.a) + paint;
         }
-        // Soft at its edge: a crowd has no hard outline.
-        float soft = uGroupShape[i].x * 0.25;
-        float cover = 1.0 - smoothstep (-soft, px, edge);
-        seen = seen * (1.0 - cover) + vec4 (shadeGroup (i, n, local), 1.0) * cover;
     }
+
     for (int i = 0; i < 4; i++)
     {
         if (!sceneShipNear (i, uv, margin))
@@ -2782,9 +2813,12 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uShipNose      = glGetUniformLocation (pid, "uShipNose[0]");
   _uShipUp        = glGetUniformLocation (pid, "uShipUp[0]");
   _uShipColour    = glGetUniformLocation (pid, "uShipColour[0]");
-  _uGroupAt       = glGetUniformLocation (pid, "uGroupAt[0]");
-  _uGroupShape    = glGetUniformLocation (pid, "uGroupShape[0]");
+  _uMarkAt        = glGetUniformLocation (pid, "uMarkAt[0]");
+  _uMarkShape     = glGetUniformLocation (pid, "uMarkShape[0]");
   _uGroupColour   = glGetUniformLocation (pid, "uGroupColour");
+  _uDeadZoneColour = glGetUniformLocation (pid, "uDeadZoneColour");
+  _uMarkAlpha     = glGetUniformLocation (pid, "uMarkAlpha");
+  _uMarkStroke    = glGetUniformLocation (pid, "uMarkStroke");
   _uFlightBounds  = glGetUniformLocation (pid, "uFlightBounds");
 
   _aPos = glGetAttribLocation (pid, "aPos");
@@ -3283,12 +3317,18 @@ SphereShader::uploadFlightScene ()
   upload (_uShipNose, _flightScene.shipNose);
   upload (_uShipUp, _flightScene.shipUp);
   upload (_uShipColour, _flightScene.shipColour);
-  upload (_uGroupAt, _flightScene.groupAt);
-  upload (_uGroupShape, _flightScene.groupShape);
+  upload (_uMarkAt, _flightScene.markAt);
+  upload (_uMarkShape, _flightScene.markShape);
   upload (_uFlightBounds, _flightScene.bounds);
-  // The floor's own colour for a group, as the 2D disc had it: a group is
-  // nobody's channel.
+  // The 2D disc's colours and alphas, so a mark on the floor is the disc
+  // that was: a group is nobody's channel, a dead zone is the only red.
   setThemeUniform (_uGroupColour, bodyColour (BodyRole::Attract));
+  setThemeUniform (_uDeadZoneColour, bodyColour (BodyRole::Repel));
+  if (_uMarkAlpha >= 0)
+    glUniform4f (_uMarkAlpha, theme ().alphaFillEmphasis,
+                 theme ().alphaSecondary, theme ().alphaTextStrong, 0.f);
+  if (_uMarkStroke >= 0)
+    glUniform1f (_uMarkStroke, _flightScene.markStroke);
 }
 
 void SphereShader::setLineTexture (int channel, unsigned int textureID)

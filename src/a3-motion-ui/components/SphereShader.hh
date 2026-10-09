@@ -36,9 +36,9 @@ namespace a3
  * blobs -- each a core, a rim, a VU corona, procedural sparks, a bolt on a
  * transient, a wake behind it and a neon ring while an action runs. In FPV,
  * instead of the blobs: the ships, as small lit craft hovering over the ball,
- * and the guest groups, as lit blobs one person tall standing on the dance
- * floor (setFlightScene) -- hidden by the ball, a cabinet or one another they
- * leave only a ghost outline.
+ * and the guest groups and dead zones, as marks painted on the dance floor
+ * (setFlightScene) -- hidden by the ball, a cabinet or (ships) one another
+ * they leave only a ghost outline.
  *
  * Drawn flat over the top, not raytraced: the volumetric speaker bands, which
  * are a two-dimensional annulus in screen polar coordinates. They follow a
@@ -121,7 +121,7 @@ public:
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
 
-  /** FPV's ships and groups (set each frame before draw). An empty scene --
+  /** FPV's ships and floor marks (set each frame before draw). An empty scene --
    *  the default, and what FULL sets -- draws nothing and costs one compare
    *  a pixel. */
   void setFlightScene (FlightSceneUniforms const &scene) { _flightScene = scene; }
@@ -423,9 +423,12 @@ private:
   GLint _uShipNose = -1;
   GLint _uShipUp = -1;
   GLint _uShipColour = -1;
-  GLint _uGroupAt = -1;
-  GLint _uGroupShape = -1;
+  GLint _uMarkAt = -1;
+  GLint _uMarkShape = -1;
   GLint _uGroupColour = -1;
+  GLint _uDeadZoneColour = -1;
+  GLint _uMarkAlpha = -1;
+  GLint _uMarkStroke = -1;
   GLint _uFlightBounds = -1;
   void uploadFlightScene ();
   FlightSceneUniforms _flightScene;
