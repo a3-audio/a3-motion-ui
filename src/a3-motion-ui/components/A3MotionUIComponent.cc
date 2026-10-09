@@ -6022,6 +6022,14 @@ A3MotionUIComponent::tickCallback (Measure measure)
 {
   _now = measure;
 
+  // A bar is over: its level goes to the live mood, and the pilots hear what
+  // the music says now.
+  if (measure.beat () == 0 && measure.tick () == 0 && measure.bar () > 0)
+    {
+      _liveMood.addBar (static_cast<long long> (measure.bar ()) - 1, _barMeter.closeBar ());
+      pushMusicCue ();
+    }
+
   // This thread's own copy of the beat address, taken over here and read
   // nowhere else.
   applyPendingBeatAddress ();
@@ -7151,6 +7159,7 @@ A3MotionUIComponent::timerCallback ()
     {
       refreshFpvStrips ();
       refreshFlightDisplay ();
+      announcePilotGames ();
     }
 
   // At most one theme apply per tick, whatever arrived since the last one --
@@ -7294,6 +7303,10 @@ A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)
   // falling bar and a held mark need that, and it has to be one memory for
   // every page that draws this channel's meter.
   _vuLevels.setChannel (channel, { peak, rms }, vuNowMs ());
+
+  // And a bar's worth of it for the live mood, the pilots' timing when
+  // StemDeck says nothing.
+  _barMeter.hear (channel, rms);
 }
 
 void
@@ -7605,6 +7618,7 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   if (!ahead)
     {
       _musicPreview.clear ();
+      pushMusicCue ();
       return;
     }
 
@@ -7612,6 +7626,9 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   // so the smoke test can read in the journal what Motion holds.
   auto const before = _musicPreview.current (now, _engine.getTempoBPM ());
   _musicPreview.receive (*ahead, now);
+  // Sent on StemDeck's downbeat: its bars count from the nearest one here.
+  _previewBar = nearestDownbeatBar (uiBeats (), _engine.getBeatsPerBar ());
+  pushMusicCue ();
   if (before && before->ahead.section == ahead->section
       && before->ahead.next == ahead->next)
     return;
@@ -7619,6 +7636,39 @@ A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)
   std::cerr << "A3 Motion: music preview " << wordOf (ahead->section)
             << " -> " << (ahead->next ? wordOf (*ahead->next) : setEndsWord)
             << " in " << ahead->barsUntilNext << " bars" << std::endl;
+}
+
+double
+A3MotionUIComponent::uiBeats () const
+{
+  return static_cast<double> (Measure::convertToTicks (_now, _engine.getBeatsPerBar ()))
+         / TempoClock::getTicksPerBeat ();
+}
+
+void
+A3MotionUIComponent::pushMusicCue ()
+{
+  auto const now = juce::Time::getMillisecondCounterHiRes () / 1000.0;
+  auto const fresh = _musicPreview.current (now, _engine.getTempoBPM ());
+  _musicCue = chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt,
+                         _previewBar, _liveMood.cue ());
+  _engine.setMusicCue (_musicCue);
+}
+
+void
+A3MotionUIComponent::announcePilotGames ()
+{
+  for (auto ch = 0; ch < static_cast<int> (_announcedGames.size ()); ++ch)
+    {
+      auto const game = _engine.gameOf (static_cast<index_t> (ch));
+      auto &seen = _announcedGames[static_cast<size_t> (ch)];
+      auto const isNew = game
+                         && (!seen || seen->game != game->game || seen->leader != game->leader
+                             || seen->byPilot != game->byPilot);
+      seen = game;
+      if (isNew && game->byPilot && game->leader == ch)
+        updateControlReadout (pilotGameReadout (ch, game->game));
+    }
 }
 
 void

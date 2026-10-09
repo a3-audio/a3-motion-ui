@@ -27,7 +27,7 @@ namespace a3
 
 /** Where the music is, as StemDeck's preview (the `stemdeck.ahead` word)
  *  says. Motion analyses no audio: this is all it knows of the set's
- *  sections, and nothing acts on it yet. */
+ *  sections; the pilots time their games by it (MusicCue). */
 enum class MusicSection
 {
   Groove,

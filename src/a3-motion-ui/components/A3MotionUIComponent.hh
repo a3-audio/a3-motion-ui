@@ -20,7 +20,10 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/flight/PilotLevel.hh>
+#include <a3-motion-engine/preview/LiveMood.hh>
+#include <a3-motion-engine/preview/MusicCue.hh>
 #include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
@@ -631,10 +634,28 @@ private:
     juce::String _address{ "/a3-osc-missing/beat" };   // set from the truth at start-up
   };
   BeatArrival _beatArrival{ _engine };
-  /** StemDeck's preview of the music, with its age. Held only,
-   *  nothing acts on it yet; a reader asks
+  /** StemDeck's preview of the music, with its age; the pilots go by it
+   *  while it is fresh (pushMusicCue). A reader asks
    *  _musicPreview.current (now, _engine.getTempoBPM ()). */
   MusicPreview _musicPreview;
+  /** The live mood, the pilots' timing when the preview is stale or absent:
+   *  each bar's level from the channel meters, and what the bars say. */
+  BarMeter _barMeter;
+  LiveMood _liveMood;
+  /** The bar the preview counts from: the downbeat nearest its arrival. */
+  long long _previewBar{ 0 };
+  /** What the pilots go by now, as last handed to the engine. */
+  MusicCue _musicCue{};
+  /** Per channel, the game last seen there, so a pilot's new game is
+   *  announced once. */
+  std::array<std::optional<ShipGame>, 4> _announcedGames{};
+  /** Works the cue out -- the preview while it is fresh, else the live
+   *  mood -- and hands it to the engine. Message thread. */
+  void pushMusicCue ();
+  /** "CHn FLY <GAME>" in the readout when a pilot starts a game. */
+  void announcePilotGames ();
+  /** The beat the UI's copy of the clock stands on. */
+  double uiBeats () const;
   /** The engine's own beats, stamped on the clock's thread. */
   TempoClock::PointerT _beatTraceHandle;
 

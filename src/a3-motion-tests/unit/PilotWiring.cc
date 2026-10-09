@@ -53,3 +53,54 @@ TEST (PilotWiring, TheKeyStepsTheLevelAndTheLevelIsSaved)
   EXPECT_TRUE (set.contains ("pilotLevelReadout (level)"));
   EXPECT_TRUE (set.contains ("persistSettings ()"));
 }
+
+// What the pilots go by: every downbeat closes a bar of the channel meters
+// for the live mood and hands the engine the newest cue; a preview does the
+// same from its own downbeat.
+
+TEST (PilotWiring, TheMetersFeedTheLiveMood)
+{
+  auto const body = a3::test::uiComponentBodyOf (
+      "A3MotionUIComponent::onChannelVU (int channel, float peak, float rms)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_barMeter.hear (channel, rms)"));
+}
+
+TEST (PilotWiring, EveryDownbeatClosesABarAndCuesThePilots)
+{
+  auto const body = a3::test::uiComponentBodyOf ("A3MotionUIComponent::tickCallback (Measure measure)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_liveMood.addBar ("));
+  EXPECT_TRUE (body.contains ("_barMeter.closeBar ()"));
+  EXPECT_TRUE (body.contains ("pushMusicCue ()"));
+}
+
+TEST (PilotWiring, APreviewCuesThePilotsFromItsDownbeat)
+{
+  auto const body = a3::test::uiComponentBodyOf (
+      "A3MotionUIComponent::onMusicPreview (std::optional<MusicAhead> const &ahead)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_previewBar = nearestDownbeatBar ("));
+  int cues = 0;
+  for (auto at = body.indexOf ("pushMusicCue ()"); at >= 0;
+       at = body.indexOf (at + 1, "pushMusicCue ()"))
+    ++cues;
+  EXPECT_EQ (cues, 2) << "a new preview, and a preview gone";
+}
+
+TEST (PilotWiring, TheCueGoesToTheEngine)
+{
+  auto const body = a3::test::uiComponentBodyOf ("A3MotionUIComponent::pushMusicCue ()");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("chooseCue ("));
+  EXPECT_TRUE (body.contains ("_engine.setMusicCue (_musicCue)"));
+}
+
+TEST (PilotWiring, FpvAnnouncesThePilotsGames)
+{
+  auto const timer = a3::test::uiComponentBodyOf ("A3MotionUIComponent::timerCallback ()");
+  EXPECT_TRUE (timer.contains ("announcePilotGames ()"));
+  auto const announce = a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()");
+  EXPECT_TRUE (announce.contains ("pilotGameReadout ("));
+  EXPECT_TRUE (announce.contains ("byPilot"));
+}
