@@ -103,10 +103,26 @@ sortStable (std::array<int, flightShips> &order, int count, Key const &key)
       std::swap (order[at (j)], order[at (j - 1)]);
 }
 
+/** +1 when `from` lies counter-clockwise of `target` seen from the middle,
+ *  -1 clockwise, 0 on the same line through the middle. */
+float
+sideOf (Vec2 from, Vec2 target)
+{
+  auto const cross = target.x * from.y - target.y * from.x;
+  return cross > 1e-6f ? 1.f : (cross < -1e-6f ? -1.f : 0.f);
+}
+
 void
 planFakeOut (GamePlan &plan, juce::Random &dice)
 {
   auto way = dice.nextBool () ? 1.f : -1.f;
+  // The veer is measured from the target, but the approach ends off to the
+  // side it comes in on, and near the middle that offset is wide: veering
+  // the same way would leave only the difference to be heard. A lone ship
+  // veers to the far side; a crew keeps the dice's alternating ways.
+  if (plan.crewSize == 1)
+    if (auto const side = sideOf (plan.from[at (plan.leader)], plan.target); side != 0.f)
+      way = -side;
   for (auto s = 0; s < flightShips; ++s)
     if (plan.crew[at (s)])
       {

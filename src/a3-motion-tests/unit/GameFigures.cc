@@ -221,6 +221,24 @@ TEST (GameFigures, ACrewsFakeOutsVeerToBothSides)
   EXPECT_EQ (right, 2);
 }
 
+TEST (GameFigures, ALoneFakeOutVeersAwayFromTheSideItComesInOn)
+{
+  // Ship 0 stands at 0 deg. A group just counter-clockwise of it is come at
+  // from the clockwise side, and the other way round: the veer goes to the
+  // far side, whatever the dice throw, so the bend from where the approach
+  // ends is the veer plus the approach's own offset, never the difference.
+  for (juce::int64 seed = 1; seed <= 8; ++seed)
+    for (auto const side : { 1.f, -1.f })
+      {
+        juce::Random dice (seed);
+        auto const plan = planGame (PilotGame::FakeOut, 0, only (0), shipsOnTheSpread (),
+                                    PilotTarget{}, oneGroupAt ({ 0.2f, side * 0.2f }),
+                                    heading (MusicSection::Build, MusicSection::Drop, 4), 0.,
+                                    fourFour, dice, flight, tuning);
+        EXPECT_EQ (plan.turn[0], side) << "seed " << seed << ", group at " << side * 45.f;
+      }
+}
+
 TEST (GameFigures, TheFormationStandsInALineAcrossItsAxis)
 {
   auto const plan = planned (PilotGame::Formation, everyone, oneGroupAt ({ 0.f, 0.8f }));

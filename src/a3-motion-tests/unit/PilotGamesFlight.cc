@@ -303,6 +303,35 @@ TEST (PilotGamesFlight, SameSeedSameSkyWithGames)
   EXPECT_EQ (std::memcmp (a.data (), b.data (), a.size () * sizeof (ShipState)), 0);
 }
 
+TEST (PilotGamesFlight, AFakeOutAtAGroupNearTheMiddleStillTurnsAHeardBendAway)
+{
+  // Near the middle the approach ends well off the target's direction, seen
+  // from the middle. Whichever side it comes in on, the ship must be heard
+  // turning a bend from where the approach ended, end that bend a heard
+  // bend away from its target, and still land on it on the 1.
+  auto narrowest = 180.f;
+  auto widestMiss = 0.f;
+  for (auto const radius : { 0.2f, 0.3f })
+    for (auto degrees = 0; degrees < 360; degrees += 30)
+      for (juce::int64 seed = 1; seed <= 4; ++seed)
+        {
+          Floor floor (oneGroupAt (onCircle (static_cast<float> (degrees), radius)), seed);
+          auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4);
+          ASSERT_TRUE (floor.ask (PilotGame::FakeOut, 0, PilotRecruit::Self, cue));
+          auto const heard = flyFakeOut (floor, cue, floor.bodies.body[0].at);
+          narrowest = std::min (narrowest, heard.turned);
+          widestMiss = std::max (widestMiss, heard.closest);
+          EXPECT_GE (heard.turned, tuning.heardBendDegrees)
+              << "group at " << degrees << " deg, radius " << radius << ", seed " << seed;
+          EXPECT_GE (heard.widest, tuning.heardBendDegrees)
+              << "group at " << degrees << " deg, radius " << radius << ", seed " << seed;
+          EXPECT_LE (heard.closest, 15.f)
+              << "group at " << degrees << " deg, radius " << radius << ", seed " << seed;
+        }
+  RecordProperty ("narrowestBendDegrees", juce::String (narrowest, 1).toStdString ());
+  RecordProperty ("widestMissDegrees", juce::String (widestMiss, 1).toStdString ());
+}
+
 TEST (PilotGamesFlight, AThreeShipFormationBurstsApartWithItsMiddleShipAcrossTheRoom)
 {
   // The middle place of three bursts straight across the room. On a flat

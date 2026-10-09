@@ -82,7 +82,8 @@ std::optional<Vec2> bodyPlace (FlightBodies const &bodies, int id);
 float burstAngle (int crewSize, int place);
 
 /** `game` set up for `crew` at `beats`: its 1 from the cue, the target, the
- *  parts. `dice` throws the fake-out's way round. Pure apart from the dice. */
+ *  parts. `dice` throws a crew's fake-out ways round; a lone ship veers
+ *  away from the side its approach comes in on. Pure apart from the dice. */
 GamePlan planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
                    std::array<ShipState, flightShips> const &ships, PilotTarget target,
                    FlightBodies const &bodies, MusicCue const &cue, double beats,
