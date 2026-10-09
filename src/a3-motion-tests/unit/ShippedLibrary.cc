@@ -151,13 +151,13 @@ TEST (ShippedLibrary, EveryShippedSetIsOneClipAndSixActionsPerChannel)
     }
 }
 
-/** The library ships fifty shapes and, since 2026-10-08, fifteen sets: the
- *  ten of 2026-09-28, four moods built like Groove (Tribal, Acid, Ambient,
- *  Tension) and Space, the motion jockey's set -- five clips per phase, so
- *  seventy-five, and seventy-seven actions.
+/** The library ships fifty shapes and sixteen sets: the ten of 2026-09-28,
+ *  four moods built like Groove (Tribal, Acid, Ambient, Tension), Space, the
+ *  motion jockey's set, and FPV Games -- five clips per phase, so
+ *  seventy-five, and eighty-one actions.
  *  Each clip draws a shape that ships -- a clip naming a missing one loads as
  *  nothing. */
-TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFifteenSets)
+TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndSixteenSets)
 {
   juce::File const shapes (A3_PATTERN_SYSTEM_DIR);
   juce::File const clips (A3_PATTERN_CLIPS_DIR);
@@ -181,10 +181,10 @@ TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFifteenSets)
 
   EXPECT_EQ (shapeFiles.size (), 50);
   EXPECT_EQ (clipFiles.size (), 75);
-  EXPECT_EQ (actionFiles.size (), 77);
+  EXPECT_EQ (actionFiles.size (), 81);
   EXPECT_EQ (sets.findChildFiles (juce::File::findFiles, false, "*.json")
                  .size (),
-             15);
+             16);
 
   juce::StringArray shapeNames;
   for (auto const &file : shapeFiles)
@@ -202,6 +202,8 @@ TEST (ShippedLibrary, TheLibraryShipsFiftyShapesAndFifteenSets)
 
 namespace
 {
+juce::String const fpvGamesSet = "FPV Games";
+
 juce::StringArray const phases{ "Warmup", "Groove", "Build",   "Peak",
                                 "Drop",   "Break",  "Dub",     "Deep",
                                 "Float",  "Closing", "Tribal", "Acid",
@@ -268,7 +270,7 @@ TEST (ShippedLibrary, EveryClipSaysWhatItIsFor)
 
 namespace
 {
-juce::StringArray const kinds{ "Move", "Lift", "Width", "Speed", "Dub", "FX", "Cue" };
+juce::StringArray const kinds{ "Move", "Lift", "Width", "Speed", "Dub", "FX", "Cue", "Pilot" };
 
 juce::Array<juce::File>
 shippedActionFiles ()
@@ -282,11 +284,11 @@ shippedActionFiles ()
 }
 }
 
-// Seventy-seven actions, each named by what it does.
-TEST (ShippedLibrary, SeventySevenActionsNamedByWhatTheyDo)
+// Eighty-one actions, each named by what it does.
+TEST (ShippedLibrary, EightyOneActionsNamedByWhatTheyDo)
 {
   auto const files = shippedActionFiles ();
-  EXPECT_EQ (files.size (), 77);
+  EXPECT_EQ (files.size (), 81);
   for (auto const &f : files)
     EXPECT_TRUE (startsWithOneOf (f.getFileNameWithoutExtension (), kinds))
         << f.getFileName ();
@@ -343,11 +345,14 @@ TEST (ShippedLibrary, EveryCueNamesAClipThatShipsAndNothingElse)
 
 // Fifteen sets, one for each phase of the night, laid out the same way: the four
 // clips carry the set's own phase, A5 is the FX, A6 the Cue into what comes
-// next, and A1..A4 only move.
+// next, and A1..A4 only move. FPV Games is the one set beside them.
 TEST (ShippedLibrary, FifteenSetsOnePerPhaseLaidOutTheSameWay)
 {
-  auto const files = juce::File (A3_PATTERN_SESSIONS_DIR)
-                         .findChildFiles (juce::File::findFiles, false, "*.json");
+  auto files = juce::File (A3_PATTERN_SESSIONS_DIR)
+                   .findChildFiles (juce::File::findFiles, false, "*.json");
+  files.removeIf ([] (juce::File const &f) {
+    return f.getFileNameWithoutExtension () == fpvGamesSet;
+  });
   EXPECT_EQ (files.size (), 15);
   for (auto const &f : files)
     {
@@ -369,6 +374,57 @@ TEST (ShippedLibrary, FifteenSetsOnePerPhaseLaidOutTheSameWay)
                           || script (b).startsWith ("Cue "))
                 << name << " A" << (b + 1) << " " << script (b);
         }
+    }
+}
+
+// A Pilot action starts a game, and only a Pilot action does: a mood action
+// pressed in FPV keeps flying the ship it was given.
+TEST (ShippedLibrary, OnlyPilotActionsStartAGame)
+{
+  int pilots = 0;
+  for (auto const &f : shippedActionFiles ())
+    {
+      auto const name = f.getFileNameWithoutExtension ();
+      auto const r = runActionScript (f.loadFileAsString (), ClipSettings{}, 1);
+      auto const startsAGame
+          = r.pilot.game.has_value () && *r.pilot.game != PilotGame::None;
+      EXPECT_EQ (startsAGame, name.startsWith ("Pilot ")) << name;
+      pilots += name.startsWith ("Pilot ") ? 1 : 0;
+    }
+  EXPECT_EQ (pilots, 4);
+}
+
+// FPV Games: the four games on A1..A4, the same on every channel so any ship
+// can be sent into any of them, and two actions you hear on A5 and A6.
+TEST (ShippedLibrary, TheFpvGamesSetHasEveryGameOnEveryChannel)
+{
+  auto const file = juce::File (A3_PATTERN_SESSIONS_DIR)
+                        .getChildFile (fpvGamesSet + ".json");
+  ASSERT_TRUE (file.existsAsFile ());
+  auto const set = loadSession (file, 4, 1);
+  EXPECT_EQ (juce::String (set.name), fpvGamesSet);
+
+  juce::File const actions (A3_PATTERN_ACTIONS_DIR);
+  auto const gameOn = [&] (std::string const &script) {
+    auto const source
+        = actions.getChildFile (juce::String (script) + ".scd").loadFileAsString ();
+    return runActionScript (source, ClipSettings{}, 1).pilot.game;
+  };
+
+  std::vector<PilotGame> const games{ PilotGame::FakeOut, PilotGame::Formation,
+                                      PilotGame::HideAndSeek,
+                                      PilotGame::CallAndResponse };
+  auto const &first = set.channels[0].actions;
+  for (auto const &channel : set.channels)
+    {
+      for (size_t b = 0; b < 6; ++b)
+        EXPECT_EQ (channel.actions[b].script, first[b].script) << "A" << (b + 1);
+      for (size_t b = 0; b < 4; ++b)
+        EXPECT_EQ (gameOn (channel.actions[b].script), games[b])
+            << "A" << (b + 1) << " " << channel.actions[b].script;
+      for (size_t b = 4; b < 6; ++b)
+        EXPECT_TRUE (juce::String (channel.actions[b].script).startsWith ("FX "))
+            << "A" << (b + 1) << " " << channel.actions[b].script;
     }
 }
 
@@ -549,7 +605,8 @@ TEST (ShippedLibrary, SpaceButtonsMakeChangesARoomCanHear)
 // A1 and A3 move towards "more", A2 and A4 towards "less", as each script's
 // own Mood: line says. Break and Float carried Width Breathe, a "less", on
 // A3 (docs question 9, 2026-10-08). The four mood sets use A1..A4 for
-// gestures of their own mood and are not held to it.
+// gestures of their own mood and are not held to it, nor is FPV Games, whose
+// A1..A4 are its games.
 TEST (ShippedLibrary, PhaseSetsPutMoreLeftAndLessRight)
 {
   juce::StringArray const moodSets{ "Tribal", "Tension", "Acid", "Ambient" };
@@ -570,7 +627,7 @@ TEST (ShippedLibrary, PhaseSetsPutMoreLeftAndLessRight)
     {
       auto const set = loadSession (f, 4, 1);
       auto const name = juce::String (set.name);
-      if (moodSets.contains (name))
+      if (moodSets.contains (name) || name == fpvGamesSet)
         continue;
       for (auto const &channel : set.channels)
         for (int b = 0; b < 4; ++b)
