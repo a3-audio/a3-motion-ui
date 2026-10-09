@@ -162,8 +162,7 @@ paintBody (juce::Graphics &g, BodyPaint const &body)
   g.setColour (toColour (colour, theme ().alphaSecondary));
   g.drawEllipse (disc, body.stroke);
 
-  g.setColour (toColour (theme ().textPrimary,
-                         body.hidden ? ghostLabelAlpha : 1.f));
+  g.setColour (toColour (theme ().textPrimary, labelAlpha (body.hidden)));
   g.setFont (juce::Font (juce::FontOptions (body.fontHeight)));
   if (body.labelAbove)
     g.drawText (body.label, bodyLabelBox (*body.labelAbove, body.fontHeight),
