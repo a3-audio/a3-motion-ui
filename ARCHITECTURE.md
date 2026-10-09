@@ -2288,8 +2288,8 @@ instead: a small lit craft over the ball, raytraced in the same pass, pointing a
 the room (see "Ships fly in the room and the groups are marked on its floor" under the gravity
 flight). Phase 1 drew a
 flat dart in the 2D pass with a heading taken on the screen; that was taken out once the shader's
-craft drew. The app takes only the sizes from `ShipShape` now (`shipLengthOfBlob`,
-`shipStepOfLength`); its dart and screen heading (`shipPath`, `ShipHeading`) are no longer called.
+craft drew, and the dart and its screen heading (`ShipShape`) were deleted; the ship's sizes
+(`shipLengthOfBlob`, `shipStepOfLength`) live in `FlightScene` now.
 
 **Touch on the sphere is camera only outside the dance floor** (phase 2 gives the floor to the
 group gesture, see below). One finger tilts and turns, two zoom, a double tap resets.
@@ -2302,8 +2302,8 @@ held, and the finger that let go was no longer listened to.
 four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
 with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is `CH n` at the left and `CLIP` or
 `ORBIT` at the right (phase 2). Only the strip's tint and the bar fills use the channel's colour
-(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
-`a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
+(`ChannelUIState::colour` via `FpvChannel::colour`); text and metrics come from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`) and `FpvStrips`'s paint code are in
+`a3-motion-ui-shared` and tested without a window (`FpvLayout`,
 `FpvStripsPaint`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
 
 **Encoders in FPV act as with SHIFT:** each one turns its own column's channel FREQ/Q

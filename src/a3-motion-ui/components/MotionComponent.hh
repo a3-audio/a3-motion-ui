@@ -46,7 +46,6 @@
 #include <a3-motion-ui/components/fpv/FlightScene.hh>
 #include <a3-motion-ui/components/fpv/FloorGesture.hh>
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
-#include <a3-motion-ui/components/fpv/ShipShape.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/LineMapRenderer.hh>

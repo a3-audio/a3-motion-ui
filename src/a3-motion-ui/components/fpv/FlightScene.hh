@@ -89,6 +89,13 @@ float footprintRadiusOnView (Pos const &feet, float radius,
 
 // ── ships: craft flying on the ball ─────────────────────────────────────
 
+/** A ship's length, in blob diameters: as long as FULL's blob is wide and a
+ *  little more, so a craft reads as a craft beside a group's mark. */
+constexpr float shipLengthOfBlob = 1.6f;
+/** The shortest step a ship's course is taken from, in ship lengths: below
+ *  it a ship standing still would turn on its own jitter. */
+constexpr float shipStepOfLength = 0.1f;
+
 /** How high a ship hovers over the ball, in ship lengths: clear of the glass
  *  everywhere along its hull, so a ship on the near side never sinks into it
  *  and one on the far side is wholly behind it. */
