@@ -168,6 +168,10 @@ target_sources("a3-motion-engine" PRIVATE
     flight/GameMoments.hh
     flight/GameFigures.cc
     flight/GameFigures.hh
+    flight/PilotLevel.cc
+    flight/PilotLevel.hh
+    flight/PilotGames.cc
+    flight/PilotGames.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh
