@@ -24,6 +24,7 @@
 #include <a3-motion-ui/components/BlobPush.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
+#include <a3-motion-ui/components/fpv/GameLabel.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 #include <a3-motion-ui/components/SourceKeys.hh>
 
@@ -2078,6 +2079,8 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
     }
 
   auto const blob = blobDiameterInPixels ();
+  drawGames (g, display, blob);
+
   auto const holdBody = _holdBody.load ();
   for (auto i = 0; i < display.bodies.count; ++i)
     {
@@ -2101,6 +2104,55 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
       paint.stroke = stroke;
       paint.fontHeight = theme ().fontSize (FontRole::Body);
       paintBody (g, paint);
+    }
+}
+
+/** What the ships play: a dashed line from a game's leader to the group it is
+ *  played against, and the game's word under every ship in it. Pixels, like
+ *  the rest of the floor, so the text stays crisp. */
+void
+MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, float blob)
+{
+  auto const stroke = theme ().strokeThin;
+  auto const lines = gameLines (display.game, display.bodies);
+  auto const shipLength = blob * shipLengthOfBlob;
+  auto const floor = _boundsCenterRegion.toFloat ();
+
+  for (index_t ch = 0; ch < display.game.size () && ch < _engine.getNumChannels (); ++ch)
+    {
+      if (!display.game[ch] || display.game[ch]->game == PilotGame::None)
+        continue;
+      auto const position = drawnChannelPosition (ch);
+      if (!position.isValid ())
+        continue;
+      auto const ship
+          = projectToScreen (position).transformedBy (_transformNormalizedToLocal);
+      if (!std::isfinite (ship.x) || !std::isfinite (ship.y))
+        continue;
+
+      auto const colour = _uiStates[ch]->colour;
+      if (lines[ch])
+        for (auto i = 0; i < display.bodies.count; ++i)
+          {
+            auto const &body = display.bodies.body[static_cast<size_t> (i)];
+            auto const to = floorToPixel (body.at);
+            if (body.id != *lines[ch] || !to)
+              continue;
+            auto const dash = stroke * gameDashOfStroke;
+            float const pattern[] = { dash, dash };
+            g.setColour (colour.withMultipliedAlpha (theme ().alphaGuide));
+            g.drawDashedLine ({ ship, *to }, pattern, 2, stroke);
+          }
+
+      GameLabelPaint label;
+      label.shipCentre = ship;
+      label.shipLength = shipLength;
+      label.colour = colour;
+      label.game = display.game[ch]->game;
+      label.byPilot = display.game[ch]->byPilot;
+      label.fontHeight = theme ().fontSize (FontRole::Body);
+      label.floor = floor;
+      paintGameLabel (g, label);
     }
 }
 

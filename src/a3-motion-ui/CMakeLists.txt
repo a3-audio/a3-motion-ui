@@ -184,6 +184,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/fpv/FpvPagePress.hh
     components/fpv/FpvStrips.cc
     components/fpv/FpvStrips.hh
+    components/fpv/GameLabel.cc
+    components/fpv/GameLabel.hh
     components/fpv/ShipShape.cc
     components/fpv/ShipShape.hh
     components/AppView.hh
