@@ -481,22 +481,6 @@ MotionComponent::floorToPixel (Vec2 at, FloorSurface surface) const
 }
 
 float
-MotionComponent::floorLengthInPixels (Vec2 at, float length) const
-{
-  auto const onFloor = [this] (Vec2 point) {
-    return floorToPixel (point, FloorSurface::DanceFloor);
-  };
-  auto const centre = onFloor (at);
-  auto const alongX = onFloor (at + Vec2{ length, 0.f });
-  auto const alongY = onFloor (at + Vec2{ 0.f, length });
-  if (!centre || !alongX || !alongY)
-    return 0.f;
-  return (centre->getDistanceFrom (*alongX)
-          + centre->getDistanceFrom (*alongY))
-         / 2.f;
-}
-
-float
 MotionComponent::blobDiameterInPixels () const
 {
   // The pass's unit is the sphere's radius; a blob is 2 * _blobScale of it.
@@ -2054,6 +2038,8 @@ MotionComponent::buildFlightScene (FlightDisplay const &display)
       _shipDrawnAt[index] = ship.centre;
     }
 
+  auto const &tuning = _engine.getFlightTuning ();
+  auto const holdBody = _holdBody.load ();
   auto const view = floorView ();
   auto numMarks = 0;
   for (auto i = 0; i < display.bodies.count && numMarks < maxSceneMarks; ++i)
@@ -2062,9 +2048,15 @@ MotionComponent::buildFlightScene (FlightDisplay const &display)
       auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
       if (!feet.isValid ())
         continue;
-      marks[static_cast<size_t> (numMarks++)] = floorMarkInScene (
+      auto &mark = marks[static_cast<size_t> (numMarks++)];
+      mark = floorMarkInScene (
           feet, swollenMarkRadius (markRadius (body.mass), display.pulse),
           bodyRole (body.mass), camera);
+      auto const ring = bodyRole (body.mass) == BodyRole::Repel
+                            ? tuning.deadZoneClearance
+                            : escortRadius (body.mass, tuning);
+      mark.ring = floorLengthInRoom (body.at, ring, view);
+      mark.hold = body.id == holdBody ? _holdProgress.load () : 0.f;
     }
 
   auto packed = packFlightScene (ships, numShips, marks, numMarks);
@@ -2160,7 +2152,6 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
   auto const blob = blobDiameterInPixels ();
   drawGames (g, display, blob);
 
-  auto const holdBody = _holdBody.load ();
   for (auto i = 0; i < display.bodies.count; ++i)
     {
       auto const &body = display.bodies.body[static_cast<size_t> (i)];
@@ -2168,19 +2159,11 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
       if (!centre)
         continue;
 
-      auto const ring = bodyRole (body.mass) == BodyRole::Repel
-                            ? tuning.deadZoneClearance
-                            : escortRadius (body.mass, tuning);
-
       BodyPaint paint;
       paint.centre = *centre;
       paint.radius = bodyRadius (body.mass, blob, tuning);
-      paint.mass = body.mass;
       paint.label = bodyLabel (body.id);
       paint.pulse = display.pulse;
-      paint.ringRadius = floorLengthInPixels (body.at, ring);
-      paint.holdProgress = body.id == holdBody ? _holdProgress.load () : 0.f;
-      paint.stroke = stroke;
       paint.fontHeight = theme ().fontSize (FontRole::Body);
       paint.hidden = markHidden (body);
       paintBody (g, paint);

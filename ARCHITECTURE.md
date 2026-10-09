@@ -312,11 +312,17 @@ field the guests stand in, and most marks lie under it. A ship on the far half o
 farther than the ball's middle plane) is also drawn smaller and darker (`shipDepthCue`, eased
 over `shipBackSideBand`), and on the far half it is behind the ball, so it is that ghost.
 
-The 2D pass keeps the words and the rings: a body's `G1`..`G8` in the middle of its mark, as
+The rings lie on the floor with their mark (`markPaint`, `FloorMark::ring`/`hold`): a group's
+capture ring and a dead zone's clearance, faint (`alphaGuide`), their floor length measured in
+the room where the body stands (`floorLengthInRoom`), and the red ring filling clockwise from the
+top of the view towards a held body's removal (`markHoldRingOfRadius`, `markHoldRingOfStroke`).
+Leaned over, they foreshorten with the mark; hidden by the ball or a tower they leave no ghost of
+their own, the mark's is enough.
+
+The 2D pass keeps the words: a body's `G1`..`G8` in the middle of its mark, as
 before, a game's word under the drawn ship, the escort and game lines from the drawn craft
 (`drawnShipPixel`), and a hidden one's label dimmed like its ghost (`labelAlpha`; the labels know
-the ball, not the towers). The capture, clearance and hold rings are still circles on the glass.
-The touch stays on the 2D floor point; a body's hit circle is its mark's footprint as the camera
+the ball, not the towers). The touch stays on the 2D floor point; a body's hit circle is its mark's footprint as the camera
 sees it (`footprintRadiusOnView`, the mean of the circle's two axes), never less than a fingertip
 (`groupHitRadius`).
 

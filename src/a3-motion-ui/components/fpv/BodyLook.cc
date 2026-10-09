@@ -28,38 +28,6 @@
 namespace a3
 {
 
-namespace
-{
-constexpr float holdRingOfRadius = 1.2f; // the removal ring round the disc
-constexpr float holdRingOfStroke = 3.f;  // it is heavier than an outline
-
-void
-paintRing (juce::Graphics &g, BodyPaint const &body, ThemeColour colour)
-{
-  if (body.ringRadius <= 0.f)
-    return;
-  g.setColour (toColour (colour, theme ().alphaGuide));
-  g.drawEllipse (juce::Rectangle<float> (2.f * body.ringRadius,
-                                         2.f * body.ringRadius)
-                     .withCentre (body.centre),
-                 body.stroke);
-}
-
-void
-paintHoldRing (juce::Graphics &g, BodyPaint const &body, float radius)
-{
-  auto const progress = juce::jlimit (0.f, 1.f, body.holdProgress);
-  if (progress <= 0.f)
-    return;
-  auto const ring = radius * holdRingOfRadius;
-  juce::Path arc;
-  arc.addCentredArc (body.centre.x, body.centre.y, ring, ring, 0.f, 0.f,
-                     progress * juce::MathConstants<float>::twoPi, true);
-  g.setColour (toColour (theme ().danger));
-  g.strokePath (arc, juce::PathStrokeType (body.stroke * holdRingOfStroke));
-}
-}
-
 BodyRole
 bodyRole (float mass)
 {
@@ -102,21 +70,13 @@ bodyLabel (int id)
 void
 paintBody (juce::Graphics &g, BodyPaint const &body)
 {
-  auto const role = bodyRole (body.mass);
-  auto const colour = bodyColour (role);
   auto const radius = body.radius * bodyPulseScale (body.pulse);
   auto const disc
       = juce::Rectangle<float> (2.f * radius, 2.f * radius).withCentre (body.centre);
 
-  paintRing (g, body, colour);
-
-  // The mark itself -- a group's fill and outline, a dead zone's hatch -- is
-  // the sphere shader's, painted on the dance floor so it lies there.
   g.setColour (toColour (theme ().textPrimary, labelAlpha (body.hidden)));
   g.setFont (juce::Font (juce::FontOptions (body.fontHeight)));
   g.drawText (body.label, disc, juce::Justification::centred, false);
-
-  paintHoldRing (g, body, radius);
 }
 
 }

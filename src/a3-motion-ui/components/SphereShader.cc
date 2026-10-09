@@ -301,7 +301,10 @@ uniform vec4  uMarkAt[8];      // centre xyz on the floor, radius
 uniform vec4  uMarkShape[8];   // 1 for a dead zone, reach on the screen
 uniform vec3  uGroupColour;    // a group's mark
 uniform vec3  uDeadZoneColour; // a dead zone's
-uniform vec4  uMarkAlpha;      // fill, outline, hatch -- the 2D disc's
+uniform vec4  uMarkRing[8];    // ring radius, hold 0..1
+uniform vec4  uMarkAlpha;      // fill, outline, hatch, ring -- the 2D disc's
+uniform vec2  uMarkHold;       // hold ring radius in mark radii, its stroke in strokes
+uniform vec3  uHoldColour;     // the ring that fills towards removal
 uniform float uMarkStroke;     // outline and hatch width, screen units
 uniform vec4  uFlightBounds;   // the box they all lie in; empty in FULL
 
@@ -2078,27 +2081,53 @@ vec3 shadeShip (int i, vec3 n, float hullX)
  *  ellipse round its centre's image, and the distance across the disc in
  *  its own radii is a norm on the screen round that image: the outline
  *  along this pixel's line from the centre lies at r / m, as for the ships. */
+/** How far this pixel is from a circle of `radius` round a mark, on the
+ *  screen, from the pixel's distance across the floor (`across`) and on the
+ *  screen (`r`) from the mark's centre. */
+float floorCircleEdge (float across, float r, float radius)
+{
+    return r * (1.0 - radius / max (across, 1e-6));
+}
+
+/** A thin line `width` wide along a circle whose edge distance is `edge`. */
+float floorLine (float edge, float width, float px)
+{
+    float halfWidth = width * 0.5;
+    return 1.0 - smoothstep (halfWidth, halfWidth + px, abs (edge));
+}
+
 vec4 markPaint (int i, vec2 uv, vec3 off, float px, out float edge)
 {
     vec4 at = uMarkAt[i];
-    float m = length (off) / at.w;
-    float r = length (uv - seenToScreen (at.xyz));
-    edge = r * (1.0 - 1.0 / max (m, 1e-4));
+    vec2 fromCentre = uv - seenToScreen (at.xyz);
+    float r = length (fromCentre);
+    float across = length (off);
+    edge = floorCircleEdge (across, r, at.w);
+    float stroke = max (uMarkStroke, px);
 
     bool deadZone = uMarkShape[i].x > 0.5;
     vec3 colour = deadZone ? uDeadZoneColour : uGroupColour;
     float inside = clamp (0.5 - edge / px, 0.0, 1.0);
-    float halfStroke = max (uMarkStroke, px) * 0.5;
-    float outline = 1.0 - smoothstep (halfStroke, halfStroke + px, abs (edge));
+    float halfStroke = stroke * 0.5;
+    float outline = floorLine (edge, stroke, px);
+
+    // Under the mark, as the 2D pass drew it: the faint ring round it -- a
+    // group's capture ring, a dead zone's clearance -- on the same floor.
+    vec4 paint = vec4 (0.0);
+    vec4 ring = uMarkRing[i];
+    if (ring.x > 0.0)
+        paint = vec4 (colour, 1.0)
+              * (floorLine (floorCircleEdge (across, r, ring.x), stroke, px)
+                 * uMarkAlpha.w);
 
     float body;
     if (deadZone)
     {
         // Diagonal lines across it, as far apart as the disc's hatch was,
         // lying in the floor so they lean with it.
-        vec3 across = abs (uRoomUp.x) < 0.9 ? vec3 (1.0, 0.0, 0.0)
-                                             : vec3 (0.0, 1.0, 0.0);
-        vec3 e1 = normalize (cross (uRoomUp, across));
+        vec3 aside = abs (uRoomUp.x) < 0.9 ? vec3 (1.0, 0.0, 0.0)
+                                            : vec3 (0.0, 1.0, 0.0);
+        vec3 e1 = normalize (cross (uRoomUp, aside));
         vec3 e2 = cross (uRoomUp, e1);
         float gap = at.w * 0.3 * 0.70710678;
         float along = (dot (off, e1) + dot (off, e2)) * 0.70710678;
@@ -2109,9 +2138,22 @@ vec4 markPaint (int i, vec2 uv, vec3 off, float px, out float edge)
     else
         body = inside * uMarkAlpha.x;
 
-    vec4 paint = vec4 (colour, 1.0) * body;
+    paint = paint * (1.0 - body) + vec4 (colour, 1.0) * body;
     float line = outline * uMarkAlpha.y;
-    return paint * (1.0 - line) + vec4 (colour, 1.0) * line;
+    paint = paint * (1.0 - line) + vec4 (colour, 1.0) * line;
+
+    // On top, while a finger holds it: the ring filling clockwise from the
+    // top of the view towards its removal.
+    if (ring.y > 0.0)
+    {
+        float turn = atan (fromCentre.x, fromCentre.y);
+        float done = (turn < 0.0 ? turn + 6.28318531 : turn) / 6.28318531;
+        float hold = floorLine (floorCircleEdge (across, r, at.w * uMarkHold.x),
+                                stroke * uMarkHold.y, px)
+                   * step (done, ring.y);
+        paint = paint * (1.0 - hold) + vec4 (uHoldColour, 1.0) * hold;
+    }
+    return paint;
 }
 
 /** FPV's ships and the groups' marks at this pixel: what is seen,
@@ -2818,6 +2860,9 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uGroupColour   = glGetUniformLocation (pid, "uGroupColour");
   _uDeadZoneColour = glGetUniformLocation (pid, "uDeadZoneColour");
   _uMarkAlpha     = glGetUniformLocation (pid, "uMarkAlpha");
+  _uMarkRing      = glGetUniformLocation (pid, "uMarkRing[0]");
+  _uMarkHold      = glGetUniformLocation (pid, "uMarkHold");
+  _uHoldColour    = glGetUniformLocation (pid, "uHoldColour");
   _uMarkStroke    = glGetUniformLocation (pid, "uMarkStroke");
   _uFlightBounds  = glGetUniformLocation (pid, "uFlightBounds");
 
@@ -3319,6 +3364,7 @@ SphereShader::uploadFlightScene ()
   upload (_uShipColour, _flightScene.shipColour);
   upload (_uMarkAt, _flightScene.markAt);
   upload (_uMarkShape, _flightScene.markShape);
+  upload (_uMarkRing, _flightScene.markRing);
   upload (_uFlightBounds, _flightScene.bounds);
   // The 2D disc's colours and alphas, so a mark on the floor is the disc
   // that was: a group is nobody's channel, a dead zone is the only red.
@@ -3326,7 +3372,11 @@ SphereShader::uploadFlightScene ()
   setThemeUniform (_uDeadZoneColour, bodyColour (BodyRole::Repel));
   if (_uMarkAlpha >= 0)
     glUniform4f (_uMarkAlpha, theme ().alphaFillEmphasis,
-                 theme ().alphaSecondary, theme ().alphaTextStrong, 0.f);
+                 theme ().alphaSecondary, theme ().alphaTextStrong,
+                 theme ().alphaGuide);
+  if (_uMarkHold >= 0)
+    glUniform2f (_uMarkHold, markHoldRingOfRadius, markHoldRingOfStroke);
+  setThemeUniform (_uHoldColour, theme ().danger);
   if (_uMarkStroke >= 0)
     glUniform1f (_uMarkStroke, _flightScene.markStroke);
 }

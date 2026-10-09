@@ -401,11 +401,8 @@ TEST (GroupsOnTheDanceFloorPaint, GroupsPaintOnALeanedFloor)
         BodyPaint body;
         body.centre = onView->transformedBy (toPixels);
         body.radius = bodyRadius (tuning.crowdMass, blob, tuning);
-        body.mass = tuning.crowdMass;
         body.label = bodyLabel (label++);
         body.pulse = 1.f;
-        body.ringRadius = body.radius * 1.4f;
-        body.stroke = theme ().strokeThin;
         body.fontHeight = body.radius * 0.5f;
         paintBody (g, body);
       }
@@ -421,4 +418,28 @@ TEST (GroupsOnTheDanceFloorPaint, GroupsPaintOnALeanedFloor)
     }
 
   juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+}
+
+// A ring round a group is a length on the floor (an escort's circle, a dead
+// zone's clearance) drawn on the dance floor: its radius there is the mean
+// of how far the floor's two directions carry it in the room.
+TEST (GroupsOnTheDanceFloor, AFloorLengthIsMeasuredInTheRoom)
+{
+  HeightMapSphere heightMap;
+  FloorView const view{ heightMap, camera (0.6f, 0.4f), speakerFloorZ };
+  for (auto const at : { Vec2{ 0.2f, -0.3f }, Vec2{ 0.9f, 0.4f }, Vec2{ -1.2f, 0.1f } })
+    {
+      auto const length = 0.25f;
+      auto const centre = floorPointInRoom (at, FloorSurface::DanceFloor, view);
+      auto const along = [&] (Vec2 step) {
+        auto const p = floorPointInRoom (at + step, FloorSurface::DanceFloor, view);
+        return std::hypot (p.x () - centre.x (), p.y () - centre.y ());
+      };
+      auto const expected
+          = (along ({ length, 0.f }) + along ({ 0.f, length })) / 2.f;
+      EXPECT_NEAR (floorLengthInRoom (at, length, view), expected, tolerance);
+      EXPECT_GT (floorLengthInRoom (at, length, view), 0.f);
+      EXPECT_GT (floorLengthInRoom (at, 2.f * length, view),
+                 floorLengthInRoom (at, length, view));
+    }
 }

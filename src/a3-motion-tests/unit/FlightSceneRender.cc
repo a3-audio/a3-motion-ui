@@ -428,6 +428,55 @@ TEST (FlightSceneRender, AMarkSwellsOnTheOne)
              renderer.draw (oneMark (rest), overhead).pixelsDifferentFrom (empty));
 }
 
+TEST (FlightSceneRender, AGroupsRingLiesOnTheFloorWithIt)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  // Leaned over, the ring is an ellipse like its mark: it reaches its whole
+  // radius across the view and less up it.
+  SphereCamera camera;
+  camera.pitch = 1.0f;
+  auto mark = markAt (0.f, 0.f, camera, BodyRole::Attract, 0.08f);
+  mark.ring = 0.4f;
+  auto const empty = renderer.draw ({}, camera);
+  auto const drawn = renderer.draw (oneMark (mark), camera);
+  writeSnapshot (drawn, "fpv-mark-ring-leaned.png");
+  auto const centre = onShaderScreen (mark.centre);
+  auto const near = [&] (float dx, float dy) {
+    return drawn.changeFrom (empty, { centre[0] + dx, centre[1] + dy }, 1.5f / sphereRadius);
+  };
+  auto const foreshortened = 0.4f * std::cos (camera.pitch);
+  EXPECT_GT (near (0.4f, 0.f), 4.f) << "on the ring, across";
+  EXPECT_LT (near (0.25f, 0.f), 1.f) << "between mark and ring, nothing";
+  EXPECT_GT (near (0.f, foreshortened), 4.f) << "on the ring, up the view";
+  EXPECT_LT (near (0.f, 0.4f), 1.f) << "not a circle on the glass";
+}
+
+TEST (FlightSceneRender, TheHoldRingFillsClockwiseFromTheTop)
+{
+  Renderer renderer;
+  NEEDS_GL (renderer);
+
+  SphereCamera const overhead;
+  auto mark = markAt (0.2f, 0.f, overhead, BodyRole::Attract, 0.2f);
+  auto const empty = renderer.draw ({}, overhead);
+  auto const centre = onShaderScreen (mark.centre);
+  auto const reach = 0.2f * markHoldRingOfRadius;
+  auto const redAt = [&] (Picture const &picture, float dx, float dy) {
+    std::array<float, 2> const at{ centre[0] + dx, centre[1] + dy };
+    return picture.red (at) - empty.red (at);
+  };
+
+  auto const none = renderer.draw (oneMark (mark), overhead);
+  mark.hold = 0.5f;
+  auto const half = renderer.draw (oneMark (mark), overhead);
+
+  EXPECT_LT (redAt (none, reach, 0.f), 30.f) << "no hold, no ring";
+  EXPECT_GT (redAt (half, reach, 0.f), 60.f) << "a quarter round: on the right";
+  EXPECT_LT (redAt (half, -reach, 0.f), 30.f) << "three quarters: not yet";
+}
+
 TEST (FlightSceneRender, ATowerHidesAMarkBehindIt)
 {
   Renderer renderer;

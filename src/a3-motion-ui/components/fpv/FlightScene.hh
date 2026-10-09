@@ -67,12 +67,23 @@ float discMarkRadius (float mass, float blobDiameter,
 /** The mark at drawnPulse `pulse`: it swells on the one as the disc did. */
 float swollenMarkRadius (float radius, float pulse);
 
-/** A body as the shader draws it: a disc lying on the dance floor, seen. */
+/** The ring that fills towards a held body's removal, in mark radii. */
+constexpr float markHoldRingOfRadius = 1.2f;
+/** And how much heavier than an outline it is drawn. */
+constexpr float markHoldRingOfStroke = 3.f;
+
+/** A body as the shader draws it: a disc lying on the dance floor, seen,
+ *  with the rings round it on the same floor -- a group's capture ring or a
+ *  dead zone's clearance (`ring`, its radius in the room; 0 for none), and
+ *  the ring that fills while a finger holds it towards its removal (`hold`,
+ *  0..1). */
 struct FloorMark
 {
   Vec3 centre;
   float radius = 0.f;
   bool deadZone = false;
+  float ring = 0.f;
+  float hold = 0.f;
 };
 
 /** `feet` is where the body stands, in the room (floorPointInRoom on the
@@ -194,6 +205,8 @@ struct FlightSceneUniforms
   std::array<float, 4 * maxSceneMarks> markAt{};
   /** 1 for a dead zone, reach on the screen, unused, unused */
   std::array<float, 4 * maxSceneMarks> markShape{};
+  /** ring radius, hold 0..1, unused, unused */
+  std::array<float, 4 * maxSceneMarks> markRing{};
   /** On the shader's screen (x right, y up, the ball's radius 1): the box
    *  every ship and mark lies in, min x, min y, max x, max y. Empty (min
    *  over max) with nothing in it, so a pixel outside costs one compare. */

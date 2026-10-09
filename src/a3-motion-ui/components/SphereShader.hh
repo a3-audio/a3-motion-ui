@@ -429,6 +429,9 @@ private:
   GLint _uDeadZoneColour = -1;
   GLint _uMarkAlpha = -1;
   GLint _uMarkStroke = -1;
+  GLint _uMarkRing = -1;
+  GLint _uMarkHold = -1;
+  GLint _uHoldColour = -1;
   GLint _uFlightBounds = -1;
   void uploadFlightScene ();
   FlightSceneUniforms _flightScene;

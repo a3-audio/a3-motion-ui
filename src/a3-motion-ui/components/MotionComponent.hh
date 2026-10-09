@@ -269,10 +269,6 @@ private:
    *  it does not project. */
   std::optional<juce::Point<float> > floorToPixel (Vec2 at,
                                                    FloorSurface surface) const;
-  /** A floor length at a group's point `at`, in pixels on the dance floor:
-   *  the mean of its projection along both axes, so it shrinks where the
-   *  band compresses and the view foreshortens. */
-  float floorLengthInPixels (Vec2 at, float length) const;
   /** And back: the floor point whose group would stand under a pixel;
    *  nothing where the pixel's ray never meets the dance floor. */
   std::optional<Vec2> floorAt (juce::Point<float> posPixel) const;
