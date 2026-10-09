@@ -481,9 +481,9 @@ float const apart = FlightTuning{}.separationSoftening;
 
 TEST (PilotGamesFlight, ACrewMemberFromTheOtherSideIsHeardTurningAway)
 {
-  // The crew veers the way its leader's approach says. A member coming in
-  // on the target's other side turns from its own approach's end, and must
-  // be heard turning too.
+  // A crew flies one rigid figure in lanes, dealt by shortest glides. A
+  // member that comes in on the target's other side from the leader still
+  // veers at the bar before the 1, and must be heard turning too.
   Floor floor;
   auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4); // the 1 on beat 16
   ASSERT_TRUE (floor.ask (PilotGame::FakeOut, 0, PilotRecruit::All, cue));

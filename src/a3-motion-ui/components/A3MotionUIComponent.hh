@@ -598,13 +598,13 @@ private:
   OscAddresses _oscAddresses;
   void applyOscAddresses ();
 
-  /** The beat address again, for the tempo-clock thread.
+  /** The beat address again, kept apart from _oscAddresses.
    *
-   *  tickCallback() runs there, and juce::String is reference counted — so
-   *  reading _oscAddresses.beat from it while the message thread replaces
-   *  the struct is a race. Handed over the same way the send backend gets
-   *  its addresses: stored under the lock, picked up at the top of the tick
-   *  where the flag costs one atomic load. */
+   *  tickCallback() is registered on the tempo clock but runs on the message
+   *  thread, so today this copy is read where it is replaced. The lock and
+   *  the pickup at the top of the tick are kept from when the tick ran on the
+   *  clock's own thread: juce::String is reference counted, and reading
+   *  _oscAddresses.beat while the struct is replaced would be a race. */
   juce::String _beatAddress{ "/a3-osc-missing/beat" };
   std::mutex _beatAddressMutex;
   juce::String _pendingBeatAddress;

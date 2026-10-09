@@ -370,9 +370,8 @@ CLIP ships keep the action's clip meaning; 3D/FREQ/Q accents are unchanged.
 with the script and kept with the press (`FiredAction`). In FPV a named game is posted to the
 channel's ship (`MotionEngine::requestGame`, message thread only) and waits on the clock thread's
 `PilotDesk`, newest wins, `\none` calls one off; the readout says `CHn An GAME X`. FULL ignores
-the section (`pilotOrderAtPress`), because the games are played on the floor FPV shows. No game
-plays a request yet: one will take it with `PilotDesk::take`, recruit with `recruit()` and send a
-ship back by its `ShipResume`. Every shipped script carries the section commented out;
+the section (`pilotOrderAtPress`), because the games are played on the floor FPV shows. The games
+take a request on the next clock tick (see the next section). Every shipped script carries the section commented out;
 `pattern/actions/system/README.scd` is its manual.
 
 **One route:** the bar's ACT, the pads and a chain all go through `sendFiredAction`; nothing else
@@ -380,6 +379,66 @@ calls `setChannelAction` (asserted from the source by `ActionReach`).
 
 Tests: `PilotOrder`, `ActionScript`, `FlightMotion`, `FiredAction`, `FlightMotionWorld`,
 `BaseOrbit`, `ShipHearing`, `PilotDesk`, `FlightEngine`, `ClipSettings`, `ActionReach`.
+
+#### FPV: games and the pilots' level
+
+> Pilots that play: four games above the gravity flight, timed by the music, and a key that says
+> how much the pilots do of their own accord.
+
+**A game never moves a ship.** `PilotGames` (`flight/`) is a board on the clock thread: per ship
+and tick it names a point (`steerOf`), and `FlightWorld` flies it as `FlightGoal::Steer`: no
+rabbit, no carry by an action's floor keys, under the same steering, gravity and walls. A ship in
+a game is spared its target group's pull (as an escort is; `ShipOrders::bodyId`) and flies through
+the breath's stop. `GameFigures` sets a game up once (`GamePlan`: crew, parts, target, its 1) and
+works its goal out at every tick; `GameMoments` says when a game fits and where its 1 lands. All
+pure and seeded, counted in beats of the running meter; constants in `GameTuning`. The plan is
+fixed when the game starts: the formation's axis (the direction it faces, the line call & response
+lies on) is taken from the target's place then, or the leader's, and is not followed afterwards.
+
+| Game | Crew | Fits | Figure |
+|---|---|---|---|
+| fake-out | `~with` | build, drop ≤ 8 bars away, ≥ 2 bars left | glides to a stand-off short of the target, veers 60° away from the side it came in on a bar before the 1, dives at the target from 2 beats before |
+| formation & scatter | `~with` (`\all` in the shipped scripts) | build, ≥ 1 bar left | a line across the target's direction at 0.4 from the middle, bursting on the 1 along rays from a focus behind the line to 0.85, every ship ≥ 45° from its place |
+| hide & seek | `~with` | breakdown, ≥ 3 bars left or no known end | slips 75° round its way over 2 bars, runs across from 3 beats before the 1 |
+| call & response | always a pair | groove, the first 4 of every 16 bars | the two sides of the room, a 45° call a bar each, two each |
+
+- **A crew flies one rigid figure.** A fake-out crew shares the leader's figure in lanes 22°
+  apart round the middle, widened near the middle so neighbours stay ≥ 0.08 apart (outer lanes
+  therefore strike up to ±52° off a group standing near the middle). The lanes are dealt by the
+  shortest glides, so no ship crosses another to reach its place, and each glides to its
+  stand-off at a paced approach (waiting first when the approach is long) rather than at once.
+  The formation glides to its places in the same way.
+- **Timing:** a `MusicCue` (section, next, the bar it changes on, energy) made on the message
+  thread: `MusicPreview` while fresh, else `LiveMood` from the channel meters (`BarMeter`: the
+  loudest channel's mean per bar; drop ≥ 1.5×, breakdown ≤ 0.5×, build three rising bars; changes
+  expected on the next 8-bar line). It is sent to the engine on every downbeat and preview
+  (`setMusicCue`). A game's 1 is the next fitting change at least its run-up away, else the next
+  4-bar line.
+- **Requests** from `PilotDesk` are taken on the next tick; one whose leader cannot fly is
+  dropped. A DJ's game takes its leader out of any game it was in and recruits free ships whose
+  clip runs, ORBIT or CLIP; `~game = \none` ends the game its ship plays in.
+- **Never two games on one ship.** A game never writes the DJ's mode or escort: a borrowed CLIP
+  ship flies (`readFlightModes`) and glides back to its clip when the game ends; a ship whose
+  mode or escort the DJ changes (`ShipResume` differs) leaves at once.
+- **The 180°/beat heard-turn limit** holds every ship in a game, as it holds a driven one. The
+  glide of a borrowed CLIP ship back to its clip is outside it (one eased beat).
+- **Levels** (`PilotLevel`, the status bar's key left of CLEAN, saved as `pilotLevel` in the app
+  settings): OFF, games only from actions; HINT, the lowest action button whose `~game` fits the
+  current moment pulses in the notice colour on every beat (`hintedButton`, `padHintColour`),
+  while the channel's ship flies ORBIT and plays no game; FLY, on a downbeat a moment opens, a
+  pilot starts one game on free ORBIT ships (dice) and rests 4 bars after. The hints go by the
+  current bar and are refreshed whenever a fire, a clip, a script or a game changes. A DJ's tap at
+  FLY that fires a game, or fires anything at a ship in a pilot's game, drops the level to HINT
+  (`levelAfterTap`), which ends the pilots' games; FLY again is one press. Leaving FPV calls every
+  game and request off (`callOffGames`) and keeps the engine's level OFF until FPV is back.
+- **Threads:** `requestGame`, `setMusicCue` and `callOffGames` share the engine's single-producer
+  queue and are called from the message thread only (`PilotWiring.OnlyTheComponentQueuesForTheGames`);
+  `PilotGames`, `PilotDesk` and the cue belong to the clock thread; `gameOf`, `pendingGame` and
+  the level are atomics.
+
+Tests: `MusicCue`, `GameMoments`, `LiveMood`, `BarMeter`, `FlightSteer`, `GameFigures`,
+`PilotLevel`, `PilotGames`, `PilotGamesFlight`, `FlightEngine`, `PilotKey`, `StatusBarPilotKey`,
+`StatusBarLayout`, `SettingsPersistence`, `PilotWiring`, `PilotHint`.
 
 ### Engine (`src/a3-motion-engine`)
 
@@ -782,7 +841,8 @@ Three things are not obvious:
   usable. `OscMessageHandler::routePreview` reads `ssif` into a `MusicAhead`
   (`a3-motion-engine/preview/MusicPreview.hh`), "none" clears it, anything
   else is ignored; the UI keeps it in `_musicPreview`, which counts it absent
-  after four bars without a new one. Nothing acts on it yet.
+  after four bars without a new one; while it is fresh the pilots time their games by it (see
+  **FPV: games and the pilots' level**).
 - **Channels count from 1 on the wire, from 0 in here.** `withChannelIndex()`
   is the one crossing, and says so in its name.
 - **One meter may feed two places.** The main sub is the sphere's glow *and*

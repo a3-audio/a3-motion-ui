@@ -59,9 +59,10 @@ struct GameTuning
   float strikeBeats = 2.f;         // the dive at the target starts this long before the 1 [sweep]
   float lonelyTargetRadius = 0.6f; // with no group on the floor it aims across the room [guess]
   // A crew flies the figure in lanes this far apart round the middle, so no
-  // two ships share a point and each is heard at its own place. Below about
-  // 18 deg the steering's overshoot at the strike brings two lanes nearer
-  // than the ships' separation core (0.08) [sweep].
+  // two ships share a point and each is heard at its own place. The lanes
+  // are the crew's one rigid figure; at this width the least gap between two
+  // ships along the whole figure stays above the ships' separation core
+  // (0.08) with the steering's settling included [sweep].
   float crewLaneDegrees = 22.f;
   // Near the middle an angle is a short way: the lanes widen until
   // neighbours stand the ships' separation core plus this apart anywhere
