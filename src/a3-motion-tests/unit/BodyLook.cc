@@ -115,7 +115,8 @@ struct Painter
   ~Painter () { juce::LookAndFeel::setDefaultLookAndFeel (nullptr); }
 
   juce::Image
-  paint (float mass, float pulse = 1.f, float hold = 0.f) const
+  paint (float mass, float pulse = 1.f, float hold = 0.f,
+         std::optional<juce::Point<float> > labelAbove = std::nullopt) const
   {
     juce::Image image (juce::Image::ARGB, side, side, true);
     juce::Graphics g (image);
@@ -130,6 +131,7 @@ struct Painter
     body.holdProgress = hold;
     body.stroke = theme ().strokeMedium;
     body.fontHeight = radius * 0.5f;
+    body.labelAbove = labelAbove;
     paintBody (g, body);
     return image;
   }
@@ -199,19 +201,26 @@ TEST (BodyLookPaint, EveryWeightAndTheHoldPaint)
     }
 }
 
-// Below the label, inside the disc: a grey, not a hue.
-TEST (BodyLookPaint, AGroupsDiscIsNeutral)
+// The shader stands the group on the floor as a blob; painted over it, a disc
+// would hide the very body it marks.
+TEST (BodyLookPaint, AGroupsBodyIsTheShaders)
 {
   Painter p;
-  auto const c = p.paint (2.f).getPixelAt (juce::roundToInt (centre.x),
-                                           juce::roundToInt (centre.y + radius * 0.75f));
+  auto const image = p.paint (2.f, 1.f, 0.f, juce::Point<float>{ centre.x, 10.f });
   auto const bg = toColour (theme ().background);
-  EXPECT_NE (c, bg) << "the disc is filled";
-  auto const dr = c.getRed () - bg.getRed ();
-  auto const dg = c.getGreen () - bg.getGreen ();
-  auto const db = c.getBlue () - bg.getBlue ();
-  EXPECT_NEAR (dr, dg, 3);
-  EXPECT_NEAR (dg, db, 3);
+  for (auto const dy : { -0.5f, 0.f, 0.5f })
+    EXPECT_EQ (image.getPixelAt (juce::roundToInt (centre.x),
+                                 juce::roundToInt (centre.y + radius * dy)),
+               bg)
+        << "nothing painted inside at " << dy;
+}
+
+TEST (BodyLookPaint, AGroupsLabelStandsOnItsBlob)
+{
+  Painter p;
+  auto const image = p.paint (2.f, 1.f, 0.f, juce::Point<float>{ centre.x, 40.f });
+  auto const label = bodyLabelBox ({ centre.x, 40.f }, radius * 0.5f).toNearestInt ();
+  EXPECT_GT (pixelsAwayFromBackground (image.getClippedImage (label)), 0);
 }
 
 TEST (BodyLookPaint, ADeadZoneIsRedAndHatched)
@@ -251,11 +260,11 @@ TEST (BodyLookPaint, TheHoldRingFillsTowardsTheRemoval)
   EXPECT_GT (full, half + half / 2);
 }
 
-TEST (BodyLookPaint, TheDiscBreathesWithThePulse)
+TEST (BodyLookPaint, ADeadZoneBreathesWithThePulse)
 {
   Painter p;
-  EXPECT_GT (pixelsAwayFromBackground (p.paint (1.f, 1.6f)),
-             pixelsAwayFromBackground (p.paint (1.f, 1.f)));
+  EXPECT_GT (pixelsAwayFromBackground (p.paint (-2.f, 1.6f)),
+             pixelsAwayFromBackground (p.paint (-2.f, 1.f)));
 }
 
 TEST (BodyLookPaint, ADeadZoneOfNoSizePaintsAndReturns)
@@ -277,4 +286,13 @@ TEST (BodyLookPaint, ADeadZoneOfNoSizePaintsAndReturns)
   }
   juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
   SUCCEED ();
+}
+
+TEST (BodyLook, AGroupsLabelSitsOnTopOfItsBlob)
+{
+  juce::Point<float> const top{ 120.f, 80.f };
+  auto const box = bodyLabelBox (top, 12.f);
+  EXPECT_FLOAT_EQ (box.getCentreX (), top.x);
+  EXPECT_NEAR (box.getBottom (), top.y, 0.5f) << "standing on the head";
+  EXPECT_GE (box.getHeight (), 12.f);
 }

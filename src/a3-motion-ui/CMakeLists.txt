@@ -36,8 +36,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/LineMapRenderer.cc
     components/MotionComponent.cc
     components/MotionComponent.hh
-    components/SphereShader.cc
-    components/SphereShader.hh
     components/LoopLengthDisplay.cc
     components/LoopLengthDisplay.hh
     components/PadRowDisplay.cc
@@ -175,8 +173,12 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/fpv/BodyLook.hh
     components/fpv/DanceFloor.cc
     components/fpv/DanceFloor.hh
+    components/fpv/FlightScene.cc
+    components/fpv/FlightScene.hh
     components/fpv/FloorBodies.cc
     components/fpv/FloorBodies.hh
+    components/SphereShader.cc
+    components/SphereShader.hh
     components/fpv/FloorGesture.cc
     components/fpv/FloorGesture.hh
     components/fpv/FpvFloor.cc

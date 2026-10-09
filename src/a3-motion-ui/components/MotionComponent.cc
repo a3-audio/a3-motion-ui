@@ -503,6 +503,26 @@ MotionComponent::blobDiameterInPixels () const
   return _blobScale * static_cast<float> (_boundsCenterRegion.getWidth ());
 }
 
+float
+MotionComponent::bodyHitRadiusInPixels (FlightBody const &body) const
+{
+  auto const &tuning = _engine.getFlightTuning ();
+  auto const fingertip = static_cast<float> (displayFingertip ());
+  auto const size = groupBlobSize (body.mass, tuning);
+  auto const view = floorView ();
+  auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
+  // A dead zone is still the flat mark it always was.
+  if (!size || !feet.isValid ())
+    return bodyHitRadius (body.mass, blobDiameterInPixels (), fingertip, tuning);
+
+  auto const sphereRadiusInPixels
+      = static_cast<float> (_boundsCenterRegion.getWidth ()) / 2.f;
+  return groupHitRadius (
+      footprintRadiusOnView (feet, size->diameter / 2.f, view.camera)
+          * sphereRadiusInPixels,
+      fingertip);
+}
+
 std::optional<int>
 MotionComponent::bodyAt (juce::Point<float> posPixel) const
 {
@@ -515,10 +535,7 @@ MotionComponent::bodyAt (juce::Point<float> posPixel) const
       if (!centre)
         continue;
       onScreen[static_cast<size_t> (count++)]
-          = { body.id, *centre,
-              bodyHitRadius (body.mass, blobDiameterInPixels (),
-                             static_cast<float> (displayFingertip ()),
-                             _engine.getFlightTuning ()) };
+          = { body.id, *centre, bodyHitRadiusInPixels (body) };
     }
   return bodyUnderFinger (onScreen, count, posPixel);
 }
@@ -1487,6 +1504,21 @@ MotionComponent::renderOpenGL ()
       }
   }
 
+  // This frame's field: the shader stands the ships and groups in the
+  // room, and the 2D pass writes their labels from the same copy.
+  {
+    std::lock_guard<std::mutex> guard (_mutexDisplayData);
+    // Copy-assigned into a member so the vectors keep their capacity: no
+    // allocation per frame on this thread.
+    if (_fpv)
+      _flightDisplayDrawn = _flightDisplay;
+    else
+      {
+        _flightDisplayDrawn.guide.clear ();
+        _flightDisplayDrawn.bodies.count = 0;
+      }
+  }
+
   // ── 3D scene via shader ───────────────────────────────────────
   {
     // Forward smoothed VU data to shader
@@ -1582,6 +1614,8 @@ MotionComponent::renderOpenGL ()
         _sphereShader.setBlob (ch, bd);
       }
 
+    buildFlightScene (_flightDisplayDrawn);
+
     // Compute sphere position and radius in pixels
     auto const vpW = _boundsRender.getWidth ();
     auto const vpH = _boundsRender.getHeight ();
@@ -1654,17 +1688,8 @@ MotionComponent::renderOpenGL ()
     _mutexDisplayData.lock ();
     auto const patternsDisplayData{ _patternsDisplayData };
     auto const selected = _selectedPattern;
-    // Copy-assigned into a member so the vectors keep their capacity: no
-    // allocation per frame on this thread.
-    if (_fpv)
-      _flightDisplayDrawn = _flightDisplay;
-    else
-      {
-        _flightDisplayDrawn.guide.clear ();
-        _flightDisplayDrawn.bodies.count = 0;
-      }
-    auto const &flightDisplay = _flightDisplayDrawn;
     _mutexDisplayData.unlock ();
+    auto const &flightDisplay = _flightDisplayDrawn;
 
     ++_frameCount;
 
@@ -1683,7 +1708,6 @@ MotionComponent::renderOpenGL ()
           gFBO.addTransform (_transformNormalizedToLocal);
 
           drawCircle (gFBO);
-          drawShips (gFBO);
 
           drawBearings (gFBO);
           drawListener (gFBO);
@@ -1871,7 +1895,7 @@ MotionComponent::setFpv (bool on)
   else
     setCameraMode (_cameraModeBeforeFpv);
   // The headings belong to the GL thread; it forgets them on its next frame.
-  _resetShipHeadings = true;
+  _resetShipCourses = true;
   _fpv = on;
 }
 
@@ -1985,48 +2009,104 @@ MotionComponent::drawCircle (juce::Graphics &g)
   g.setOpacity (1.f);
 }
 
-/** FPV's ships, one per channel, where the shader draws blobs in FULL.
- *
- *  Drawn in the 2D pass's own units -- the sphere's radius is 1, the same
- *  space the underlay blob is sized in -- so a ship is shipLengthOfBlob blob
- *  diameters long and zooms with the sphere. It points along its last
- *  movement on the screen, which is where it flies as seen from here. */
-void
-MotionComponent::drawShips (juce::Graphics &g)
+float
+MotionComponent::shipLength () const
 {
-  if (_resetShipHeadings.exchange (false))
-    for (auto &heading : _shipHeadings)
-      heading.lose ();
+  return 2.f * _blobScale * shipLengthOfBlob;
+}
 
-  if (!_fpv || _boundsCenterRegion.getWidth () <= 0)
-    return;
+void
+MotionComponent::buildFlightScene (FlightDisplay const &display)
+{
+  if (_resetShipCourses.exchange (false))
+    for (auto &course : _shipCourses)
+      course.lose ();
 
-  auto const length = 2.f * _blobScale * shipLengthOfBlob;
-  // The theme's stroke is in pixels; the pass is scaled by the sphere's
-  // radius in pixels.
-  auto const outline = theme ().strokeThin * 2.f
-                       / static_cast<float> (_boundsCenterRegion.getWidth ());
+  std::array<ShipInScene, maxSceneShips> ships{};
+  std::array<GroupInScene, maxSceneGroups> groups{};
+  for (auto &at : _shipDrawnAt)
+    at.reset ();
 
-  for (index_t ch = 0;
-       ch < _engine.getNumChannels () && ch < _shipHeadings.size (); ++ch)
+  if (!_fpv)
     {
-      auto const position = drawnChannelPosition (ch);
-      auto const at = position.isValid () ? projectToScreen (position)
-                                           : juce::Point<float>{};
-      if (!position.isValid () || !std::isfinite (at.x)
-          || !std::isfinite (at.y))
+      _sphereShader.setFlightScene ({});
+      return;
+    }
+
+  auto const camera = _sphereShader.getCamera ();
+  auto const length = shipLength ();
+  auto const numShips = static_cast<int> (
+      std::min<index_t> (_engine.getNumChannels (), maxSceneShips));
+  for (auto ch = 0; ch < numShips; ++ch)
+    {
+      auto const index = static_cast<size_t> (ch);
+      auto const position = drawnChannelPosition (static_cast<index_t> (ch));
+      if (!position.isValid ())
         {
-          _shipHeadings[ch].lose ();
+          _shipCourses[index].lose ();
           continue;
         }
-
-      _shipHeadings[ch].update (at, length * shipStepOfLength);
-      auto const ship = shipPath (at, _shipHeadings[ch].radians (), length);
-      g.setColour (_uiStates[ch]->colour);
-      g.fillPath (ship);
-      g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
-      g.strokePath (ship, juce::PathStrokeType (outline));
+      _shipCourses[index].update (position, length * shipStepOfLength);
+      auto ship = shipInScene (position, _shipCourses[index].forward (),
+                               length, camera);
+      auto const colour = _uiStates[index]->colour;
+      ship.r = colour.getFloatRed ();
+      ship.g = colour.getFloatGreen ();
+      ship.b = colour.getFloatBlue ();
+      ships[index] = ship;
+      _shipDrawnAt[index] = ship.centre;
     }
+
+  auto const &tuning = _engine.getFlightTuning ();
+  auto const view = floorView ();
+  auto numGroups = 0;
+  for (auto i = 0; i < display.bodies.count && numGroups < maxSceneGroups; ++i)
+    {
+      auto const &body = display.bodies.body[static_cast<size_t> (i)];
+      auto const size = groupBlobSize (body.mass, tuning);
+      auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
+      if (!size || !feet.isValid ())
+        continue;
+      groups[static_cast<size_t> (numGroups++)]
+          = groupInScene (feet, swollen (*size, display.pulse), camera);
+    }
+
+  _sphereShader.setFlightScene (
+      packFlightScene (ships, numShips, groups, numGroups));
+}
+
+std::optional<MotionComponent::ShipPixel>
+MotionComponent::drawnShipPixel (index_t channel) const
+{
+  if (channel >= _shipDrawnAt.size () || !_shipDrawnAt[channel])
+    return std::nullopt;
+  auto const &seen = *_shipDrawnAt[channel];
+  auto const at = cartesian2DHOA2JUCE (toPos (seen))
+                      .transformedBy (_transformNormalizedToLocal);
+  if (!std::isfinite (at.x) || !std::isfinite (at.y))
+    return std::nullopt;
+  return ShipPixel{ at, hiddenByTheBall (seen) };
+}
+
+std::optional<MotionComponent::GroupLabelAt>
+MotionComponent::groupLabelAt (FlightBody const &body, float pulse) const
+{
+  auto const size = groupBlobSize (body.mass, _engine.getFlightTuning ());
+  if (!size)
+    return std::nullopt;
+  auto const view = floorView ();
+  auto const feet = floorPointInRoom (body.at, FloorSurface::DanceFloor, view);
+  if (!feet.isValid ())
+    return std::nullopt;
+
+  auto const drawn = swollen (*size, pulse);
+  auto const top = projectToScreen (groupTopInRoom (feet, drawn))
+                       .transformedBy (_transformNormalizedToLocal);
+  if (!std::isfinite (top.x) || !std::isfinite (top.y))
+    return std::nullopt;
+  return GroupLabelAt{
+    top, hiddenByTheBall (groupInScene (feet, drawn, view.camera).centre)
+  };
 }
 
 void
@@ -2071,13 +2151,12 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
        ++ch)
     {
       auto const *body = bodyWithId (display.escort[ch]);
-      auto const ship = drawnChannelPosition (ch);
-      if (body == nullptr || !ship.isValid ())
+      auto const ship = drawnShipPixel (ch);
+      if (body == nullptr || !ship)
         continue;
-      auto const from
-          = projectToScreen (ship).transformedBy (_transformNormalizedToLocal);
+      auto const from = ship->at;
       auto const to = floorToPixel (body->at, FloorSurface::DanceFloor);
-      if (!to || !std::isfinite (from.x) || !std::isfinite (from.y))
+      if (!to)
         continue;
       g.setColour (_uiStates[ch]->colour.withMultipliedAlpha (
           theme ().alphaGuide));
@@ -2109,6 +2188,11 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
       paint.holdProgress = body.id == holdBody ? _holdProgress.load () : 0.f;
       paint.stroke = stroke;
       paint.fontHeight = theme ().fontSize (FontRole::Body);
+      if (auto const label = groupLabelAt (body, display.pulse))
+        {
+          paint.labelAbove = label->top;
+          paint.hidden = label->hidden;
+        }
       paintBody (g, paint);
     }
 }
@@ -2128,15 +2212,13 @@ MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, flo
     {
       if (!display.game[ch] || display.game[ch]->game == PilotGame::None)
         continue;
-      auto const position = drawnChannelPosition (ch);
-      if (!position.isValid ())
+      auto const drawn = drawnShipPixel (ch);
+      if (!drawn)
         continue;
-      auto const ship
-          = projectToScreen (position).transformedBy (_transformNormalizedToLocal);
-      if (!std::isfinite (ship.x) || !std::isfinite (ship.y))
-        continue;
+      auto const ship = drawn->at;
 
-      auto const colour = _uiStates[ch]->colour;
+      auto const colour
+          = _uiStates[ch]->colour.withMultipliedAlpha (labelAlpha (drawn->hidden));
       auto const alpha = display.gameAlpha[ch];
       if (lines[ch])
         for (auto i = 0; i < display.bodies.count; ++i)

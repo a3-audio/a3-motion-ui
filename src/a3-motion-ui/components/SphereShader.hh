@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 #include <a3-motion-ui/components/SphereProjection.hh>
+#include <a3-motion-ui/components/fpv/FlightScene.hh>
 
 namespace a3
 {
@@ -33,7 +34,11 @@ namespace a3
  * cabinets standing in the room, facing the listener, each with a woofer and a
  * tweeter that light with what the speaker is being sent; and the 4 channel
  * blobs -- each a core, a rim, a VU corona, procedural sparks, a bolt on a
- * transient, a wake behind it and a neon ring while an action runs.
+ * transient, a wake behind it and a neon ring while an action runs. In FPV,
+ * instead of the blobs: the ships, as small lit craft hovering over the ball,
+ * and the guest groups, as lit blobs one person tall standing on the dance
+ * floor (setFlightScene) -- hidden by the ball, a cabinet or one another they
+ * leave only a ghost outline.
  *
  * Drawn flat over the top, not raytraced: the volumetric speaker bands, which
  * are a two-dimensional annulus in screen polar coordinates. They follow a
@@ -115,6 +120,11 @@ public:
   };
   void setBlob (int index, BlobData const &data);
   void setNumBlobs (int n);
+
+  /** FPV's ships and groups (set each frame before draw). An empty scene --
+   *  the default, and what FULL sets -- draws nothing and costs one compare
+   *  a pixel. */
+  void setFlightScene (FlightSceneUniforms const &scene) { _flightScene = scene; }
 
   // Note: CoronaConfig now lives in MotionComponent (2D blob overlay)
 
@@ -408,6 +418,17 @@ private:
   float _lineExtent = 1.3f;
 
   GLint _uNumBlobs = -1;
+
+  GLint _uShipAt = -1;
+  GLint _uShipNose = -1;
+  GLint _uShipUp = -1;
+  GLint _uShipColour = -1;
+  GLint _uGroupAt = -1;
+  GLint _uGroupShape = -1;
+  GLint _uGroupColour = -1;
+  GLint _uFlightBounds = -1;
+  void uploadFlightScene ();
+  FlightSceneUniforms _flightScene;
 
   GLint _aPos = -1;
 

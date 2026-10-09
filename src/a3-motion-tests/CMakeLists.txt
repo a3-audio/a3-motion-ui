@@ -229,6 +229,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotWiring.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotHint.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BodyLook.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightScene.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightSceneRender.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GroupsOnTheDanceFloor.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShipShape.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameLabel.cc"
@@ -295,6 +297,9 @@ target_link_libraries(a3-motion-tests PUBLIC
     # The code editor the script panel is built on (CodeEditorComponent), so
     # the panel can be tested where it is built rather than only on the rig.
     juce::juce_gui_extra
+    # The sphere shader, compiled and run offscreen through EGL
+    # (FlightSceneRender). The module brings its egl and gl with it.
+    juce::juce_opengl
     gtest
 )
 

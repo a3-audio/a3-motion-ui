@@ -22,6 +22,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <optional>
+
 #include <a3-motion-engine/flight/FlightTuning.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
@@ -79,12 +81,22 @@ struct BodyPaint
   float holdProgress = 0.f; // 0..1 towards removal (FloorGesture)
   float stroke = 1.f;       // a line, in the Graphics' units
   float fontHeight = 1.f;   // the label, in the Graphics' units
+  /** Where a group's blob has its top: the label stands on it. Unset, the
+   *  label sits in the middle of the mark (a dead zone). */
+  std::optional<juce::Point<float> > labelAbove;
+  /** The group is hidden (the ball stands in front): its label dims. */
+  bool hidden = false;
 };
 
-/** A group: a neutral disc with its label and a faint capture ring. A dead
- *  zone: a red, hatched disc with its clearance ring -- the only red and the
- *  only hatched thing on the floor. A held body gets a red ring filling
- *  clockwise from the top towards its removal. */
+/** The box a label standing on `above` is written in: centred over it, its
+ *  foot on it. */
+juce::Rectangle<float> bodyLabelBox (juce::Point<float> above, float fontHeight);
+
+/** A group: its label and a faint capture ring; its body is the blob the
+ *  sphere shader stands on the floor. A dead zone: a red, hatched disc with
+ *  its clearance ring -- the only red and the only hatched thing on the
+ *  floor. A held body gets a red ring filling clockwise from the top towards
+ *  its removal. */
 void paintBody (juce::Graphics &g, BodyPaint const &body);
 
 }

@@ -20,6 +20,7 @@
 
 #include "SphereShader.hh"
 
+#include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 
 #include "EnergyMap.hh"
@@ -288,6 +289,18 @@ uniform vec3  uBlobCol1;
 uniform vec3  uBlobCol2;
 uniform vec3  uBlobCol3;
 uniform float uNumBlobs;
+
+// FPV's ships and groups, standing in the room (FlightScene.hh packs them).
+// Arrays, indexed only by a loop counter. Seen frame, sphere radii; an entry
+// with no size is empty.
+uniform vec4  uShipAt[4];      // centre xyz, half length
+uniform vec4  uShipNose[4];    // nose xyz, shade
+uniform vec4  uShipUp[4];      // up xyz, reach on the screen
+uniform vec4  uShipColour[4];  // rgb
+uniform vec4  uGroupAt[8];     // centre xyz, half height
+uniform vec4  uGroupShape[8];  // radius, reach on the screen
+uniform vec3  uGroupColour;
+uniform vec4  uFlightBounds;   // the box they all lie in; empty in FULL
 
 // ─── helpers ────────────────────────────────────────────────────
 
@@ -1907,6 +1920,242 @@ vec4 speakerBoxes (vec2 uv, out float depth)
     return out4;
 }
 
+// ─── FPV: the ships and the groups, as things in the room ──────
+
+// Every shape here is an ellipsoid, intersected exactly: a quadratic per
+// shape and pixel, where a marched distance field would take dozens of
+// steps -- and only for pixels inside a shape's own circle on the screen.
+
+/** A ray falling down the seen z against an ellipsoid with unit axes e1, e2,
+ *  e3 and semi-axes `s`, centred on `c`.
+ *
+ *  Returns how far the pixel is from the outline on the screen, negative
+ *  inside it. Seen orthographically an ellipsoid's outline is an ellipse
+ *  round the image of its centre, and the closest approach of the ray in the
+ *  ellipsoid's own unit space (`m`) is a norm on the screen round that image:
+ *  the outline along this pixel's line from the centre lies at r / m. That
+ *  is a distance with no derivatives, which the edge's antialiasing and the
+ *  ghost's line both need.
+ *
+ *  `t` is where the ray enters it, or where it passes closest for a ray that
+ *  misses, so the soft pixels just outside still have a depth. */
+float ellipsoidEdge (vec3 ro, vec3 c, vec3 e1, vec3 e2, vec3 e3, vec3 s,
+                     vec2 uv, out float t, out vec3 n, out vec3 local)
+{
+    vec3 o = ro - c;
+    vec3 oL = vec3 (dot (o, e1), dot (o, e2), dot (o, e3)) / s;
+    vec3 dL = vec3 (-e1.z, -e2.z, -e3.z) / s;
+
+    float a = max (dot (dL, dL), 1e-8);
+    float b = dot (oL, dL);
+    float cc = dot (oL, oL) - 1.0;
+    float m = sqrt (max (cc + 1.0 - b * b / a, 0.0));
+    float disc = b * b - a * cc;
+
+    t = disc > 0.0 ? (-b - sqrt (disc)) / a : -b / a;
+    local = oL + dL * t;
+    n = normalize (e1 * (local.x / s.x) + e2 * (local.y / s.y)
+                   + e3 * (local.z / s.z));
+
+    vec2 centre = seenToScreen (c);
+    float r = length (uv - centre);
+    return r * (1.0 - 1.0 / max (m, 1e-4));
+}
+
+/** One ship: a long hull, nose ahead, and a flat pair of wings set back, so
+ *  the outline is an arrowhead and the course reads from any side. Returns
+ *  the outline distance of the two together; `hullX` is where along the hull
+ *  the pixel lies, -1 at the tail and 1 at the nose (0 off the hull). */
+float shipEdge (int i, vec3 ro, vec2 uv, out float t, out vec3 n,
+                out float hullX)
+{
+    vec4 at = uShipAt[i];
+    vec3 nose = uShipNose[i].xyz;
+    vec3 up = uShipUp[i].xyz;
+    vec3 side = cross (up, nose);
+    float len = at.w * 2.0;
+
+    float tH, tW;
+    vec3 nH, nW, lH, lW;
+    float eH = ellipsoidEdge (ro, at.xyz, nose, side, up,
+                              len * vec3 (0.5, 0.16, 0.11), uv, tH, nH, lH);
+    float eW = ellipsoidEdge (ro, at.xyz - nose * (0.18 * len) - up * (0.02 * len),
+                              nose, side, up, len * vec3 (0.2, 0.30, 0.035),
+                              uv, tW, nW, lW);
+
+    // Inside both, the nearer; inside one, that one; outside both, the
+    // nearer outline, whose soft pixels these are.
+    bool hull = (eH < 0.0 && eW < 0.0) ? (tH <= tW) : (eH <= eW);
+    t = hull ? tH : tW;
+    n = hull ? nH : nW;
+    hullX = hull ? lH.x : 0.0;
+    return min (eH, eW);
+}
+
+/** One group: an upright spheroid standing on the floor, its axis the room's
+ *  own up. Round that axis any pair of crosswise axes will do. */
+float groupEdge (int i, vec3 ro, vec2 uv, out float t, out vec3 n,
+                 out vec3 local)
+{
+    vec4 at = uGroupAt[i];
+    float radius = uGroupShape[i].x;
+    vec3 up = uRoomUp;
+    vec3 across = abs (up.x) < 0.9 ? vec3 (1.0, 0.0, 0.0) : vec3 (0.0, 1.0, 0.0);
+    vec3 e1 = normalize (cross (up, across));
+    vec3 e2 = cross (up, e1);
+    return ellipsoidEdge (ro, at.xyz, e1, e2, up,
+                          vec3 (radius, radius, at.w), uv, t, n, local);
+}
+
+bool sceneShipNear (int i, vec2 uv, float margin)
+{
+    vec4 at = uShipAt[i];
+    if (at.w <= 0.0)
+        return false;
+    vec2 d = uv - seenToScreen (at.xyz);
+    float reach = uShipUp[i].w + margin;
+    return dot (d, d) < reach * reach;
+}
+
+bool sceneGroupNear (int i, vec2 uv, float margin)
+{
+    vec4 at = uGroupAt[i];
+    if (at.w <= 0.0)
+        return false;
+    vec2 d = uv - seenToScreen (at.xyz);
+    float reach = uGroupShape[i].y + margin;
+    return dot (d, d) < reach * reach;
+}
+
+/** Whether something at depth `t` on this pixel's ray is out of sight: the
+ *  ball between (the point lies beyond its far side -- inside the glass
+ *  nothing is hidden, it is the sound field the groups stand in), a tower in
+ *  front of it, or another ship or group nearer the eye. */
+bool sceneHidden (float t, vec2 uv, float dist, float boxDepth, bool boxHit,
+                  float nearest)
+{
+    float z = 4.0 - t;
+    if (dist < 1.0 && z < -sqrt (1.0 - dist * dist))
+        return true;
+    if (boxHit && t > boxDepth)
+        return true;
+    return t > nearest + 0.002;
+}
+
+/** What a hidden thing leaves on the picture: a thin line round its
+ *  outline in its colour, and a breath of its body, so its place is never
+ *  lost. */
+vec3 sceneGhost (vec3 colour, float edge, float px)
+{
+    float line = 1.0 - smoothstep (px * 1.0, px * 2.5, abs (edge));
+    float body = edge < 0.0 ? 0.10 : 0.0;
+    return colour * (0.55 * line + body);
+}
+
+/** The light everything in the scene is lit by: from above in the room and
+ *  over the eye's shoulder, so a lean keeps the tops lit. */
+vec3 sceneLight ()
+{
+    return normalize (uRoomUp + vec3 (0.25, 0.35, 0.9));
+}
+
+vec3 shadeShip (int i, vec3 n, float hullX)
+{
+    vec3 colour = uShipColour[i].rgb;
+    vec3 l = sceneLight ();
+    float diffuse = max (dot (n, l), 0.0);
+    vec3 h = normalize (l + vec3 (0.0, 0.0, 1.0));
+    float spec = pow (max (dot (n, h), 0.0), 24.0);
+    float rim = pow (1.0 - max (n.z, 0.0), 2.0);
+
+    vec3 lit = colour * (0.30 + 0.85 * diffuse)
+             + mix (colour, uBoltCoreColour, 0.6) * spec * 0.6
+             + colour * rim * 0.45;
+
+    // The engine: a hot tail, so a ship standing still still says which
+    // way it is pointing.
+    float engine = smoothstep (-0.55, -0.95, hullX) * step (0.001, abs (hullX));
+    lit += mix (colour, uBoltCoreColour, 0.6) * engine * 1.1;
+
+    return lit * uShipNose[i].w;
+}
+
+vec3 shadeGroup (int i, vec3 n, vec3 local)
+{
+    vec3 l = sceneLight ();
+    // Wrapped, so the shadow side stays a body rather than a hole.
+    float wrap = dot (n, l) * 0.5 + 0.5;
+    float rim = pow (1.0 - max (n.z, 0.0), 2.0);
+    // Feet in the dark, heads in the light.
+    float rise = mix (0.55, 1.0, clamp (local.z * 0.5 + 0.5, 0.0, 1.0));
+    // A little unevenness in it: a crowd, not a balloon.
+    float people = 0.85 + 0.30 * valueNoise (local * 3.0 + vec3 (float (i) * 7.1));
+
+    return uGroupColour * (0.18 + 0.50 * wrap) * rise * people
+         + uGroupColour * rim * 0.25;
+}
+
+/** FPV's ships and groups at this pixel: what is seen, premultiplied by its
+ *  cover in a, and what is hidden, as `ghost`, to be added. */
+vec4 flightScene (vec2 uv, float dist, float boxDepth, bool boxHit,
+                  out vec3 ghost)
+{
+    ghost = vec3 (0.0);
+    float px = 1.0 / uSphereRadius;
+    float margin = 3.0 * px;
+    if (uv.x < uFlightBounds.x - margin || uv.y < uFlightBounds.y - margin
+        || uv.x > uFlightBounds.z + margin || uv.y > uFlightBounds.w + margin)
+        return vec4 (0.0);
+
+    vec3 ro = vec3 (uv.y, -uv.x, 4.0);
+    float t;
+    vec3 n;
+    vec3 local;
+    float hullX;
+
+    // Who is nearest the eye here, so the others behind it are its ghosts.
+    float nearest = 1000.0;
+    for (int i = 0; i < 4; i++)
+        if (sceneShipNear (i, uv, margin)
+            && shipEdge (i, ro, uv, t, n, hullX) < 0.0)
+            nearest = min (nearest, t);
+    for (int i = 0; i < 8; i++)
+        if (sceneGroupNear (i, uv, margin)
+            && groupEdge (i, ro, uv, t, n, local) < 0.0)
+            nearest = min (nearest, t);
+
+    vec4 seen = vec4 (0.0);
+    for (int i = 0; i < 8; i++)
+    {
+        if (!sceneGroupNear (i, uv, margin))
+            continue;
+        float edge = groupEdge (i, ro, uv, t, n, local);
+        if (sceneHidden (t, uv, dist, boxDepth, boxHit, nearest))
+        {
+            ghost += sceneGhost (uGroupColour, edge, px);
+            continue;
+        }
+        // Soft at its edge: a crowd has no hard outline.
+        float soft = uGroupShape[i].x * 0.25;
+        float cover = 1.0 - smoothstep (-soft, px, edge);
+        seen = seen * (1.0 - cover) + vec4 (shadeGroup (i, n, local), 1.0) * cover;
+    }
+    for (int i = 0; i < 4; i++)
+    {
+        if (!sceneShipNear (i, uv, margin))
+            continue;
+        float edge = shipEdge (i, ro, uv, t, n, hullX);
+        if (sceneHidden (t, uv, dist, boxDepth, boxHit, nearest))
+        {
+            ghost += sceneGhost (uShipColour[i].rgb * uShipNose[i].w, edge, px);
+            continue;
+        }
+        float cover = clamp (0.5 - edge / px, 0.0, 1.0);
+        seen = seen * (1.0 - cover) + vec4 (shadeShip (i, n, hullX), 1.0) * cover;
+    }
+    return seen;
+}
+
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
 // stacking octaves is what gives them branches within branches.
 // Ridged fractal noise: the filaments are the ridges between noise cells, and
@@ -2193,9 +2442,12 @@ void main ()
 
     float boxOpaque = 0.0;
     float boxCover = 0.0;
+    // Kept past the block: FPV's ships and groups go behind a tower too.
+    float boxDepth = 1000.0;
+    bool boxHit = false;
     {
-        float boxDepth;
         vec4 box = speakerBoxes (uvScene, boxDepth);
+        boxHit = box.a > 0.0;
         if (box.a > 0.0)
         {
             // Where the ball is, and how far along the ray. The ray falls from
@@ -2301,6 +2553,19 @@ void main ()
     // nor is drawn over them.
     col += blobs;
     alpha = clamp (alpha + max (balls.r, max (balls.g, balls.b)) * 0.8, 0.0, 1.0);
+
+    // FPV's ships and groups: solid, so laid over everything, the floor they
+    // stand on included -- except where the ball, a tower or one another
+    // hides them, and there only their ghost. Skipped outright in FULL, which
+    // leaves FULL's picture what it was.
+    if (uFlightBounds.x <= uFlightBounds.z)
+    {
+        vec3 ghost;
+        vec4 scene = flightScene (uvScene, dist, boxDepth, boxHit, ghost);
+        col = col * (1.0 - scene.a) + scene.rgb + ghost;
+        alpha = clamp (alpha + scene.a + max (ghost.r, max (ghost.g, ghost.b)),
+                       0.0, 1.0);
+    }
 
     gl_FragColor = vec4 (col, alpha);
 }
@@ -2512,6 +2777,15 @@ SphereShader::initialise (juce::OpenGLContext &context)
   _uSpkSide[1]    = glGetUniformLocation (pid, "uSpkSide1");
   _uSpkSide[2]    = glGetUniformLocation (pid, "uSpkSide2");
   _uSpkSide[3]    = glGetUniformLocation (pid, "uSpkSide3");
+
+  _uShipAt        = glGetUniformLocation (pid, "uShipAt[0]");
+  _uShipNose      = glGetUniformLocation (pid, "uShipNose[0]");
+  _uShipUp        = glGetUniformLocation (pid, "uShipUp[0]");
+  _uShipColour    = glGetUniformLocation (pid, "uShipColour[0]");
+  _uGroupAt       = glGetUniformLocation (pid, "uGroupAt[0]");
+  _uGroupShape    = glGetUniformLocation (pid, "uGroupShape[0]");
+  _uGroupColour   = glGetUniformLocation (pid, "uGroupColour");
+  _uFlightBounds  = glGetUniformLocation (pid, "uFlightBounds");
 
   _aPos = glGetAttribLocation (pid, "aPos");
 
@@ -2786,6 +3060,8 @@ SphereShader::draw (int viewportWidth, int viewportHeight,
     glUniform4f (_uBlobPunch, _blobs[0].punch, _blobs[1].punch,
                  _blobs[2].punch, _blobs[3].punch);
 
+  uploadFlightScene ();
+
   // Draw fullscreen quad (with alpha blending for semi-transparent sphere)
   glEnable (GL_BLEND);
   glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -2991,6 +3267,28 @@ SphereShader::uploadSpeakerFrames ()
       if (_uSpkSide[i] >= 0)
         glUniform3f (_uSpkSide[i], side.x (), side.y (), side.z ());
     }
+}
+
+void
+SphereShader::uploadFlightScene ()
+{
+  using namespace juce::gl;
+
+  auto const upload = [] (GLint location, auto const &values) {
+    if (location >= 0)
+      glUniform4fv (location, static_cast<GLsizei> (values.size () / 4),
+                    values.data ());
+  };
+  upload (_uShipAt, _flightScene.shipAt);
+  upload (_uShipNose, _flightScene.shipNose);
+  upload (_uShipUp, _flightScene.shipUp);
+  upload (_uShipColour, _flightScene.shipColour);
+  upload (_uGroupAt, _flightScene.groupAt);
+  upload (_uGroupShape, _flightScene.groupShape);
+  upload (_uFlightBounds, _flightScene.bounds);
+  // The floor's own colour for a group, as the 2D disc had it: a group is
+  // nobody's channel.
+  setThemeUniform (_uGroupColour, bodyColour (BodyRole::Attract));
 }
 
 void SphereShader::setLineTexture (int channel, unsigned int textureID)
