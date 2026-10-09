@@ -166,6 +166,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/GameTuning.hh
     flight/GameMoments.cc
     flight/GameMoments.hh
+    flight/GameFigures.cc
+    flight/GameFigures.hh
     flight/Handover.cc
     flight/Handover.hh
     flight/FlightBodiesBox.hh
