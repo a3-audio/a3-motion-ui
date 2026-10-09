@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <string>
 #include <vector>
 
 using namespace a3;
@@ -624,6 +625,140 @@ TEST (FlightWorld, FourShipsOnACrowdedFloorNeverBreak)
             }
         }
     }
+}
+
+// ---- Groups between the rim and the speakers ----
+//
+// The DJ places groups out to the speakers (1.35 floor units, the dance
+// floor's reach in the UI); the ships still fly the disc inside the rim.
+// Pulled outwards, circling a group they cannot reach, they stay inside, stay
+// finite and keep moving.
+
+namespace
+{
+
+constexpr float pastTheRim = 1.3f;
+
+Vec2
+outAt (float angle, float radius = pastTheRim)
+{
+  return { radius * std::cos (angle), radius * std::sin (angle) };
+}
+
+/** The first ship in `path` (of the first `ships`) that left the disc or
+ *  went NaN, and when; empty when none did. */
+std::string
+firstOutOfTheDisc (std::vector<Sample> const &path, int ships)
+{
+  for (auto const &sample : path)
+    for (auto ch = 0; ch < ships; ++ch)
+      {
+        auto const &ship = sample.ships[static_cast<size_t> (ch)];
+        auto const finite = std::isfinite (ship.p.x) && std::isfinite (ship.p.y)
+                            && std::isfinite (ship.v.x) && std::isfinite (ship.v.y);
+        if (!finite || ship.p.getDistanceFromOrigin () > 1.f + speedSlack)
+          return "ship " + std::to_string (ch) + " at beat " + std::to_string (sample.beats)
+                 + ", radius " + std::to_string (ship.p.getDistanceFromOrigin ());
+      }
+  return {};
+}
+
+/** How far ship `ch` flew over the samples from `from` on. */
+float
+flown (std::vector<Sample> const &path, int ch, size_t from)
+{
+  auto distance = 0.f;
+  for (auto i = std::max<size_t> (from, 1); i < path.size (); ++i)
+    distance += path[i].ships[static_cast<size_t> (ch)].p.getDistanceFrom (
+        path[i - 1].ships[static_cast<size_t> (ch)].p);
+  return distance;
+}
+
+/** How wide ship `ch` swings round the middle, in radians, over the samples
+ *  from `from` on, measured from `facing`. */
+float
+sweepRound (std::vector<Sample> const &path, int ch, size_t from, float facing)
+{
+  auto narrowest = 0.f, widest = 0.f;
+  for (auto i = from; i < path.size (); ++i)
+    {
+      auto const p = path[i].ships[static_cast<size_t> (ch)].p;
+      auto const off = std::remainder (std::atan2 (p.y, p.x) - facing, twoPi);
+      narrowest = std::min (narrowest, off);
+      widest = std::max (widest, off);
+    }
+  return widest - narrowest;
+}
+
+}
+
+TEST (FlightWorld, GroupsPastTheRimPullTheShipsButNotOutOfTheDisc)
+{
+  FlightTuning const tuning;
+  FlightBodies bodies;
+  bodies.body[0] = { outAt (pi<float> () / 4.f), tuning.hotspotMass, 0 };
+  bodies.body[1] = { outAt (pi<float> ()), tuning.crowdMass, 1 };
+  bodies.body[2] = { outAt (-pi<float> () / 2.f, 1.35f), tuning.groupMass, 2 };
+  bodies.count = 3;
+
+  FlightWorld world (aSeed);
+  launchAll (world);
+  auto const dt = tickBeats ();
+  auto const hardestPulse = 1.f + tuning.pulseDownbeatDepth;
+  std::vector<Sample> path;
+  for (size_t i = 0; i < ticksIn (barsToBeats (16.f)); ++i)
+    {
+      auto const now = static_cast<double> (i) * dt;
+      world.step (allPatrolling (), bodies, now, fourFour, hardestPulse, dt);
+      Sample sample{ now + dt, {} };
+      for (auto ch = 0; ch < 4; ++ch)
+        sample.ships[static_cast<size_t> (ch)] = world.ship (ch);
+      path.push_back (sample);
+    }
+
+  EXPECT_EQ (firstOutOfTheDisc (path, 4), "");
+  auto const lastFourBars = path.size () - ticksIn (barsToBeats (4.f));
+  for (auto ch = 0; ch < 4; ++ch)
+    EXPECT_GT (sweepRound (path, ch, lastFourBars, 0.f), pi<float> ())
+        << "ship " << ch << " still goes round the room";
+}
+
+TEST (FlightWorld, AnEscortOfAGroupPastTheRimStaysInsideAndKeepsMoving)
+{
+  FlightTuning const t;
+  for (auto const mass : { t.groupMass, t.crowdMass, t.hotspotMass })
+    {
+      FlightBodies bodies;
+      bodies.body[0] = { outAt (0.f), mass, escortedId };
+      bodies.count = 1;
+      auto const path
+          = flyShipZero (shipZeroOn (FlightGoal::Escort, escortedId), bodies, 8.f);
+
+      EXPECT_EQ (firstOutOfTheDisc (path, 1), "") << "mass " << mass;
+      auto const lastFourBars = path.size () - ticksIn (barsToBeats (4.f));
+      EXPECT_GT (flown (path, 0, lastFourBars), 4.f * t.speedMin * barsToBeats (1.f) * 0.9f)
+          << "mass " << mass << ": never slower than its least speed";
+      auto const sweep = sweepRound (path, 0, lastFourBars, 0.f);
+      // Pinned to the rim in front of its group, it still slides along it
+      // wide enough to be heard as moving (research B2's 30 deg).
+      EXPECT_GE (sweep, 30.f * pi<float> () / 180.f) << "mass " << mass;
+      RecordProperty ("sweepDegrees mass " + std::to_string (mass),
+                      std::to_string (sweep * 180.f / pi<float> ()));
+    }
+}
+
+TEST (FlightWorld, ADeadZonePastTheRimKeepsTheShipsInside)
+{
+  FlightTuning const tuning;
+  FlightBodies bodies;
+  bodies.body[0] = { outAt (0.f), tuning.deadZoneMass, 0 };
+  bodies.body[1] = { outAt (-pi<float> () / 2.f, 1.35f), tuning.deadZoneMass, 1 };
+  bodies.count = 2;
+
+  FlightWorld world (aSeed);
+  launchAll (world);
+  auto const path = run (world, allPatrolling (), bodies, ticksIn (barsToBeats (16.f)));
+  EXPECT_EQ (firstOutOfTheDisc (path, 4), "");
 }
 
 // The breath (MJ lab, 2026-10-08, playbook rule 18): every flying ship stands
