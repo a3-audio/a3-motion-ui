@@ -292,6 +292,9 @@ loadTheme (juce::var const &fileSkin)
   colour ("danger", theme.danger);
   colour ("notice", theme.notice);
   colour ("highlight", theme.highlight);
+  colour ("meterNormal", theme.meterNormal);
+  colour ("meterHot", theme.meterHot);
+  colour ("meterOver", theme.meterOver);
 
   colour ("sphereSurface", theme.sphereSurface);
   colour ("sphereRim", theme.sphereRim);
@@ -414,6 +417,9 @@ themeDefaultsVar ()
   colour ("danger", defaults.danger);
   colour ("notice", defaults.notice);
   colour ("highlight", defaults.highlight);
+  colour ("meterNormal", defaults.meterNormal);
+  colour ("meterHot", defaults.meterHot);
+  colour ("meterOver", defaults.meterOver);
   colour ("sphereSurface", defaults.sphereSurface);
   colour ("sphereRim", defaults.sphereRim);
   colour ("sphereEnvironment", defaults.sphereEnvironment);

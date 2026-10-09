@@ -48,9 +48,13 @@ float segmentMeterFraction (float amplitude);
  *  reaches its end, as an LED at its threshold. */
 int segmentsLit (float amplitude, int segments);
 
-/** A segment's zone, as an index into the band colours (vuBandColour), by
- *  which LED's eighth its end stands in. */
+/** A segment's zone, as an index into the band colours, by which LED's
+ *  eighth its end stands in. */
 std::size_t segmentBand (int index, int segments);
+
+/** The colour of a zone, from the theme's meter roles -- which default to
+ *  StemDeck's LED colours, so the meters on both screens read alike. */
+juce::Colour segmentZoneColour (Theme const &theme, std::size_t band);
 
 /** How many segments a meter this long draws: 24 where there is room, fewer
  *  where a segment would shrink under what can be seen, never none. */
