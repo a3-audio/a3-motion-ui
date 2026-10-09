@@ -49,6 +49,7 @@
 #include <a3-motion-ui/components/SphereShader.hh>
 #include <a3-motion-ui/components/LineMapRenderer.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
+#include <a3-motion-engine/flight/PilotGames.hh>
 
 namespace a3
 {
@@ -64,6 +65,9 @@ struct FlightDisplay
   /** Per channel, the body id its ship is seen escorting (escortView);
    *  noBodyId for none. */
   std::array<int, fpvShips> escort{ noBodyId, noBodyId, noBodyId, noBodyId };
+  /** Per channel, the game its ship plays in (MotionEngine::gameOf), for the
+   *  word under it and the leader's line to its target. */
+  std::array<std::optional<ShipGame>, fpvShips> game{};
   /** The big path at its current precession, on the floor. */
   std::vector<Vec2> guide;
   /** drawnPulse now: the discs swell with it. */
@@ -241,6 +245,7 @@ private:
    *  height at 0.1, which at the sphere pass's scale would blow the labels
    *  up. GL thread. */
   void drawFlight (juce::Graphics &g, FlightDisplay const &display);
+  void drawGames (juce::Graphics &g, FlightDisplay const &display, float blob);
   /** A point on the floor, where a ship over it would be heard (default
    *  ElevationParams), in local pixels; nothing when it does not project. */
   std::optional<juce::Point<float> > floorToPixel (Vec2 at) const;
