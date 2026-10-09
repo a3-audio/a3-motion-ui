@@ -136,6 +136,16 @@ segmentBand (int index, int segments)
   return vuGreenBand;
 }
 
+juce::Colour
+segmentZoneColour (std::size_t band)
+{
+  if (band == vuRedBand)
+    return juce::Colour (0xffe04848);
+  if (band == vuYellowBand)
+    return juce::Colour (0xffe8c33d);
+  return juce::Colour (0xff3ec46d);
+}
+
 int
 segmentMeterCount (int lengthPixels)
 {
@@ -206,7 +216,7 @@ SegmentMeter::paint (juce::Graphics &g)
   auto const inset = std::max (1.f, t.strokeThin);
   for (int i = 0; i < _segments; ++i)
     {
-      auto const colour = vuBandColour (t, segmentBand (i, _segments));
+      auto const colour = segmentZoneColour (segmentBand (i, _segments));
       g.setColour (i < _lit ? colour : colour.withAlpha (unlitAlpha));
       g.fillRect (segmentAt (bounds, _direction, i, _segments, inset));
     }
@@ -215,7 +225,7 @@ SegmentMeter::paint (juce::Graphics &g)
   if (_held > _lit)
     {
       auto const index = _held - 1;
-      g.setColour (vuBandColour (t, segmentBand (index, _segments)));
+      g.setColour (segmentZoneColour (segmentBand (index, _segments)));
       g.fillRect (leading (segmentAt (bounds, _direction, index, _segments, inset),
                            _direction, holdShareOfSegment));
     }
