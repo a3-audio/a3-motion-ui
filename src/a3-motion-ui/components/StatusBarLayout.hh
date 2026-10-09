@@ -67,6 +67,10 @@ struct StatusBarLayout
   /** The breath on or off, right of the view key, in both views: a breath
    *  switched on in FPV keeps the ships breathing in FULL, so FULL shows it. */
   juce::Rectangle<int> breathKey;
+  /** The pilots' level, left of CLEAN. Left of the readings it would cut the
+   *  tempo on the device; here it takes width the beat display can give.
+   *  Empty on a bar too narrow for it beside the beat display's floor. */
+  juce::Rectangle<int> pilotKey;
   /** Over to StemDeck's workspace, and the arrow that lists all of the
    *  rig's workspaces -- at the right end, where StemDeck has its switch. */
   juce::Rectangle<int> deckKey;

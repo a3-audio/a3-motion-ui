@@ -48,6 +48,7 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-ui/components/fpv/ActionReach.hh>
+#include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
@@ -1059,6 +1060,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _developerMode = persisted.developerMode;
   _skinBeforeClean = persisted.skinBeforeClean;
   _view = persisted.fpvView ? AppView::Fpv : AppView::Full;
+  _pilotLevel = persisted.pilotLevel;
   refreshCleanKey ();
 
   // The view the room was last looked at from, and saved again whenever a
@@ -1339,6 +1341,7 @@ A3MotionUIComponent::persistSettings () const
   settings.encoderClicksMotion = encoderClicksMask (_encoderClicksMotion);
   settings.encoderClicksRecord = encoderClicksMask (_encoderClicksRecord);
   settings.fpvView = _view == AppView::Fpv;
+  settings.pilotLevel = _pilotLevel;
   saveSettings (getPersistedSettingsFile (), settings);
 }
 
@@ -1449,6 +1452,7 @@ A3MotionUIComponent::createMainUI ()
     _statusBar->setBreathing (on);
     updateControlReadout (on ? "-- BREATH ON" : "-- BREATH OFF");
   };
+  _statusBar->onPilotKeyTapped = [this] { setPilotLevel (nextPilotLevel (_pilotLevel)); };
 
   // Hidden: no longer part of the visible layout (see resized()), but these
   // keep receiving their normal update calls underneath.
@@ -1949,6 +1953,13 @@ A3MotionUIComponent::setView (AppView view)
   _fpvStrips->setVisible (fpv);
   _motionComponent->setFpv (fpv);
   _statusBar->setView (view);
+  // The games are played on the floor FPV shows: leaving it calls every game
+  // and every queued request off, and the pilots rest while FULL is shown.
+  // The level itself is kept and comes back with FPV.
+  if (!fpv)
+    _engine.callOffGames ();
+  _engine.setPilotLevel (fpv ? _pilotLevel : PilotLevel::Off);
+  _statusBar->setPilotLevel (_pilotLevel);
   if (fpv)
     {
       refreshFpvStrips ();
@@ -1956,6 +1967,16 @@ A3MotionUIComponent::setView (AppView view)
     }
   resized ();
   updateControlReadout (fpv ? "-- FPV" : "-- FULL");
+  persistSettings ();
+}
+
+void
+A3MotionUIComponent::setPilotLevel (PilotLevel level)
+{
+  _pilotLevel = level;
+  _engine.setPilotLevel (_view == AppView::Fpv ? level : PilotLevel::Off);
+  _statusBar->setPilotLevel (level);
+  updateControlReadout (pilotLevelReadout (level));
   persistSettings ();
 }
 

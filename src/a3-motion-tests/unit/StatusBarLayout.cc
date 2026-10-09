@@ -269,3 +269,40 @@ TEST (StatusBarLayout, TheBeatDisplayGivesWayOnlyDownToItsFloor)
   EXPECT_EQ (l.tick.getCentreX (), narrow / 2);
   EXPECT_LE (l.readout.getRight (), l.tick.getX ());
 }
+
+// The pilots' level stands left of CLEAN, one key like the others. A fourth
+// key left of the readings would cut the tempo on the device; here it costs
+// the beat display some width it can give.
+TEST (StatusBarLayout, ThePilotKeyStandsLeftOfCleanOnTheDevice)
+{
+  auto const l = deviceLayout ();
+  ASSERT_FALSE (l.pilotKey.isEmpty ());
+  EXPECT_EQ (l.pilotKey.getRight (), l.cleanKey.getX ());
+  EXPECT_EQ (l.pilotKey.getWidth (), l.cleanKey.getWidth ());
+  EXPECT_EQ (l.pilotKey.getHeight (), l.cleanKey.getHeight ());
+  EXPECT_LE (l.tick.getRight (), l.pilotKey.getX ());
+}
+
+TEST (StatusBarLayout, ThePilotKeyLeavesTheTempoWhole)
+{
+  for (auto const size : headerSizes)
+    {
+      auto const font = juce::Font (juce::FontOptions (size));
+      auto const bpmNeeds = statusLabelWidth (font, "BPM 000.0", labelAir);
+      auto const readoutNeeds = statusLabelWidth (font, "-- BREATH OFF", labelAir);
+      auto const l = statusBarLayout (rowOf (deviceWidth, barHeight), deviceWidth, padding,
+                                      bpmNeeds, readoutNeeds);
+      ASSERT_FALSE (l.pilotKey.isEmpty ()) << size;
+      EXPECT_GE (l.bpm.getWidth (), bpmNeeds) << size;
+      EXPECT_GE (l.readout.getWidth (), readoutNeeds) << size;
+      EXPECT_LE (l.tick.getRight (), l.pilotKey.getX ()) << size;
+    }
+}
+
+TEST (StatusBarLayout, ABarTooNarrowForThePilotKeyLeavesItOut)
+{
+  auto const narrow = 600;
+  auto const l = statusBarLayout (rowOf (narrow, barHeight), narrow, padding);
+  EXPECT_TRUE (l.pilotKey.isEmpty ());
+  EXPECT_GE (l.tick.getWidth (), statusTickMinWidthOfHeight * l.menuKey.getHeight ());
+}

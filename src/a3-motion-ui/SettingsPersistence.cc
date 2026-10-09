@@ -73,6 +73,8 @@ loadSettings (juce::File const &file)
 
   if (parsed.hasProperty ("fpvView"))
     settings.fpvView = static_cast<bool> (parsed["fpvView"]);
+  if (auto const level = pilotLevelNamed (parsed["pilotLevel"].toString ()))
+    settings.pilotLevel = *level;
 
   // Entry by entry, and only as far as the file goes: a file naming fewer
   // keys than the device has says nothing about the rest, and a hand-edited
@@ -109,6 +111,7 @@ saveSettings (juce::File const &file, AppSettings const &settings)
   obj->setProperty ("encoderClicksMotion", settings.encoderClicksMotion);
   obj->setProperty ("encoderClicksRecord", settings.encoderClicksRecord);
   obj->setProperty ("fpvView", settings.fpvView);
+  obj->setProperty ("pilotLevel", pilotLevelWord (settings.pilotLevel));
 
   juce::var const state (obj);
 

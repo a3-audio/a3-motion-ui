@@ -167,6 +167,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/StatusBarLayout.hh
     components/fpv/ActionReach.cc
     components/fpv/ActionReach.hh
+    components/fpv/PilotKey.cc
+    components/fpv/PilotKey.hh
     components/fpv/BodyLook.cc
     components/fpv/BodyLook.hh
     components/fpv/FloorBodies.cc

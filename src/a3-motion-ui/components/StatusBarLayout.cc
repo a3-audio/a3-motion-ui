@@ -82,13 +82,20 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding,
   out.menuKey = rest.removeFromRight (keyW);
   out.keyboardKey = rest.removeFromRight (keyW);
   out.cleanKey = rest.removeFromRight (keyW);
+  // The pilots' level beside CLEAN, only where the beat display keeps its
+  // floor between it and the bar's middle.
+  auto const floorHalf = statusTickMinWidthOfHeight * rowHeight / 2;
+  if (out.cleanKey.getX () - keyW >= barWidth / 2 + floorHalf)
+    out.pilotKey = rest.removeFromRight (keyW);
   out.clockKey = rest.removeFromLeft (keyW);
   out.viewKey = rest.removeFromLeft (keyW);
   out.breathKey = rest.removeFromLeft (keyW);
 
   // Still centred, but never under a key: on a narrow bar the display gives
   // way rather than the keys.
-  auto const tickRoom = 2 * (out.cleanKey.getX () - barWidth / 2);
+  auto const innermostKey
+      = out.pilotKey.isEmpty () ? out.cleanKey.getX () : out.pilotKey.getX ();
+  auto const tickRoom = 2 * (innermostKey - barWidth / 2);
   if (out.tick.getWidth () > tickRoom)
     out.tick = out.tick.withSizeKeepingCentre (juce::jmax (0, tickRoom),
                                                out.tick.getHeight ());

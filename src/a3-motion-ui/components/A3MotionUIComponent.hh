@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/PilotLevel.hh>
 #include "a3-motion-engine/tempo/TempoClock.hh"
 #include <JuceHeader.h>
 
@@ -733,6 +734,11 @@ private:
    *  carries the view key), puts the four strips below the sphere and turns the blobs into ships; every way into the menu
    *  leads back to FULL. */
   AppView _view = AppView::Full;
+  /** The pilots' level as the DJ set it: kept while FULL is shown (where the
+   *  engine's is OFF), saved with the app settings. Message thread. */
+  PilotLevel _pilotLevel = PilotLevel::Off;
+  /** Sets the level, shows it, saves it and hands it to the engine. */
+  void setPilotLevel (PilotLevel level);
   std::unique_ptr<FpvStrips> _fpvStrips;
   void setView (AppView view);
   /** What the strips show, from the engine and the clips; every UI tick in

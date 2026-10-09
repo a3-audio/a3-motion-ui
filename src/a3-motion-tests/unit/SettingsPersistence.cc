@@ -24,6 +24,7 @@
 
 #include <a3-motion-engine/PlaybackRate.hh>
 #include <a3-motion-engine/RecMode.hh>
+#include <a3-motion-engine/flight/PilotLevel.hh>
 #include <a3-motion-ui/SettingsPersistence.hh>
 
 #include <array>
@@ -374,5 +375,32 @@ TEST (SettingsPersistence, AFileWithoutTheViewStartsInFull)
   file.replaceWithText ("{ \"clockMode\": 1 }");
 
   EXPECT_FALSE (loadSettings (file).fpvView);
+  file.deleteFile ();
+}
+
+TEST (SettingsPersistence, ThePilotsLevelRoundTrips)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-pilots.json");
+  file.deleteFile ();
+
+  AppSettings settings;
+  settings.pilotLevel = PilotLevel::Fly;
+  saveSettings (file, settings);
+
+  EXPECT_EQ (loadSettings (file).pilotLevel, PilotLevel::Fly);
+  file.deleteFile ();
+}
+
+TEST (SettingsPersistence, AFileWithoutAKnownPilotsLevelStartsOff)
+{
+  auto const file = juce::File::getSpecialLocation (
+                        juce::File::SpecialLocationType::tempDirectory)
+                        .getChildFile ("a3-motion-ui-test-settings-nopilots.json");
+  file.replaceWithText ("{ \"clockMode\": 1 }");
+  EXPECT_EQ (loadSettings (file).pilotLevel, PilotLevel::Off);
+  file.replaceWithText ("{ \"pilotLevel\": \"warp\" }");
+  EXPECT_EQ (loadSettings (file).pilotLevel, PilotLevel::Off);
   file.deleteFile ();
 }

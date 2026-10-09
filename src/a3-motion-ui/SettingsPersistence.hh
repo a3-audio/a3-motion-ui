@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/PilotLevel.hh>
 #include <JuceHeader.h>
 
 #include <a3-motion-engine/RecMode.hh>
@@ -91,6 +92,9 @@ struct AppSettings
 
   /** The device came down in FPV and comes back up in it. */
   bool fpvView = false;
+  /** The pilots' level (FPV), saved as the view is: a restart mid-set must
+   *  not drop FLY without a word. OFF in every file written before it. */
+  PilotLevel pilotLevel = PilotLevel::Off;
 };
 
 /** Returns defaults if the file doesn't exist or fails to parse as JSON. */
