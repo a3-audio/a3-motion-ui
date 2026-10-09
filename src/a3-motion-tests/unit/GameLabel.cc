@@ -139,13 +139,30 @@ pixelsAwayFromBackground (juce::Image const &image)
   return count;
 }
 
+/** Summed distance from the background: grows with ink, which a pixel count
+ *  cannot tell once the same pixels are merely paler. */
+int
+inkAwayFromBackground (juce::Image const &image)
+{
+  auto const bg = toColour (theme ().background);
+  auto sum = 0;
+  for (int y = 0; y < image.getHeight (); ++y)
+    for (int x = 0; x < image.getWidth (); ++x)
+      {
+        auto const px = image.getPixelAt (x, y);
+        sum += std::abs (px.getRed () - bg.getRed ()) + std::abs (px.getGreen () - bg.getGreen ())
+               + std::abs (px.getBlue () - bg.getBlue ());
+      }
+  return sum;
+}
+
 struct Painter
 {
   Painter () { juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel); }
   ~Painter () { juce::LookAndFeel::setDefaultLookAndFeel (nullptr); }
 
   juce::Image
-  paint (PilotGame game, bool byPilot) const
+  paint (PilotGame game, bool byPilot, float alpha = 1.f) const
   {
     juce::Image image (juce::Image::ARGB, side, side, true);
     juce::Graphics g (image);
@@ -156,6 +173,7 @@ struct Painter
     label.colour = toColour (theme ().channel[1]);
     label.game = game;
     label.byPilot = byPilot;
+    label.alpha = alpha;
     label.fontHeight = 14.f;
     label.floor = { 0.f, 0.f, float (side), float (side) };
     paintGameLabel (g, label);
@@ -205,4 +223,96 @@ TEST (GameLabelPaint, EveryGamePaintsWithoutCrashingOnATinyFloor)
       paintGameLabel (g, label);
     }
   SUCCEED ();
+}
+
+TEST (GameLabelPaint, AFadingLabelHasLessInkAndAGoneOneHasNone)
+{
+  Painter p;
+  auto const full = inkAwayFromBackground (p.paint (PilotGame::Formation, false, 1.f));
+  auto const half = inkAwayFromBackground (p.paint (PilotGame::Formation, false, 0.5f));
+  EXPECT_GT (full, half);
+  EXPECT_GT (half, 0);
+  EXPECT_EQ (pixelsAwayFromBackground (p.paint (PilotGame::Formation, true, 0.f)), 0);
+}
+
+namespace
+{
+ShipGame
+gameOfLeader (PilotGame game, int leader, bool byPilot = true)
+{
+  ShipGame g;
+  g.game = game;
+  g.leader = leader;
+  g.byPilot = byPilot;
+  return g;
+}
+constexpr int bar = 4;
+}
+
+TEST (HeldGame, ARunningGameIsShownInFullInk)
+{
+  auto const now = gameOfLeader (PilotGame::Formation, 2);
+  auto const held = heldGame (now, std::nullopt, 0.0, 10.0, bar);
+  ASSERT_TRUE (held.game);
+  EXPECT_EQ (held.game->game, PilotGame::Formation);
+  EXPECT_FLOAT_EQ (held.alpha, 1.f);
+}
+
+TEST (HeldGame, AnEndedGameStaysAndFadesLinearlyOverOneBar)
+{
+  auto const last = gameOfLeader (PilotGame::CallAndResponse, 1);
+  auto const start = heldGame (std::nullopt, last, 8.0, 8.0, bar);
+  ASSERT_TRUE (start.game);
+  EXPECT_EQ (start.game->game, PilotGame::CallAndResponse);
+  EXPECT_FLOAT_EQ (start.alpha, 1.f);
+  EXPECT_NEAR (heldGame (std::nullopt, last, 8.0, 10.0, bar).alpha, 0.5f, 1e-5f);
+  EXPECT_NEAR (heldGame (std::nullopt, last, 8.0, 11.0, bar).alpha, 0.25f, 1e-5f);
+}
+
+TEST (HeldGame, AfterTheBarNothingIsLeft)
+{
+  auto const last = gameOfLeader (PilotGame::HideAndSeek, 0);
+  EXPECT_FALSE (heldGame (std::nullopt, last, 8.0, 12.0, bar).game);
+  EXPECT_FALSE (heldGame (std::nullopt, last, 8.0, 40.0, bar).game);
+}
+
+TEST (HeldGame, NothingBeforeAnyGameAndNothingForNone)
+{
+  EXPECT_FALSE (heldGame (std::nullopt, std::nullopt, 0.0, 1.0, bar).game);
+  auto const none = gameOfLeader (PilotGame::None, 0);
+  EXPECT_FALSE (heldGame (none, std::nullopt, 0.0, 1.0, bar).game);
+  EXPECT_FALSE (heldGame (std::nullopt, none, 0.0, 1.0, bar).game);
+}
+
+TEST (HeldGame, ABeatClockThatRanBackwardsOrABadBarKeepsTheLabelOut)
+{
+  auto const last = gameOfLeader (PilotGame::FakeOut, 3);
+  EXPECT_FALSE (heldGame (std::nullopt, last, 8.0, 4.0, bar).game);
+  EXPECT_FALSE (heldGame (std::nullopt, last, 8.0, 9.0, 0).game);
+}
+
+TEST (SameGame, ComparesWhichWhoLeadsAndWhoStartedIt)
+{
+  auto const a = gameOfLeader (PilotGame::Formation, 1);
+  EXPECT_TRUE (sameGame (a, a));
+  EXPECT_TRUE (sameGame (std::nullopt, std::nullopt));
+  EXPECT_FALSE (sameGame (a, std::nullopt));
+  EXPECT_FALSE (sameGame (a, gameOfLeader (PilotGame::HideAndSeek, 1)));
+  EXPECT_FALSE (sameGame (a, gameOfLeader (PilotGame::Formation, 2)));
+  EXPECT_FALSE (sameGame (a, gameOfLeader (PilotGame::Formation, 1, false)));
+}
+
+TEST (GameJournal, StartNamesWordStarterLeaderAndTarget)
+{
+  auto g = gameOfLeader (PilotGame::CallAndResponse, 1);
+  g.target = 5;
+  EXPECT_EQ (gameStartLine (2, g), "A3 Motion: game start ch3 CALL by pilot leader ch2 target G6");
+  auto dj = gameOfLeader (PilotGame::Formation, 0, false);
+  dj.target = noBodyId;
+  EXPECT_EQ (gameStartLine (0, dj), "A3 Motion: game start ch1 FORMATION by dj leader ch1 target none");
+}
+
+TEST (GameJournal, EndNamesChannelAndWord)
+{
+  EXPECT_EQ (gameEndLine (2, PilotGame::HideAndSeek), "A3 Motion: game end ch3 HIDE");
 }

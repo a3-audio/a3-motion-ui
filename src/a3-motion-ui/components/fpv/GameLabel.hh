@@ -28,6 +28,7 @@
 
 #include <array>
 #include <optional>
+#include <string>
 
 namespace a3
 {
@@ -66,6 +67,28 @@ constexpr float gameGapOfWord = 0.4f;   // the space between word and tag
 constexpr float gameDashOfStroke = 4.f; // dash and gap of the leader's line, in strokes
 constexpr float gameDropOfShip = 0.5f;  // the label starts this far below the centre, in ship lengths
 
+/** The same game: which, who leads it, who started it. The target is left
+ *  out, it follows the leader's choice within one game. */
+bool sameGame (std::optional<ShipGame> const &a, std::optional<ShipGame> const &b);
+
+/** What a ship's label shows this tick. */
+struct HeldGame
+{
+  std::optional<ShipGame> game;
+  float alpha = 0.f;
+};
+
+/** The game while it runs in full ink, and after it ended for one more bar,
+ *  fading linearly: games at FLY are short, and a word that vanishes with the
+ *  game is gone before anyone looks. Measured in beats, so it follows the
+ *  tempo like the games do. */
+HeldGame heldGame (std::optional<ShipGame> const &now, std::optional<ShipGame> const &last,
+                   double endedAtBeat, double beats, int beatsPerBar);
+
+/** The journal lines for a game starting and ending, one each per change. */
+std::string gameStartLine (int channel, ShipGame const &game);
+std::string gameEndLine (int channel, PilotGame game);
+
 /** One label to paint, in pixels. */
 struct GameLabelPaint
 {
@@ -74,6 +97,7 @@ struct GameLabelPaint
   juce::Colour colour;       // the ship's channel colour
   PilotGame game = PilotGame::None;
   bool byPilot = false;
+  float alpha = 1.f;         // 1 while the game runs, falling to 0 as a held label fades
   float fontHeight = 1.f;    // the body font; the word is gameWordOfFont of it
   juce::Rectangle<float> floor;
 };
