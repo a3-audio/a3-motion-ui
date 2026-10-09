@@ -1708,7 +1708,6 @@ MotionComponent::renderOpenGL ()
           gFBO.addTransform (_transformNormalizedToLocal);
 
           drawCircle (gFBO);
-          drawShips (gFBO);
 
           drawBearings (gFBO);
           drawListener (gFBO);
@@ -1896,7 +1895,6 @@ MotionComponent::setFpv (bool on)
   else
     setCameraMode (_cameraModeBeforeFpv);
   // The headings belong to the GL thread; it forgets them on its next frame.
-  _resetShipHeadings = true;
   _resetShipCourses = true;
   _fpv = on;
 }
@@ -2009,50 +2007,6 @@ MotionComponent::drawCircle (juce::Graphics &g)
   // annulus and only follow a walk, not a lean.
 
   g.setOpacity (1.f);
-}
-
-/** FPV's ships, one per channel, where the shader draws blobs in FULL.
- *
- *  Drawn in the 2D pass's own units -- the sphere's radius is 1, the same
- *  space the underlay blob is sized in -- so a ship is shipLengthOfBlob blob
- *  diameters long and zooms with the sphere. It points along its last
- *  movement on the screen, which is where it flies as seen from here. */
-void
-MotionComponent::drawShips (juce::Graphics &g)
-{
-  if (_resetShipHeadings.exchange (false))
-    for (auto &heading : _shipHeadings)
-      heading.lose ();
-
-  if (!_fpv || _boundsCenterRegion.getWidth () <= 0)
-    return;
-
-  auto const length = 2.f * _blobScale * shipLengthOfBlob;
-  // The theme's stroke is in pixels; the pass is scaled by the sphere's
-  // radius in pixels.
-  auto const outline = theme ().strokeThin * 2.f
-                       / static_cast<float> (_boundsCenterRegion.getWidth ());
-
-  for (index_t ch = 0;
-       ch < _engine.getNumChannels () && ch < _shipHeadings.size (); ++ch)
-    {
-      auto const position = drawnChannelPosition (ch);
-      auto const at = position.isValid () ? projectToScreen (position)
-                                           : juce::Point<float>{};
-      if (!position.isValid () || !std::isfinite (at.x)
-          || !std::isfinite (at.y))
-        {
-          _shipHeadings[ch].lose ();
-          continue;
-        }
-
-      _shipHeadings[ch].update (at, length * shipStepOfLength);
-      auto const ship = shipPath (at, _shipHeadings[ch].radians (), length);
-      g.setColour (_uiStates[ch]->colour);
-      g.fillPath (ship);
-      g.setColour (toColour (theme ().textPrimary, theme ().alphaOutline));
-      g.strokePath (ship, juce::PathStrokeType (outline));
-    }
 }
 
 float

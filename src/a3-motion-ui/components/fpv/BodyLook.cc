@@ -148,19 +148,15 @@ paintBody (juce::Graphics &g, BodyPaint const &body)
 
   paintRing (g, body, colour);
 
+  // A group's body is the shader's, a blob standing on the floor; only a
+  // dead zone, which has no people, is still a mark painted here.
   if (role == BodyRole::Repel)
     {
       g.setColour (toColour (colour, theme ().alphaTextStrong));
       paintHatch (g, disc, body.stroke);
+      g.setColour (toColour (colour, theme ().alphaSecondary));
+      g.drawEllipse (disc, body.stroke);
     }
-  else
-    {
-      g.setColour (toColour (colour, theme ().alphaFillEmphasis));
-      g.fillEllipse (disc);
-    }
-
-  g.setColour (toColour (colour, theme ().alphaSecondary));
-  g.drawEllipse (disc, body.stroke);
 
   g.setColour (toColour (theme ().textPrimary, labelAlpha (body.hidden)));
   g.setFont (juce::Font (juce::FontOptions (body.fontHeight)));

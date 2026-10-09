@@ -262,7 +262,7 @@ in its band.
 **Groups stand on the dance floor; the ships fly on the sphere.** A group's floor point maps onto
 the sphere as a ship's would, and the group is drawn straight below that point, on the plane the
 shader draws the dance floor on (`speakerFloorZ`), so a ship circling it is seen right above it.
-Straight from above it lands where its sphere point is. Its disc, label, swell, ring, the escort
+Straight from above it lands where its sphere point is. Its blob, label, swell, ring, the escort
 line and a game's dashed line (both now run from the ship down to the group) and the hit test all
 use that floor point; the ORBIT guide stays on the sphere, because the ships fly there
 (`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
@@ -2274,12 +2274,12 @@ and who may be touched.
 
 **The sphere stays the GL sphere.** The camera and tilt are FULL's, so phase 4's cockpit can be a
 camera sitting in a ship instead of a second renderer. What changes is the content:
-`MotionComponent::setFpv` stops the shader drawing blobs and draws each playing clip as a ship in
-the GL 2D pass instead, at the place `projectToScreen` gives the blob's position. That keeps
-ships on their spots on a turned sphere without a second projection. A ship's outline and heading
-are `ShipShape`: the heading is taken in **screen space** (from where the position was a moment
-ago to where it is now), because a heading on the sphere's surface would point wrongly whenever
-the camera is turned. Its path is a dart, sized from the blob size like everything else.
+`MotionComponent::setFpv` stops the shader drawing blobs and has it draw each channel as a ship
+instead: a small lit craft over the ball, raytraced in the same pass, pointing along its course in
+the room (see "Ships and groups are things in the room" under the gravity flight). Phase 1 drew a
+flat dart in the 2D pass with a heading taken on the screen; that was taken out once the shader's
+craft drew. The app takes only the sizes from `ShipShape` now (`shipLengthOfBlob`,
+`shipStepOfLength`); its dart and screen heading (`shipPath`, `ShipHeading`) are no longer called.
 
 **Touch on the sphere is camera only outside the dance floor** (phase 2 gives the floor to the
 group gesture, see below). One finger tilts and turns, two zoom, a double tap resets.
@@ -2310,8 +2310,9 @@ only ever feedback. Everything that needs FULL's room does switch to it first: M
 overlays, and the keyboard icon (KEYS). Entering FPV closes the overlays and the keyboard, so
 nothing is left standing over a view that has no place for it.
 
-**Open on purpose.** Whether ships on the back half of the sphere need a depth cue, and their
-size and nose direction, are judged on the device; phase 1 draws them all alike.
+**Depth cue.** A ship on the back half of the ball is drawn smaller and darker, and is a ghost
+where the ball hides it (`shipDepthCue`, `hiddenByTheBall`); whether the amounts are right is
+judged on the device.
 
 #### Hardware I/O (`src/a3-motion-ui/io`)
 

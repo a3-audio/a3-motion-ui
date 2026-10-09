@@ -239,9 +239,6 @@ private:
   /** The finger that is moving the eye, and where it was last seen. Its own
    *  grab, not one of `_grabs`: it is holding the view, not a blob. */
   void drawBearings (juce::Graphics &g);
-  /** FPV's ships, where the shader draws blobs in FULL. GL thread (the 2D
-   *  pass), the only place _shipHeadings is touched. */
-  void drawShips (juce::Graphics &g);
   /** FPV's field in pixel space, before the ships: the big path, the
    *  escort lines and the bodies. Pixel space because JUCE clamps a font's
    *  height at 0.1, which at the sphere pass's scale would blow the labels
@@ -309,11 +306,9 @@ private:
   /** Read by the GL thread every frame (no shader blobs, ships instead). */
   std::atomic<bool> _fpv{ false };
   bool _cameraModeBeforeFpv = false;
-  /** Set by setFpv on the message thread, consumed by drawShips on the GL
-   *  thread: the headings start over whenever the view changes. */
-  std::atomic<bool> _resetShipHeadings{ false };
-  std::array<ShipHeading, 4> _shipHeadings; // GL thread: the 2D pass only
-  /** The same, for the ships the shader draws: their course in the room. */
+  /** Set by setFpv on the message thread, consumed by buildFlightScene on
+   *  the GL thread: the ships' courses start over whenever the view
+   *  changes. */
   std::atomic<bool> _resetShipCourses{ false };
   std::array<ShipCourse, 4> _shipCourses; // GL thread
   /** Where each ship was drawn this frame, seen, so the words under it and

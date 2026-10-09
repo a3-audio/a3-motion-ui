@@ -92,10 +92,11 @@ struct BodyPaint
  *  foot on it. */
 juce::Rectangle<float> bodyLabelBox (juce::Point<float> above, float fontHeight);
 
-/** A group: a neutral disc with its label and a faint capture ring. A dead
- *  zone: a red, hatched disc with its clearance ring -- the only red and the
- *  only hatched thing on the floor. A held body gets a red ring filling
- *  clockwise from the top towards its removal. */
+/** A group: its label and a faint capture ring; its body is the blob the
+ *  sphere shader stands on the floor. A dead zone: a red, hatched disc with
+ *  its clearance ring -- the only red and the only hatched thing on the
+ *  floor. A held body gets a red ring filling clockwise from the top towards
+ *  its removal. */
 void paintBody (juce::Graphics &g, BodyPaint const &body);
 
 }
