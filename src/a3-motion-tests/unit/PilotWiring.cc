@@ -104,3 +104,61 @@ TEST (PilotWiring, FpvAnnouncesThePilotsGames)
   EXPECT_TRUE (announce.contains ("pilotGameReadout ("));
   EXPECT_TRUE (announce.contains ("byPilot"));
 }
+
+// HINT and the take-over, read from the source.
+
+TEST (PilotWiring, AButtonKnowsItsGame)
+{
+  auto const body = a3::test::uiComponentBodyOf (
+      "A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("action.game = result.pilot.game"));
+}
+
+TEST (PilotWiring, TheHintedPadPulses)
+{
+  auto const body = a3::test::uiComponentBodyOf ("A3MotionUIComponent::padLEDCallback (int step)");
+  ASSERT_TRUE (body.isNotEmpty ());
+  EXPECT_TRUE (body.contains ("_hintedButton["));
+  EXPECT_TRUE (body.contains ("padHintColour (step, stepsPerBeatPadLEDs)"));
+}
+
+TEST (PilotWiring, TheHintsFollowTheMusicTheLevelAndTheView)
+{
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::pushMusicCue ()")
+                   .contains ("refreshPilotHints ()"));
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::setPilotLevel (PilotLevel level)")
+                   .contains ("refreshPilotHints ()"));
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::setView (AppView view)")
+                   .contains ("refreshPilotHints ()"));
+  auto const refresh = a3::test::uiComponentBodyOf ("A3MotionUIComponent::refreshPilotHints ()");
+  EXPECT_TRUE (refresh.contains ("fittingGames (_musicCue"));
+  EXPECT_TRUE (refresh.contains ("hintedButton (_pilotLevel, _view"));
+}
+
+TEST (PilotWiring, ADjsTapTakesOverFromFly)
+{
+  auto const route = a3::test::uiComponentBodyOf (
+      "A3MotionUIComponent::sendFiredAction (index_t channel,");
+  ASSERT_TRUE (route.isNotEmpty ());
+  EXPECT_TRUE (route.contains ("levelAfterTap (_pilotLevel"));
+  EXPECT_TRUE (route.contains ("setPilotLevel ("));
+  // The route that fires a game stays whole.
+  EXPECT_TRUE (route.contains ("pilotOrderAtPress (_view, fired->pilot)"));
+  EXPECT_TRUE (route.contains ("_engine.requestGame (channel, *order)"));
+}
+
+TEST (PilotWiring, OnlyTheComponentQueuesForTheGames)
+{
+  // requestGame, setMusicCue and callOffGames share the engine's
+  // single-producer queue: one caller, on the message thread.
+  auto const ui = juce::File (A3_UI_SOURCE_DIR);
+  for (auto const &file : ui.findChildFiles (juce::File::findFiles, true, "*.cc"))
+    {
+      if (file.getFileName () == "A3MotionUIComponent.cc")
+        continue;
+      auto const text = file.loadFileAsString ();
+      for (auto const *call : { "requestGame (", "setMusicCue (", "callOffGames (" })
+        EXPECT_FALSE (text.contains (call)) << file.getFullPathName () << " calls " << call;
+    }
+}

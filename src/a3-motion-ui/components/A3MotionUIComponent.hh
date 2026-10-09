@@ -652,6 +652,11 @@ private:
   /** Works the cue out -- the preview while it is fresh, else the live
    *  mood -- and hands it to the engine. Message thread. */
   void pushMusicCue ();
+
+  /** Per channel, the action button a pilot lights at HINT, or -1. Worked
+   *  out on every downbeat and when the level or the view changes. */
+  std::array<int, 4> _hintedButton{ -1, -1, -1, -1 };
+  void refreshPilotHints ();
   /** "CHn FLY <GAME>" in the readout when a pilot starts a game. */
   void announcePilotGames ();
   /** The beat the UI's copy of the clock stands on. */
@@ -1033,6 +1038,9 @@ private:
     /** The script names a clip at all -- a Cue even when the clip is gone,
      *  so the press does nothing rather than fall through to an accent. */
     bool isCue = false;
+    /** The game its script's Pilot section names, if any: what a pilot at
+     *  HINT looks for on its channel. */
+    std::optional<PilotGame> game;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Works `action`'s source out against the channel's clip and puts what

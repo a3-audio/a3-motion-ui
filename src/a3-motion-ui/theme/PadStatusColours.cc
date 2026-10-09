@@ -101,6 +101,14 @@ padPausedColour (juce::Colour base, int beatInBar)
 }
 
 juce::Colour
+padHintColour (int step, int stepsPerBeat)
+{
+  auto const lit = toColour (theme ().notice);
+  auto const onTheBeat = stepsPerBeat <= 0 || step % stepsPerBeat == 0;
+  return onTheBeat ? lit : lit.darker (theme ().padShadeIdle);
+}
+
+juce::Colour
 padBaseColour (PadFunction function, bool clipPlaying, bool actionRunning,
                juce::Colour channel)
 {

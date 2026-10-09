@@ -48,6 +48,7 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-ui/components/fpv/ActionReach.hh>
+#include <a3-motion-ui/components/fpv/PilotHint.hh>
 #include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
@@ -1960,6 +1961,7 @@ A3MotionUIComponent::setView (AppView view)
     _engine.callOffGames ();
   _engine.setPilotLevel (fpv ? _pilotLevel : PilotLevel::Off);
   _statusBar->setPilotLevel (_pilotLevel);
+  refreshPilotHints ();
   if (fpv)
     {
       refreshFpvStrips ();
@@ -1976,6 +1978,7 @@ A3MotionUIComponent::setPilotLevel (PilotLevel level)
   _pilotLevel = level;
   _engine.setPilotLevel (_view == AppView::Fpv ? level : PilotLevel::Off);
   _statusBar->setPilotLevel (level);
+  refreshPilotHints ();
   updateControlReadout (pilotLevelReadout (level));
   persistSettings ();
 }
@@ -3701,6 +3704,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.after.reset ();
   action.cueClip = juce::File{};
   action.isCue = false;
+  action.game.reset ();
 
   if (!file.existsAsFile ())
     {
@@ -3738,6 +3742,8 @@ A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)
   // ACTION writes both there, so the button keeps no values of its own.
   action.feel = actionFeelFrom (result.settings);
   action.after = result.then;
+  // What a pilot at HINT looks for on this channel.
+  action.game = result.pilot.game;
 
   auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
   action.cueClip = cue.file;
@@ -3785,8 +3791,19 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
       _engine.setChannelAction (channel, std::nullopt);
       return;
     }
+
+  // At FLY a DJ who fires a game, or fires anything at a ship a pilot is
+  // playing with, takes over at once: the pilots step back to HINT, which
+  // ends their games. Back to FLY is a deliberate press of the key.
+  auto const order = pilotOrderAtPress (_view, fired->pilot);
+  auto const playing = _engine.gameOf (channel);
+  auto const level = levelAfterTap (_pilotLevel, order.has_value (),
+                                    _view == AppView::Fpv && playing && playing->byPilot);
+  if (level != _pilotLevel)
+    setPilotLevel (level);
+
   _engine.setChannelAction (channel, fired->settings, fired->flight);
-  if (auto const order = pilotOrderAtPress (_view, fired->pilot))
+  if (order)
     {
       _engine.requestGame (channel, *order);
       updateControlReadout (
@@ -6578,10 +6595,16 @@ A3MotionUIComponent::padLEDCallback (int step)
           auto const paused = function == PadFunction::PlayPause
                               && clipStatus == Pattern::Status::Idle
                               && _patterns[channel][slot]->resumesOnPlay ();
+          // At HINT the pad of an action whose game fits the moment pulses on
+          // the beat in the pilots' colour; a running action's look wins.
+          bool const hinted = function == PadFunction::Action && !actionRunning
+                              && channel < _hintedButton.size ()
+                              && button == _hintedButton[channel];
           auto const colour
-              = paused ? padPausedColour (base, step / stepsPerBeatPadLEDs)
-                       : channelColourForPadStatus (base, status, statusLast,
-                                                    step);
+              = paused   ? padPausedColour (base, step / stepsPerBeatPadLEDs)
+                : hinted ? padHintColour (step, stepsPerBeatPadLEDs)
+                         : channelColourForPadStatus (base, status, statusLast,
+                                                      step);
           // Under the hand, the keyboard while it is up; the screen's PADS
           // page keeps showing the set.
           auto const led
@@ -7653,6 +7676,25 @@ A3MotionUIComponent::pushMusicCue ()
   _musicCue = chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt,
                          _previewBar, _liveMood.cue ());
   _engine.setMusicCue (_musicCue);
+  refreshPilotHints ();
+}
+
+void
+A3MotionUIComponent::refreshPilotHints ()
+{
+  auto const fitting = fittingGames (_musicCue, _previewBar, _engine.getBeatsPerBar (),
+                                     _engine.getGameTuning ());
+  for (auto ch = 0u; ch < _hintedButton.size () && ch < _channelActions.size (); ++ch)
+    {
+      std::array<std::optional<PilotGame>, numActionButtons> games{};
+      for (size_t button = 0; button < games.size (); ++button)
+        games[button] = _channelActions[ch][button].game;
+      auto const &clip = _patterns[ch][0];
+      auto const shipIsFree = _engine.getFlightMode (ch) == FlightMode::Orbit
+                              && !_engine.gameOf (ch).has_value () && clip
+                              && clip->getStatus () == Pattern::Status::Playing;
+      _hintedButton[ch] = hintedButton (_pilotLevel, _view, fitting, shipIsFree, games);
+    }
 }
 
 void

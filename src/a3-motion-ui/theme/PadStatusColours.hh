@@ -72,4 +72,10 @@ juce::Colour padStatusColour (juce::Colour base, Pattern::Status status,
  *  each -- the screen's paused ▶ on the panel (see pausedBlinkIsLit()). */
 juce::Colour padPausedColour (juce::Colour base, int beatInBar);
 
+/** A pad a pilot lights at HINT: the notice colour -- the pilots', as the PIO
+ *  clock's key wears it for "someone else" -- full on the first step of every
+ *  beat and at its idle shade between. A pulse locked to the beat, unlike the
+ *  even blink of a pad waiting for one. */
+juce::Colour padHintColour (int step, int stepsPerBeat);
+
 }
