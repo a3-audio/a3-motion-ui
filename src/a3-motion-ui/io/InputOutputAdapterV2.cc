@@ -108,12 +108,9 @@ InputOutputAdapterV2::serialParseLine (juce::String line)
         {
           switch (index)
             {
-            case 16:
-              inputButtonValue (Button::ClockMode, value);
-              break;
-            case 17:
-              inputButtonValue (Button::Record, value);
-              break;
+            // Clock (16) and REC (17) were keys of their own on this panel.
+            // The end keys reach both through SHIFT, which this panel does
+            // not have, so here they are reached on the screen only.
             case 18:
               inputButtonValue (Button::Tap, value);
               if (value)

@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <optional>
 
 #include <a3-motion-ui/io/FunctionKeys.hh>
@@ -35,28 +36,28 @@ enum class KeySource
   Screen,
 };
 
-/** Whether each function key is down, from the panel and the screen together.
+/** Whether each key is down, from all the places it can be pressed together.
  *
- *  The PADS page carries the panel's keys (2026-09-28), so a key can now be
- *  held in two places -- the same situation as the panel's own two end
- *  columns, and the same answer: a key is down while *either* place holds it.
- *  `set()` says when that combined state actually changed, so what a key
- *  means is handled once per press and once per release, whichever hand it
- *  came from, and letting go of one place while the other still holds is no
- *  release.
+ *  One key often has two places: TAP stands at both ends of the panel, and
+ *  the PADS page carries the panel's keys too (2026-09-28). The answer is the
+ *  same every time -- a key is down while *any* place holds it. `set()` says
+ *  when that combined state actually changed, so what a key means is handled
+ *  once per press and once per release, whichever hand it came from, and
+ *  letting go of one place while another still holds is no release.
  */
-class FunctionKeyHold
+template <typename Key, int numKeys, typename Place>
+class KeyHold
 {
 public:
   /** Record where a key now stands. Returns the key's new combined state if
    *  it changed, nothing otherwise. */
   std::optional<bool>
-  set (FunctionKey key, KeySource source, bool down)
+  set (Key key, Place place, bool down)
   {
-    auto &sides = _down[slot (key)];
-    auto const before = sides[0] || sides[1];
-    sides[static_cast<std::size_t> (source)] = down;
-    auto const after = sides[0] || sides[1];
+    auto &places = _down[slot (key)];
+    auto const before = places[0] || places[1];
+    places[static_cast<std::size_t> (place)] = down;
+    auto const after = places[0] || places[1];
 
     if (after == before)
       return std::nullopt;
@@ -64,21 +65,26 @@ public:
   }
 
   bool
-  isDown (FunctionKey key) const
+  isDown (Key key) const
   {
-    auto const &sides = _down[slot (key)];
-    return sides[0] || sides[1];
+    auto const &places = _down[slot (key)];
+    return places[0] || places[1];
   }
 
 private:
   static std::size_t
-  slot (FunctionKey key)
+  slot (Key key)
   {
-    return static_cast<std::size_t> (functionKeyPosition (key));
+    return static_cast<std::size_t> (key);
   }
 
-  /** [key's position in functionKeyOrder][KeySource] */
-  std::array<std::array<bool, 2>, numFunctionKeys> _down{};
+  std::array<std::array<bool, 2>, static_cast<std::size_t> (numKeys)> _down{};
 };
+
+/** The panel's two end columns as one set of keys. */
+using EndColumnHold = KeyHold<EndKey, numEndKeys, PanelSide>;
+
+/** The panel and the PADS page as one set of keys. */
+using EndKeyHold = KeyHold<EndKey, numEndKeys, KeySource>;
 
 }

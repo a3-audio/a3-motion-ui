@@ -766,17 +766,11 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _controller->onPadReleased = [this] (index_t channel, index_t pad) {
     handlePadRelease (channel, pad);
   };
-  _controller->onScenePressed = [this] (index_t slot, std::size_t row) {
-    handleScenePress (slot, row);
+  _controller->onKeyPressed = [this] (EndKey key) {
+    setEndKey (key, KeySource::Screen, true);
   };
-  _controller->onSceneReleased = [this] (index_t slot, std::size_t row) {
-    handleSceneRelease (slot, row);
-  };
-  _controller->onKeyPressed = [this] (FunctionKey key) {
-    setFunctionKey (key, KeySource::Screen, true);
-  };
-  _controller->onKeyReleased = [this] (FunctionKey key) {
-    setFunctionKey (key, KeySource::Screen, false);
+  _controller->onKeyReleased = [this] (EndKey key) {
+    setEndKey (key, KeySource::Screen, false);
   };
 
   // The ACTION page: what the ACT key does to the clip the bar is showing.
@@ -1508,12 +1502,8 @@ A3MotionUIComponent::createHardwareInterface ()
     if (_barKeyboard)
       _barKeyboard->pressPanelCell (cell, down);
   };
-  _ioAdapter->getButton (Button::ClockMode).addListener (this);
-  _ioAdapter->getButton (Button::Menu).addListener (this);
-  _ioAdapter->getButton (Button::Record).addListener (this);
-  _ioAdapter->getButton (Button::Tap).addListener (this);
-  _ioAdapter->getButton (Button::Shift).addListener (this);
-  _ioAdapter->getButton (Button::RecMode).addListener (this);
+  for (auto const key : allEndKeys)
+    _ioAdapter->getButton (key).addListener (this);
   _ioAdapter->getTapTimeMicros ().addListener (this);
   for (auto channel = 0u; channel < _ioAdapter->getNumChannels (); ++channel)
     {
@@ -1766,19 +1756,20 @@ A3MotionUIComponent::getMinimumHeight () const
 void
 A3MotionUIComponent::valueChanged (juce::Value &value)
 {
-  // The panel's six keys first: each goes into the one place that says
-  // what a function key does, the same place the PADS page's keys reach.
-  for (auto const key : functionKeyOrder)
+  // The panel's end keys first: each goes into the one place that says
+  // what an end key does, the same place the PADS page's keys reach.
+  for (auto const key : allEndKeys)
     if (value.refersToSameSourceAs (_ioAdapter->getButton (key)))
       {
-        setFunctionKey (key, KeySource::Panel,
-                        static_cast<bool> (value.getValue ()));
+        setEndKey (key, KeySource::Panel,
+                   static_cast<bool> (value.getValue ()));
         return;
       }
 
   if (value.refersToSameSourceAs (_ioAdapter->getTapTimeMicros ()))
     {
-      if (_clockMode == 0)
+      // SHIFT+TAP is the clock, not a tap.
+      if (_clockMode == 0 && !isButtonPressed (Button::Shift))
         handleTapAt (juce::int64 (value.getValue ()));
     }
   else
@@ -2814,34 +2805,42 @@ A3MotionUIComponent::stopChannel (index_t channel)
 }
 
 void
-A3MotionUIComponent::handleScenePress (index_t, std::size_t pad)
+A3MotionUIComponent::handleScenePress (index_t pad)
 {
-  if (pad >= numSceneRows)
+  if (pad >= numPadsPerChannel)
     return;
 
-  auto const function = padFunctionByPadIndex[pad];
-  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+  // An action fires on every channel that has it, running or not, as its
+  // pad does.
+  if (padFunctionByPadIndex[pad] != PadFunction::PlayPause)
     {
-      auto const &pattern = _patterns[channel][0];
-      if (!pattern)
-        continue;
-      // Play starts only what stands still; see sceneStartsClip(). An action
-      // fires on every channel that has it, running or not, as its pad does.
-      if (function == PadFunction::PlayPause
-          && !sceneStartsClip (pattern->getStatus ()))
-        continue;
-      handlePadPress (channel, static_cast<index_t> (pad));
+      for (index_t channel = 0; channel < _patterns.size (); ++channel)
+        if (_patterns[channel][0])
+          handlePadPress (channel, pad);
+      return;
     }
+
+  std::vector<Pattern::Status> room;
+  for (auto const &channel : _patterns)
+    room.push_back (channel[0] ? channel[0]->getStatus ()
+                               : Pattern::Status::Empty);
+
+  auto const nowMs = static_cast<long long> (
+      juce::Time::getMillisecondCounterHiRes ());
+  auto const picks = _playAll.press (room, nowMs);
+  for (index_t channel = 0; channel < picks.size (); ++channel)
+    if (picks[channel])
+      handlePadPress (channel, pad);
 }
 
 void
-A3MotionUIComponent::handleSceneRelease (index_t, std::size_t pad)
+A3MotionUIComponent::handleSceneRelease (index_t pad)
 {
-  if (pad >= numSceneRows)
+  if (pad >= numPadsPerChannel)
     return;
 
   for (index_t channel = 0; channel < _patterns.size (); ++channel)
-    handlePadRelease (channel, static_cast<index_t> (pad));
+    handlePadRelease (channel, pad);
 }
 
 void
@@ -5986,13 +5985,35 @@ A3MotionUIComponent::handleMessage (juce::Message const &message)
 }
 
 void
-A3MotionUIComponent::setFunctionKey (FunctionKey key, KeySource source,
-                                     bool down)
+A3MotionUIComponent::setEndKey (EndKey key, KeySource source, bool down)
 {
   // The panel and the PADS page are two places to hold one key: it goes down
   // with the first and up with the last, and only then does it mean anything.
-  if (auto const changed = _functionKeys.set (key, source, down))
-    functionKeyChanged (key, *changed);
+  auto const changed = _endKeys.set (key, source, down);
+  if (!changed)
+    return;
+
+  for (auto const &event : _endKeyLayer.set (key, *changed))
+    endKeyEvent (event);
+}
+
+void
+A3MotionUIComponent::endKeyEvent (EndKeyEvent const &event)
+{
+  switch (event.meaning.kind)
+    {
+    case EndKeyMeaning::Kind::Nothing:
+      return;
+    case EndKeyMeaning::Kind::Function:
+      functionKeyChanged (event.meaning.function, event.down);
+      return;
+    case EndKeyMeaning::Kind::ScenePad:
+      if (event.down)
+        handleScenePress (event.meaning.pad);
+      else
+        handleSceneRelease (event.meaning.pad);
+      return;
+    }
 }
 
 void
@@ -6035,7 +6056,8 @@ A3MotionUIComponent::functionKeyChanged (FunctionKey key, bool down)
       // something else has to, and Record is the button that started it.
       // Held down, it arms nothing on its own: recording starts when a
       // channel's Play|Pause pad is pressed while it is held -- see
-      // handlePadPress().
+      // handlePadPress(). On the end keys REC is SHIFT then PLAY all, held
+      // for as long as both are (EndKeyLayer).
       if (down && _engine.isRecording ())
         endRecording ();
       return;
@@ -6073,7 +6095,7 @@ A3MotionUIComponent::isButtonPressed (Button button)
   // The panel's key or the PADS page's: a gesture that needs the modifier
   // does not care which hand is on it. Also safe in a build with no panel,
   // where there is no adapter to ask.
-  return _functionKeys.isDown (button);
+  return _endKeyLayer.isDown (button);
 }
 
 void
@@ -6130,9 +6152,6 @@ A3MotionUIComponent::tickCallback (Measure measure)
           refreshChannelValues ();
         }
 
-      if (!_ioAdapter->getButton (Button::Record).getValue ())
-        {
-        }
     }
 
   // Throttle repaint to ~30 Hz (every 4th tick at typical tick rate)
@@ -6532,6 +6551,38 @@ A3MotionUIComponent::refreshChannelValues ()
     }
 }
 
+RoomLook
+A3MotionUIComponent::roomLook ()
+{
+  // What a channel's own pads show, gathered across the channels: PLAY all
+  // and the action keys say for the room what a pad says for its channel.
+  RoomLook room;
+  for (index_t channel = 0; channel < _patterns.size (); ++channel)
+    {
+      auto const &pattern = _patterns[channel][0];
+      if (!pattern)
+        continue;
+
+      auto const status = pattern->getStatus ();
+      room.anyClip = room.anyClip || status != Pattern::Status::Empty;
+      room.anythingPlays = room.anythingPlays
+                           || status == Pattern::Status::Playing
+                           || status == Pattern::Status::ScheduledForPlaying;
+
+      auto const accentActive = _engine.isChannelAccentActive (channel);
+      for (std::size_t button = 0; button < numActionButtons; ++button)
+        {
+          if (channel < _channelActions.size ()
+              && _channelActions[channel][button].file.existsAsFile ())
+            room.actionAssigned[button] = true;
+          if (accentActive && channel < _actionSlot.size ()
+              && _actionSlot[channel] == static_cast<int> (button))
+            room.actionRuns[button] = true;
+        }
+    }
+  return room;
+}
+
 void
 A3MotionUIComponent::updateFunctionKeyLEDs ()
 {
@@ -6541,24 +6592,31 @@ A3MotionUIComponent::updateFunctionKeyLEDs ()
   // The panel's LEDs and the PADS page's keys, from one look: a key that is
   // coloured on the screen is coloured under the hand, and neither is worked
   // out twice.
-  auto const look = _clipSettings->functionKeyLook ();
+  auto const keys = _clipSettings->functionKeyLook ();
+  auto const room = roomLook ();
   if (_controller)
-    _controller->setFunctionKeyLook (look);
+    _controller->setEndKeyLook (keys, room);
 
   if (!_ioAdapter)
     return;
 
   // While the keyboard owns the panel, a key's LED says which key it types.
-  // Both end columns share one LED per row, and in every row both ends are
-  // the same kind of key (PanelKeyboard.hh), so the left one speaks for both.
-  for (auto const key : functionKeyOrder)
-    _ioAdapter->setButtonLED (
-        key, keyboardShown ()
-                 ? keyboardLedColour (
-                     panelKeyAt (KeyboardPage::Letters,
-                                 { functionKeyPosition (key), 0 }),
-                     toColour (theme ().accent), keyboardLetterLed ())
-                 : functionKeyColour (key, look));
+  // TAP, SHIFT and PLAY all light both their places from one LED colour, and
+  // in those rows both ends are the same kind of key (PanelKeyboard.hh), so
+  // the first place speaks for both.
+  for (auto const key : allEndKeys)
+    {
+      auto const place = firstPlaceOf (key);
+      auto const cell = PanelCell{
+        place.row, place.side == PanelSide::Left ? 0 : panelColumns - 1
+      };
+      _ioAdapter->setButtonLED (
+          key, keyboardShown ()
+                   ? keyboardLedColour (
+                       panelKeyAt (KeyboardPage::Letters, cell),
+                       toColour (theme ().accent), keyboardLetterLed ())
+                   : endKeyColour (key, keys, room));
+    }
 }
 
 void
@@ -6674,6 +6732,10 @@ A3MotionUIComponent::padLEDCallback (int step)
             }
         }
     }
+
+  // PLAY all and the action keys show the room, so they follow it on the
+  // same tick the pads do.
+  updateFunctionKeyLEDs ();
 }
 
 juce::Colour

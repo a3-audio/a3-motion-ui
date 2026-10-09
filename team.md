@@ -83,32 +83,50 @@ Hardwaredaten laufen nicht direkt in die UI, sondern über `InputOutputAdapter`:
 
 Vorteil: Die UI bekommt normalisierte Events, unabhängig vom konkreten Hardware-Protokoll (V2/V3).
 
-### 3.2 Button-Logik in A3MotionUIComponent
+### 3.2 End keys and function keys in A3MotionUIComponent
 
-Aktuell sind folgende Buttons als Listener registriert:
+The panel's two end columns (col0, col9) and the PADS page's copy of them report **end keys**
+(`EndKey`, `io/FunctionKeys.hh`), not functions. One table, `endKeyTable`, says what stands where:
 
-- `ClockMode`
-- `Menu`
-- `Record`
-- `Tap`
+| Row | Left (col0) | Right (col9) | SHIFT + key |
+|---|---|---|---|
+| 0 | TAP | TAP | CLOCK (cycles the clock mode) |
+| 1 | SHIFT | SHIFT | — |
+| 2 | PLAY all | PLAY all | REC (held) |
+| 3 | A1 on every channel | A2 on every channel | REC MODE (cycles) |
+| 4 | A3 on every channel | A4 on every channel | — (free, does nothing) |
+| 5 | A5 on every channel | A6 on every channel | MENU (toggles) |
 
-Aktuelles Verhalten in `valueChanged(...)`:
+Flow: adapter Value per `EndKey` → `valueChanged(...)` → `setEndKey(key, KeySource::Panel, down)`;
+the PADS page calls the same with `KeySource::Screen`. `EndKeyHold` joins both sources (down while
+either holds), `EndKeyLayer` decides the meaning, then:
 
-- `Button::ClockMode`
-	Der direkte Cycle ist deaktiviert (nur Legacy-Platzhalter, keine Aktion).
+- a function → `functionKeyChanged(key, down)`:
+  - `Tap`: direct OSC `/tap` through `_tapSender` (time-critical, no async queue).
+  - `ClockMode`, `RecMode`: cycle on press, release ignored.
+  - `Menu`: toggle-on-press — opens or closes the global settings, release ignored.
+  - `Record`: held modifier. REC held + a channel's Play|Pause pad records onto that channel
+    (`handlePadPress()`); pressed while a take runs, it ends the take.
+  - `Shift`: held modifier, read through `isButtonPressed(Button::Shift)`.
+- PLAY all / an action key → `handleScenePress(pad)` / `handleSceneRelease(pad)`: that pad on every
+  channel through `handlePadPress()`. PLAY all reaches the channels `PlayAllPress` picks: anything
+  playing → pause what plays; nothing playing → start everything that stands still; a double tap
+  goes to the top on the channels the first tap reached.
 
-- `Button::Menu`
-	`pressed -> openGlobalSettings()` bzw. `closeGlobalSettings()`, je nachdem ob das Menü bereits offen ist. `released` wird ignoriert.
-	Das bedeutet: Das Menü ist Toggle-on-Press — ein Druck öffnet oder schließt es, Loslassen hat keine eigene Wirkung.
+SHIFT semantics:
 
-- `Button::Record`
-	Long-Press-Tracking für Recording-Interaktionen, inkl. LED-Steuerung.
+- **SHIFT first, then the key** is a combination; it does only the shifted function. A key pressed
+  before SHIFT keeps its plain meaning.
+- **REC is held while SHIFT and PLAY all both are.** Releasing either ends REC.
+- SHIFT + TAP never taps: the tap time is dropped while SHIFT is down.
+- SHIFT + an action key is never "the shifted action on every channel"; row 4 does nothing.
+- SHIFT with a channel's own pads keeps its meanings (Play|Pause on the downbeat, PAGE back, ACT
+  preview).
 
-- `Button::Tap`
-	Senden einer direkten OSC-`/tap`-Message über `_tapSender` (zeitkritisch, ohne Async-Queue).
+`TapTimeMicros`: only with `ClockMode == INT` and SHIFT up is the tap fed into the TempoClock.
 
-- `TapTimeMicros`
-	Nur bei `ClockMode == INT` wird Tap-Tempo in die TempoClock eingespeist.
+On the screen CLOCK and MENU are in the status bar, REC MODE on the REC page and REC as the
+transport's ● key, besides the PADS page's SHIFT layer.
 
 ### 3.3 Encoder-/Pot-Menüinteraktion
 
@@ -194,9 +212,9 @@ Damit bleibt die UI von konkreten Serial-Protokollen isoliert.
 
 Spezialfall bei Buttons:
 
-- Index 16 -> `ClockMode`
-- Index 17 -> `Record`
-- Index 18 -> `Tap` (+ optional Timestamp)
+- Index 18 -> `EndKey::Tap` (+ optional Timestamp)
+- Index 16 (clock) and 17 (REC) are not reported: the end keys reach both through SHIFT, which
+  this panel does not have, so on V2 they are reached on the screen.
 
 V2 ist simpel, aber stärker vom Firmware-Stringformat abhängig.
 
@@ -219,25 +237,25 @@ Hardwaremodell laut Kommentar/Mapping:
 
 Buttonzustände sind 2-Bit-kodiert und werden in `parseButtons()` zu Press/Release-Ereignissen normalisiert.
 
-#### Wichtige V3-Mappings
+#### End columns on V3
 
-- Tap links: Index 2 (`"20"`)
-- Tap rechts: Index 36 (`"29"`)
-- Record links: Index 41 (`"10"`)
-- Record rechts: Index 43 (`"19"`)
-- MenuToggle links: Index 3 (`"50"`)
-- MenuToggle rechts: Index 37 (`"59"`)
+`buttonMap` marks col0/col9 as `Function` with their row; `endRowHwIndices` lists each row's two
+firmware indices (left, right):
 
-Pads sind kanalweise auf Indexbereiche 4..35 gemappt (je 8 Pads pro Kanal).
+- row 0: 40 (`"00"`), 42 (`"09"`)
+- row 1: 41 (`"10"`), 43 (`"19"`)
+- row 2: 2 (`"20"`), 36 (`"29"`)
+- row 3: 1 (`"30"`), 38 (`"39"`)
+- row 4: 0 (`"40"`), 39 (`"49"`)
+- row 5: 3 (`"50"`), 37 (`"59"`)
 
-#### Chord-Logik für Menü
+Which key stands at a row and side comes from `endKeyTable`. Pads are mapped per channel onto
+indices 4..35 (8 pads per channel).
 
-In `dispatchButtonEvent()` wird für die beiden MenuToggle-Tasten ein interner Zweibit-Zustand geführt (`_menuButtonState`).
-
-- Wenn beide gedrückt sind und vorher nicht beide gedrückt waren -> `inputButtonValue(Button::Menu, true)`
-- Wenn der Chord aufgelöst wird -> `inputButtonValue(Button::Menu, false)`
-
-Das erzeugt genau ein Press-/Release-Paar für den Chord, statt einzelner linker/rechter Menüsignale.
+`dispatchButtonEvent()` joins the two places of TAP, SHIFT and PLAY all with `EndColumnHold`: one
+press when the first side goes down, one release when the last comes up. The action keys have one
+place each. LEDs are written per end key: TAP, SHIFT and PLAY all light both sides, each action key
+its own.
 
 ## 6. Pattern- und UI-Synchronisation
 
@@ -263,8 +281,8 @@ Zusätzlich wird in mehreren Pfaden darauf geachtet, Playback- und Recording-Lä
 
 Aktueller Stand:
 
-- V3-Chord erzeugt `Menu true/false`
-- UI behandelt `Menu` als Toggle-on-Press: Press öffnet/schließt `GlobalSettingsComponent`, Release wird ignoriert (siehe `A3MotionUIComponent::valueChanged(...)`).
+- MENU is SHIFT + a row 5 key (A5 or A6 column), or MENU in the status bar.
+- `Menu` is toggle-on-press: a press opens or closes `GlobalSettingsComponent`, the release is ignored (see `A3MotionUIComponent::functionKeyChanged(...)`).
 
 ### 7.3 Wenn Tempoanzeige inkonsistent ist
 
@@ -276,8 +294,7 @@ Aktueller Stand:
 ## 8. Bekannte Inkonsistenzen und Pflegehinweise
 
 1. Einige Kommentare nennen andere Button-Labels/Indizes als das aktuelle V3-Mapping; bei Debug immer den tatsächlichen `buttonMap` in V3 heranziehen.
-2. Global-Settings-Kommentar in der UI spricht von Chord `00+09`, das aktive V3-Mapping nutzt jedoch derzeit `50+59` als MenuToggle.
-3. Bei Änderungen an Firmware-Indexen muss sowohl Mapping als auch Team-Dokument synchron aktualisiert werden.
+2. Bei Änderungen an Firmware-Indexen muss sowohl Mapping als auch Team-Dokument synchron aktualisiert werden.
 
 ## 9. Wichtige Dateien für Änderungen
 

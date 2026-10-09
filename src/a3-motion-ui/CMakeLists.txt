@@ -331,6 +331,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/MixerStripComponent.hh
     components/ClipSettingsComponent.cc
     components/ClipSettingsComponent.hh
+    components/ControllerComponent.cc
+    components/ControllerComponent.hh
     components/ColourPickerComponent.cc
     components/ColourPickerComponent.hh
     components/FittedFont.cc

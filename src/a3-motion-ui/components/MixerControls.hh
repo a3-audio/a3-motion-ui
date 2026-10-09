@@ -31,10 +31,10 @@ namespace a3
  *
  *  **This is the authority.** The overlay lays out four strips side by side
  *  and the bar's MIX tab lays out one across its width; both read this and
- *  neither knows the list itself. That is the same reasoning as
- *  functionKeyOrder, where the panel's wiring and the screen's strip are one
- *  list read two ways — two tables would eventually disagree, and the
- *  disagreement shows up as a control that is on one view and not the other.
+ *  neither knows the list itself. That is the same reasoning as endKeyTable,
+ *  which the panel is read from and the PADS page laid out from — two tables
+ *  would eventually disagree, and the disagreement shows up as a control
+ *  that is on one view and not the other.
  *
  *  The order is what a hand coming from a mixer expects: gain at the top
  *  where it is set once, the three bands under it, the volume under them, the

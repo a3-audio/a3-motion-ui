@@ -30,7 +30,7 @@
 namespace a3
 {
 
-/** What each function key was asked to show, and what it is actually showing.
+/** What each end key was asked to show, and what it is actually showing.
  *
  *  The serial link is shared with the input frames, so a colour that changes
  *  nothing must not be written again. The trap in that is that the record then
@@ -56,22 +56,22 @@ class LedCache
 public:
   /** Remember what this key was asked for. The resolved colour is not this;
    *  see shouldWrite(). */
-  void remember (FunctionKey key, juce::Colour wanted);
+  void remember (EndKey key, juce::Colour wanted);
 
   /** What the key was last asked for, or nothing if it never was.
    *  Survives forgetWhatIsShown() -- that is the point of it. */
-  std::optional<juce::Colour> wantedFor (FunctionKey key) const;
+  std::optional<juce::Colour> wantedFor (EndKey key) const;
 
   /** True when `shown` differs from what this key is showing, and then takes
    *  it as shown. False -- do not write -- when it is already showing it. */
-  bool shouldWrite (FunctionKey key, juce::Colour shown);
+  bool shouldWrite (EndKey key, juce::Colour shown);
 
   /** Forget what every key is showing, keeping what each was asked for. */
   void forgetWhatIsShown ();
 
 private:
-  std::array<std::optional<juce::Colour>, numFunctionKeys> _wanted;
-  std::array<std::optional<juce::Colour>, numFunctionKeys> _shown;
+  std::array<std::optional<juce::Colour>, numEndKeys> _wanted;
+  std::array<std::optional<juce::Colour>, numEndKeys> _shown;
 };
 
 }

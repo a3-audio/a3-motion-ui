@@ -1740,27 +1740,30 @@ action and stop swapped). `fingertipSize` is the floor for anything hit in a hur
 sphere on the device a cell comes out at about 65 px. Rows 0–1 over the pads stay empty: on the
 panel the pots stand there.
 
-**The panel's function keys stand on the page too** (2026-09-28): the right-hand column (col9)
-with all six, and over the scene block, at the outer edge, the top two rows of the left column
-(col0) — TAP and clock. The scene block is the screen's own and stands where col0's rows 2–5 would
-be. Where each key stands is one table, `panelKeyPlaces` (side and panel row); what it does comes
-from its row through `functionKeyOrder`, as on the panel. A key goes down on touch and up on
-release, and lands in `setFunctionKey (key, KeySource::Screen, …)` — the same route the panel's
-Values take (`KeySource::Panel`) into `functionKeyChanged()`, the one place that says what a key
-does. `FunctionKeyHold` keeps both sources: a key is down while either holds it, and it means
-something only when that combined state changes, so SHIFT and REC held on the screen modify a pad
+**The panel's end keys stand on the page too**: both end columns, all six rows, where the panel has
+them (2026-10-10; until then the right column carried the six function keys and the left one TAP and
+clock over a scene block of the screen's own). Where each key stands comes from `endKeyTable`, read
+through `panelKeyPlaces` (both columns, top to bottom) and `endKeyOnPage()`. A key goes down on touch
+and up on release, and lands in `setEndKey (key, KeySource::Screen, …)` — the same route the panel's
+Values take (`KeySource::Panel`). `EndKeyHold` joins the two sources (a key is down while either
+holds it), `EndKeyLayer` decides what the press means — SHIFT layer included — and
+`functionKeyChanged()` / `handleScenePress()` do it. So SHIFT and REC held on the screen modify a pad
 exactly as held on the panel, and `isButtonPressed()` reads the same state (also in a build with no
-adapter). The keys are painted from the look the LEDs are written from (`setFunctionKeyLook()` in
-`updateFunctionKeyLEDs()`): the word in `functionKeyColour()`, the ground washed while
-`functionKeyLit()`.
+adapter). The keys are painted from the looks the LEDs are written from (`setEndKeyLook()` in
+`updateFunctionKeyLEDs()`): a function's word in `functionKeyColour()`, its ground washed while
+`functionKeyLit()`; PLAY all and the actions filled with `endKeyColour()` and wearing their pad's
+mark, ❚❚ on PLAY all while anything plays.
 
-**A scene block stands left of the channels**, shaped like a channel: `scenes[0][pad]` fires that pad
-on every channel — Play all, each action on every channel that has it — and in PAGE's place
-**Stop all** (`stopChannel()` per channel), because the panel has no Stop pad any more and Page
-across four channels would only step the shown one's pages. Everything else goes through
-`handlePadPress()` per channel — one route to what a pad means. **A scene's Play starts only the
-clips that stand still** (`sceneStartsClip()`); a single Play pad toggles, but a scene that toggled
-would start half the room and stop the other half. Screen only: the panel has no such pads.
+**PLAY all and the action keys fire a pad on every channel**, through `handlePadPress()` per channel
+— one route to what a pad means. An action fires on every channel that has a clip, running or not,
+as its pad does; a channel without the action does nothing, as its pad does. **PLAY all toggles the
+room as one** (`PlayAllPress`, `components/SceneLaunch.hh`): anything playing or waiting to start →
+it reaches those channels and their Play|Pause pauses them (or calls the waiting start off); nothing
+playing → it reaches every clip that stands still and starts it, a paused one resuming. A per-channel
+toggle would start half the room and stop the other half; a take is REC's and never reached. **Two
+taps go back to the top** for the channels the first tap reached, each running its own double tap,
+because the rule asked again would pick a different set once the first tap has turned the room over.
+SHIFT never reaches it — SHIFT+PLAY all is REC — so the downbeat wait has no way in from here.
 
 **What a pad shows is one rule, `padShadeStatus()`** (`theme/PadStatusColours`), read by the panel's
 LEDs and this page alike. Only Play|Pause follows its clip's status — six action pads blinking with
@@ -1775,27 +1778,54 @@ text colour for as long as it is held.
 the bar's pages (`nextClipPage()`, Shift backwards), and it closes FILES/MIXER/PADS first, because
 PAGE is about the clip and the overlay covers it.
 
-**The panel's six function keys** are listed once: `io/FunctionKeys.hh` holds `functionKeyOrder`
-(`TAP, clock, REC, recmode, MENU, SHIFT`), and the panel is wired from it row by row. The screen
-carried the same six as two columns of three in the global strip until 2026-09-26; they are spread
-over the status bar and the REC page now (see above).
+**The end columns** (col0 and col9, rows 0–5) are one table, `endKeyTable` in
+`io/FunctionKeys.hh` (2026-10-10, the maintainer's layout; until then the columns were six function
+keys mirrored):
 
-On the panel those keys are a **vertical column of six at each end** (col0 and col9, rows 0–5),
-mirrored so either hand reaches them. The two columns are one set of keys, not twelve: a key is down
-while *either* side is down, and both sides light together. Menu alone used to be tracked that way —
-which meant holding the left Tap and pressing the right one read as a release. `functionRowHwIndices`
-maps a row to its two firmware indices; what a row *does* is not written there.
+| Row | Left (col0) | Right (col9) | With SHIFT held |
+|---|---|---|---|
+| 0 | TAP | TAP | clock |
+| 1 | SHIFT | SHIFT | — |
+| 2 | PLAY all | PLAY all | REC |
+| 3 | A1 on every channel | A2 on every channel | rec mode |
+| 4 | A3 on every channel | A4 on every channel | — (free) |
+| 5 | A5 on every channel | A6 on every channel | MENU |
 
-`Button` is now an alias for `FunctionKey`, and two keys reached the panel for the first time with
-this: **clock** and **recmode**, in rows that had been spare. Both cycle on press, the same cycle
-their screen twins run, because the panel and the screen are two places to reach one function. All six are one size: a button sized differently
-from its neighbours reads as a different kind of thing, and these are all the same kind.
+TAP, SHIFT and PLAY all are one key each (`EndKey`), down while either side is down and lit on both
+sides — `EndColumnHold` in the adapter joins them, the same `KeyHold` that joins panel and screen.
+The action rows are six keys. The SHIFT layer is its own table, `shiftedFunctionAtRow`, by row, so
+both hands find it. `endRowHwIndices` in the V3 adapter maps a place to its firmware index; what
+stands there is not written there.
+
+**What a key means is `EndKeyLayer`**, fed each key's combined state. A key is decided on its press
+and keeps that meaning until its release, so a release reaches what its press started. **A SHIFT
+combination does only the shifted function**: SHIFT+TAP is the clock and does not tap (the tap time
+the adapter takes is dropped while SHIFT is down), and SHIFT on an action row is never a shifted
+action across the channels — row 3 is rec mode, row 5 MENU, row 4 does nothing. **Only SHIFT first
+is a combination**: a key pressed before SHIFT has already done its plain thing, which cannot be
+taken back. **REC is held while SHIFT and PLAY all both are**, so REC + a channel's Play|Pause records
+onto it as the REC key did; letting go of either ends it — SHIFT's release ends every shifted
+function still held, and PLAY all's later release then means nothing. SHIFT with a channel's pads
+keeps its meanings (Play|Pause waits for the downbeat, PAGE steps back, ACT previews), because those
+pads are not end keys.
+
+On the screen the clock and MENU stay in the status bar, rec mode on the REC page and REC as the
+transport's ● key, besides the PADS page's SHIFT layer — each where it already was.
 
 **What a key looks like is one rule** — `theme/FunctionKeyColours.hh` — and it drives both displays,
 which only works if both of them read it. The bar carried its own copy for REC (`recording ? danger
 : warning`) and went on saying orange long after the rule said red always; nothing was wrong
 anywhere, the screen simply was not asking. Every key in the strip is painted from
 `functionKeyColour()` now.
+
+An end key's colour is `endKeyColour()`, for its LED and the PADS page alike. TAP and SHIFT show their
+function's look (TAP blinking with the beat, SHIFT lit while held). PLAY all and the action keys
+follow the pad rule (`padShadeStatus()`, `padStatusColour()`) with the skin's text colour standing in
+for a channel: PLAY all lit in Play's colour while anything plays, an action white while it runs on
+any channel, the idle shade while some channel carries it, the empty shade while none does. **While
+SHIFT is held every key shows the layer under it** (`endKeyFace()`): TAP the clock's colour, PLAY all
+REC's red, row 3 the rec mode's, row 5 MENU's blue, row 4 dark — so the hand can see where REC is
+before pressing. The LEDs of the two columns therefore differ per side in the action rows.
 
 A colour is not said the same way in both media. `ledColour()` raises the saturation of anything
 going to the panel to a floor, keeping hue and brightness: `accent` at rgb(144, 238, 144) is plainly
@@ -2019,7 +2049,7 @@ off. **Two plain taps within `doubleTapWindowMs` (350 ms) go back to the top**: 
 paused or resumed, so the second stops a paused clip to the top and starts a resumed one over -- the
 panel's only way there. `playPausePress()` in `PlayPausePress.hh` decides all of it from the status,
 Shift and the previous press on that clip (`PreviousPress`); every pad route -- panel, PADS page,
-screen transport key, scene rows -- reaches it through `handlePadPress()`. A press within
+screen transport key, PLAY all -- reaches it through `handlePadPress()`. A press within
 `twinWindowMs` (40 ms) of the last is the second half of one touch under X (touch plus emulated mouse) and does nothing; serial panel presses have no twin. A plain pause
 passes `PausePlace::Exact` so the place stays exactly where it was. ■ (`stopPattern`)
 goes back to the top as well, a paused clip and a pending pause included (`stopReachesClip()`).
@@ -2419,8 +2449,8 @@ Two concrete adapters, selected at configure time via `HARDWARE_INTERFACE_VERSIO
 - `InputOutputAdapterV3` — current hardware, binary packed poll-frames (`GET_BUTTONS`,
   `GET_ENCODERS`, `GET_POTS` commands per `host.py`'s protocol docstring). Response ordering
   (`BTN+ENC` vs `ENC+BTN`) can vary by USB-CDC stack, so parsing is marker-based and must accept
-  both layouts. Two physical buttons ("MenuToggle left/right") are combined into a single
-  chorded `Menu` press/release pair inside `dispatchButtonEvent()`.
+  both layouts. The end columns' keys go out as `EndKey`s from `dispatchButtonEvent()`, the two
+  places of TAP, SHIFT and PLAY all joined into one press/release pair (`EndColumnHold`).
   The port is not a fixed tty number: `serialInit()` asks every `ttyACM*`/`ttyUSB*` in
   `/sys/class/tty`, those whose USB ID is the panel's CH343 bridge (`1a86:55d3`, the board file's
   `build.hwids`) first, and keeps the first that answers PING (`io/SerialCandidates`). The ID only

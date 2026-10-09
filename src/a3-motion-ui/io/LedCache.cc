@@ -26,26 +26,26 @@ namespace a3
 namespace
 {
 std::size_t
-indexOf (FunctionKey key)
+indexOf (EndKey key)
 {
   return static_cast<std::size_t> (key);
 }
 }
 
 void
-LedCache::remember (FunctionKey key, juce::Colour wanted)
+LedCache::remember (EndKey key, juce::Colour wanted)
 {
   _wanted[indexOf (key)] = wanted;
 }
 
 std::optional<juce::Colour>
-LedCache::wantedFor (FunctionKey key) const
+LedCache::wantedFor (EndKey key) const
 {
   return _wanted[indexOf (key)];
 }
 
 bool
-LedCache::shouldWrite (FunctionKey key, juce::Colour shown)
+LedCache::shouldWrite (EndKey key, juce::Colour shown)
 {
   auto &current = _shown[indexOf (key)];
   if (current == shown)

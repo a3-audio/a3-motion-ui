@@ -22,6 +22,8 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/theme/FunctionKeyColours.hh>
+#include <a3-motion-ui/theme/PadStatusColours.hh>
+#include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/TransportLook.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -285,8 +287,8 @@ TEST (FunctionKeyColours, TheFallbackIsWhateverTheCallerChose)
 TEST (FunctionKeyColours, AKeyLightsWhileSomethingIsHappening)
 {
   FunctionKeyLook const resting;
-  for (auto const key : functionKeyOrder)
-    EXPECT_FALSE (functionKeyLit (key, resting)) << functionKeyPosition (key);
+  for (auto const key : allFunctionKeys)
+    EXPECT_FALSE (functionKeyLit (key, resting)) << static_cast<int> (key);
 
   FunctionKeyLook busy;
   busy.recording = true;
@@ -306,4 +308,109 @@ TEST (FunctionKeyColours, AKeyLightsWhileSomethingIsHappening)
   FunctionKeyLook beat;
   beat.tapBeat = true;
   EXPECT_TRUE (functionKeyLit (FunctionKey::Tap, beat));
+}
+
+
+// -- The end columns ---------------------------------------------------------
+//
+// An end key shows what it does: TAP and SHIFT their function's look, PLAY all
+// and the actions the look a pad has for the same thing -- with no channel to
+// colour it, so the skin's text colour stands in for one. With SHIFT held the
+// keys show the layer under it instead, so the hand can see where REC is.
+
+namespace
+{
+juce::Colour
+neutral ()
+{
+  return toColour (theme ().textPrimary);
+}
+}
+
+TEST (FunctionKeyColours, PlayAllIsLitWhileAnythingPlays)
+{
+  FunctionKeyLook const keys;
+  RoomLook room;
+  EXPECT_EQ (endKeyColour (EndKey::PlayAll, keys, room),
+             neutral ().darker (theme ().padShadeEmpty))
+      << "nothing loaded: the empty shade";
+
+  room.anyClip = true;
+  EXPECT_EQ (endKeyColour (EndKey::PlayAll, keys, room),
+             neutral ().darker (theme ().padShadeIdle));
+
+  room.anythingPlays = true;
+  EXPECT_EQ (endKeyColour (EndKey::PlayAll, keys, room),
+             padFunctionColour (PadFunction::PlayPause))
+      << "the colour a playing Play pad has";
+}
+
+TEST (FunctionKeyColours, AnActionKeyLooksAsItsPadsDo)
+{
+  FunctionKeyLook const keys;
+  RoomLook room;
+  room.actionAssigned[0] = true;
+  room.actionRuns[1] = true;
+  room.actionAssigned[1] = true;
+
+  EXPECT_EQ (endKeyColour (EndKey::Action1, keys, room),
+             neutral ().darker (theme ().padShadeIdle));
+  EXPECT_EQ (endKeyColour (EndKey::Action2, keys, room),
+             toColour (theme ().textPrimary))
+      << "white while it runs, as the pad goes white";
+  EXPECT_EQ (endKeyColour (EndKey::Action3, keys, room),
+             neutral ().darker (theme ().padShadeEmpty))
+      << "no channel carries it";
+}
+
+TEST (FunctionKeyColours, TapAndShiftKeepTheirFunctionsLook)
+{
+  FunctionKeyLook keys;
+  RoomLook const room;
+  EXPECT_TRUE (endKeyColour (EndKey::Tap, keys, room).isTransparent ());
+  keys.tapBeat = true;
+  EXPECT_EQ (endKeyColour (EndKey::Tap, keys, room),
+             functionKeyColour (FunctionKey::Tap, keys));
+  EXPECT_TRUE (endKeyColour (EndKey::Shift, FunctionKeyLook{}, room)
+                   .isTransparent ());
+}
+
+TEST (FunctionKeyColours, ShiftHeldShowsTheLayerUnderIt)
+{
+  FunctionKeyLook keys;
+  keys.shiftHeld = true;
+  keys.clockMode = 1;
+  keys.recMode = 2;
+  RoomLook room;
+  room.anythingPlays = true;
+
+  EXPECT_EQ (endKeyColour (EndKey::Shift, keys, room),
+             functionKeyColour (FunctionKey::Shift, keys));
+  EXPECT_EQ (endKeyColour (EndKey::Tap, keys, room),
+             functionKeyColour (FunctionKey::ClockMode, keys));
+  EXPECT_EQ (endKeyColour (EndKey::PlayAll, keys, room),
+             functionKeyColour (FunctionKey::Record, keys));
+  for (auto const key : { EndKey::Action1, EndKey::Action2 })
+    EXPECT_EQ (endKeyColour (key, keys, room),
+               functionKeyColour (FunctionKey::RecMode, keys));
+  for (auto const key : { EndKey::Action5, EndKey::Action6 })
+    EXPECT_EQ (endKeyColour (key, keys, room),
+               functionKeyColour (FunctionKey::Menu, keys));
+
+  // Row 4 has nothing under SHIFT, and says so by going dark.
+  for (auto const key : { EndKey::Action3, EndKey::Action4 })
+    EXPECT_EQ (endKeyColour (key, keys, room), juce::Colours::black);
+}
+
+TEST (FunctionKeyColours, AnEndKeysFaceIsItsFunctionOrItsScenePad)
+{
+  EXPECT_EQ (endKeyFace (EndKey::Tap, false).function, FunctionKey::Tap);
+  EXPECT_EQ (endKeyFace (EndKey::PlayAll, false).scene, PadFunction::PlayPause);
+  EXPECT_EQ (endKeyFace (EndKey::Action4, false).scene, PadFunction::Action);
+  EXPECT_EQ (endKeyFace (EndKey::PlayAll, true).function, FunctionKey::Record);
+  EXPECT_EQ (endKeyFace (EndKey::Shift, true).function, FunctionKey::Shift);
+
+  auto const free = endKeyFace (EndKey::Action3, true);
+  EXPECT_FALSE (free.function.has_value ());
+  EXPECT_FALSE (free.scene.has_value ());
 }

@@ -71,6 +71,8 @@
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 #include <a3-motion-ui/components/SkinEditorComponent.hh>
 #include <a3-motion-ui/components/SkinPanelComponent.hh>
+#include <a3-motion-ui/components/SceneLaunch.hh>
+#include <a3-motion-ui/io/EndKeyLayer.hh>
 #include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
@@ -160,6 +162,8 @@ private:
 
   /** Write every function key's LED from the one rule the strip paints by. */
   void updateFunctionKeyLEDs ();
+  /** The room across every channel, for PLAY all and the action keys. */
+  RoomLook roomLook ();
   /** Blink the panel's TAP key with the beat — at full, unlike the screen's
    *  wash: an LED in a dark booth needs its whole colour to read as a beat. */
   void pulseTapLED ();
@@ -233,7 +237,7 @@ private:
   std::unique_ptr<LoopLengthDisplay> _loopLengthDisplay;
   std::unique_ptr<ElevationDisplay> _elevationDisplay;
 
-  using Button = InputOutputAdapter::Button;
+  using Button = FunctionKey;
   constexpr bool runsOnHardware ();
   void createHardwareInterface ();
   void blankLEDs ();
@@ -531,19 +535,23 @@ private:
   /** The other half of a pad gesture. Shift+Action previews for as long as it
    *  is held, so a press without a release leaves the channel previewing. */
   void handlePadRelease (index_t channel, index_t pad);
-  /** A scene pad on the pads page: `row` fires a slot's row of Play or
-   *  Action pads across every channel, through handlePadPress() -- one route
-   *  to what a pad means, not a second one that decides it for itself. */
-  void handleScenePress (index_t slot, std::size_t row);
-  void handleSceneRelease (index_t slot, std::size_t row);
+  /** PLAY all or an action key: pad `pad` across every channel, through
+   *  handlePadPress() -- one route to what a pad means, not a second one that
+   *  decides it for itself. PLAY all reaches the channels PlayAllPress picks. */
+  void handleScenePress (index_t pad);
+  void handleSceneRelease (index_t pad);
+  /** Whether a function is held, through the end keys of either place. */
   bool isButtonPressed (Button button);
-  /** A function key went down or up at `source`. The panel's keys and the
-   *  PADS page's arrive here alike; functionKeyChanged() runs only when the
-   *  key's combined state changes. */
-  void setFunctionKey (FunctionKey key, KeySource source, bool down);
+  /** An end key went down or up at `source`. The panel's keys and the PADS
+   *  page's arrive here alike, and what the key means -- SHIFT layer and all
+   *  -- is decided once their combined state changes. */
+  void setEndKey (EndKey key, KeySource source, bool down);
+  void endKeyEvent (EndKeyEvent const &event);
   /** What a function key does -- the one place that says it. */
   void functionKeyChanged (FunctionKey key, bool down);
-  FunctionKeyHold _functionKeys;
+  EndKeyHold _endKeys;
+  EndKeyLayer _endKeyLayer;
+  PlayAllPress _playAll;
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
 
   void initializePatterns ();

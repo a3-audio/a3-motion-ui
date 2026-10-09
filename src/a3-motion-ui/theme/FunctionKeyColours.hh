@@ -22,7 +22,11 @@
 
 #include <JuceHeader.h>
 
+#include <array>
+#include <optional>
+
 #include <a3-motion-ui/io/FunctionKeys.hh>
+#include <a3-motion-ui/io/PadFunctions.hh>
 
 namespace a3
 {
@@ -72,5 +76,41 @@ bool functionKeyLit (FunctionKey key, FunctionKeyLook const &look);
  *  thing in one place and another elsewhere is the fault this repeatedly
  *  fixes. */
 juce::Colour recModeColour (int recMode);
+
+/** What PLAY all and the action keys depend on: the room, across every
+ *  channel, said the way a channel's own pads say it. */
+struct RoomLook
+{
+  bool anythingPlays = false;
+  bool anyClip = false;
+  /** [action button] runs on some channel right now. */
+  std::array<bool, numActionButtons> actionRuns{};
+  /** [action button] is carried by some channel. */
+  std::array<bool, numActionButtons> actionAssigned{};
+};
+
+/** What an end key stands for right now: a function, a pad across every
+ *  channel, or -- under SHIFT on a row with nothing there -- neither. */
+struct EndKeyFace
+{
+  std::optional<FunctionKey> function;
+  std::optional<PadFunction> scene;
+};
+
+/** With SHIFT held every key but SHIFT shows the layer under it, so the hand
+ *  can see where REC and the rest went before pressing. */
+EndKeyFace endKeyFace (EndKey key, bool shiftHeld);
+
+/** The colour of an end key, for the panel's LED and the PADS page alike.
+ *
+ *  A function shows functionKeyColour(). A pad across every channel shows the
+ *  rule a channel's pad follows (theme/PadStatusColours.hh) with the skin's
+ *  text colour standing in for a channel: PLAY all lit while anything plays,
+ *  an action white while it runs on any channel, the idle shade while some
+ *  channel carries it and the empty shade while none does. A key with nothing
+ *  under SHIFT is black -- dark, not the resting light, which would say there
+ *  is something there. */
+juce::Colour endKeyColour (EndKey key, FunctionKeyLook const &keys,
+                           RoomLook const &room);
 
 }

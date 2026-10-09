@@ -32,6 +32,7 @@
 #include <a3-motion-ui/io/ButtonLedColours.hh>
 #include <a3-motion-ui/io/LedLoad.hh>
 #include <a3-motion-ui/io/LedCache.hh>
+#include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
 namespace a3
@@ -49,9 +50,8 @@ namespace a3
  *    4 potentiometers (u16 raw ADC, 0-4095)
  *
  * Physical layout (Label format RC = Row, Col):
- *   Col 0 & Col 9   – function buttons (6 per side, mirrored left/right-hand)
- *                     Row 0 = Shift, Row 1 = Record, Row 2 = Tap, Rows 3-4 = spare,
- *                     Row 5 = Menu toggle
+ *   Col 0 & Col 9   – the end keys, 6 per side; what stands where is
+ *                     endKeyTable (io/FunctionKeys.hh)
  *   Cols 1-2 / 3-4 / 5-6 / 7-8  – channel pairs 0-3
  *                     Each channel: 2 cols × 4 rows (Rows 2-5) = 8 sample pads
  *
@@ -155,18 +155,17 @@ private:
     uint8_t    channel;
     uint8_t    pad;
     /** For Function: which row of the panel's end columns this key is, 0 at
-     *  the top. What that row *does* comes from functionKeyOrder — the panel
-     *  and the screen read the same list. */
+     *  the top. Which key that is comes from endKeyTable, with the side. */
     uint8_t    functionRow;
   };
 
   // Indexed by firmware button index [0..43].
   // Labels are "RC" (Row, Col); see Python script BUTTON_LABELS[] for order.
   //
-  // The two end columns, col0 and col9, are the function keys: six rows each,
-  // mirrored so either hand reaches them. Which row does what is not written
-  // here — it comes from functionKeyOrder (io/FunctionKeys.hh), the same list
-  // the global strip is laid out from.
+  // The two end columns, col0 and col9, are the end keys: six rows each. Which
+  // key stands at a row and side is not written here -- it comes from
+  // endKeyTable (io/FunctionKeys.hh), the same table the PADS page is laid out
+  // from.
   static constexpr ButtonMapping buttonMap[44] = {
     { ButtonRole::Function, 0, 0, 4 },  //  0: "40" row4 col0 (left)
     { ButtonRole::Function, 0, 0, 3 },  //  1: "30" row3 col0 (left)
@@ -236,12 +235,10 @@ private:
 
   // ── Button state tracking ─────────────────────────────────────────────────
   std::array<bool, numHwButtons> _buttonPressed{};
-  /** Each function key twice — the left column and the right — because they
-   *  are one key with two places to press it. A key is down while either side
-   *  is down, so holding one and pressing the other does not read as a
-   *  release. Menu alone used to be tracked this way; all six are now, which
-   *  is what the mirrored columns are for. */
-  std::array<std::array<bool, 2>, numFunctionKeys> _functionKeyState{};
+  /** TAP, SHIFT and PLAY all stand on both sides and are one key each: down
+   *  while either side is down, so holding one side and pressing the other
+   *  does not read as a release. */
+  EndColumnHold _endKeys;
 
   /** Whether a firmware index sits in the panel's right-hand end column. */
   static bool isRightHandColumn (int hwIndex);
