@@ -52,7 +52,7 @@ class FloorBodies
 public:
   /** The new body's id, or nothing when the floor is full. */
   std::optional<int> add (Vec2 at);
-  /** Clamped into the room (radius 1). */
+  /** Held on the dance floor (radius floorReach), as add () is. */
   void move (int id, Vec2 at);
   void cycleWeight (int id);
   void remove (int id);

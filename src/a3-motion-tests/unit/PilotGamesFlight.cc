@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <string>
 #include <vector>
 
 using namespace a3;
@@ -598,4 +599,35 @@ TEST (PilotGamesFlight, ACallAndItsAnswerKeepTheirShipsApart)
   RecordProperty ("nearestDistance", juce::String (nearest.distance, 3).toStdString ());
   RecordProperty ("nearestBeat", juce::String (nearest.beat, 2).toStdString ());
   EXPECT_GE (nearest.distance, apart) << "at beat " << nearest.beat;
+}
+
+// A group the DJ placed between the rim and the speakers, past the disc the
+// ships fly on: a game played against it still keeps every ship inside the
+// disc, finite, and ends on time.
+TEST (PilotGamesFlight, AGameAgainstAGroupPastTheRimStaysInsideTheDisc)
+{
+  for (auto const game : { PilotGame::FakeOut, PilotGame::Formation })
+    for (auto const with : { PilotRecruit::Self, PilotRecruit::All })
+      for (auto const degrees : { 30.f, 160.f, -100.f })
+        {
+          Floor floor (oneGroupAt (onCircle (degrees, 1.3f)));
+          auto const cue = heading (MusicSection::Build, MusicSection::Drop, 4); // the 1 on beat 16
+          ASSERT_TRUE (floor.ask (game, 0, with, cue));
+          auto worst = 0.f;
+          auto finite = true;
+          floor.runTo (24., cue, [&] (double) {
+            for (auto ch = 0; ch < flightShips; ++ch)
+              {
+                auto const &ship = floor.world.ship (ch);
+                finite = finite && std::isfinite (ship.p.x) && std::isfinite (ship.p.y);
+                worst = std::max (worst, ship.p.getDistanceFromOrigin ());
+              }
+          });
+          auto const what = std::string (game == PilotGame::FakeOut ? "fake-out" : "formation")
+                            + (with == PilotRecruit::All ? ", all" : ", alone") + ", group at "
+                            + std::to_string (degrees) + " deg";
+          EXPECT_TRUE (finite) << what;
+          EXPECT_LE (worst, 1.f + 1e-5f) << what;
+          EXPECT_FALSE (floor.games.plays (0)) << what << ": over by beat 24";
+        }
 }

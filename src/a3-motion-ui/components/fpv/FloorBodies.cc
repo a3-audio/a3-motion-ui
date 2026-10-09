@@ -20,6 +20,8 @@
 
 #include "FloorBodies.hh"
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
+
 #include <algorithm>
 #include <utility>
 
@@ -28,11 +30,13 @@ namespace a3
 
 namespace
 {
+/** Groups stand anywhere on the dance floor, out to the speakers; only the
+ *  ships keep to the disc inside the rim. */
 Vec2
-insideTheRoom (Vec2 at)
+onTheDanceFloor (Vec2 at)
 {
   auto const distance = at.getDistanceFromOrigin ();
-  return distance > 1.f ? at / distance : at;
+  return distance > floorReach ? at * (floorReach / distance) : at;
 }
 }
 
@@ -77,7 +81,7 @@ FloorBodies::add (Vec2 at)
     return std::nullopt;
 
   auto const id = lowestFreeId ();
-  _entries[static_cast<size_t> (_count)] = { insideTheRoom (at),
+  _entries[static_cast<size_t> (_count)] = { onTheDanceFloor (at),
                                              BodyWeight::Group, id };
   ++_count;
   return id;
@@ -87,7 +91,7 @@ void
 FloorBodies::move (int id, Vec2 at)
 {
   if (auto *entry = find (id))
-    entry->at = insideTheRoom (at);
+    entry->at = onTheDanceFloor (at);
 }
 
 void

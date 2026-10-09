@@ -391,12 +391,8 @@ MotionComponent::floorClockMs ()
 bool
 MotionComponent::floorFingerDown (SourceKey key, juce::Point<float> at)
 {
-  auto const screenRadius = [&] {
-    auto const flat = localToNormalized2DPosition (at);
-    return std::hypot (flat.x (), flat.y ());
-  }();
-  auto const route = fpvFingerDown (
-      true, onTheFloor (screenRadius, floorAt (at)), _pageHeld);
+  auto const route
+      = fpvFingerDown (true, onTheFloor (floorAt (at)), _pageHeld);
 
   switch (route)
     {
@@ -437,16 +433,16 @@ MotionComponent::carryOutFloorAction (FloorAction action,
   switch (action)
     {
     case FloorAction::Place:
-      if (onFloorPlaced)
-        onFloorPlaced (floorAt (at));
+      if (auto const floor = floorAt (at); floor && onFloorPlaced)
+        onFloorPlaced (*floor);
       return;
     case FloorAction::CycleWeight:
       if (body && onBodyCycled)
         onBodyCycled (*body);
       return;
     case FloorAction::Drag:
-      if (body && onBodyMoved)
-        onBodyMoved (*body, floorAt (at));
+      if (auto const floor = floorAt (at); body && floor && onBodyMoved)
+        onBodyMoved (*body, *floor);
       return;
     case FloorAction::Remove:
       if (body && onBodyRemoved)
@@ -458,33 +454,41 @@ MotionComponent::carryOutFloorAction (FloorAction action,
     }
 }
 
-Vec2
+/** The floor as the shader draws it: the same camera, and the plane the
+ *  towers stand on. */
+FloorView
+MotionComponent::floorView () const
+{
+  return { _engine.getHeightMap (), _sphereShader.getCamera (),
+           speakerFloorZ };
+}
+
+std::optional<Vec2>
 MotionComponent::floorAt (juce::Point<float> posPixel) const
 {
-  auto const onFloor = _engine.getHeightMap ().mapTo2D (
-      pixelToDirection (posPixel), ElevationParams{});
-  return { onFloor.x (), onFloor.y () };
+  return floorPointUnder (
+      posPixel.transformedBy (_transformNormalizedToLocal.inverted ()),
+      floorView ());
 }
 
 std::optional<juce::Point<float> >
-MotionComponent::floorToPixel (Vec2 at) const
+MotionComponent::floorToPixel (Vec2 at, FloorSurface surface) const
 {
-  auto const direction = _engine.getHeightMap ().mapTo3D (
-      Pos::fromCartesian (at.x, at.y, 0.f), ElevationParams{});
-  if (!direction.isValid ())
+  auto const onView = floorPointOnView (at, surface, floorView ());
+  if (!onView)
     return std::nullopt;
-  auto const screen = projectToScreen (direction);
-  if (!std::isfinite (screen.x) || !std::isfinite (screen.y))
-    return std::nullopt;
-  return screen.transformedBy (_transformNormalizedToLocal);
+  return onView->transformedBy (_transformNormalizedToLocal);
 }
 
 float
 MotionComponent::floorLengthInPixels (Vec2 at, float length) const
 {
-  auto const centre = floorToPixel (at);
-  auto const alongX = floorToPixel (at + Vec2{ length, 0.f });
-  auto const alongY = floorToPixel (at + Vec2{ 0.f, length });
+  auto const onFloor = [this] (Vec2 point) {
+    return floorToPixel (point, FloorSurface::DanceFloor);
+  };
+  auto const centre = onFloor (at);
+  auto const alongX = onFloor (at + Vec2{ length, 0.f });
+  auto const alongY = onFloor (at + Vec2{ 0.f, length });
   if (!centre || !alongX || !alongY)
     return 0.f;
   return (centre->getDistanceFrom (*alongX)
@@ -507,7 +511,7 @@ MotionComponent::bodyAt (juce::Point<float> posPixel) const
   for (auto i = 0; i < _flightBodiesShown.count; ++i)
     {
       auto const &body = _flightBodiesShown.body[static_cast<size_t> (i)];
-      auto const centre = floorToPixel (body.at);
+      auto const centre = floorToPixel (body.at, FloorSurface::DanceFloor);
       if (!centre)
         continue;
       onScreen[static_cast<size_t> (count++)]
@@ -2034,11 +2038,12 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
   auto const &tuning = _engine.getFlightTuning ();
   auto const stroke = theme ().strokeThin;
 
-  // The big path: a faint closed line.
+  // The big path: a faint closed line. On the sphere, where the ships fly
+  // it; the groups that bend it stand on the floor below.
   {
     juce::Path guide;
     for (auto const &point : display.guide)
-      if (auto const at = floorToPixel (point))
+      if (auto const at = floorToPixel (point, FloorSurface::Sphere))
         {
           if (guide.isEmpty ())
             guide.startNewSubPath (*at);
@@ -2060,7 +2065,8 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
     return nullptr;
   };
 
-  // A thin line from each escorting ship to its group, in the ship's colour.
+  // A thin line from each escorting ship down to its group, in the ship's
+  // colour.
   for (index_t ch = 0; ch < display.escort.size () && ch < _engine.getNumChannels ();
        ++ch)
     {
@@ -2070,7 +2076,7 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
         continue;
       auto const from
           = projectToScreen (ship).transformedBy (_transformNormalizedToLocal);
-      auto const to = floorToPixel (body->at);
+      auto const to = floorToPixel (body->at, FloorSurface::DanceFloor);
       if (!to || !std::isfinite (from.x) || !std::isfinite (from.y))
         continue;
       g.setColour (_uiStates[ch]->colour.withMultipliedAlpha (
@@ -2085,7 +2091,7 @@ MotionComponent::drawFlight (juce::Graphics &g, FlightDisplay const &display)
   for (auto i = 0; i < display.bodies.count; ++i)
     {
       auto const &body = display.bodies.body[static_cast<size_t> (i)];
-      auto const centre = floorToPixel (body.at);
+      auto const centre = floorToPixel (body.at, FloorSurface::DanceFloor);
       if (!centre)
         continue;
 
@@ -2135,7 +2141,7 @@ MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, flo
         for (auto i = 0; i < display.bodies.count; ++i)
           {
             auto const &body = display.bodies.body[static_cast<size_t> (i)];
-            auto const to = floorToPixel (body.at);
+            auto const to = floorToPixel (body.at, FloorSurface::DanceFloor);
             if (body.id != *lines[ch] || !to)
               continue;
             auto const dash = stroke * gameDashOfStroke;

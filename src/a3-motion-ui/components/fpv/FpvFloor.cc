@@ -20,15 +20,16 @@
 
 #include "FpvFloor.hh"
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 
 namespace a3
 {
 
 bool
-onTheFloor (float screenRadius, Vec2 floorPoint)
+onTheFloor (std::optional<Vec2> floorPoint)
 {
-  return screenRadius <= 1.f && floorPoint.getDistanceFromOrigin () <= 1.f;
+  return floorPoint && floorPoint->getDistanceFromOrigin () <= floorReach;
 }
 
 std::optional<int>

@@ -259,6 +259,31 @@ Time is in beats, so tempo needs no code: a lap is four bars at any BPM. The pla
 floor (x, y, rim at radius 1), mapped through the clip's own elevation band, so an ORBIT ship stays
 in its band.
 
+**Groups stand on the dance floor; the ships fly on the sphere.** A group's floor point maps onto
+the sphere as a ship's would, and the group is drawn straight below that point, on the plane the
+shader draws the dance floor on (`speakerFloorZ`), so a ship circling it is seen right above it.
+Straight from above it lands where its sphere point is. Its disc, label, swell, ring, the escort
+line and a game's dashed line (both now run from the ship down to the group) and the hit test all
+use that floor point; the ORBIT guide stays on the sphere, because the ships fly there
+(`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
+lifted straight back onto the upper half of the sphere and through `mapTo2D`, the exact inverse.
+A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
+the shader does not draw either) is not floor, so the camera has it. The groups are painted in the
+2D pass, over the GL picture, so a group under the ball is not hidden by it.
+
+**Groups reach to the speakers; the ships stay on the disc.** A group may stand anywhere out to
+`floorReach` (1.35 sphere radii, `SpeakerLightScaling.hh`), between the four towers: `FloorBodies`
+holds a placed or dragged group there, `onTheFloor` takes a finger up to there and gives the camera
+anything beyond. Past the rim (floor radius 1) there is no sphere point to stand below, so
+`DanceFloor` walks a group straight out from where the rim stands (with the default elevation
+about 0.71 out, well inside the ball's outline) to `floorReach`, where its floor point is its room
+point again, so a group at the edge stands just inside the towers seen from above, with no jump
+at the rim. (The shader scales the same constant by `speakerRadius`, so the drawn floor runs on
+past the towers; the groups stop at them.) The inverse undoes the walk and goes on past
+`floorReach`, so the caller can tell an edge from the background. The ships keep to radius 1: `stepShip`'s hard wall holds
+them there whatever pulls outwards (gravity, an escort circle that lies outside the disc, a game
+target). An escort of a group past the rim slides to and fro along the rim in front of it.
+
 **Switching never jumps.** CLIP to ORBIT starts at the channel's position with the path's tangent
 as velocity and the rabbit at the nearest phase on the ellipse. ORBIT to CLIP glides over one
 beat (`handover`). The glide is skipped while the channel is stopped or held: it cuts on Play. The
@@ -289,7 +314,7 @@ newest wins. No new OSC address.
 | Page held + tap a group | that ship escorts it (switches to ORBIT) |
 | Page held + tap empty floor | that ship back to PATROL |
 | drag outside any group, pinch | camera, as phase 1 |
-| double tap | resets the view only outside the floor disc |
+| double tap | resets the view only off the floor (past `floorReach`) |
 | BREATH (status bar, both views) | the breath on or off for the session, readout `-- BREATH ON`/`OFF`. In FULL too, since the ships keep breathing there. The beat display gives way to the tempo, down to four row heights, so `BPM 000.0` reads whole (`statusLabelWidth`) |
 | Play, action pads | as phase 1 |
 
@@ -310,7 +335,7 @@ rather than four, is a way to play (playbook rule 13), not an engine rule: nothi
 | Code | Files |
 |---|---|
 | physics, pure | `src/a3-motion-engine/flight/` |
-| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`) |
+| groups, gestures, drawing | `src/a3-motion-ui/components/fpv/` (`FloorBodies`, `FloorGesture`, `FpvFloor`, `BodyLook`, `DanceFloor`) |
 | app wiring | `MotionComponent` (touch, `drawFlight`), `A3MotionUIComponent` (`publishFloor`, Page) |
 
 **Tune in one place: `FlightTuning` (`flight/FlightTuning.hh`).** Every constant is named there
@@ -327,7 +352,7 @@ lap with a group differs from one without.
 
 **Tests** (`src/a3-motion-tests/unit/`): `FlightField`, `BeatPulse`, `BaseOrbit`, `ShipDynamics`,
 `FlightGravity`, `FlightWorld`, `Handover`, `FlightBodiesBox`, `FlightEngine`, `FloorBodies`,
-`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`. They are deterministic:
+`FloorGesture`, `FpvFloor`, `FpvPagePress`, `BodyLook`, `FpvStripsPaint`, `GroupsOnTheDanceFloor`. They are deterministic:
 one tick per step, seeds through `spreadSeed`, no wall clock. They assert behaviours (bends
 towards, slings out, stays out), except one determinism test. Engines in tests take
 `offlineBackend ()`, so nothing is sent.

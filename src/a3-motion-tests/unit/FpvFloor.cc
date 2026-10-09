@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/FpvFloor.hh>
 
 #include <a3-motion-engine/Pattern.hh>
@@ -40,11 +41,15 @@ floorWith (std::initializer_list<FlightBody> list)
 
 // --- where a finger goes ---------------------------------------------------
 
-TEST (FpvFloor, OnlyTheFloorUnderTheSphereIsFloor)
+// Groups stand on the dance floor, which reaches past the ball's rim out to
+// the speakers: the floor's reach bounds it, not the disc the ships fly on.
+TEST (FpvFloor, OnlyTheFloorInsideItsReachIsFloor)
 {
-  EXPECT_TRUE (onTheFloor (0.5f, { 0.3f, 0.2f }));
-  EXPECT_FALSE (onTheFloor (1.2f, { 0.3f, 0.2f })) << "beside the sphere";
-  EXPECT_FALSE (onTheFloor (0.9f, { 1.1f, 0.f })) << "below the horizon";
+  EXPECT_TRUE (onTheFloor (Vec2{ 0.3f, 0.2f }));
+  EXPECT_TRUE (onTheFloor (Vec2{ 1.2f, 0.f })) << "between the rim and the speakers";
+  EXPECT_TRUE (onTheFloor (Vec2{ 0.f, -floorReach }));
+  EXPECT_FALSE (onTheFloor (Vec2{ floorReach + 0.01f, 0.f })) << "beyond the floor's reach";
+  EXPECT_FALSE (onTheFloor (std::nullopt)) << "a ray that never meets the floor";
 }
 
 TEST (FpvFloor, AFingerAloneOnTheFloorIsTheGroupGesture)
