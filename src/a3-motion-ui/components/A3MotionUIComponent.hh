@@ -649,6 +649,10 @@ private:
   /** Per channel, the game last seen there, so a pilot's new game is
    *  announced once. */
   std::array<std::optional<ShipGame>, 4> _announcedGames{};
+  /** Per channel, the game that ended last and the beat it ended on, so its
+   *  label can stay for a bar and fade (heldGame). */
+  std::array<std::optional<ShipGame>, 4> _endedGames{};
+  std::array<double, 4> _endedGameBeat{};
   /** Works the cue out -- the preview while it is fresh, else the live
    *  mood -- and hands it to the engine. Message thread. */
   void pushMusicCue ();
@@ -659,6 +663,8 @@ private:
   void refreshPilotHints ();
   /** "CHn FLY <GAME>" in the readout when a pilot starts a game. */
   void announcePilotGames ();
+  void logGameChange (int channel, std::optional<ShipGame> const &before,
+                      std::optional<ShipGame> const &after);
   /** The beat the UI's copy of the clock stands on. */
   double uiBeats () const;
   /** The engine's own beats, stamped on the clock's thread. */

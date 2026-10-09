@@ -2131,6 +2131,7 @@ MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, flo
         continue;
 
       auto const colour = _uiStates[ch]->colour;
+      auto const alpha = display.gameAlpha[ch];
       if (lines[ch])
         for (auto i = 0; i < display.bodies.count; ++i)
           {
@@ -2140,7 +2141,7 @@ MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, flo
               continue;
             auto const dash = stroke * gameDashOfStroke;
             float const pattern[] = { dash, dash };
-            g.setColour (colour.withMultipliedAlpha (theme ().alphaGuide));
+            g.setColour (colour.withMultipliedAlpha (theme ().alphaGuide * alpha));
             g.drawDashedLine ({ ship, *to }, pattern, 2, stroke);
           }
 
@@ -2150,6 +2151,7 @@ MotionComponent::drawGames (juce::Graphics &g, FlightDisplay const &display, flo
       label.colour = colour;
       label.game = display.game[ch]->game;
       label.byPilot = display.game[ch]->byPilot;
+      label.alpha = alpha;
       label.fontHeight = theme ().fontSize (FontRole::Body);
       label.floor = floor;
       paintGameLabel (g, label);

@@ -48,6 +48,7 @@
 #include <a3-motion-engine/ClipMigration.hh>
 #include <a3-motion-engine/ActionScript.hh>
 #include <a3-motion-ui/components/fpv/ActionReach.hh>
+#include <a3-motion-ui/components/fpv/GameLabel.hh>
 #include <a3-motion-ui/components/fpv/PilotHint.hh>
 #include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-engine/ScriptLine.hh>
@@ -2092,7 +2093,13 @@ A3MotionUIComponent::refreshFlightDisplay ()
                       display.bodies)
               .escort;
   for (auto ch = 0; ch < fpvShips; ++ch)
-    display.game[static_cast<size_t> (ch)] = _engine.gameOf (static_cast<index_t> (ch));
+    {
+      auto const slot = static_cast<size_t> (ch);
+      auto const held = heldGame (_engine.gameOf (static_cast<index_t> (ch)), _endedGames[slot],
+                                  _endedGameBeat[slot], beats, beatsPerBar);
+      display.game[slot] = held.game;
+      display.gameAlpha[slot] = held.alpha;
+    }
   constexpr int guidePoints = 96;
   display.guide = orbitGuidePoints (beats, beatsPerBar, guidePoints, tuning);
   display.pulse = drawnPulse (_now, beatsPerBar, tuning);
@@ -7187,8 +7194,9 @@ A3MotionUIComponent::timerCallback ()
   if (_view == AppView::Fpv)
     {
       refreshFpvStrips ();
-      refreshFlightDisplay ();
+      // Before the display, so the tick a game ends in already holds its label.
       announcePilotGames ();
+      refreshFlightDisplay ();
     }
 
   // At most one theme apply per tick, whatever arrived since the last one --
@@ -7707,6 +7715,22 @@ A3MotionUIComponent::refreshPilotHints ()
 }
 
 void
+A3MotionUIComponent::logGameChange (int channel, std::optional<ShipGame> const &before,
+                                    std::optional<ShipGame> const &after)
+{
+  // One line per change, so the journal shows whether a game ran and how
+  // long, which the screenshots of a short game cannot.
+  if (before && before->game != PilotGame::None)
+    {
+      std::cerr << gameEndLine (channel, before->game) << std::endl;
+      _endedGames[static_cast<size_t> (channel)] = before;
+      _endedGameBeat[static_cast<size_t> (channel)] = uiBeats ();
+    }
+  if (after && after->game != PilotGame::None)
+    std::cerr << gameStartLine (channel, *after) << std::endl;
+}
+
+void
 A3MotionUIComponent::announcePilotGames ()
 {
   for (auto ch = 0; ch < static_cast<int> (_announcedGames.size ()); ++ch)
@@ -7718,6 +7742,8 @@ A3MotionUIComponent::announcePilotGames ()
                              || seen->byPilot != game->byPilot);
       auto const changed = game.has_value () != seen.has_value ()
                            || (game && (seen->game != game->game || seen->byPilot != game->byPilot));
+      if (!sameGame (seen, game))
+        logGameChange (ch, seen, game);
       seen = game;
       if (changed)
         refreshPilotHints ();

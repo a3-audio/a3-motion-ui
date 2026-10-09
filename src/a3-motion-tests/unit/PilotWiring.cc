@@ -111,6 +111,23 @@ TEST (PilotWiring, FpvAnnouncesThePilotsGames)
   EXPECT_TRUE (announce.contains ("byPilot"));
 }
 
+TEST (PilotWiring, AGamesLabelIsHeldAndItsChangesAreJournalled)
+{
+  auto const timer = a3::test::uiComponentBodyOf ("A3MotionUIComponent::timerCallback ()");
+  auto const announceAt = timer.indexOf ("announcePilotGames ()");
+  auto const refreshAt = timer.indexOf ("refreshFlightDisplay ()");
+  EXPECT_TRUE (announceAt >= 0 && announceAt < refreshAt)
+      << "the tick a game ends in must already hold its label";
+  auto const announce = a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()");
+  EXPECT_TRUE (announce.contains ("logGameChange ("));
+  auto const log = a3::test::uiComponentBodyOf ("A3MotionUIComponent::logGameChange (");
+  EXPECT_TRUE (log.contains ("gameStartLine ("));
+  EXPECT_TRUE (log.contains ("gameEndLine ("));
+  auto const refresh = a3::test::uiComponentBodyOf ("A3MotionUIComponent::refreshFlightDisplay ()");
+  EXPECT_TRUE (refresh.contains ("heldGame ("));
+  EXPECT_TRUE (refresh.contains ("gameAlpha"));
+}
+
 // HINT and the take-over, read from the source.
 
 TEST (PilotWiring, AButtonKnowsItsGame)
