@@ -39,9 +39,9 @@ namespace a3
  *  only carries out what is tested here. */
 
 /** Whether a touch lands on the dance floor: its ray meets the floor
- *  (`floorPoint`, empty when it does not) inside the room (the room's edge
- *  = 1). Off it is the rim or the background, where the camera's own
- *  gestures live. */
+ *  (`floorPoint`, empty when it does not) within floorReach, out to the
+ *  speakers. Off it is the background, where the camera's own gestures
+ *  live. */
 bool onTheFloor (std::optional<Vec2> floorPoint);
 
 enum class FpvFingerDown

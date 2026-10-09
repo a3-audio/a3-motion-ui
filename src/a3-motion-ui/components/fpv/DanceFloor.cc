@@ -21,6 +21,7 @@
 #include "DanceFloor.hh"
 
 #include <a3-motion-ui/Helpers.hh>
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 
 #include <cmath>
 
@@ -33,16 +34,62 @@ namespace
  *  meets it nowhere, or everywhere. */
 constexpr float edgeOn = 0.001f;
 
+/** Below this a point has no bearing of its own. */
+constexpr float noBearing = 1e-6f;
+
 bool
 isFinite (juce::Point<float> p)
 {
   return std::isfinite (p.x) && std::isfinite (p.y);
+}
+
+/** How far out, horizontally, the rim of the floor disc stands on the dance
+ *  floor at `bearing` (a unit vector): below its sphere point, which the
+ *  elevation mapping puts well inside the ball's outline. */
+float
+rimRadiusInTheRoom (Vec2 bearing, FloorView const &view)
+{
+  auto const rim = view.heightMap.mapTo3D (
+      Pos::fromCartesian (bearing.x, bearing.y, 0.f), view.elevation);
+  if (!rim.isValid ())
+    return 0.f;
+  return std::hypot (rim.x (), rim.y ());
+}
+
+/** Past the rim there is no sphere point to stand below, so the groups walk
+ *  on in a straight line from where the rim stands to the floor's reach,
+ *  where a floor point is its room point again. Both ends are fixed: the rim
+ *  so a group dragged across it does not jump, the reach so the floor's edge
+ *  is where the shader draws it. */
+float
+roomRadiusBeyondTheRim (float radius, float rimRadius)
+{
+  return rimRadius
+         + (radius - 1.f) * (floorReach - rimRadius) / (floorReach - 1.f);
+}
+
+float
+floorRadiusBeyondTheRim (float roomRadius, float rimRadius)
+{
+  return 1.f
+         + (roomRadius - rimRadius) * (floorReach - 1.f)
+               / (floorReach - rimRadius);
 }
 }
 
 Pos
 floorPointInRoom (Vec2 at, FloorSurface surface, FloorView const &view)
 {
+  auto const radius = at.getDistanceFromOrigin ();
+  if (surface == FloorSurface::DanceFloor && radius > 1.f)
+    {
+      auto const bearing = at / radius;
+      auto const out
+          = roomRadiusBeyondTheRim (radius, rimRadiusInTheRoom (bearing, view));
+      return Pos::fromCartesian (bearing.x * out, bearing.y * out,
+                                 view.floorZ);
+    }
+
   auto const onSphere = view.heightMap.mapTo3D (
       Pos::fromCartesian (at.x, at.y, 0.f), view.elevation);
   if (!onSphere.isValid () || surface == FloorSurface::Sphere)
@@ -87,6 +134,16 @@ danceFloorUnder (juce::Point<float> onView, FloorView const &view)
 Vec2
 floorPointOfGroupAt (Pos const &room, FloorView const &view)
 {
+  Vec2 const ground{ room.x (), room.y () };
+  auto const out = ground.getDistanceFromOrigin ();
+  if (out > noBearing)
+    {
+      auto const bearing = ground / out;
+      auto const rim = rimRadiusInTheRoom (bearing, view);
+      if (out > rim)
+        return bearing * floorRadiusBeyondTheRim (out, rim);
+    }
+
   // A group stands below its sphere point, and the floor's points are on the
   // upper half of the sphere: lifting the horizontal part straight up is the
   // one sphere point it can have come from.

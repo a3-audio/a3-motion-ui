@@ -20,6 +20,7 @@
 
 #include "FpvFloor.hh"
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 
 namespace a3
@@ -28,7 +29,7 @@ namespace a3
 bool
 onTheFloor (std::optional<Vec2> floorPoint)
 {
-  return floorPoint && floorPoint->getDistanceFromOrigin () <= 1.f;
+  return floorPoint && floorPoint->getDistanceFromOrigin () <= floorReach;
 }
 
 std::optional<int>

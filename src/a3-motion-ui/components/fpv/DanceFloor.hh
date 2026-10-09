@@ -33,11 +33,13 @@ namespace a3
 
 /** Where FPV's floor points are drawn and touched.
  *
- *  A floor point (x, y, the room's edge at radius 1) is one value with two
- *  places on the screen. The ships fly on the sphere, so what marks their
+ *  A floor point (x, y, the ships' disc ending at radius 1) is one value with
+ *  two places on the screen. The ships fly on the sphere, so what marks their
  *  path stays there. The guests stand on the dance floor the shader draws
  *  under the ball: straight below the sphere point their floor point maps
- *  to, so a ship circling a group on the ball is seen right above it. */
+ *  to, so a ship circling a group on the ball is seen right above it. Past
+ *  the disc, out to floorReach, the guests stand between the speakers, where
+ *  no ship flies. */
 enum class FloorSurface
 {
   Sphere,
@@ -62,7 +64,9 @@ struct FloorView
 constexpr float danceFloorEyeHeight = 4.f;
 
 /** Where a floor point stands in the room on `surface`. Invalid where the
- *  height map has no point for it. */
+ *  height map has no point for it. On the dance floor a point past the rim
+ *  walks straight out from where the rim stands, and at floorReach it stands
+ *  at its own (x, y): the floor's edge is where the shader draws it. */
 Pos floorPointInRoom (Vec2 at, FloorSurface surface, FloorView const &view);
 
 /** Where a floor point lands on the view, in the sphere's normalised screen
@@ -80,9 +84,10 @@ std::optional<Pos> danceFloorUnder (juce::Point<float> onView,
 
 /** The floor point whose group stands at `room` on the dance floor: the
  *  exact inverse of floorPointInRoom (..., DanceFloor, ...). Only `room`'s
- *  horizontal part is read; it is lifted back onto the upper half of the
- *  sphere, where the floor's points live, and held at the horizon beyond
- *  it as a finger off the sphere always was. */
+ *  horizontal part is read. Inside the rim it is lifted back onto the upper
+ *  half of the sphere, where the floor's points live; past it the walk out
+ *  is undone, and keeps going beyond floorReach, so the caller can tell a
+ *  finger past the floor's edge from one on it. */
 Vec2 floorPointOfGroupAt (Pos const &room, FloorView const &view);
 
 /** The floor point under a point of the view: danceFloorUnder, then

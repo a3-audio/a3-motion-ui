@@ -32,6 +32,8 @@
 #include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/BodyLook.hh>
 #include <a3-motion-ui/components/fpv/DanceFloor.hh>
+#include <a3-motion-ui/components/fpv/FloorBodies.hh>
+#include <a3-motion-ui/components/fpv/FpvFloor.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
 
@@ -162,22 +164,205 @@ TEST (GroupsOnTheDanceFloor, ARayMeetsTheFloorAtItsHeight)
   EXPECT_NEAR (hit->z (), speakerFloorZ, tolerance);
 }
 
-TEST (GroupsOnTheDanceFloor, AFingerOffTheSphereIsHeldAtItsEdgeAsBefore)
+namespace
+{
+Vec2
+atAngle (float angle, float radius)
+{
+  return { radius * std::cos (angle), radius * std::sin (angle) };
+}
+
+std::vector<float>
+bearings ()
+{
+  // The speakers stand on the diagonals, so those are among them.
+  auto const quarter = juce::MathConstants<float>::halfPi / 2.f;
+  return { 0.f, 0.3f, quarter, 2.f, 3.f * quarter, -1.2f, -quarter };
+}
+
+std::vector<Vec2>
+beyondTheRim ()
+{
+  std::vector<Vec2> points;
+  for (auto const radius : { 1.1f, 1.3f, floorReach })
+    for (auto const angle : bearings ())
+      points.push_back (atAngle (angle, radius));
+  return points;
+}
+
+std::vector<SphereCamera>
+topAndLeaned ()
+{
+  return { SphereCamera{}, camera (0.f, 1.1f), camera (0.6f, 0.f),
+           camera (0.9f, 2.f), camera (1.3f, -0.7f) };
+}
+
+float
+horizontalDistance (Pos const &a, Pos const &b)
+{
+  return std::hypot (a.x () - b.x (), a.y () - b.y ());
+}
+}
+
+TEST (GroupsOnTheDanceFloor, AGroupCrossesTheRimWithoutAJump)
 {
   HeightMapSphere heightMap;
   FloorView const view{ heightMap, SphereCamera{}, speakerFloorZ };
-  auto const far = floorPointUnder ({ 0.f, -3.f }, view);
-  auto const edge = floorPointUnder ({ 0.f, -1.f }, view);
+  constexpr float step = 1e-4f;
+  for (auto const angle : bearings ())
+    {
+      auto const inside = floorPointInRoom (atAngle (angle, 1.f - step),
+                                            FloorSurface::DanceFloor, view);
+      auto const rim = floorPointInRoom (atAngle (angle, 1.f),
+                                         FloorSurface::DanceFloor, view);
+      auto const outside = floorPointInRoom (atAngle (angle, 1.f + step),
+                                             FloorSurface::DanceFloor, view);
+      EXPECT_LT (horizontalDistance (inside, rim), 10.f * step) << "bearing " << angle;
+      EXPECT_LT (horizontalDistance (rim, outside), 10.f * step) << "bearing " << angle;
+      EXPECT_NEAR (outside.z (), speakerFloorZ, tolerance);
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, AtTheFloorsReachAGroupStandsWhereTheRoomIs)
+{
+  HeightMapSphere heightMap;
+  FloorView const view{ heightMap, camera (0.7f, 0.4f), speakerFloorZ };
+  for (auto const angle : bearings ())
+    {
+      auto const at = atAngle (angle, floorReach);
+      auto const room = floorPointInRoom (at, FloorSurface::DanceFloor, view);
+      ASSERT_TRUE (room.isValid ());
+      EXPECT_NEAR (room.x (), at.x, tolerance);
+      EXPECT_NEAR (room.y (), at.y, tolerance);
+      EXPECT_NEAR (room.z (), speakerFloorZ, tolerance);
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, BeyondTheRimAGroupWalksStraightOut)
+{
+  HeightMapSphere heightMap;
+  FloorView const view{ heightMap, SphereCamera{}, speakerFloorZ };
+  for (auto const angle : bearings ())
+    {
+      auto last = 0.f;
+      for (auto radius = 1.f; radius <= floorReach + 1e-6f; radius += 0.05f)
+        {
+          auto const room = floorPointInRoom (atAngle (angle, radius),
+                                              FloorSurface::DanceFloor, view);
+          auto const out = std::hypot (room.x (), room.y ());
+          EXPECT_GT (out, last) << "bearing " << angle << " radius " << radius;
+          EXPECT_NEAR (std::remainder (std::atan2 (room.y (), room.x ()) - angle,
+                                       juce::MathConstants<float>::twoPi),
+                       0.f, tolerance)
+              << "its own bearing";
+          last = out;
+        }
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, BeyondTheRimAFloorPointComesBackFromTheScreen)
+{
+  HeightMapSphere heightMap;
+  for (auto const &cam : topAndLeaned ())
+    for (auto const at : beyondTheRim ())
+      {
+        FloorView const view{ heightMap, cam, speakerFloorZ };
+        auto const onView = floorPointOnView (at, FloorSurface::DanceFloor, view);
+        ASSERT_TRUE (onView.has_value ());
+        auto const back = floorPointUnder (*onView, view);
+        ASSERT_TRUE (back.has_value ())
+            << "pitch " << cam.pitch << " turn " << cam.turn;
+        EXPECT_NEAR (back->x, at.x, tolerance)
+            << "pitch " << cam.pitch << " turn " << cam.turn << " at " << at.x << ", " << at.y;
+        EXPECT_NEAR (back->y, at.y, tolerance)
+            << "pitch " << cam.pitch << " turn " << cam.turn << " at " << at.x << ", " << at.y;
+        // Exactly on the edge the round trip may land a hair outside it.
+        if (at.getDistanceFromOrigin () < floorReach - tolerance)
+          EXPECT_TRUE (onTheFloor (back));
+      }
+}
+
+TEST (GroupsOnTheDanceFloor, FromStraightAboveTheFloorReachesTheSpeakers)
+{
+  HeightMapSphere heightMap;
+  FloorView const view{ heightMap, SphereCamera{}, speakerFloorZ };
+  for (auto const angle : bearings ())
+    {
+      auto const onView = floorPointOnView (atAngle (angle, floorReach),
+                                            FloorSurface::DanceFloor, view);
+      ASSERT_TRUE (onView.has_value ());
+      EXPECT_NEAR (onView->getDistanceFromOrigin (), floorReach, tolerance);
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, AFingerBetweenTheRimAndTheSpeakersPlacesAGroup)
+{
+  HeightMapSphere heightMap;
+  for (auto const &cam : topAndLeaned ())
+    {
+      FloorView const view{ heightMap, cam, speakerFloorZ };
+      Vec2 const at{ 0.f, -1.2f };
+      auto const onView = floorPointOnView (at, FloorSurface::DanceFloor, view);
+      ASSERT_TRUE (onView.has_value ());
+      auto const floor = floorPointUnder (*onView, view);
+      ASSERT_EQ (fpvFingerDown (true, onTheFloor (floor), false), FpvFingerDown::Floor)
+          << "pitch " << cam.pitch << " turn " << cam.turn;
+
+      FloorBodies bodies;
+      auto const id = bodies.add (*floor);
+      ASSERT_TRUE (id.has_value ());
+      EXPECT_NEAR (bodies.at (*id).x, at.x, tolerance);
+      EXPECT_NEAR (bodies.at (*id).y, at.y, tolerance);
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, AFingerPastTheFloorsReachIsTheCamera)
+{
+  HeightMapSphere heightMap;
+  for (auto const &cam : topAndLeaned ())
+    {
+      FloorView const view{ heightMap, cam, speakerFloorZ };
+      auto const onView = floorPointOnView (atAngle (0.4f, floorReach + 0.15f),
+                                            FloorSurface::DanceFloor, view);
+      ASSERT_TRUE (onView.has_value ());
+      auto const floor = floorPointUnder (*onView, view);
+      ASSERT_TRUE (floor.has_value ()) << "the plane goes on; the floor does not";
+      EXPECT_GT (floor->getDistanceFromOrigin (), floorReach);
+      EXPECT_EQ (fpvFingerDown (true, onTheFloor (floor), false), FpvFingerDown::Camera)
+          << "pitch " << cam.pitch << " turn " << cam.turn;
+    }
+}
+
+TEST (GroupsOnTheDanceFloor, ADragPastTheFloorsReachHoldsTheGroupAtIt)
+{
+  HeightMapSphere heightMap;
+  FloorView const view{ heightMap, SphereCamera{}, speakerFloorZ };
+  FloorBodies bodies;
+  auto const id = *bodies.add ({ 0.5f, 0.f });
+
+  // Straight down the screen's y, which is the room's -x (cartesian2DHOA2JUCE).
+  auto const far = floorPointUnder ({ 0.f, 3.f }, view);
   ASSERT_TRUE (far.has_value ());
-  ASSERT_TRUE (edge.has_value ());
-  EXPECT_NEAR (far->x, edge->x, tolerance);
-  EXPECT_NEAR (far->y, edge->y, tolerance);
-  EXPECT_GT (far->getDistanceFromOrigin (), 1.f) << "off the room, so no group";
+  bodies.move (id, *far);
+  EXPECT_NEAR (bodies.at (id).getDistanceFromOrigin (), floorReach, tolerance);
+  auto const bearing = std::atan2 (far->y, far->x);
+  EXPECT_NEAR (std::atan2 (bodies.at (id).y, bodies.at (id).x), bearing, tolerance)
+      << "held where the finger points";
 }
 
 namespace
 {
 constexpr int side = 300;
+
+/** Inside the rim and out to the speakers. */
+std::vector<Vec2>
+paintedPoints ()
+{
+  auto points = floorPoints ();
+  points.push_back ({ 1.25f, 0.2f });
+  points.push_back ({ -0.9f, -0.9f });
+  return points;
+}
 
 int
 pixelsAwayFromBackground (juce::Image const &image, juce::Rectangle<int> area)
@@ -209,7 +394,7 @@ TEST (GroupsOnTheDanceFloorPaint, GroupsPaintOnALeanedFloor)
     juce::Graphics g (image);
     g.fillAll (toColour (theme ().background));
     auto label = 0;
-    for (auto const at : floorPoints ())
+    for (auto const at : paintedPoints ())
       {
         auto const onView = floorPointOnView (at, FloorSurface::DanceFloor, view);
         ASSERT_TRUE (onView.has_value ());
@@ -226,7 +411,7 @@ TEST (GroupsOnTheDanceFloorPaint, GroupsPaintOnALeanedFloor)
       }
   }
 
-  for (auto const at : floorPoints ())
+  for (auto const at : paintedPoints ())
     {
       auto const centre
           = floorPointOnView (at, FloorSurface::DanceFloor, view)->transformedBy (toPixels);

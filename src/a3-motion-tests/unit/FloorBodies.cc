@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-ui/components/SpeakerLightScaling.hh>
 #include <a3-motion-ui/components/fpv/FloorBodies.hh>
 
 using namespace a3;
@@ -58,12 +59,22 @@ TEST (FloorBodies, TheWeightCyclesThroughTheDeadZoneAndBack)
     }
 }
 
-TEST (FloorBodies, AMoveStaysInTheRoom)
+TEST (FloorBodies, AGroupStandsBetweenTheRimAndTheSpeakers)
+{
+  FloorBodies bodies;
+  auto const id = *bodies.add ({ 1.2f, 0.f });
+  EXPECT_EQ (bodies.at (id), (Vec2{ 1.2f, 0.f }));
+  bodies.move (id, { 0.f, -1.3f });
+  EXPECT_EQ (bodies.at (id), (Vec2{ 0.f, -1.3f }));
+}
+
+TEST (FloorBodies, AMoveStaysOnTheFloor)
 {
   FloorBodies bodies;
   auto const id = *bodies.add ({});
   bodies.move (id, { 3.f, 4.f });
-  EXPECT_LE (bodies.at (id).getDistanceFromOrigin (), 1.f + 1e-6f);
+  EXPECT_NEAR (bodies.at (id).getDistanceFromOrigin (), floorReach, 1e-5f)
+      << "held at the floor's reach";
   EXPECT_NEAR (bodies.at (id).x / bodies.at (id).y, 0.75f, 1e-5f)
       << "pulled straight in, same direction";
 
@@ -71,7 +82,7 @@ TEST (FloorBodies, AMoveStaysInTheRoom)
   EXPECT_EQ (bodies.at (id), (Vec2{ 0.3f, -0.4f }));
 
   auto const outside = *bodies.add ({ -2.f, 0.f });
-  EXPECT_LE (bodies.at (outside).getDistanceFromOrigin (), 1.f + 1e-6f);
+  EXPECT_LE (bodies.at (outside).getDistanceFromOrigin (), floorReach + 1e-6f);
 }
 
 TEST (FloorBodies, RemovingShiftsTheRestDownAndKeepsTheirIds)

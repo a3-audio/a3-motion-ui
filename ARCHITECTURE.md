@@ -268,9 +268,21 @@ use that floor point; the ORBIT guide stays on the sphere, because the ships fly
 (`FloorSurface`). A finger is a ray down the orthographic view: where it meets the floor plane is
 lifted straight back onto the upper half of the sphere and through `mapTo2D`, the exact inverse.
 A ray that never meets the floor (seen from the horizon, or the floor lies behind the eye, which
-the shader does not draw either) is not floor, so the camera has it; only points inside the room
-(radius 1) are floor, the sphere's outline no longer bounds it. The groups are painted in the 2D
-pass, over the GL picture, so a group under the ball is not hidden by it.
+the shader does not draw either) is not floor, so the camera has it. The groups are painted in the
+2D pass, over the GL picture, so a group under the ball is not hidden by it.
+
+**Groups reach to the speakers; the ships stay on the disc.** A group may stand anywhere out to
+`floorReach` (1.35 sphere radii, `SpeakerLightScaling.hh`), between the four towers: `FloorBodies`
+holds a placed or dragged group there, `onTheFloor` takes a finger up to there and gives the camera
+anything beyond. Past the rim (floor radius 1) there is no sphere point to stand below, so
+`DanceFloor` walks a group straight out from where the rim stands (with the default elevation
+about 0.71 out, well inside the ball's outline) to `floorReach`, where its floor point is its room
+point again, so a group at the edge stands just inside the towers seen from above, with no jump
+at the rim. (The shader scales the same constant by `speakerRadius`, so the drawn floor runs on
+past the towers; the groups stop at them.) The inverse undoes the walk and goes on past
+`floorReach`, so the caller can tell an edge from the background. The ships keep to radius 1: `stepShip`'s hard wall holds
+them there whatever pulls outwards (gravity, an escort circle that lies outside the disc, a game
+target). An escort of a group past the rim slides to and fro along the rim in front of it.
 
 **Switching never jumps.** CLIP to ORBIT starts at the channel's position with the path's tangent
 as velocity and the rabbit at the nearest phase on the ellipse. ORBIT to CLIP glides over one
@@ -302,7 +314,7 @@ newest wins. No new OSC address.
 | Page held + tap a group | that ship escorts it (switches to ORBIT) |
 | Page held + tap empty floor | that ship back to PATROL |
 | drag outside any group, pinch | camera, as phase 1 |
-| double tap | resets the view only outside the floor disc |
+| double tap | resets the view only off the floor (past `floorReach`) |
 | BREATH (status bar, both views) | the breath on or off for the session, readout `-- BREATH ON`/`OFF`. In FULL too, since the ships keep breathing there. The beat display gives way to the tempo, down to four row heights, so `BPM 000.0` reads whole (`statusLabelWidth`) |
 | Play, action pads | as phase 1 |
 
