@@ -30,6 +30,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BeatSync.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ShippedCopies.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ExternalTempo.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/MusicPreview.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Position.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/HeightMapSphere.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MotionEngine.cc"
