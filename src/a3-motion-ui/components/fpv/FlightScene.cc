@@ -118,11 +118,12 @@ shipReach (ShipInScene const &ship)
 }
 
 /** A disc on the floor never reaches further on the screen than its own
- *  radius, whichever way it is seen. */
+ *  radius, whichever way it is seen; nor do its rings. */
 float
 markReach (FloorMark const &mark)
 {
-  return mark.radius * 1.05f;
+  auto const hold = mark.hold > 0.f ? mark.radius * markHoldRingOfRadius : 0.f;
+  return std::max ({ mark.radius, mark.ring, hold }) * 1.05f;
 }
 }
 
@@ -323,6 +324,8 @@ packFlightScene (std::array<ShipInScene, maxSceneShips> const &ships,
       put (packed.markAt, i, mark.centre.x, mark.centre.y, mark.centre.z,
            mark.radius);
       put (packed.markShape, i, mark.deadZone ? 1.f : 0.f, reach, 0.f, 0.f);
+      put (packed.markRing, i, mark.ring, std::clamp (mark.hold, 0.f, 1.f),
+           0.f, 0.f);
       widen (packed.bounds, mark.centre, reach);
     }
 

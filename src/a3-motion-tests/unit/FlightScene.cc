@@ -301,6 +301,33 @@ TEST (FlightScene, AMarkIsPackedWithItsReach)
   EXPECT_GE (packed.bounds[3], -0.4f + reach);
 }
 
+TEST (FlightScene, AMarksRingsArePackedAndReached)
+{
+  std::array<FloorMark, maxSceneMarks> marks{};
+  marks[0] = { { 0.f, 0.f, -0.1f }, 0.08f, false, 0.3f, 0.5f };
+  auto const packed = packFlightScene ({}, 0, marks, 1);
+  EXPECT_FLOAT_EQ (packed.markRing[0], 0.3f) << "the ring's radius";
+  EXPECT_FLOAT_EQ (packed.markRing[1], 0.5f) << "how far the hold has come";
+  EXPECT_GE (packed.markShape[1], 0.3f) << "the ring lies inside the reach";
+
+  marks[0].ring = 0.f;
+  marks[0].hold = 0.5f;
+  EXPECT_GE (packFlightScene ({}, 0, marks, 1).markShape[1],
+             0.08f * markHoldRingOfRadius)
+      << "and so does the hold ring";
+}
+
+TEST (FlightScene, AMarkOfNoSizeIsNotPacked)
+{
+  // Before the first layout the blob, and so a mark, has no size; the
+  // shader's hatch would step by nothing across it.
+  std::array<FloorMark, maxSceneMarks> marks{};
+  marks[0] = { { 0.f, 0.f, -0.1f }, 0.f, true, 0.3f, 0.f };
+  auto const packed = packFlightScene ({}, 0, marks, 1);
+  EXPECT_FLOAT_EQ (packed.markAt[3], 0.f);
+  EXPECT_GT (packed.bounds[0], packed.bounds[2]);
+}
+
 TEST (FlightScene, MoreThanThereIsRoomForIsNotPacked)
 {
   std::array<ShipInScene, maxSceneShips> ships{};

@@ -106,8 +106,7 @@ struct Painter
   ~Painter () { juce::LookAndFeel::setDefaultLookAndFeel (nullptr); }
 
   juce::Image
-  paint (float mass, float pulse = 1.f, float hold = 0.f,
-         bool hidden = false) const
+  paint (bool hidden = false, float pulse = 1.f) const
   {
     juce::Image image (juce::Image::ARGB, side, side, true);
     juce::Graphics g (image);
@@ -115,12 +114,8 @@ struct Painter
     BodyPaint body;
     body.centre = centre;
     body.radius = radius;
-    body.mass = mass;
     body.label = "G1";
     body.pulse = pulse;
-    body.ringRadius = radius * 1.4f;
-    body.holdProgress = hold;
-    body.stroke = theme ().strokeMedium;
     body.fontHeight = radius * 0.5f;
     body.hidden = hidden;
     paintBody (g, body);
@@ -154,42 +149,14 @@ pixelsAwayFromBackground (juce::Image const &image)
   return count;
 }
 
-/** Pixels where red clearly leads green and blue: the danger colour. */
-int
-redPixels (juce::Image const &image, juce::Rectangle<int> area)
-{
-  auto count = 0;
-  for (int y = area.getY (); y < area.getBottom (); ++y)
-    for (int x = area.getX (); x < area.getRight (); ++x)
-      {
-        auto const c = image.getPixelAt (x, y);
-        count += c.getRed () > c.getGreen () + 40 && c.getRed () > c.getBlue () + 40
-                     ? 1
-                     : 0;
-      }
-  return count;
-}
 }
 
-TEST (BodyLookPaint, EveryWeightAndTheHoldPaint)
+TEST (BodyLookPaint, TheLabelPaints)
 {
   Painter p;
-  struct Look
-  {
-    char const *name;
-    float mass;
-    float hold;
-  };
-  FlightTuning const t;
-  for (auto look : { Look{ "group", t.groupMass, 0.f }, Look{ "crowd", t.crowdMass, 0.f },
-                     Look{ "hotspot", t.hotspotMass, 0.f },
-                     Look{ "deadzone", t.deadZoneMass, 0.f },
-                     Look{ "held", t.crowdMass, 0.6f } })
-    {
-      auto const image = p.paint (look.mass, 1.f, look.hold);
-      EXPECT_GT (pixelsAwayFromBackground (image), 0) << look.name;
-      writeSnapshot (image, juce::String ("fpv-body-") + look.name + ".png");
-    }
+  auto const image = p.paint ();
+  EXPECT_GT (pixelsAwayFromBackground (image), 0);
+  writeSnapshot (image, "fpv-body-label.png");
 }
 
 // The shader paints the mark on the dance floor, where it lies with the
@@ -198,15 +165,12 @@ TEST (BodyLookPaint, TheMarkIsTheShaders)
 {
   Painter p;
   auto const bg = toColour (theme ().background);
-  for (auto mass : { 2.f, -2.f })
-    {
-      auto const image = p.paint (mass);
-      for (auto const dy : { -0.6f, 0.6f })
-        EXPECT_EQ (image.getPixelAt (juce::roundToInt (centre.x),
-                                     juce::roundToInt (centre.y + radius * dy)),
-                   bg)
-            << "nothing painted inside at " << dy << " for mass " << mass;
-    }
+  auto const image = p.paint ();
+  for (auto const dy : { -0.6f, 0.6f })
+    EXPECT_EQ (image.getPixelAt (juce::roundToInt (centre.x),
+                                 juce::roundToInt (centre.y + radius * dy)),
+               bg)
+        << "nothing painted inside at " << dy;
 }
 
 TEST (BodyLookPaint, AHiddenMarksLabelDims)
@@ -222,40 +186,19 @@ TEST (BodyLookPaint, AHiddenMarksLabelDims)
         most = std::max (most, image.getPixelAt (x, y).getBrightness ());
     return most;
   };
-  EXPECT_LT (brightest (p.paint (2.f, 1.f, 0.f, true)),
-             brightest (p.paint (2.f)));
+  EXPECT_LT (brightest (p.paint (true)), brightest (p.paint ()));
 }
 
-TEST (BodyLookPaint, TheHoldRingFillsTowardsTheRemoval)
+// The rings lie on the dance floor with the mark, so the shader draws them
+// too; the glass keeps only the word.
+TEST (BodyLookPaint, TheRingsAreTheShaders)
 {
   Painter p;
-  auto const all = juce::Rectangle<int> (side, side);
-  auto const none = redPixels (p.paint (2.f, 1.f, 0.f), all);
-  auto const half = redPixels (p.paint (2.f, 1.f, 0.5f), all);
-  auto const full = redPixels (p.paint (2.f, 1.f, 1.f), all);
-  EXPECT_EQ (none, 0);
-  EXPECT_GT (half, 0);
-  EXPECT_GT (full, half + half / 2);
-}
-
-TEST (BodyLookPaint, ADeadZoneOfNoSizePaintsAndReturns)
-{
-  // A zero-sized disc once left the hatch's step at zero: the loop never
-  // ended. Before the first layout the blob, and so the radius, is zero.
-  LookAndFeel_A3 lookAndFeel;
-  juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
-  juce::Image image (juce::Image::ARGB, side, side, true);
-  {
-    juce::Graphics g (image);
-    BodyPaint body;
-    body.centre = centre;
-    body.radius = 0.f;
-    body.mass = -2.f;
-    body.stroke = theme ().strokeMedium;
-    body.fontHeight = 10.f;
-    paintBody (g, body);
-  }
-  juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
-  SUCCEED ();
+  auto const bg = toColour (theme ().background);
+  for (auto const dx : { -1.4f, -1.2f, 1.2f, 1.4f })
+    EXPECT_EQ (p.paint ().getPixelAt (juce::roundToInt (centre.x + radius * dx),
+                                         juce::roundToInt (centre.y)),
+               bg)
+        << "nothing at " << dx << " radii";
 }
 

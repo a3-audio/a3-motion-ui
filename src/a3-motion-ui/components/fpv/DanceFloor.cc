@@ -97,6 +97,19 @@ floorPointInRoom (Vec2 at, FloorSurface surface, FloorView const &view)
   return Pos::fromCartesian (onSphere.x (), onSphere.y (), view.floorZ);
 }
 
+float
+floorLengthInRoom (Vec2 at, float length, FloorView const &view)
+{
+  auto const centre = floorPointInRoom (at, FloorSurface::DanceFloor, view);
+  auto const along = [&] (Vec2 step) {
+    auto const p = floorPointInRoom (at + step, FloorSurface::DanceFloor, view);
+    if (!centre.isValid () || !p.isValid ())
+      return 0.f;
+    return std::hypot (p.x () - centre.x (), p.y () - centre.y ());
+  };
+  return (along ({ length, 0.f }) + along ({ 0.f, length })) / 2.f;
+}
+
 std::optional<juce::Point<float> >
 floorPointOnView (Vec2 at, FloorSurface surface, FloorView const &view)
 {

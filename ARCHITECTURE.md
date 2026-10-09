@@ -312,11 +312,17 @@ field the guests stand in, and most marks lie under it. A ship on the far half o
 farther than the ball's middle plane) is also drawn smaller and darker (`shipDepthCue`, eased
 over `shipBackSideBand`), and on the far half it is behind the ball, so it is that ghost.
 
-The 2D pass keeps the words and the rings: a body's `G1`..`G8` in the middle of its mark, as
+The rings lie on the floor with their mark (`markPaint`, `FloorMark::ring`/`hold`): a group's
+capture ring and a dead zone's clearance, faint (`alphaGuide`), their floor length measured in
+the room where the body stands (`floorLengthInRoom`), and the red ring filling clockwise from the
+top of the view towards a held body's removal (`markHoldRingOfRadius`, `markHoldRingOfStroke`).
+Leaned over, they foreshorten with the mark; hidden by the ball or a tower they leave no ghost of
+their own, the mark's is enough.
+
+The 2D pass keeps the words: a body's `G1`..`G8` in the middle of its mark, as
 before, a game's word under the drawn ship, the escort and game lines from the drawn craft
 (`drawnShipPixel`), and a hidden one's label dimmed like its ghost (`labelAlpha`; the labels know
-the ball, not the towers). The capture, clearance and hold rings are still circles on the glass.
-The touch stays on the 2D floor point; a body's hit circle is its mark's footprint as the camera
+the ball, not the towers). The touch stays on the 2D floor point; a body's hit circle is its mark's footprint as the camera
 sees it (`footprintRadiusOnView`, the mean of the circle's two axes), never less than a fingertip
 (`groupHitRadius`).
 
@@ -2294,8 +2300,8 @@ instead: a small lit craft over the ball, raytraced in the same pass, pointing a
 the room (see "Ships fly in the room and the groups are marked on its floor" under the gravity
 flight). Phase 1 drew a
 flat dart in the 2D pass with a heading taken on the screen; that was taken out once the shader's
-craft drew. The app takes only the sizes from `ShipShape` now (`shipLengthOfBlob`,
-`shipStepOfLength`); its dart and screen heading (`shipPath`, `ShipHeading`) are no longer called.
+craft drew, and the dart and its screen heading (`ShipShape`) were deleted; the ship's sizes
+(`shipLengthOfBlob`, `shipStepOfLength`) live in `FlightScene` now.
 
 **Touch on the sphere is camera only outside the dance floor** (phase 2 gives the floor to the
 group gesture, see below). One finger tilts and turns, two zoom, a double tap resets.
@@ -2308,8 +2314,8 @@ held, and the finger that let go was no longer listened to.
 four strip rectangles, `fpvStripRow`); `FpvStrips` paints a strip: `CH n` or `AUTO`, the clip name
 with ▶ or ❚❚, the 3D / FREQ / Q bars and a horizontal meter. The header is `CH n` at the left and `CLIP` or
 `ORBIT` at the right (phase 2). The channel's colour comes in as `ChannelUIState::colour` via
-`FpvChannel::colour`; everything else from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`), `ShipShape` and `FpvStrips`'s paint code are in
-`a3-motion-ui-shared` and tested without a window (`FpvLayout`, `ShipShape`,
+`FpvChannel::colour`; everything else from the theme. `FpvLayout` (`components/fpv/FpvLayout.hh/.cc`) and `FpvStrips`'s paint code are in
+`a3-motion-ui-shared` and tested without a window (`FpvLayout`,
 `FpvStripsPaint`, `DeskMeter`, `SegmentMeter`, `StemdeckSkin`, `AppView`, plus cases in `SettingsPersistence`, `StatusBarLayout`, `TouchGrabs`).
 
 **The strips wear StemDeck's look in every skin** (2026-10-08; the audit is

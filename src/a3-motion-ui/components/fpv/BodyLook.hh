@@ -67,23 +67,18 @@ struct BodyPaint
 {
   juce::Point<float> centre;
   float radius = 0.f;       // bodyRadius, before the pulse
-  float mass = 1.f;
   juce::String label;
   float pulse = 1.f;        // drawnPulse now
-  float ringRadius = 0.f;   // capture radius or dead-zone clearance; 0 = none
-  float holdProgress = 0.f; // 0..1 towards removal (FloorGesture)
-  float stroke = 1.f;       // a line, in the Graphics' units
   float fontHeight = 1.f;   // the label, in the Graphics' units
   /** The ball stands in front of the mark: its label dims. */
   bool hidden = false;
 };
 
-/** What the 2D pass keeps of a body: its label in the middle of the mark
- *  and a faint ring -- a group's capture ring, a dead zone's clearance. The
- *  mark itself (a group's neutral disc, a dead zone's red hatched one, the
- *  only red and the only hatched thing on the floor) is painted on the dance
- *  floor by the sphere shader. A held body gets a red ring filling clockwise
- *  from the top towards its removal. */
+/** What the 2D pass keeps of a body: its label in the middle of its mark.
+ *  The mark and its rings -- a group's neutral disc and capture ring, a dead
+ *  zone's red hatched disc (the only red and the only hatched thing on the
+ *  floor) and clearance, the red ring filling clockwise towards a held
+ *  body's removal -- lie on the dance floor, painted by the sphere shader. */
 void paintBody (juce::Graphics &g, BodyPaint const &body);
 
 }

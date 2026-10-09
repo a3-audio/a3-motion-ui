@@ -69,6 +69,12 @@ constexpr float danceFloorEyeHeight = 4.f;
  *  at its own (x, y): the floor's edge is where the shader draws it. */
 Pos floorPointInRoom (Vec2 at, FloorSurface surface, FloorView const &view);
 
+/** A floor length at `at`, in the room on the dance floor: the mean of how
+ *  far a step of `length` along the floor's x and y carries the point there.
+ *  The walk from floor to room is not a scale, so a ring of a floor length
+ *  round a group is measured where the group stands. */
+float floorLengthInRoom (Vec2 at, float length, FloorView const &view);
+
 /** Where a floor point lands on the view, in the sphere's normalised screen
  *  units (the sphere's radius is 1, oriented as cartesian2DHOA2JUCE puts
  *  it). Empty where the height map has no point for it. */
