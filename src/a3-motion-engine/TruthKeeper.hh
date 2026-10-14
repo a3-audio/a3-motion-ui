@@ -50,6 +50,15 @@ followsCore (char const *override)
   return override == nullptr || *override == '\0';
 }
 
+/** url and fingerprint, plus Core's boot id since it sends one (an older
+ *  Core sends two). Motion only follows the fingerprint, so it ignores the
+ *  boot id. */
+inline bool
+announcementSize (int arguments)
+{
+  return arguments == 2 || arguments == 3;
+}
+
 /** Never fetch, never restart for the truth Motion already has. */
 inline bool
 needsFetch (std::string const &announced, std::string const &own)

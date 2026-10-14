@@ -83,7 +83,8 @@ void
 TruthKeeperLink::oscMessageReceived (juce::OSCMessage const &message)
 {
   if (message.getAddressPattern ().toString () != truthkeeper::announceAddress
-      || message.size () != 2 || !message[0].isString ()
+      || !truthkeeper::announcementSize (message.size ())
+      || !message[0].isString ()
       || !message[1].isString ())
     return;
   auto const url = message[0].getString ();
