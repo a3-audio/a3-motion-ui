@@ -29,6 +29,7 @@
 #include <a3-motion-engine/TempoLfo.hh>
 #include <a3-motion-engine/TrajectoryShaping.hh>
 
+#include <cmath>
 #include <cstddef>
 
 #include <a3-motion-engine/Channel.hh>
@@ -167,6 +168,11 @@ MotionEngine::createChannels (index_t const numChannels)
   _lastSentPot1s.resize (numChannels);
   _lastSentPot2s.resize (numChannels);
   _lastSentPot3s.resize (numChannels);
+  _potsPrimed.assign (numChannels, 0);
+  _adoptedPots = std::vector<std::atomic<float>> (numChannels
+                                                  * numChannelPotValues);
+  for (auto &adopted : _adoptedPots)
+    adopted.store (noAdoptedPot, std::memory_order_relaxed);
   _accentHeld.assign (numChannels, 0);
   _accentEnvelope.resize (numChannels);
   _freqEnvelope.resize (numChannels);
@@ -345,6 +351,53 @@ void
 MotionEngine::setChannelPot3 (index_t channel, float pot3)
 {
   _channels[channel]->setPot3 (pot3);
+}
+
+// Handed to the tick rather than set here: the tick owns what counts as
+// sent, and setting the value on this thread first would let a tick in
+// between ramp it back at Core before it was marked as Core's own.
+void
+MotionEngine::adoptChannelPot1 (index_t channel, float pot1)
+{
+  _adoptedPots[adoptedSlot (channel, 0)].store (pot1, std::memory_order_relaxed);
+}
+
+void
+MotionEngine::adoptChannelPot2 (index_t channel, float pot2)
+{
+  _adoptedPots[adoptedSlot (channel, 1)].store (pot2, std::memory_order_relaxed);
+}
+
+void
+MotionEngine::adoptChannelPot3 (index_t channel, float pot3)
+{
+  _adoptedPots[adoptedSlot (channel, 2)].store (pot3, std::memory_order_relaxed);
+}
+
+std::size_t
+MotionEngine::adoptedSlot (index_t channel, int pot)
+{
+  return static_cast<std::size_t> (channel) * numChannelPotValues
+         + static_cast<std::size_t> (pot);
+}
+
+void
+MotionEngine::takeAdoptedPots (index_t channel)
+{
+  auto const take = [this, channel] (int pot, std::vector<float> &lastSent,
+                                     void (Channel::*set) (float)) {
+    auto const adopted = _adoptedPots[adoptedSlot (channel, pot)].exchange (
+        noAdoptedPot, std::memory_order_relaxed);
+    if (std::isnan (adopted))
+      return;
+
+    ((*_channels[channel]).*set) (adopted);
+    lastSent[channel] = adopted;
+  };
+
+  take (0, _lastSentPot1s, &Channel::setPot1);
+  take (1, _lastSentPot2s, &Channel::setPot2);
+  take (2, _lastSentPot3s, &Channel::setPot3);
 }
 
 void
@@ -985,6 +1038,11 @@ MotionEngine::tickCallback ()
   // compare with last enqueued values and enqueue on change
   for (auto index = 0u; index < _channels.size (); ++index)
     {
+      // First, before the preview and the hold can skip the channel: Core's
+      // answer to the recall arrives during the hold, and it is exactly what
+      // the hold waits for.
+      takeAdoptedPots (index);
+
       // Skip OSC output for channels in preview mode
       if (_previewMode[index].load (std::memory_order_relaxed))
         continue;
@@ -1012,8 +1070,7 @@ MotionEngine::tickCallback ()
       // with no interpolation, so every message is a step and a step big
       // enough is a click in the room -- and the steps here are not small:
       // an accent's ceiling changes the instant its clip stops being the one
-      // firing, a hardware pot arrives in its own increments, and at start-up
-      // the very first value is a jump from wherever Core was left.
+      // firing, and a hardware pot arrives in its own increments.
       //
       // It limits a rate, so anything already moving slower passes through
       // untouched: the shortest attack the envelope has is an eighth of a
@@ -1021,34 +1078,47 @@ MotionEngine::tickCallback ()
       //
       // The ramp runs from the last value *sent*, which is what the far end
       // actually has -- ramping from the target would smooth nothing.
-      // The very first value goes out whole. A ramp starts from what the far
-      // end has, and at start-up nothing here knows what that is -- Core is
-      // sitting wherever the last session left it. Ramping from this side's
-      // zero would send Core *to* zero on the first message and climb back
-      // up, which is a bigger jump than the one being smoothed, in the wrong
-      // direction first. One honest jump beats a fade from a fiction.
       //
-      // Since 2026-09-12 the recall answers for these three as well — the
-      // pots through Core's reverse table, the crossfade out of Core's own
-      // memory — and they arrive during the start-up hold, before anything
-      // has been sent. So the first value that does go out is already the far
-      // end's own, and the jump it would have been is gone.
+      // The very first value does NOT go out (2026-10-14). The truth comes
+      // from Core: Motion sends a channel value when a hand changed it or a
+      // set was loaded by hand, never because it started. So the first pass
+      // after the start-up hold takes whatever the channels hold as what the
+      // far end has -- Core's answer to the recall when Core is up, which
+      // arrives during the hold, or this device's own set when it is not --
+      // and sends nothing. A hand's change after that differs from it and
+      // goes out, on the ramp, from there.
       //
-      // What is *not* done is priming _lastSentPot*s from it, so that first
-      // send still happens and still goes out whole: one message telling Core
-      // what Core just said. Harmless, and cheaper than reaching into the
-      // tick thread's state from the message thread.
+      // Until then it went out whole, on the 2026-09-12 reasoning that Core's
+      // answer had already overwritten the set by then. On 2026-10-14 Core
+      // rebooted, Motion came up first and pushed its own values after Core's
+      // own recall had run -- the order that reasoning relied on was
+      // reversed, and the rig went silent. A rule that holds only in one
+      // start-up order is not a rule.
+      //
+      // A value Core sends later is adopted (adoptChannelPot*,
+      // takeAdoptedPots), so it is not echoed back either.
+      //
+      // Per channel, and only on a pass that is not skipped: a channel in
+      // preview takes its values when it comes out of it, rather than
+      // ramping from a zero nobody sent. (Taking them while output was held
+      // was the 2026-09-12 fault the other way round: three of twelve values
+      // never reached Core, exactly the three at 0.0.)
       // See issues/a3-motion-ui-total-recall-at-startup.md.
-      auto const primed = _potsPrimed;
+      auto const primed = _potsPrimed[index] != 0;
+      _potsPrimed[index] = 1;
 
       auto const sendSlewed
           = [this, index, elapsedMillis, primed] (auto &lastSent, float target,
                                                   auto send) {
-              auto const next
-                  = primed ? slewTowards (lastSent[index], target,
-                                          elapsedMillis, potSlewMillis)
-                           : target;
-              if (primed && juce::approximatelyEqual (lastSent[index], next))
+              if (!primed)
+                {
+                  lastSent[index] = target;
+                  return;
+                }
+
+              auto const next = slewTowards (lastSent[index], target,
+                                             elapsedMillis, potSlewMillis);
+              if (juce::approximatelyEqual (lastSent[index], next))
                 return;
 
               (_commandQueue.*send) (index, next);
@@ -1067,17 +1137,6 @@ MotionEngine::tickCallback ()
       sendSlewed (_lastSentPot3s, getChannelPot3Effective (index),
                   &AsyncCommandQueue::sendPot3);
     }
-
-  // Not while the loop was skipped. "Primed" means the ramps have a value to
-  // start from, and they only do once something has actually been sent --
-  // while output is held, nothing was. Setting it anyway left every ramp
-  // starting from a zero it had never sent, and any value that happened to
-  // *be* zero was then never sent at all: it compared equal to what this side
-  // wrongly believed the far end had. Measured on the rig, 2026-09-12 --
-  // three of twelve channel values never reached Core, and they were exactly
-  // the three sitting at 0.0.
-  if (!holding)
-    _potsPrimed = true;
 }
 
 void

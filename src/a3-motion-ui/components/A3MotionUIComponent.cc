@@ -150,7 +150,9 @@ constexpr int libraryCheckTicks = uiTimerHz * 2;
  *  Core is a UDP hop away -- on the rig, the same machine -- so the answer is
  *  back in well under a millisecond when Core is up. This is not a guess at
  *  the round trip; it is how long to wait before concluding that no answer is
- *  coming, and then going ahead with this device's own values. Nothing is
+ *  coming, and then going ahead with this device's own positions. Its freq,
+ *  Q and 3d are not sent after the wait either -- only a hand's change is
+ *  (2026-10-14, see askCoreForItsState()). Nothing is
  *  playing yet at this point, so the wait is inaudible; what it costs is that
  *  a rig started with Core down hears its first position a third of a second
  *  later than it used to. */
@@ -3190,6 +3192,9 @@ A3MotionUIComponent::loadSessionNamed (juce::String const &name)
         }
 
   _sessionName = name;
+  // A set loaded by hand is an instruction: its freq, Q and 3d go to Core on
+  // the next tick, as a hand's turn would. At start-up the same call sends
+  // nothing -- see askCoreForItsState().
   applySet (file);
   // The keys it brought are the device's now too, so a restart comes back
   // with them. Here rather than in applySet(), which also runs at start-up
@@ -6286,10 +6291,11 @@ A3MotionUIComponent::applySet (juce::File const &file)
       // which is where they start anyway.
       //
       // These three are also what A3 Core answers a recall with, so both
-      // claim them. At start-up Core wins, because the recall lands after
-      // this; when a set is loaded by hand the set wins, because nothing
-      // asks Core afterwards. Decided that way on purpose -- see the long
-      // comment in askCoreForItsState().
+      // claim them. At start-up they are this device's local values only:
+      // nothing is sent until a hand moves one, and Core's answer, whenever
+      // it comes, replaces them. A set loaded by hand is an instruction, and
+      // its values go out. See the comment in askCoreForItsState()
+      // (rule of 2026-10-14).
       _engine.setChannelPot1 (index, channel.freq);
       _engine.setChannelPot2 (index, channel.q);
       _engine.setChannelPot3 (index, channel.threeD);
@@ -7597,31 +7603,45 @@ A3MotionUIComponent::moveChannelFromOutside (int channel, float azimuth,
  *  construction is still going.
  *
  *  Sent once and never repeated. Over UDP a Core that is not up yet simply
- *  does not answer, and the device keeps its own values -- the documented
- *  fallback, and what happened before any of this existed. A retry would
+ *  does not answer, and the device keeps its own values locally -- and,
+ *  since 2026-10-14, sends none of them until a hand moves one. A retry would
  *  need a notion of "did an answer arrive", which nothing here has.
  */
 void
 A3MotionUIComponent::askCoreForItsState ()
 {
-  // WHO WINS, AND WHY IT IS NOT AN ACCIDENT.
+  // THE TRUTH COMES FROM CORE (maintainer, 2026-10-14).
   //
-  // Core's answer carries freq, Q and 3d, and so does a set. Both claim the
-  // same three values, and which one the channel ends up with is decided by
-  // nothing but the order they run in. Decided by the maintainer 2026-09-12,
-  // written down here because the code only expresses it by accident:
+  // "The truth always comes from Core. When Core asks, mixer, StemDeck and
+  // Motion send their status." So at start-up -- and at a restart on a new
+  // truth, which is a start -- Motion sends no mixer value of its own: not
+  // freq, Q or 3d, not volume, EQ, sends, master, phones or the filter. It
+  // asks with this one message, adopts what Core answers, and shows it. A
+  // value goes out only on a real change:
   //
-  //   at start-up      applySet() runs first, this answer lands after it,
-  //                    so CORE WINS -- the rig comes up where it actually
-  //                    sounds, which is the whole point of asking.
-  //   loading a set    the set is applied and nothing asks Core afterwards,
-  //                    so THE SET WINS -- you asked for those values, and a
-  //                    jump to them is the instruction, not a fault.
+  //   a hand            on the screen, the encoders or the panel's pots;
+  //   a set loaded      by hand -- that is an instruction, and its freq, Q
+  //                     and 3d go out (applySet() from the browser's Load).
   //
-  // That holds only because this is the one and only call site, and it is in
-  // the constructor. Asking again later -- on a reconnect, on a timer, from
-  // a menu -- would make Core win over a set that was just loaded by hand,
-  // silently. If you add a second call, this is the rule you are changing.
+  // The set restored at start-up is applied locally only: slots, clips,
+  // actions, positions as before; its freq, Q and 3d stay this device's
+  // until Core's answer replaces them, and nothing of it is sent
+  // (MotionEngine's send loop takes its first pass as what the far end has).
+  // Core never answering changes nothing: Motion keeps its values and still
+  // sends none until a hand moves one. MixerState sends only from a touch,
+  // and the panel's pots report no first reading (PanelPot).
+  //
+  // This replaces the order decided on 2026-09-12 -- "applySet() runs first,
+  // this answer lands after it, so Core wins" -- which held only while Core
+  // was up and answered. On 2026-10-14 Core rebooted, Motion came up first
+  // ("no word from Core in 10 s, opening on the truth on disk"), and its
+  // values reached Core after Core's own start-up recall had run: the rig
+  // went silent and nothing corrected it.
+  //
+  // This is still the one call site. A second one -- on a reconnect, on a
+  // timer -- would push nothing, since Core's answer is adopted rather than
+  // echoed, but it would replace a set just loaded by hand with Core's
+  // values. Weigh that before adding one.
   //
   // Re-armed from here, where the wait for an answer actually begins. See the
   // comment at the first arming for why this is not redundant even though the
@@ -7672,20 +7692,24 @@ A3MotionUIComponent::onChannelValue (
     // The three that are not a position. No playing-channel guard on these:
     // a clip moves a channel through the room, it does not turn its filter
     // or its spread -- those are the hand's, and nothing here fights over
-    // them. The start-up hold is what keeps them quiet until Core answers.
+    // them.
+    //
+    // Adopted, not set: Core's value counts as already sent, so it is never
+    // echoed or ramped back at Core -- whether it lands during the start-up
+    // hold, after it, or long after a start Core missed (2026-10-14).
     case Value::Pot1:
       if (std::isfinite (value))
-        _engine.setChannelPot1 (index, value);
+        _engine.adoptChannelPot1 (index, value);
       return;
 
     case Value::Pot2:
       if (std::isfinite (value))
-        _engine.setChannelPot2 (index, value);
+        _engine.adoptChannelPot2 (index, value);
       return;
 
     case Value::ThreeD:
       if (std::isfinite (value))
-        _engine.setChannelPot3 (index, value);
+        _engine.adoptChannelPot3 (index, value);
       return;
     }
 }

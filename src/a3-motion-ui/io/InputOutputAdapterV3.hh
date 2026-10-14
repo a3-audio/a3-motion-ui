@@ -32,6 +32,7 @@
 #include <a3-motion-ui/io/ButtonLedColours.hh>
 #include <a3-motion-ui/io/LedLoad.hh>
 #include <a3-motion-ui/io/LedCache.hh>
+#include <a3-motion-ui/io/PanelPot.hh>
 #include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
 
@@ -261,9 +262,8 @@ private:
 
   // ── Hardware pot state ────────────────────────────────────────────────────
   static constexpr int numGlobalPots = 4;
-  static constexpr int potDeadband   = 8;  // raw ADC counts
 
-  std::array<int, numGlobalPots> _prevPotRaw{};
+  std::array<PanelPot, numGlobalPots> _globalPots;
   std::array<juce::Value, numGlobalPots> _globalPotValues;
 
   void parsePots (const uint8_t *raw, int offset);

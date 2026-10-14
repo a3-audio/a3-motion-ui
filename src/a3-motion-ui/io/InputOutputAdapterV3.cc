@@ -41,8 +41,6 @@ constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
 
 InputOutputAdapterV3::InputOutputAdapterV3 () : InputOutputAdapter ()
 {
-  _prevPotRaw.fill (0);
-
   serialInit ();
 }
 
@@ -635,11 +633,8 @@ InputOutputAdapterV3::parsePots (const uint8_t *raw, int offset)
       uint16_t rawVal = static_cast<uint16_t> (data[i * 2])
                         | (static_cast<uint16_t> (data[i * 2 + 1]) << 8);
 
-      if (std::abs (static_cast<int> (rawVal) - _prevPotRaw[i]) > potDeadband)
-        {
-          _prevPotRaw[i]    = static_cast<int> (rawVal);
-          _globalPotValues[i] = rawVal / 4095.0f;
-        }
+      if (auto const moved = _globalPots[i].read (static_cast<int> (rawVal)))
+        _globalPotValues[i] = *moved;
     }
 }
 
