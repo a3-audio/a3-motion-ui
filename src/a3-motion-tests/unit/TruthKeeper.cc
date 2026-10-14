@@ -29,6 +29,16 @@
 
 namespace tk = a3::truthkeeper;
 
+// /core/here carries url and fingerprint, and since the boot id a third
+// string; an older Core sends two. Both are read, anything else is not.
+TEST (TruthKeeperAnnouncement, TwoOrThreeStringsAreAnAnnouncement)
+{
+  EXPECT_FALSE (tk::announcementSize (1));
+  EXPECT_TRUE (tk::announcementSize (2));
+  EXPECT_TRUE (tk::announcementSize (3));
+  EXPECT_FALSE (tk::announcementSize (4));
+}
+
 TEST (KeeperDecide, TheSameFingerprintNeedsNoFetch)
 {
   EXPECT_FALSE (tk::needsFetch (std::string (64, 'a'), std::string (64, 'a')));
