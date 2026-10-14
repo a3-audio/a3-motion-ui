@@ -151,6 +151,13 @@ Bestätigung:
 
 Addresses and ports come from the one truth, a3-core's `/usr/share/a3/a3-osc.json` (since 2026-09-30), not from `config.json`.
 
+**No value goes to Core unasked** (since 2026-10-14, replacing the start-up order of 2026-09-12):
+at start-up, a restart or a reconnect Motion sends no mixer value of its own (freq/Q/3d,
+volume/EQ/sends, master, phones, filter). It asks Core once (`/state/recall`) and adopts the
+answer. Values go out only on a hand's change or a set loaded by hand. The start-up set is applied
+locally only. Details and the incident behind it: `ARCHITECTURE.md`, "No value goes to Core
+unasked".
+
 ### 3.5 FILES and ACTION (2026-09-27)
 
 - **ACTION** (2026-09-28): the six fields A1–A6 only choose (`onButtonChosen` →

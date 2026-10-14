@@ -1017,6 +1017,36 @@ loaded digest, and a truth changed *later* (a deploy) still fetches and
 restarts as before. The one start-up case that still restarts: a fetch that
 lands after the 10 s.
 
+#### No value goes to Core unasked
+
+**The truth comes from Core** (maintainer, 2026-10-14): *"The truth always comes from Core. When
+Core asks, mixer, StemDeck and Motion send their status."* At start-up -- and a restart on a new
+truth is a start -- Motion sends no mixer value of its own: not freq, Q or 3d, not volume, EQ,
+sends, cue, master, phones or the filter. It asks once (`askCoreForItsState()`, `/state/recall`),
+adopts what Core answers, and shows it. A value goes out only on a real change: a hand on the
+screen, the encoders or the panel's pots, or a set loaded by hand (an instruction). The set
+restored at start-up is applied locally only -- slots, clips, actions and positions as before; its
+freq, Q and 3d stay this device's until Core's answer replaces them. If Core never answers, Motion
+keeps its values and still sends none until a hand moves one.
+
+Three places hold it:
+
+- **`MotionEngine`'s send loop** takes its first pass per channel after the start-up hold as what
+  the far end has, and sends nothing; a later change goes out on the ramp from there. Core's values
+  come in through `adoptChannelPot1/2/3`, which the tick takes as *already sent*
+  (`takeAdoptedPots`), so an answer that lands late is not ramped back at Core. Handed to the tick
+  rather than set on the message thread: a tick in between would otherwise send it back first.
+- **`MixerState`** sends only from a touch (`set*FromTouch`); a value from the wire is set and not
+  sent. `applySet()` never reaches it.
+- **`PanelPot`** (V3 panel) takes the pots' first reading as the reference and reports nothing:
+  where an absolute pot stands when the panel is first heard is not a hand.
+
+This replaces the order of 2026-09-12 -- *"applySet() runs first, the recall's answer lands after
+it, so Core wins"* -- under which the first freq/Q/3d went out whole after the hold. That held only
+while Core was up and answered. On 2026-10-14 Core rebooted, Motion came up first ("no word from
+Core in 10 s, opening on the truth on disk") and its values reached Core after Core's own start-up
+recall had run; the rig went silent and nothing corrected it. Tests: `unit/NoUnaskedValues.cc`.
+
 The bar's **global section** takes its right quarter and holds three things: the elevation picture,
 the four channel faces and the transport two by two. A **Filter section** used to sit among
 the clip's sections showing freq and Q — but those were never the clip's: they are the same

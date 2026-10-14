@@ -40,6 +40,7 @@
 #include <a3-motion-engine/util/Helpers.hh>
 
 #include <atomic>
+#include <limits>
 #include <optional>
 
 namespace a3
@@ -115,6 +116,14 @@ public:
 
   float getChannelPot3 (index_t channel);
   void setChannelPot3 (index_t channel, float pot3);
+
+  /** A value Core says it has -- its answer to the recall, or a value it
+   *  relays later. The channel takes it, and it counts as already sent: it
+   *  is never echoed or ramped back at Core. A hand's value goes through
+   *  setChannelPot*, which is sent. */
+  void adoptChannelPot1 (index_t channel, float pot1);
+  void adoptChannelPot2 (index_t channel, float pot2);
+  void adoptChannelPot3 (index_t channel, float pot3);
 
   /** What actually goes out: the set value with the accent laid over it. The
    *  grid shows this rather than the setting, so an envelope you fired is an
@@ -682,9 +691,20 @@ private:
    *  milliseconds depending on tempo, and a fade meant to be inaudible cannot
    *  be a different length at 180 BPM than at 60. */
   double _lastSendMillis = 0.;
-  /** Whether the channel values have gone out once. Until they have there is
-   *  nothing to ramp *from*: see the send loop in tickCallback(). */
-  bool _potsPrimed = false;
+  /** Per channel, whether the send loop has taken its values as what the
+   *  far end has. The first pass after the start-up hold does, and sends
+   *  nothing: see the send loop in tickCallback(). Tick thread only. */
+  std::vector<char> _potsPrimed;
+
+  /** Values Core said it has, per channel and pot (freq, Q, 3d), waiting
+   *  for the tick to take them as sent. NaN means none. Written on the
+   *  message thread, taken on the tick thread: takeAdoptedPots(). */
+  static constexpr std::size_t numChannelPotValues = 3;
+  static constexpr float noAdoptedPot
+      = std::numeric_limits<float>::quiet_NaN ();
+  std::vector<std::atomic<float> > _adoptedPots;
+  static std::size_t adoptedSlot (index_t channel, int pot);
+  void takeAdoptedPots (index_t channel);
 
   /** Read by the send loop on the tick thread, written from the message
    *  thread at start-up. Zero means "not held", which is what it starts as:
