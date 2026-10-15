@@ -448,12 +448,9 @@ InputOutputAdapter::valueChanged (juce::Value &value)
         {
           if (value.refersToSameSourceAs (_valuePadLEDs[channel][pad]))
             {
-              auto message = std::make_unique<OutputMessagePadLED> ();
-              message->padIndex.channel = channel;
-              message->padIndex.pad = pad;
-              message->colour = juce::VariantConverter<juce::Colour>::fromVar (
-                  value.getValue ());
-              submitOutputMessage (std::move (message));
+              _ledState.set (ledSlot (channel, pad),
+                             juce::VariantConverter<juce::Colour>::fromVar (
+                                 value.getValue ()));
               return;
             }
         }
@@ -480,83 +477,35 @@ InputOutputAdapter::sendButtonLED (Button button, juce::Colour colour)
     return;
 
   _lastButtonLEDsSent[index] = colour;
-
-  auto message = std::make_unique<OutputMessageButtonLED> ();
-  message->button = button;
-  message->colour = colour;
-  submitOutputMessage (std::move (message));
+  _ledState.set (ledSlot (button), colour);
 }
 
-void
-InputOutputAdapter::submitOutputMessage (
-    std::unique_ptr<OutputMessage> message)
+std::size_t
+InputOutputAdapter::ledSlot (Button button)
 {
-  jassert (_fifoAbstractOutput.getFreeSpace () > 0);
+  return static_cast<std::size_t> (button);
+}
 
-  const auto scope = _fifoAbstractOutput.write (1);
-  jassert (scope.blockSize1 == 1);
-  jassert (scope.blockSize2 == 0);
-  jassert (scope.startIndex1 >= 0);
-
-  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
-  _fifoOutput[startIndex] = std::move (message);
+std::size_t
+InputOutputAdapter::ledSlot (index_t channel, index_t pad)
+{
+  return numButtons + channel * numPadsPerChannel + pad;
 }
 
 void
 InputOutputAdapter::processOutput ()
 {
-  auto const ready = _fifoAbstractOutput.getNumReady ();
-  const auto scope = _fifoAbstractOutput.read (ready);
-
-  jassert (scope.blockSize1 + scope.blockSize2 == ready);
-
-  if (scope.blockSize1 > 0)
+  for (auto const &change : _ledState.takeChanged ())
     {
-      for (int idx = scope.startIndex1;
-           idx < scope.startIndex1 + scope.blockSize1; ++idx)
+      if (change.slot < numButtons)
         {
-          jassert (idx >= 0);
-          handleOutputMessage (
-              std::move (_fifoOutput[static_cast<std::size_t> (idx)]));
+          outputButtonLED (static_cast<Button> (change.slot), change.colour);
+          continue;
         }
-    }
 
-  if (scope.blockSize2 > 0)
-    {
-      for (int idx = scope.startIndex2;
-           idx < scope.startIndex2 + scope.blockSize2; ++idx)
-        {
-          jassert (idx >= 0);
-          handleOutputMessage (
-              std::move (_fifoOutput[static_cast<std::size_t> (idx)]));
-        }
+      auto const padSlot = change.slot - numButtons;
+      outputPadLED ({ padSlot / numPadsPerChannel, padSlot % numPadsPerChannel },
+                    change.colour);
     }
-}
-
-void
-InputOutputAdapter::handleOutputMessage (
-    std::unique_ptr<OutputMessage> message)
-{
-  switch (message->type)
-    {
-    case OutputMessage::Type::ButtonLED:
-      {
-        auto messageButtonLED
-            = dynamic_cast<OutputMessageButtonLED *> (message.get ());
-        jassert (messageButtonLED != nullptr);
-        outputButtonLED (messageButtonLED->button, messageButtonLED->colour);
-        break;
-      }
-    case OutputMessage::Type::PadLED:
-      {
-        auto messagePadLED
-            = dynamic_cast<OutputMessagePadLED *> (message.get ());
-        jassert (messagePadLED != nullptr);
-        outputPadLED (messagePadLED->padIndex, messagePadLED->colour);
-        break;
-      }
-    }
-
-  message = nullptr;
 }
 }

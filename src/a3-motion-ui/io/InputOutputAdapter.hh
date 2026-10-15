@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-ui/io/LedState.hh>
 #include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/io/PanelOwnership.hh>
 #include <optional>
@@ -59,7 +60,7 @@ public:
    *  Assigning getButtonLED() works, but a juce::Value notifies its listeners
    *  asynchronously, so the key lit a loop after the press -- a lag you can
    *  see on a key you are watching while you press it. This puts the write
-   *  straight into the output FIFO and keeps the Value in step behind it. */
+   *  straight into the LED table and keeps the Value in step behind it. */
   void setButtonLED (Button button, juce::Colour colour);
 
 private:
@@ -234,43 +235,6 @@ protected:
     juce::int64 timeMicros;
   };
 
-  struct OutputMessage
-  {
-    virtual ~OutputMessage (){};
-
-    enum class Type
-    {
-      ButtonLED,
-      PadLED
-    };
-
-    Type type;
-  };
-
-  struct OutputMessageButtonLED : public OutputMessage
-  {
-    OutputMessageButtonLED ()
-    {
-      type = Type::ButtonLED;
-    }
-
-    Button button;
-    /** A transparent colour means the key's resting look — the adapter knows
-     *  what that is, since it comes out of the user config. */
-    juce::Colour colour;
-  };
-
-  struct OutputMessagePadLED : public OutputMessage
-  {
-    OutputMessagePadLED ()
-    {
-      type = Type::PadLED;
-    }
-
-    PadIndex padIndex;
-    juce::Colour colour;
-  };
-
   // called by the derived classes to read the specific hardware
   // interface and call the input* methods accordingly.
   virtual void processInput () = 0;
@@ -295,6 +259,10 @@ protected:
   virtual void outputButtonLED (Button button, juce::Colour colour) = 0;
   virtual void outputPadLED (PadIndex, juce::Colour colour) = 0;
 
+  /** Hand every LED change since the last call to outputButtonLED() and
+   *  outputPadLED(). The thread's loop calls it between polls. */
+  void processOutput ();
+
 private:
   void submitInputMessage (std::unique_ptr<InputMessage> message);
   void handleInputMessage (std::unique_ptr<InputMessage> message);
@@ -305,9 +273,9 @@ private:
   void handleTap (InputMessageTap const &message);
   void handlePanelKey (InputMessagePanelKey const &message);
 
-  void submitOutputMessage (std::unique_ptr<OutputMessage> message);
-  void processOutput ();
-  void handleOutputMessage (std::unique_ptr<OutputMessage> message);
+  /** Where a key's or a pad's colour sits in _ledState. */
+  static std::size_t ledSlot (Button button);
+  static std::size_t ledSlot (index_t channel, index_t pad);
 
   std::map<PadIndex, bool> _lastPadValues;
   std::array<std::array<juce::Value, numPadsPerChannel>, numChannels>
@@ -339,8 +307,9 @@ private:
   static constexpr int fifoSize = 32;
   juce::AbstractFifo _fifoAbstractInput{ fifoSize };
   std::array<std::unique_ptr<InputMessage>, fifoSize> _fifoInput;
-  juce::AbstractFifo _fifoAbstractOutput{ fifoSize };
-  std::array<std::unique_ptr<OutputMessage>, fifoSize> _fifoOutput;
+  /** The panel's LEDs as a table, not a queue: a queue of 31 dropped part of
+   *  the 41-LED picture painted at start (LedState.hh). */
+  LedState _ledState{ numButtons + numChannels * numPadsPerChannel };
 };
 
 }

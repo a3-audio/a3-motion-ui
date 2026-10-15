@@ -25,8 +25,6 @@ target_sources("a3-motion-ui" PRIVATE
     StandaloneApp.hh
     MainWindow.cc
     MainWindow.hh
-    io/InputOutputAdapter.cc
-    io/InputOutputAdapter.hh
     components/A3MotionUIComponent.cc
     components/A3MotionUIComponent.hh
     components/ChannelStrip.cc
@@ -142,6 +140,10 @@ set_target_properties(a3-motion-ui-shared PROPERTIES
     POSITION_INDEPENDENT_CODE TRUE)
 
 target_sources(a3-motion-ui-shared PRIVATE
+    # The adapter base has no hardware in it -- V2/V3 below the app do -- and
+    # the tests drive its LED output (AdapterLedOutput).
+    io/InputOutputAdapter.cc
+    io/InputOutputAdapter.hh
     FrameRate.cc
     FrameRate.hh
     WindowReport.cc
@@ -267,6 +269,7 @@ target_sources(a3-motion-ui-shared PRIVATE
     io/ButtonLedColours.cc
     io/LedLoad.cc
     io/LedCache.cc
+    io/LedState.cc
     io/OnScreenKeyboard.cc
     io/OnScreenKeyboard.hh
     io/PanelGrid.cc

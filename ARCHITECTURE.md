@@ -2474,6 +2474,13 @@ hardware (`processInput()`, implemented by subclasses), converts raw events into
 lock-free FIFO; a `timerCallback()` dispatches them onto `juce::Value`s that `A3MotionUIComponent`
 listens to via `juce::Value::Listener`. This keeps the UI protocol-agnostic.
 
+LEDs go the other way as **state, not messages**: the key and pad colours the UI asks for land in
+`io/LedState` (one slot per LED, the latest colour, a changed flag), and the thread's
+`processOutput()` takes what changed between polls. They used to travel as messages in a FIFO of
+31; the panel is 41 LEDs, so painting it at start dropped a different handful every time, and
+nothing ever sent them again. A table cannot overflow -- an LED changed twice before the thread
+gets to it goes out once, as its last colour. Pinned by `LedState.*` and `AdapterLedOutput.*`.
+
 Two concrete adapters, selected at configure time via `HARDWARE_INTERFACE_VERSION`:
 - `InputOutputAdapterV2` — older, textual serial protocol (`B`/`EB`/`Enc`/`P` line prefixes).
 - `InputOutputAdapterV3` — current hardware, binary packed poll-frames (`GET_BUTTONS`,
