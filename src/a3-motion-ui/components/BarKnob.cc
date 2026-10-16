@@ -37,7 +37,6 @@ namespace
 // The same two washes the rest of the bar uses; they came across with the
 // drawing rather than being guessed at again.
 constexpr float highlightWash = 0.18f;
-constexpr float trackWash = 0.18f;
 
 /** Selected, the control wears its channel's colour; otherwise the bar's own
  *  muted grey. The bar asked its member for this -- here it is the argument.
@@ -52,6 +51,28 @@ controlColour (juce::Colour channelColour, bool isSelected)
   return isSelected ? channelColour : toColour (theme ().textMuted);
 }
 
+}
+
+namespace
+{
+// StemDeck's knob (stemdeck/Source/Theme.cpp, drawRotarySlider), in shares.
+constexpr float ringShareOfHalfSize = 0.92f;
+constexpr float strokeShareOfRadius = 0.18f;
+constexpr float bodyGapInStrokes = 2.2f;
+constexpr float pointerFromShare = 0.4f;
+constexpr float pointerToShare = 0.9f;
+constexpr float pointerWidthShare = 0.2f;
+}
+
+KnobGeometry
+knobGeometry (float knobSize)
+{
+  KnobGeometry k;
+  k.radius = knobSize * 0.5f * ringShareOfHalfSize;
+  k.stroke = k.radius * strokeShareOfRadius;
+  k.ringRadius = k.radius - 0.5f * k.stroke;
+  k.bodyRadius = k.radius - bodyGapInStrokes * k.stroke;
+  return k;
 }
 
 std::vector<std::pair<float, float> >
@@ -159,30 +180,35 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                 juce::roundToInt (knobBlockHeight (metrics)
                                   - 2.f * theme ().paddingTight)));
 
+  // No caption, no caption row: the knob takes the cell (the KEYS knobs).
   auto labelArea
-      = content.removeFromBottom (textRowHeight (content, metrics.captionSize));
+      = label.isEmpty ()
+            ? juce::Rectangle<int> ()
+            : content.removeFromBottom (
+                  textRowHeight (content, metrics.captionSize));
 
   auto const knobColour = controlColour (channelColour, isSelected);
   // A take writing this knob: the REC key's red on what the hand sets, the
   // value arc and the pointer. Blue stays what a lane playing it looks like.
-  auto const valueColour
-      = writing ? transportColour (TransportKey::Record) : knobColour;
+  auto const writingColour = transportColour (TransportKey::Record);
+  auto const valueColour = writing ? writingColour : knobColour;
   // The knob keeps its diameter; the captions get the whole cell. Confining
   // both to knobDiam is what truncated "Forward" and "end-action" to "...".
   auto const knobSize = static_cast<float> (
       juce::jmin (metrics.knobDiam, juce::jmin (content.getWidth (),
                                                 content.getHeight ())));
   auto const centre = content.toFloat ().getCentre ();
-  auto const r = knobSize * 0.5f * 0.82f;
+  auto const k = knobGeometry (knobSize);
+  auto const r = k.ringRadius;
 
-  // Rotary knob, Ableton/Bitwig-style: angleFrac in [-1, 1], 0 points
-  // straight up, -1/+1 sit at -135deg/+135deg. Angles here follow JUCE's
-  // addCentredArc convention (0 = 12 o'clock, increasing clockwise).
+  // StemDeck's knob (2026-10-16): a ring with rounded ends around a raised
+  // cap, the channel's colour in the arc, a neutral tick on the cap. angleFrac
+  // in [-1, 1], 0 points straight up, -1/+1 sit at -144deg/+144deg. Angles
+  // follow JUCE's addCentredArc convention (0 = 12 o'clock, clockwise).
   // A closed control has no ends, so its scale is the whole turn and its
   // value is taken modulo that rather than clamped: clamping is what a stop
   // does, and there is no stop here.
-  auto const sweep = wraps ? juce::MathConstants<float>::pi
-                           : juce::MathConstants<float>::pi * 0.75f; // 135deg
+  auto const sweep = wraps ? juce::MathConstants<float>::pi : knobSweep;
   auto const wrapped = [] (float frac) {
     frac = std::fmod (frac + 1.f, 2.f);
     return (frac < 0.f ? frac + 2.f : frac) - 1.f;
@@ -191,14 +217,28 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       = (wraps ? wrapped (angleFrac) : std::clamp (angleFrac, -1.0f, 1.0f))
         * sweep;
 
-  juce::Path track;
+  juce::PathStrokeType const ringStroke (k.stroke,
+                                         juce::PathStrokeType::curved,
+                                         juce::PathStrokeType::rounded);
+  auto const strokeArc = [&] (float from, float to) {
+    // A rounded end on nothing would still draw a dot.
+    if (juce::approximatelyEqual (from, to))
+      return;
+    juce::Path arc;
+    arc.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
+    g.strokePath (arc, ringStroke);
+  };
+
+  g.setColour (toColour (theme ().textPrimary, theme ().alphaGuide));
   if (wraps)
-    track.addEllipse (juce::Rectangle<float> (r * 2.f, r * 2.f)
-                          .withCentre (centre));
+    {
+      juce::Path track;
+      track.addEllipse (juce::Rectangle<float> (r * 2.f, r * 2.f)
+                            .withCentre (centre));
+      g.strokePath (track, ringStroke);
+    }
   else
-    track.addCentredArc (centre.x, centre.y, r, r, 0.f, -sweep, sweep, true);
-  g.setColour (toColour (theme ().textPrimary, trackWash));
-  g.strokePath (track, juce::PathStrokeType (juce::jmax (1.f, r * 0.16f)));
+    strokeArc (-sweep, sweep);
 
   // Bipolar params (e.g. wrap) fill from the centre out to the value;
   // unipolar params (e.g. clip-top/clip-bottom) fill from the sweep's
@@ -208,14 +248,9 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
   // for what the modulation is doing to it.
   if (!wraps)
     {
-      juce::Path valueArc;
-      auto const fromAngle = fillFromZero ? std::min (0.f, angleValue) : -sweep;
-      auto const toAngle = fillFromZero ? std::max (0.f, angleValue) : angleValue;
-      valueArc.addCentredArc (centre.x, centre.y, r, r, 0.f, fromAngle, toAngle,
-                              true);
       g.setColour (valueColour);
-      g.strokePath (valueArc,
-                    juce::PathStrokeType (juce::jmax (1.5f, r * 0.16f)));
+      strokeArc (fillFromZero ? std::min (0.f, angleValue) : -sweep,
+                 fillFromZero ? std::max (0.f, angleValue) : angleValue);
     }
 
   // Where a modulation has carried the knob past what was set. The pointer
@@ -224,7 +259,6 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
   // a blue arc always means "something is moving this".
   if (reachFrac > -2.f)
     {
-      auto const thickness = juce::jmax (1.5f, r * 0.16f);
       auto const reachAngle
           = (wraps ? wrapped (reachFrac) : std::clamp (reachFrac, -1.f, 1.f))
             * sweep;
@@ -232,23 +266,38 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       g.setColour (toColour (theme ().notice));
       for (auto const &[from, to] :
            modulationArcs (angleValue, reachAngle, sweep, wraps))
-        {
-          juce::Path piece;
-          piece.addCentredArc (centre.x, centre.y, r, r, 0.f, from, to, true);
-          g.strokePath (piece, juce::PathStrokeType (thickness));
-        }
+        strokeArc (from, to);
     }
 
-  // Said outright rather than inherited: the pointer used to be drawn in
-  // whatever colour the value arc had left set, so a ring -- which has no
-  // value arc -- drew its pointer in the modulation's blue.
-  g.setColour (valueColour);
-  auto const tip = centre.getPointOnCircumference (r, angleValue);
-  g.drawLine (centre.x, centre.y, tip.x, tip.y, juce::jmax (1.5f, r * 0.12f));
-  g.setColour (knobColour);
+  // The cap, lit from above -- lightness is elevation. Both ends are the
+  // bar's ground lifted by the skin's own washes, so a skin moves it with
+  // everything else.
+  auto const ground = toColour (theme ().surface);
+  auto const bodyR = k.bodyRadius;
+  g.setGradientFill (juce::ColourGradient (
+      ground.overlaidWith (toColour (theme ().textPrimary, theme ().alphaGuide)),
+      centre.x, centre.y - bodyR,
+      ground.overlaidWith (toColour (theme ().textPrimary, theme ().alphaFill)),
+      centre.x, centre.y + bodyR, false));
+  g.fillEllipse (juce::Rectangle<float> (bodyR * 2.f, bodyR * 2.f)
+                     .withCentre (centre));
 
-  auto const dotR = r * 0.22f;
-  g.fillEllipse (juce::Rectangle<float> (dotR, dotR).withCentre (centre));
+  // The pointer: a light tick on the cap, not the channel's colour -- the
+  // arc carries whose knob it is, the tick where it stands. Said outright
+  // rather than inherited from the last colour set.
+  auto const pointerColour
+      = writing ? writingColour
+                : (isSelected ? toColour (theme ().textPrimary)
+                              : toColour (theme ().textMuted));
+  auto const tickWidth = bodyR * pointerWidthShare;
+  juce::Path tick;
+  tick.addRoundedRectangle (-0.5f * tickWidth, -bodyR * pointerToShare,
+                            tickWidth,
+                            bodyR * (pointerToShare - pointerFromShare),
+                            0.5f * tickWidth);
+  g.setColour (pointerColour);
+  g.fillPath (tick, juce::AffineTransform::rotation (angleValue)
+                        .translated (centre));
 
   // A take's lane is turning it: a small dot in the REC key's red, up and to
   // the right of the ring, where it names the knob without covering its arc.
@@ -261,6 +310,9 @@ paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
       g.fillEllipse (
           juce::Rectangle<float> (markR * 2.f, markR * 2.f).withCentre (at));
     }
+
+  if (label.isEmpty ())
+    return;
 
   // The shared size, not this caption's own fit. Its box is only consulted as
   // a floor: a control box too short for the shared size would otherwise have

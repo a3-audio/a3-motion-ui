@@ -203,3 +203,138 @@ TEST (BarKnob, AFrameNeverLeavesItsCell)
 
   EXPECT_TRUE (tight.toFloat ().contains (encoderMarkBounds (tight, metrics)));
 }
+
+// -- StemDeck's knob (2026-10-16) -------------------------------------------
+
+// The rings as StemDeck draws them: the outer edge a little inside the knob's
+// box, a ring 0.18 of the radius wide, the cap 2.2 rings in from the edge.
+TEST (BarKnob, TheGeometryIsStemDecksInShares)
+{
+  auto const k = knobGeometry (60.f);
+  EXPECT_FLOAT_EQ (k.radius, 0.46f * 60.f);
+  EXPECT_FLOAT_EQ (k.stroke, 0.18f * k.radius);
+  EXPECT_FLOAT_EQ (k.ringRadius, k.radius - 0.5f * k.stroke);
+  EXPECT_FLOAT_EQ (k.bodyRadius, k.radius - 2.2f * k.stroke);
+
+  auto const twice = knobGeometry (120.f);
+  EXPECT_FLOAT_EQ (twice.bodyRadius, 2.f * k.bodyRadius) << "shares, no pixels";
+}
+
+TEST (BarKnob, TheSweepIsAHundredAndFortyFourDegreesEachWay)
+{
+  EXPECT_NEAR (juce::radiansToDegrees (knobSweep), 144.f, 0.01f);
+}
+
+namespace
+{
+constexpr int side = 80;
+ControlMetrics const bigKnob{ 60, 10.f, 10.f };
+
+/** A knob without a caption, which stands in the middle of its cell. */
+juce::Image
+paintedKnob (float angleFrac, bool selected, bool writing = false)
+{
+  juce::Image image (juce::Image::ARGB, side, side, true);
+  juce::Graphics g (image);
+  // Not lit: the lit wash would tint the whole cell.
+  paintBarKnob (g, image.getBounds (), bigKnob, juce::Colours::green, {},
+                angleFrac, false, false, selected, -2.f, false, writing);
+  return image;
+}
+
+juce::Colour
+pixelAt (juce::Image const &image, float angleRadians, float distance)
+{
+  auto const centre = juce::Point<float> (side * 0.5f, side * 0.5f);
+  auto const at = centre.getPointOnCircumference (distance, angleRadians);
+  return image.getPixelAt (juce::roundToInt (at.x), juce::roundToInt (at.y));
+}
+
+int
+distance (juce::Colour a, juce::Colour b)
+{
+  return std::abs (a.getRed () - b.getRed ())
+         + std::abs (a.getGreen () - b.getGreen ())
+         + std::abs (a.getBlue () - b.getBlue ());
+}
+
+float
+bodyRadius ()
+{
+  return knobGeometry (static_cast<float> (bigKnob.knobDiam)).bodyRadius;
+}
+}
+
+// A knob without a caption gives the caption's row to the knob and stands
+// in the middle of its cell -- the KEYS knobs have no caption.
+TEST (BarKnob, AKnobWithoutACaptionStandsInTheMiddle)
+{
+  // The cap, walked from the middle of the cell up and down its edge. The
+  // ring has a gap at the bottom, so the cap is what is symmetric.
+  auto const image = paintedKnob (0.625f, true);
+  auto const solid = [&image] (int y) {
+    return image.getPixelAt (side / 2, y).getAlpha () > 128;
+  };
+  int top = side / 2, bottom = side / 2;
+  while (top > 0 && solid (top - 1))
+    --top;
+  while (bottom < side - 1 && solid (bottom + 1))
+    ++bottom;
+  ASSERT_GT (bottom - top, side / 4) << "a cap in the middle";
+  EXPECT_NEAR ((top + bottom) * 0.5f, side * 0.5f, 1.5f);
+}
+
+// A raised cap, lit from above: lightness is elevation.
+TEST (BarKnob, TheBodyIsLighterAtTheTop)
+{
+  // The pointer at three o'clock, out of the way of the line probed.
+  auto const image = paintedKnob (0.625f, true);
+  auto const top = pixelAt (image, 0.f, 0.6f * bodyRadius ());
+  auto const bottom
+      = pixelAt (image, juce::MathConstants<float>::pi, 0.6f * bodyRadius ());
+  EXPECT_GT (top.getAlpha (), 250) << "the cap is solid";
+  EXPECT_GT (bottom.getAlpha (), 250);
+  EXPECT_GT (top.getPerceivedBrightness (), bottom.getPerceivedBrightness ());
+}
+
+// The channel's colour lives in the arc; the pointer is a light tick on the
+// cap, as on StemDeck.
+TEST (BarKnob, ThePointerIsANeutralTickOnTheBody)
+{
+  auto const image = paintedKnob (0.f, true); // straight up
+  auto const tick = pixelAt (image, 0.f, 0.65f * bodyRadius ());
+  EXPECT_LT (distance (tick, toColour (theme ().textPrimary)), 30);
+  EXPECT_GT (distance (tick, juce::Colours::green), 100);
+
+  // It starts out on the cap, not in the middle.
+  auto const middle = pixelAt (image, 0.f, 0.f);
+  EXPECT_GT (distance (middle, toColour (theme ().textPrimary)), 100);
+}
+
+TEST (BarKnob, ThePointerOfAKnobNotSelectedIsMuted)
+{
+  auto const image = paintedKnob (0.f, false);
+  auto const tick = pixelAt (image, 0.f, 0.65f * bodyRadius ());
+  EXPECT_LT (distance (tick, toColour (theme ().textMuted)), 30);
+}
+
+TEST (BarKnob, ThePointerOfAKnobATakeIsWritingIsRed)
+{
+  auto const image = paintedKnob (0.f, true, true);
+  auto const tick = pixelAt (image, 0.f, 0.65f * bodyRadius ());
+  EXPECT_LT (distance (tick, transportColour (TransportKey::Record)), 30);
+}
+
+// Full scale reaches 144 degrees round, and no further.
+TEST (BarKnob, AFullKnobFillsTheWholeSweep)
+{
+  auto const image = paintedKnob (1.f, true);
+  auto const ring
+      = knobGeometry (static_cast<float> (bigKnob.knobDiam)).ringRadius;
+  auto const at = [&] (float degrees) {
+    return pixelAt (image, juce::degreesToRadians (degrees), ring);
+  };
+  EXPECT_LT (distance (at (140.f), juce::Colours::green), 40);
+  EXPECT_LT (distance (at (-140.f), juce::Colours::green), 40);
+  EXPECT_GT (distance (at (160.f), juce::Colours::green), 100);
+}

@@ -192,8 +192,10 @@ LookAndFeel_A3::drawRotarySlider (juce::Graphics &g, int x, int y, int width,
   auto const enabled = slider.isEnabled ();
   if (!enabled)
     g.beginTransparencyLayer (theme ().alphaDisabled);
-  paintBarKnob (g, juce::Rectangle<int> (x, y, width, height),
-                mixerControlMetrics (),
+  auto metrics = mixerControlMetrics ();
+  if (knob->fillsItsCell ())
+    metrics.knobDiam = juce::jmin (width, height);
+  paintBarKnob (g, juce::Rectangle<int> (x, y, width, height), metrics,
                 slider.findColour (juce::Slider::thumbColourId),
                 knob->label (), angle, knob->fillsFromTheMiddle (),
                 knob->isActive (), knob->isSelected (), knob->reach (),

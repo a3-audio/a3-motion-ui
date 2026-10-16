@@ -67,6 +67,27 @@ std::vector<std::pair<float, float> > modulationArcs (float valueAngle,
 juce::Rectangle<float> encoderMarkBounds (juce::Rectangle<int> bounds,
                                           ControlMetrics metrics);
 
+/** A knob's rings, as shares of the size it is drawn at -- StemDeck's knob
+ *  (2026-10-16), so the two instruments on the desk turn the same knob.
+ *  Every one is relative: the knob follows Pot Size and nothing else. */
+struct KnobGeometry
+{
+  /** The ring's outer edge. */
+  float radius = 0.f;
+  /** The ring's width, track and value arc alike. */
+  float stroke = 0.f;
+  /** Where the ring's stroke is centred. */
+  float ringRadius = 0.f;
+  /** The raised cap inside the ring, which carries the pointer. */
+  float bodyRadius = 0.f;
+};
+
+KnobGeometry knobGeometry (float knobSize);
+
+/** Each way from straight up, for a knob with ends: JUCE's own rotary
+ *  default and StemDeck's, 144 degrees. A ring goes all the way round. */
+constexpr float knobSweep = juce::MathConstants<float>::pi * 0.8f;
+
 void paintBarKnob (juce::Graphics &g, juce::Rectangle<int> bounds,
                    ControlMetrics metrics, juce::Colour channelColour,
                    juce::String const &label, float angleFrac,

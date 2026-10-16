@@ -26,6 +26,10 @@
 #include <a3-motion-ui/components/ControllerLayout.hh>
 #include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/MixerControls.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+#include <a3-motion-ui/theme/ThemeColours.hh>
+
+#include <ShippedSkin.hh>
 
 #include <algorithm>
 
@@ -124,4 +128,42 @@ TEST (ChannelFaces, TheFaceRowPaintsOnEveryPage)
       EXPECT_EQ (image.getWidth (), b.bar.getWidth ());
       EXPECT_EQ (image.getHeight (), b.bar.getHeight ());
     }
+}
+
+// The face row in the shipped skin, written out for a look when
+// A3_SNAPSHOT_DIR is set: every knob on it is StemDeck's (2026-10-16), the
+// channel's colour in the arc, a light tick on a dark cap.
+TEST (ChannelFaces, TheFaceRowPaintsInTheShippedSkin)
+{
+  auto const before = theme ();
+  setTheme (loadTheme (shippedSkin ()));
+  {
+    Bar b (BarPage::Clip);
+    std::array<juce::Colour, numChannelColumns> colours;
+    for (size_t i = 0; i < colours.size (); ++i)
+      colours[i] = toColour (theme ().channel[i]);
+    b.bar.setChannelFaces (colours, { "Closing Sunset", "Tribal Drift", "",
+                                      "Acid Spiral" },
+                           1);
+
+    auto const pots = facePots (b.bar);
+    ASSERT_FALSE (pots.empty ());
+    auto row = pots.front ()->getBounds ();
+    for (auto *pot : pots)
+      row = row.getUnion (pot->getBounds ());
+
+    auto const image = b.bar.createComponentSnapshot (row);
+    EXPECT_EQ (image.getWidth (), row.getWidth ());
+
+    auto const dir
+        = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
+    if (dir.isNotEmpty ())
+      {
+        auto file = juce::File (dir).getChildFile ("channel-row.png");
+        file.deleteFile ();
+        juce::FileOutputStream out (file);
+        juce::PNGImageFormat ().writeImageToStream (image, out);
+      }
+  }
+  setTheme (before);
 }

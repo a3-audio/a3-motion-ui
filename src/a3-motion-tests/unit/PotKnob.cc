@@ -132,6 +132,37 @@ TEST (PotKnob, TheLookAndFeelDrawsItAsTheDevicesOwnKnob)
   knob.setLookAndFeel (nullptr);
 }
 
+// A knob asked to fill its cell -- the KEYS knobs, which have no caption and
+// a cell of their own -- is drawn as large as the cell, not at Pot Size: the
+// cell is the size it was given, and Pot Size is a caption's knob.
+TEST (PotKnob, AKnobThatFillsItsCellIsDrawnAtTheCellsSize)
+{
+  LookAndFeel_A3 lookAndFeel;
+  PotKnob knob;
+  knob.setLookAndFeel (&lookAndFeel);
+  auto const cell = 4 * mixerControlMetrics ().knobDiam;
+  knob.setBounds (0, 0, cell, cell);
+  knob.setFillsItsCell (true);
+  EXPECT_TRUE (knob.fillsItsCell ());
+
+  juce::Image image (juce::Image::ARGB, cell, cell, true);
+  {
+    juce::Graphics g (image);
+    knob.paintEntireComponent (g, false);
+  }
+  // Across the middle row: the knob's width, its faint track included.
+  int left = cell, right = -1;
+  for (int x = 0; x < cell; ++x)
+    if (image.getPixelAt (x, cell / 2).getAlpha () > 30)
+      {
+        left = std::min (left, x);
+        right = std::max (right, x);
+      }
+  EXPECT_GT (right - left, cell * 3 / 4);
+
+  knob.setLookAndFeel (nullptr);
+}
+
 // A knob that takes no hand -- a band knob during a take -- is drawn the way
 // every disabled control is: the same picture at the skin's disabled alpha,
 // fainter everywhere it was drawn and nowhere else (2026-10-08).

@@ -81,6 +81,11 @@ public:
   void setEncoderMarked (bool marked);
   bool isEncoderMarked () const { return _encoderMarked; }
 
+  /** Drawn as large as its cell allows rather than at Pot Size -- for a
+   *  knob without a caption that has a cell of its own (KEYS). */
+  void setFillsItsCell (bool fills);
+  bool fillsItsCell () const { return _fillsItsCell; }
+
   /** The channel's colour, or the skin's text colour where a control belongs
    *  to nobody in particular. */
   void setKnobColour (juce::Colour colour);
@@ -118,6 +123,7 @@ private:
   bool _encoderMarked = false;
   bool _fillsFromTheMiddle = false;
   bool _wraps = false;
+  bool _fillsItsCell = false;
   /** As the mixer's knobs have always been drawn: the colour is the
    *  channel's (selected), and the lit look belongs to the bar's browsing,
    *  which a mixer page has none of. */

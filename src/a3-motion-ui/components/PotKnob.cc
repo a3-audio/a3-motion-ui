@@ -144,6 +144,16 @@ PotKnob::setWraps (bool wraps)
 }
 
 void
+PotKnob::setFillsItsCell (bool fills)
+{
+  if (_fillsItsCell == fills)
+    return;
+
+  _fillsItsCell = fills;
+  repaint ();
+}
+
+void
 PotKnob::setReach (float reach)
 {
   if (juce::approximatelyEqual (_reach, reach))
