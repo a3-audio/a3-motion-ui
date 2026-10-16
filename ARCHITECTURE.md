@@ -22,9 +22,8 @@ Linux — and if `egl.pc` is absent at configure time JUCE drops its `egl;gl` gr
 build directory must be configured again after installing it, not merely rebuilt), and (when hardware support is on) `libserial`/`libgpiod` dev packages, plus GoogleTest
 (`libgtest-dev libgmock-dev`) for the test target.
 
-At **runtime** the UI also expects `onboard` and `dbus-send` for text entry on the touchscreen —
-see "On-screen keyboard" below. Neither is needed to build, and without them every field is still
-reachable with the encoder.
+Text entry needs nothing at runtime: the on-screen keyboard is the app's own (see "On-screen
+keyboard" below). Onboard and `dbus-send` are no longer used.
 
 `build.sh` finds JUCE at `~/local/juce` on its own and prints which version it
 picked before it builds — nothing needs exporting. `JUCE_DIR` still overrides
@@ -1176,6 +1175,21 @@ the blue says where the spin is holding it now. Watch for the trap that caught t
 colour used to be inherited from whatever the value arc had set, so removing the arc drew the
 pointer in the modulation's blue. It sets its own colour now.
 
+**Every knob is one drawing, StemDeck's** (2026-10-16). `paintBarKnob` (`components/BarKnob.cc`) is
+the only code that draws a knob: `LookAndFeel_A3::drawRotarySlider` hands it every `PotKnob`, and the
+mixer and the clip bar call it directly, so the channel row, CLIP/MOTION/REC, CHMIX, the MIXER
+overlay, ACTION and KEYS all follow it. The look is StemDeck's mixer knob, so both instruments on the
+desk turn the same knob: a ring with rounded ends, its track the whole sweep in `textPrimary` @
+`alphaGuide`, the value arc in the channel's colour (`textMuted` when not selected, the REC red while a
+take writes it), the modulation arc in `notice`, and inside it a raised cap lit from above (`surface`
+lifted by `textPrimary` @ `alphaGuide` at the top and @ `alphaFill` at the bottom) carrying a neutral
+light tick as the pointer -- `textPrimary`, `textMuted` when not selected, red while writing. **The
+channel's colour lives in the arc, the tick says where it stands.** The sweep is ±144° (JUCE's default,
+`knobSweep`); a ring goes all the way round. Every size is a share of the knob (`knobGeometry`: outer
+edge 0.46 of the size, ring 0.18 of the radius, cap 2.2 rings in), so Pot Size moves all of it and no
+skin value was added. A knob without a caption gives the caption's row to the knob. Tests:
+`BarKnob.*` (geometry, the cap lighter on top, the tick's colour in each state, the sweep).
+
 **A knob's blue arc is fed, not drawn from what the knob knows.** A `PotKnob` holds its value; where
 a modulation is carrying that value right now — the spin under `rot`, the swell under `reach`, the
 stretches under the two squeezes — comes from the page, through `putReachOnKnob()`, converted by
@@ -2311,31 +2325,31 @@ Back is exactly what the Menu key does (`toggleGlobalSettings`) — one level at
 
 #### On-screen keyboard
 
-**The keyboard is the app's own and stands in the bar** (2026-09-28, replacing Onboard). Asked for
-as *"ein keyboard welches nur den bereich vom clipsettingeditor ausfüllt und auf unser hardware
-controller layout passt"*. `BarKeyboardComponent` covers exactly the clip content
+**The keyboard is the app's own, stands in the bar, and is the panel** (2026-09-28, replacing Onboard;
+the panel's layout since 2026-09-30). `BarKeyboardComponent` covers exactly the clip content
 (`ClipSettingsComponent::clipContentBounds()`, the rectangle CLIP, MOTION, ACTION, CHMIX and REC
 use), so the sphere, the channel row, the header and the global strip stay in view -- and with
 them every field text is typed into, because all of those lie over the sphere: the menu's masks
 and skin names (`SkinEditorComponent`), the FILES rename row (`BrowserComponent`) and the FILES
 script editor (`ScriptPanel`). It is a child of the bar, always on top of ACTION and CHMIX.
 
-**Laid out on the encoders' four by two.** `pageFieldGrid()` is the one grid of eight fields CLIP,
-MOTION and REC stand in; the keyboard splits each field into two rows of three keys
-(`BarKeyboardLayout`), so it is four rows of twelve and every key stands under exactly one
-encoder. Wide keys (space, HIDE) span whole slots. QWERTZ, because the maintainer types German:
+**Its keys are the panel's 44, on the PADS grid** (`PanelKeyboard.hh`, `panelCellBounds`): a key on
+the screen stands where its key is on the panel, and while the keyboard is up the panel's keys type.
+QWERTY, because there are ten columns where QWERTY has ten:
 
 | Row | Letters page | Symbols page (123) |
 |---|---|---|
-| 1 | `q w e` `r t z` `u i o` `p ü DEL` | `1 2 3` `4 5 6` `7 8 9` `0 . DEL` |
-| 2 | `a s d` `f g h` `j k l` `ö ä ENTER` | `- / "` `: ; =` `~ \ '` `, + ENTER` |
-| 3 | `SHIFT y x` `c v b` `n m ß` `. - _` | `( ) {` `} [ ]` `< > *` `_ \| !` |
-| 4 | `123 ◀ ▶` `SPACE ···` `··· ···` `ESC HIDE ···` | `ABC ◀ ▶` (the rest as on letters) |
+| 0 | `ESC` · *encoders E1–E4* · `DEL` | the same |
+| 1 | `123` · *encoders E5–E8* · `ENTER` | `ABC` · … · `ENTER` |
+| 2 | `q w e r t y u i o p` | `1 2 3 4 5 6 7 8 9 0` |
+| 3 | `a s d f g h j k l -` | `- / : ; ( ) = + _ *` |
+| 4 | `z x c v b n m , . /` | `{ } [ ] < > \ \| ! ~` |
+| 5 | `SHIFT ◀ ▶ SPACE ' " HIDE` (SPACE four cells, one bar on screen) | the same |
 
-The symbols page holds what the shipped scripts, clips and sets are written with; the editing
-keys stand in the same place on both pages. SHIFT once is the next letter, twice CAPS, a third
-time off. DEL and the arrows act on touch and repeat while held; every other key types on release,
-so a finger can slide off a wrong key.
+The symbols page holds what the shipped scripts, clips and sets are written with. SHIFT once is the
+next letter, twice CAPS, a third time off; SHIFT held capitalises. DEL and the arrows act on touch
+and repeat while held; on the screen every other key types on release, so a finger can slide off a
+wrong key, and on the panel on the press.
 
 **It types nothing itself.** A key becomes a `juce::KeyPress` (`BarKeyboardModel::pressKey`) and
 goes through the window's peer (`ComponentPeer::handleKeyPress`) to whatever holds the focus,
@@ -2344,23 +2358,40 @@ already know what Backspace, Enter, Escape and the arrows mean. The keyboard the
 takes the focus** (`setMouseClickGrabsKeyboardFocus (false)`): the rename row and the script editor
 end their edit when they lose it.
 
-It opens and closes with the edit: the same `onNamingChanged` / `onRenameEditingChanged` /
-`onEditingChanged` callbacks that used to call Onboard call `showKeyboard()`. So ENTER closes it
-wherever Enter ends the edit (masks, rename); in the script editor ENTER is a new line and ESC or
-HIDE put it away. HIDE leaves the field open; the status bar's KEYS key toggles the keyboard
-always.
+It opens and closes with the edit: the `onNamingChanged` / `onRenameEditingChanged` /
+`onEditingChanged` callbacks call `showKeyboard()`. So ENTER closes it wherever Enter ends the edit
+(masks, rename); in the script editor ENTER is a new line and ESC or HIDE put it away. HIDE leaves
+the field open; the status bar's KEYS key toggles the keyboard always.
 
-**The panel while it is up** (the table lives in `BarKeyboardModel.hh`):
+**The eight encoders, shown in rows 0-1** (decided 2026-10-16). The band between the corner keys is
+where the panel has its pots, so the screen shows each encoder there: one slot over its channel's two
+pad columns (`keyboardEncoderSlot`), the knob in the left cell and a sign of what it does in the
+right (`KnobGlyph`, a `juce::Path` from shares of its box). The knobs are **display only**
+(`setInterceptsMouseClicks (false, false)`): at about 5 mm they are below a fingertip, and a touch
+meant for a key must never turn one. What each encoder does is one pure table,
+`keyboardEncoderJob` (`KeyboardEncoders.hh`):
 
-| Panel | While typing |
-|---|---|
-| encoder, turned | walks the six keys of the field it stands under (upper: key rows 1-2, lower: 3-4); the first detent only shows the ring |
-| encoder, pressed | types the key its ring is on |
-| SHIFT + encoder | FREQ / Q of its channel, as always |
-| SHIFT held + a key | capital letter |
-| pads, pots, TAP, clock, REC, recmode, MENU | unchanged |
+| Encoder | Turn while KEYS is up | Knob shows |
+|---|---|---|
+| E1 (ch 1, upper) | text cursor ◀ / ▶ | a ring, cursor sign |
+| E5 (ch 1, lower) | the script editor's **view** up / down, 1 line a detent (`linesPerDetent`) | arc = how far down, ↕ sign |
+| E6 (ch 2, lower) | the view left / right, 4 columns a detent (`columnsPerDetent`) | arc = how far across, ↔ sign |
+| E2–E4, E7, E8 | nothing | dimmed, no sign |
+| any + SHIFT | FREQ / Q of its channel, as on every page -- E1 included | -- |
+| any, pressed | nothing | -- |
 
-No pad types: the pads play the set, and the keyboard is opened mid-set.
+E5 and E6 move the view, not the caret, the way the scroll bars do (`ScriptEditor::scrollLinesBy` /
+`scrollColumnsBy`, through `ScriptPanel`), and stop with the last line at the bottom. They act on
+FILES' script editor whenever it is on screen (`A3MotionUIComponent::scriptOnScreen`, `isShowing()`)
+and are dimmed when it is not. The column a view starts at is read from the editor's horizontal
+`ScrollBar` (`firstColumnOnScreen`), so a finger's drag, the encoder and the editor keeping its caret
+in view share one position; the knobs are refreshed from it on the UI timer
+(`refreshKeyboardEncoders`), which changes nothing while nothing moved. The other five do nothing on
+purpose: they used to turn the hidden page's fields, a knob changing something nobody can see.
+
+**The rest of the panel while it is up** (the table also lives in `BarKeyboardModel.hh`): the 44 keys
+type -- no clip fires, TAP/REC/MENU/SHIFT do nothing else, HIDE or ESC gives the panel back; the pots
+are unchanged, so the mix stays under the hands; running clips go on, new ones wait.
 
 `io/OnScreenKeyboard.{hh,cc}` (the Onboard D-Bus client) is no longer called by the app; it is
 still built and tested until it is removed.
