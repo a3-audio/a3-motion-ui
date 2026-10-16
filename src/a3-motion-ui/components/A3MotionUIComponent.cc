@@ -3258,14 +3258,6 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
   // something -- one that does nothing teaches you to stop trusting the
   // others.
   //
-  // What the five keys say, and which of them can be pressed. All five say the
-  // same words on every tab -- what they act on is the list you are looking
-  // at, and the lit tab above it has already said which list that is. "Save
-  // Action" spent a word saying it again, and keys that reword themselves
-  // between tabs are keys you read instead of aim at.
-  auto const chosen = chosenEntryHasAFile ();
-  auto const rename = renameKeyLabel ();
-
   // The word on the key is the state it is in, not the one the next press
   // would bring -- a key naming what you would get rather than what you have
   // is a key you press to find out where you are.
@@ -3273,29 +3265,11 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
                       : _clipFilter == ClipFilter::User ? "User"
                                                         : "System";
 
-  // Save wants somewhere to write back to; Save as only wants something to
-  // write. A slot with nothing in it has neither.
-  auto const inPlace = canSaveInPlace ();
-  auto const holds = _clipSettingsChannel < _patterns.size ()
-                     && _clipSettingsSlot
-                            < _patterns[_clipSettingsChannel].size ()
-                     && _patterns[_clipSettingsChannel][_clipSettingsSlot]
-                            != nullptr;
-  // The delete key says what the next press will do. Armed it wears the word
-  // rather than a colour, because a key that only changed colour would be a
-  // key you have to have been watching.
-  auto const remove = deleteKeyLabel ();
-
-  // A set can always be put away -- there is always an arrangement to keep --
-  // where a clip and an action are made out of what a slot holds, and an
-  // empty slot holds nothing to write.
   auto const keys = currentLibraryKeys ();
 
-  // The list keeps only its own keys: Save and Save as are the script
-  // panel's beside it on every tab (2026-09-27); Load stays SETS'.
-  _browser->setActions ({ "Load", filter, rename, "", "", remove },
-                        { keys.load, keys.filter, keys.rename, false, false,
-                          keys.remove });
+  // FILES keeps only its filter; the file keys are KEYS' (2026-10-16),
+  // which reads the same rules (refreshKeyboardEncoders).
+  _browser->setFilter (filter, keys.filter);
 
   // Last, once the chosen row is settled: the script beside the list
   // follows it, or holds it while it has unsaved text.
@@ -8575,7 +8549,9 @@ A3MotionUIComponent::refreshKeyboardEncoders ()
   look (FileKey::Rename, renameKeyLabel (), library.rename);
   look (FileKey::Delete, deleteKeyLabel (), library.remove);
   look (FileKey::Load, "Load", library.load);
-  look (FileKey::Save, "Save", script.save);
+  // SAVE flashes with Cancel when unsaved text holds the list.
+  look (FileKey::Save, "Save", script.save,
+        script.save && _browser->scriptPanel ().isFlashing ());
   look (FileKey::SaveAs, "Save as", script.saveAs);
   look (FileKey::From, fromKeyLabel (), script.fromClip, _fromArmed);
   _barKeyboard->showFiles (view);

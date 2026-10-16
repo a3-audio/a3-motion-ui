@@ -29,8 +29,6 @@ target_sources("a3-motion-ui" PRIVATE
     components/A3MotionUIComponent.hh
     components/ChannelStrip.cc
     components/ChannelStrip.hh
-    components/BrowserComponent.cc
-    components/BrowserComponent.hh
     components/MotionComponent.cc
     components/MotionComponent.hh
     components/LoopLengthDisplay.cc
@@ -311,6 +309,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/PendingScriptWrites.cc
     components/BlobPush.cc
     components/BarKnob.cc
+    components/BrowserComponent.cc
+    components/BrowserComponent.hh
     components/KnobGlyph.cc
     components/KnobGlyph.hh
     components/KeyboardEncoders.cc

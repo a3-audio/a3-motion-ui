@@ -105,13 +105,11 @@ public:
   std::function<void ()> onSetsChosen;
   std::function<void (int index)> onEntryChosen;
 
-  /** What the three keys under the list say, and which of them can be
-   *  pressed. Driven from outside rather than fixed here: a key that is drawn
-   *  as though it worked and does nothing is worse than one that is plainly
-   *  not available, and the set of things you can do changes with what is
-   *  chosen. An empty label draws no key at all. */
-  void setActions (juce::StringArray const &labels,
-                   std::array<bool, 6> const &enabled);
+  /** What the filter key says and whether it can be pressed. Driven from
+   *  outside: what the states are called is the page's. The file keys --
+   *  RENAME, DELETE, LOAD, SAVE, SAVE AS, FROM… -- are KEYS' since
+   *  2026-10-16; their callbacks below stay, KEYS calls them. */
+  void setFilter (juce::String const &label, bool enabled);
 
   /** Narrow what the list shows. What the states are and what they are
    *  called is the page's, not this component's -- it draws the word it is
@@ -160,9 +158,8 @@ private:
   void paintButton (juce::Graphics &g, juce::Rectangle<int> bounds,
                     juce::String const &label, bool enabled,
                     juce::Colour ink = {});
-  /** The script panel's four keys, in this tile, from the panel's own
-   *  states. */
-  void paintScriptKeys (juce::Graphics &g);
+  /** The script panel's Cancel, in this tile, from the panel's own state. */
+  void paintCancelKey (juce::Graphics &g);
 
   void mouseWheelMove (juce::MouseEvent const &event,
                        juce::MouseWheelDetails const &wheel) override;
@@ -175,9 +172,8 @@ private:
   BrowserLayout _layout;
   std::unique_ptr<ScriptPanel> _script;
 
-  juce::StringArray _actionLabels{ "", "", "Rename", "Save", "", "" };
-  std::array<bool, 6> _actionEnabled{ false, false, false,
-                                      false, false, false };
+  juce::String _filterLabel;
+  bool _filterEnabled = false;
   juce::StringArray _names;
   int _scrollOffset = 0;
   int _selectedEntry = -1;
@@ -190,14 +186,8 @@ private:
   std::unique_ptr<TouchControl> _shapesTabTouch;
   std::unique_ptr<TouchControl> _actionsTabTouch;
   std::unique_ptr<TouchControl> _setsTabTouch;
-  std::unique_ptr<TouchControl> _fromClipTouch;
   std::unique_ptr<TouchControl> _cancelTouch;
   std::unique_ptr<TouchControl> _filterTouch;
-  std::unique_ptr<TouchControl> _renameTouch;
-  std::unique_ptr<TouchControl> _saveTouch;
-  std::unique_ptr<TouchControl> _saveAsTouch;
-  std::unique_ptr<TouchControl> _deleteTouch;
-  std::unique_ptr<TouchControl> _loadTouch;
 
 
   bool _renaming = false;

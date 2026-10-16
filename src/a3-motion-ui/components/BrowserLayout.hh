@@ -109,32 +109,19 @@ struct BrowserLayout
   juce::Rectangle<int> actionsTab;
   juce::Rectangle<int> setsTab;
 
-  /** The strip along the bottom of the list. The first key changes *what is
-   *  listed*, the other three act on the row that is chosen in it -- which is
-   *  why it stands first, at the end the reading starts from: narrow the
-   *  list, then do something to a row of it. */
-  /** Load, and only the sets tab lights it. A tap on a row used to load the
-   *  set outright -- all eight slots replaced, and whatever was running
-   *  restarted -- which made the one gesture that *reaches* a set also the one
-   *  that overwrites your arrangement. Its own key, pressed on purpose. */
-  juce::Rectangle<int> loadButton;
+  /** Narrows what is listed, so it stands over the list it narrows. */
   juce::Rectangle<int> filterButton;
-  juce::Rectangle<int> renameButton;
-  /** The script panel's four keys, in the list's tile since 2026-09-27:
-   *  FROM under the folders, Cancel, Save and Save as at the foot. What they
-   *  do is the panel's (ScriptPanel::pressSave and the rest). */
-  juce::Rectangle<int> fromClipButton;
+  /** The script panel's Cancel, the foot of the list's tile. The other file
+   *  keys -- RENAME, DELETE, LOAD, SAVE, SAVE AS, FROM… -- are KEYS' since
+   *  2026-10-16 (keyboardFileKeySlot). */
   juce::Rectangle<int> cancelButton;
-  juce::Rectangle<int> saveButton;
-  juce::Rectangle<int> saveAsButton;
-  juce::Rectangle<int> deleteButton;
 };
 
 /** Lays FILES out over the sphere on two tiles: the script column on the
  *  right, as wide as `detailWidth` asks (none for 0); on the left, top to
- *  bottom, the four folders two by two, FROM, the filter, the list, and the
- *  other keys at the foot. Reads no theme, so it can be
- *  checked at sizes nobody has dialled in yet. */
+ *  bottom, the four folders two by two, the filter, the list, and Cancel at
+ *  the foot. Reads no theme, so it can be checked at sizes nobody has
+ *  dialled in yet. */
 BrowserLayout layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight,
                              float bodySize, BrowserList list,
                              int detailWidth);

@@ -40,7 +40,7 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
   auto const keyH
       = juce::jmin (bounds.getHeight (), juce::jmax (fingertipSize, buttonHeight));
 
-  // Never less than a row of three keys, so the foot of the list fits.
+  // Never narrower than three fingertips, so the list's names have room.
   constexpr int keysInARow = 3;
   auto const listMinW
       = keysInARow * fingertipSize + (keysInARow - 1) * gap + 2 * pad;
@@ -84,23 +84,14 @@ layOutBrowser (juce::Rectangle<int> bounds, int buttonHeight, float bodySize,
   split (row (1), 2, { &out.shapesTab, &out.actionsTab });
   inside.removeFromTop (gap);
 
-  // FROM between the folders and the filter, the filter over the list it
-  // narrows (maintainer, 2026-09-27).
-  out.fromClipButton = row (1);
-  inside.removeFromTop (gap);
+  // The filter over the list it narrows.
   out.filterButton = row (1);
   inside.removeFromTop (gap * 2);
 
-  // The rest of the keys at the foot: what the text is kept by at the very
-  // bottom, what the row is renamed or deleted by over it. Load only on SETS.
-  split (row (0), keysInARow,
-         { &out.cancelButton, &out.saveButton, &out.saveAsButton });
-  inside.removeFromBottom (gap);
-  // Load on every tab (2026-09-27): a tap only chooses. So the keys are the
-  // same on every tab and `list` does not change them any more.
+  // Cancel alone at the foot: the other file keys are KEYS' (2026-10-16), so
+  // the list gets their room. The keys are the same on every tab.
   juce::ignoreUnused (list);
-  split (row (0), keysInARow,
-         { &out.renameButton, &out.deleteButton, &out.loadButton });
+  out.cancelButton = row (0);
   inside.removeFromBottom (gap * 2);
 
   out.listArea = inside;

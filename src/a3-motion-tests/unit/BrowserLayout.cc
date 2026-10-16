@@ -22,7 +22,13 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-ui/components/BrowserComponent.hh>
 #include <a3-motion-ui/components/BrowserLayout.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
+#include <a3-motion-ui/components/TouchControl.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+
+#include <ShippedSkin.hh>
 #include <a3-motion-ui/components/ScriptPanelLayout.hh>
 
 using namespace a3;
@@ -115,20 +121,20 @@ TEST (BrowserLayout, EveryTabHasAScriptColumnAsWideAsItAsks)
     }
 }
 
-// A column that asks for more than there is leaves the list enough for a
-// row of three keys.
+// A column that asks for more than there is leaves the list room for its
+// folders, its filter and Cancel.
 TEST (BrowserLayout, AGreedyScriptLeavesTheListItsKeys)
 {
   auto const l = layOutBrowser (sphere, buttonHeight, 12.f, BrowserList::Sessions,
                                 5000);
-  for (auto const &key : { l.renameButton, l.deleteButton, l.loadButton,
-                           l.cancelButton, l.saveButton, l.saveAsButton })
+  for (auto const &key : { l.setsTab, l.clipsTab, l.filterButton,
+                           l.cancelButton })
     EXPECT_GE (key.getWidth (), fingertipSize);
   EXPECT_TRUE (sphere.contains (l.detailTile));
 }
 
-// Down the list's tile (maintainer, 2026-09-27): the four folders two by
-// two, FROM, the filter, the list, and the other keys at its foot.
+// Down the list's tile: the four folders two by two, the filter, the list,
+// and Cancel at its foot (the other file keys are KEYS' since 2026-10-16).
 TEST (BrowserLayout, TheListTileReadsTopToBottom)
 {
   auto const l = defaultBrowser ();
@@ -144,37 +150,82 @@ TEST (BrowserLayout, TheListTileReadsTopToBottom)
       EXPECT_TRUE (l.listTile.contains (tab));
     }
 
-  EXPECT_GE (l.fromClipButton.getY (), l.shapesTab.getBottom ());
-  EXPECT_GE (l.filterButton.getY (), l.fromClipButton.getBottom ());
+  EXPECT_GE (l.filterButton.getY (), l.shapesTab.getBottom ());
   EXPECT_GE (l.listArea.getY (), l.filterButton.getBottom ());
-  EXPECT_EQ (l.fromClipButton.getWidth (), l.listArea.getWidth ());
   EXPECT_EQ (l.filterButton.getWidth (), l.listArea.getWidth ());
-
-  for (auto const &key : { l.renameButton, l.deleteButton, l.cancelButton,
-                           l.saveButton, l.saveAsButton })
-    {
-      EXPECT_GE (key.getY (), l.listArea.getBottom ()) << "at the foot";
-      EXPECT_GE (key.getWidth (), fingertipSize);
-      EXPECT_GE (key.getHeight (), fingertipSize);
-      EXPECT_TRUE (l.listTile.contains (key));
-    }
-  // Rename and Delete over Cancel, Save and Save as.
-  EXPECT_LE (l.renameButton.getBottom (), l.saveButton.getY ());
-  EXPECT_EQ (l.cancelButton.getY (), l.saveAsButton.getY ());
-  EXPECT_LE (l.cancelButton.getRight (), l.saveButton.getX ());
-  EXPECT_LE (l.saveButton.getRight (), l.saveAsButton.getX ());
 }
 
-// Load on every tab (2026-09-27): a tap only chooses, Load puts it on the
-// slot. Beside Rename and Delete, over Cancel, Save and Save as.
-TEST (BrowserLayout, LoadStandsOnEveryTab)
+// The same keys on every tab.
+TEST (BrowserLayout, TheKeysAreTheSameOnEveryTab)
 {
-  for (auto const list : { BrowserList::Sessions, BrowserList::Clips,
-                           BrowserList::Shapes, BrowserList::Actions })
+  auto const clips = defaultBrowser (BrowserList::Clips);
+  for (auto const list : { BrowserList::Sessions, BrowserList::Shapes,
+                           BrowserList::Actions })
     {
       auto const l = defaultBrowser (list);
-      EXPECT_FALSE (l.loadButton.isEmpty ());
-      EXPECT_EQ (l.loadButton.getY (), l.renameButton.getY ());
-      EXPECT_GE (l.loadButton.getWidth (), fingertipSize);
+      EXPECT_EQ (l.filterButton, clips.filterButton);
+      EXPECT_EQ (l.cancelButton, clips.cancelButton);
     }
+}
+
+// -- File actions live on KEYS (2026-10-16) ----------------------------------
+
+// FILES keeps its folders, its filter, its list and Cancel; RENAME, DELETE,
+// LOAD, SAVE, SAVE AS and FROM… are KEYS' file column now. The filter stands
+// right under the folders, and Cancel alone takes the foot.
+TEST (BrowserLayout, TheFootIsCancelAloneAndTheFilterFollowsTheFolders)
+{
+  auto const l = defaultBrowser ();
+  EXPECT_EQ (l.cancelButton.getWidth (), l.listArea.getWidth ());
+  EXPECT_GE (l.cancelButton.getY (), l.listArea.getBottom ());
+  EXPECT_GE (l.cancelButton.getHeight (), fingertipSize);
+  EXPECT_TRUE (l.listTile.contains (l.cancelButton));
+
+  EXPECT_GE (l.filterButton.getY (), l.shapesTab.getBottom ());
+  EXPECT_LE (l.filterButton.getY () - l.shapesTab.getBottom (),
+             l.shapesTab.getHeight () / 2)
+      << "nothing between the folders and the filter";
+}
+
+// FILES as a finger finds it: the rows, the four folders, the filter and
+// Cancel -- nothing else takes a touch. And it paints (a page test must),
+// written out for a look when A3_SNAPSHOT_DIR is set.
+TEST (BrowserLayout, FilesTakesTouchesOnlyOnItsListFoldersFilterAndCancel)
+{
+  auto const before = theme ();
+  setTheme (loadTheme (shippedSkin ()));
+  {
+    LookAndFeel_A3 lookAndFeel;
+    juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
+    BrowserComponent files;
+    files.setBounds (sphere);
+    juce::StringArray names;
+    for (int i = 0; i < 40; ++i)
+      names.add ("Clip " + juce::String (i));
+    files.setEntries (names);
+    files.setSelectedEntry (2);
+    files.setFilter ("All", true);
+
+    auto touches = 0;
+    for (auto *child : files.getChildren ())
+      if (auto *touch = dynamic_cast<TouchControl *> (child))
+        if (touch->isVisible () && !touch->getBounds ().isEmpty ())
+          ++touches;
+    EXPECT_EQ (touches, files.getVisibleRows () + 4 + 2)
+        << "rows, four folders, the filter and Cancel";
+
+    auto const image = files.createComponentSnapshot (files.getLocalBounds ());
+    EXPECT_EQ (image.getWidth (), sphere.getWidth ());
+    auto const dir
+        = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
+    if (dir.isNotEmpty ())
+      {
+        auto file = juce::File (dir).getChildFile ("files-page.png");
+        file.deleteFile ();
+        juce::FileOutputStream out (file);
+        juce::PNGImageFormat ().writeImageToStream (image, out);
+      }
+    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+  }
+  setTheme (before);
 }
