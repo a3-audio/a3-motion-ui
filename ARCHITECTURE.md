@@ -2249,11 +2249,17 @@ What a file means stays each list's (`LibraryList`: `fileAt`, `folder`, `extensi
   a playing one plays on from the next beat); a set is only written -- loading stays Load's;
 - **Save as** writes a copy into the user half, named after the original (`freeFileIn`,
   `copyBaseFor`) -- on SETS after the set that is loaded, "Tribal 2" (2026-10-08), whatever the
-  editor shows; on ACTIONS the clip EDIT came from fires it, once (`takeEditOrigin`);
-- **FROM** ("from clip", on SETS "from set") puts the current state in as the file's text,
-  unsaved, written by the same writers Save used to call straight into the file
-  (`currentStateText` through a temporary file) -- so there is one pair of Save keys, and you see
-  what is kept before it is kept;
+  editor shows; on ACTIONS the clip FROM… (or EDIT) came from fires it, once (`takeEditOrigin`);
+- **FROM…** (2026-10-16, replacing "from clip" / "from set" and EDIT's own route) is armed by a
+  press and aimed by the **next tap on a folder tab** (`tapBrowserList` → `takeFrom`): FILES goes to
+  that tab and offers the shown slot's state there as unsaved text -- CLIPS the clip with its
+  current values, SVG its figure, SETS the arrangement, written by the same writers Save used to
+  call straight into the file (`currentStateText` through a temporary file). On ACTIONS it is the
+  action the shown clip's chosen button fires, opened as it is (what EDIT did), or, if the button
+  fires none, a script made from the clip's settings; either way Save as points the button at the
+  copy. A second press or a row tap disarms it; unsaved text holds it like a tab. ACTION's EDIT
+  key runs exactly this: FILES, then FROM… ACTIONS. The four tabs share one route
+  (`chooseBrowserList`), which E5 on KEYS takes too;
 - a set or SVG that does not parse is **not written** (`fileErrorsOf`, `errorsBlockSaving`); a script
   with an error still is, as before; the error stands in the strip;
 - **unsaved text holds the list and the tabs**: a row tap, Rename, Delete or another tab say
@@ -2264,13 +2270,13 @@ The rules are pure functions in `ActionEditing.hh`, `ScriptPanelLayout.hh` (`scr
 dark key is also a dead one. JUCE's code editor calls itself opaque but is drawn transparent; the
 panel says so (`setOpaque (false)`), or a scroll over the sphere let the trajectory through.
 
-**Four keys over it: from clip, cancel, save, save as**, equal width, in that order. Save writes
+**Four keys over it: FROM…, cancel, save, save as**, equal width, in that order. Save writes
 the editor's text over the chosen file; **it stays dark on one of the instrument's own
 while developer mode is off**, because writing over a shipped script takes it from every clip that
 fires it with no way back. Save as is the way out of exactly that: it writes the text to a new file
 in `user/`, **named after the one it came from** — "Bloom 2" beside "Bloom", counted against both
 halves. Cancel puts the file's own text back. Save, Save as and Cancel are lit only while something
-has been typed; FROM CLIP whenever the shown slot holds a clip.
+has been typed; FROM… whenever the shown slot holds a clip, lit in the accent while armed.
 
 **That lock is one rule for clips and scripts alike** — `shippedFileMayBeOverwritten (fileExists,
 fileIsShipped, shippedClips ())`, which is why its name no longer says clip. The page is told the
@@ -2337,14 +2343,14 @@ script editor (`ScriptPanel`). It is a child of the bar, always on top of ACTION
 the screen stands where its key is on the panel, and while the keyboard is up the panel's keys type.
 QWERTY, because there are ten columns where QWERTY has ten:
 
-| Row | Letters page | Symbols page (123) |
-|---|---|---|
-| 0 | `ESC` · *encoders E1–E4* · `DEL` | the same |
-| 1 | `123` · *encoders E5–E8* · `ENTER` | `ABC` · … · `ENTER` |
-| 2 | `q w e r t y u i o p` | `1 2 3 4 5 6 7 8 9 0` |
-| 3 | `a s d f g h j k l -` | `- / : ; ( ) = + _ *` |
-| 4 | `z x c v b n m , . /` | `{ } [ ] < > \ \| ! ~` |
-| 5 | `SHIFT ◀ ▶ SPACE ' " HIDE` (SPACE four cells, one bar on screen) | the same |
+| Row | File key | Letters page | Symbols page (123) |
+|---|---|---|---|
+| 0 | RENAME | `ESC` · *encoders E1–E4* · `DEL` | the same |
+| 1 | DELETE | `123` · *encoders E5–E8* · `ENTER` | `ABC` · … · `ENTER` |
+| 2 | LOAD | `q w e r t y u i o p` | `1 2 3 4 5 6 7 8 9 0` |
+| 3 | SAVE | `a s d f g h j k l -` | `- / : ; ( ) = + _ *` |
+| 4 | SAVE AS | `z x c v b n m , . /` | `{ } [ ] < > \ \| ! ~` |
+| 5 | FROM… | `SHIFT ◀ ▶ SPACE ' " HIDE` (SPACE four cells, one bar on screen) | the same |
 
 The symbols page holds what the shipped scripts, clips and sets are written with. SHIFT once is the
 next letter, twice CAPS, a third time off; SHIFT held capitalises. DEL and the arrows act on touch
@@ -2363,31 +2369,39 @@ It opens and closes with the edit: the `onNamingChanged` / `onRenameEditingChang
 (masks, rename); in the script editor ENTER is a new line and ESC or HIDE put it away. HIDE leaves
 the field open; the status bar's KEYS key toggles the keyboard always.
 
-**The eight encoders, shown in rows 0-1** (decided 2026-10-16). The band between the corner keys is
-where the panel has its pots, so the screen shows each encoder there: one slot over its channel's two
-pad columns (`keyboardEncoderSlot`), the knob in the left cell and a sign of what it does in the
-right (`KnobGlyph`, a `juce::Path` from shares of its box). The knobs are **display only**
-(`setInterceptsMouseClicks (false, false)`): at about 5 mm they are below a fingertip, and a touch
-meant for a key must never turn one. What each encoder does is one pure table,
-`keyboardEncoderJob` (`KeyboardEncoders.hh`):
+**The eight encoders, shown in rows 0-1** (decided 2026-10-16, second round the same day). The band
+between the corner keys is where the panel has its pots, so the screen shows each encoder there: one
+slot over its channel's two pad columns (`keyboardEncoderSlot`), the knob in the left cell and a sign
+of what it does in the right (`KnobGlyph`, a `juce::Path` from shares of its box). The knobs are
+**display only** (`setInterceptsMouseClicks (false, false)`, `PotKnob::setFillsItsCell`): at about
+5 mm they are below a fingertip, and a touch meant for a key must never turn one. What each encoder
+does is one pure table, `keyboardEncoderJob` (`KeyboardEncoders.hh`):
 
 | Encoder | Turn while KEYS is up | Knob shows |
 |---|---|---|
-| E1 (ch 1, upper) | text cursor ◀ / ▶ | a ring, cursor sign |
-| E5 (ch 1, lower) | the script editor's **view** up / down, 1 line a detent (`linesPerDetent`) | arc = how far down, ↕ sign |
-| E6 (ch 2, lower) | the view left / right, 4 columns a detent (`columnsPerDetent`) | arc = how far across, ↔ sign |
-| E2–E4, E7, E8 | nothing | dimmed, no sign |
+| E1 (ch 1, upper) | text cursor up / down | a ring, ↕ |
+| E2 (ch 2, upper) | text cursor left / right | a ring, ↔ |
+| E5 (ch 1, lower) | FILES' folder: SETS, CLIPS, SVG, ACTIONS (`steppedBrowserList`), the tab's own route | arc = which folder, folder sign |
+| E6 (ch 2, lower) | the file chosen in FILES' list (`steppedEntry`), the row's own route | arc = how far down the list, list sign |
+| E3, E4, E7, E8 | nothing | dimmed, no sign |
 | any + SHIFT | FREQ / Q of its channel, as on every page -- E1 included | -- |
 | any, pressed | nothing | -- |
 
-E5 and E6 move the view, not the caret, the way the scroll bars do (`ScriptEditor::scrollLinesBy` /
-`scrollColumnsBy`, through `ScriptPanel`), and stop with the last line at the bottom. They act on
-FILES' script editor whenever it is on screen (`A3MotionUIComponent::scriptOnScreen`, `isShowing()`)
-and are dimmed when it is not. The column a view starts at is read from the editor's horizontal
-`ScrollBar` (`firstColumnOnScreen`), so a finger's drag, the encoder and the editor keeping its caret
-in view share one position; the knobs are refreshed from it on the UI timer
-(`refreshKeyboardEncoders`), which changes nothing while nothing moved. The other five do nothing on
-purpose: they used to turn the hidden page's fields, a knob changing something nobody can see.
+Moving the cursor scrolls the script editor to keep it in view, so the view has no knobs of its own;
+the column the view starts at is read from the editor's horizontal `ScrollBar`
+(`ScriptEditor::firstColumnOnScreen`), so a finger's drag afterwards starts where the view is. E5 and
+E6 act while FILES is on screen (`filesOnScreen`, `isShowing()`) and are dimmed when it is not; E5
+never aims FROM… -- that is a tap. The other four do nothing on purpose: they used to turn the hidden
+page's fields, a knob changing something nobody can see.
+
+**The file keys, left of the keys** (2026-10-16). FILES' keys stand in the dark margin left of ESC,
+123, q, a, z and SHIFT, one a row (`keyboardFileKeySlot`, `fileKeyOfRow`): RENAME, DELETE, LOAD,
+SAVE, SAVE AS, FROM…, so a file can be named, kept or loaded while typing. They are FILES' own keys,
+not copies: the words and the lit/dark rule come from FILES (`currentLibraryKeys`, `scriptKeysFor`,
+"KEEP" while renaming, "SURE?" when armed), a tap calls FILES' own callback (`pressFileKey`), and
+without FILES on screen they are dimmed and do nothing. Cancel and the filter stay on FILES. The UI
+timer hands KEYS what FILES shows (`refreshKeyboardEncoders` → `BarKeyboardComponent::showFiles`),
+and nothing repaints while nothing changed.
 
 **The rest of the panel while it is up** (the table also lives in `BarKeyboardModel.hh`): the 44 keys
 type -- no clip fires, TAP/REC/MENU/SHIFT do nothing else, HIDE or ESC gives the panel back; the pots
