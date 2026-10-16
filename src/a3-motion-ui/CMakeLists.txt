@@ -311,6 +311,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/PendingScriptWrites.cc
     components/BlobPush.cc
     components/BarKnob.cc
+    components/KnobGlyph.cc
+    components/KnobGlyph.hh
     components/KnobHold.cc
     components/EncoderMap.cc
     components/BarKeyboardLayout.cc
