@@ -23,7 +23,9 @@
 #include <a3-motion-ui/io/LedState.hh>
 #include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/io/PanelOwnership.hh>
+#include <mutex>
 #include <optional>
+#include <vector>
 
 #include <JuceHeader.h>
 
@@ -304,9 +306,12 @@ private:
 
   juce::Value _valueTapTimeMicros;
 
-  static constexpr int fifoSize = 32;
-  juce::AbstractFifo _fifoAbstractInput{ fifoSize };
-  std::array<std::unique_ptr<InputMessage>, fifoSize> _fifoInput;
+  /** Input waiting for the message thread, in arrival order. A list under a
+   *  lock, not a ring: a FIFO of 31 dropped whatever a burst brought beyond
+   *  that -- a release among it left a pad held. It only grows while the
+   *  message thread is late, and then by what hands can press. */
+  std::mutex _pendingInputLock;
+  std::vector<std::unique_ptr<InputMessage>> _pendingInput;
   /** The panel's LEDs as a table, not a queue: a queue of 31 dropped part of
    *  the 41-LED picture painted at start (LedState.hh). */
   LedState _ledState{ numButtons + numChannels * numPadsPerChannel };

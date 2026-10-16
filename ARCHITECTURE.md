@@ -2470,9 +2470,11 @@ judged on the device.
 
 `InputOutputAdapter` is the shared abstract base: it runs a background `juce::Thread` that polls
 hardware (`processInput()`, implemented by subclasses), converts raw events into typed
-`InputMessage`s (Pad/Button/Encoder/Pot/Tap), and hands them to the UI/message thread via a
-lock-free FIFO; a `timerCallback()` dispatches them onto `juce::Value`s that `A3MotionUIComponent`
-listens to via `juce::Value::Listener`. This keeps the UI protocol-agnostic.
+`InputMessage`s (Pad/Button/Encoder/Pot/Tap), and hands them to the UI/message thread through
+a list under a lock; a `timerCallback()` takes the whole list and dispatches it, in order, onto
+`juce::Value`s that `A3MotionUIComponent` listens to via `juce::Value::Listener`. This keeps the
+UI protocol-agnostic. It was a lock-free FIFO of 31 until 2026-10-16, and a burst beyond that was
+dropped silently -- a release among it left a pad held. Pinned by `AdapterInput.*`.
 
 LEDs go the other way as **state, not messages**: the key and pad colours the UI asks for land in
 `io/LedState` (one slot per LED, the latest colour, a changed flag), and the thread's

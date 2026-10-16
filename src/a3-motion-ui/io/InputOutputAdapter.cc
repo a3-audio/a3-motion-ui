@@ -259,46 +259,21 @@ InputOutputAdapter::handlePanelKey (InputMessagePanelKey const &message)
 void
 InputOutputAdapter::submitInputMessage (std::unique_ptr<InputMessage> message)
 {
-  jassert (_fifoAbstractInput.getFreeSpace () > 0);
-
-  const auto scope = _fifoAbstractInput.write (1);
-  jassert (scope.blockSize1 == 1);
-  jassert (scope.blockSize2 == 0);
-  jassert (scope.startIndex1 >= 0);
-
-  auto startIndex = static_cast<std::size_t> (scope.startIndex1);
-  _fifoInput[startIndex] = std::move (message);
+  std::scoped_lock const guard (_pendingInputLock);
+  _pendingInput.push_back (std::move (message));
 }
 
 void
 InputOutputAdapter::timerCallback ()
 {
-  auto const ready = _fifoAbstractInput.getNumReady ();
-  const auto scope = _fifoAbstractInput.read (ready);
+  std::vector<std::unique_ptr<InputMessage>> arrived;
+  {
+    std::scoped_lock const guard (_pendingInputLock);
+    arrived.swap (_pendingInput);
+  }
 
-  jassert (scope.blockSize1 + scope.blockSize2 == ready);
-
-  if (scope.blockSize1 > 0)
-    {
-      for (int idx = scope.startIndex1;
-           idx < scope.startIndex1 + scope.blockSize1; ++idx)
-        {
-          jassert (idx >= 0);
-          handleInputMessage (
-              std::move (_fifoInput[static_cast<std::size_t> (idx)]));
-        }
-    }
-
-  if (scope.blockSize2 > 0)
-    {
-      for (int idx = scope.startIndex2;
-           idx < scope.startIndex2 + scope.blockSize2; ++idx)
-        {
-          jassert (idx >= 0);
-          handleInputMessage (
-              std::move (_fifoInput[static_cast<std::size_t> (idx)]));
-        }
-    }
+  for (auto &message : arrived)
+    handleInputMessage (std::move (message));
 }
 
 void

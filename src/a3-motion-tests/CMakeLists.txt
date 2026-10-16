@@ -70,6 +70,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LedCache.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LedState.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/AdapterLedOutput.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/AdapterInput.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TransportKeyGround.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RecArming.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobLanes.cc"
