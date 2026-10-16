@@ -2270,7 +2270,8 @@ The rules are pure functions in `ActionEditing.hh`, `ScriptPanelLayout.hh` (`scr
 dark key is also a dead one. JUCE's code editor calls itself opaque but is drawn transparent; the
 panel says so (`setOpaque (false)`), or a scroll over the sphere let the trajectory through.
 
-**Four keys over it: FROM…, cancel, save, save as**, equal width, in that order. Save writes
+**Its keys are on KEYS since 2026-10-16** (FROM…, SAVE, SAVE AS in the file column; only Cancel
+stays at the foot of FILES' list tile, with the filter over the list). Save writes
 the editor's text over the chosen file; **it stays dark on one of the instrument's own
 while developer mode is off**, because writing over a shipped script takes it from every clip that
 fires it with no way back. Save as is the way out of exactly that: it writes the text to a new file
@@ -2364,10 +2365,15 @@ already know what Backspace, Enter, Escape and the arrows mean. The keyboard the
 takes the focus** (`setMouseClickGrabsKeyboardFocus (false)`): the rename row and the script editor
 end their edit when they lose it.
 
-It opens and closes with the edit: the `onNamingChanged` / `onRenameEditingChanged` /
-`onEditingChanged` callbacks call `showKeyboard()`. So ENTER closes it wherever Enter ends the edit
-(masks, rename); in the script editor ENTER is a new line and ESC or HIDE put it away. HIDE leaves
-the field open; the status bar's KEYS key toggles the keyboard always.
+It opens and closes with the edit, in one place: the `onNamingChanged` / `onRenameEditingChanged` /
+`onEditingChanged` callbacks call `followEdit()`, which asks `keyboardAfterEdit` (`BarKeyboardModel`).
+An edit's start shows it; its end closes it -- **except while FILES is on screen**, where KEYS is how
+files are worked and stays up until HIDE, ESC or the KEYS key (2026-10-16). That exception is the fix
+for the device test of 03.0+796: E5, E6 and the file keys end the edit they act from (a folder or a
+file changes the text shown, SAVE stops the edit), each end closed KEYS, and the next encoder turn
+went back to the page and edited the clip settings under it. So ENTER closes it wherever Enter ends
+the edit (masks, rename) unless FILES is up; in the script editor ENTER is a new line and ESC or HIDE
+put it away. HIDE leaves the field open; the status bar's KEYS key toggles the keyboard always.
 
 **The eight encoders, shown in rows 0-1** (decided 2026-10-16, second round the same day). The band
 between the corner keys is where the panel has its pots, so the screen shows each encoder there: one
@@ -2396,10 +2402,11 @@ page's fields, a knob changing something nobody can see.
 
 **The file keys, left of the keys** (2026-10-16). FILES' keys stand in the dark margin left of ESC,
 123, q, a, z and SHIFT, one a row (`keyboardFileKeySlot`, `fileKeyOfRow`): RENAME, DELETE, LOAD,
-SAVE, SAVE AS, FROM…, so a file can be named, kept or loaded while typing. They are FILES' own keys,
-not copies: the words and the lit/dark rule come from FILES (`currentLibraryKeys`, `scriptKeysFor`,
-"KEEP" while renaming, "SURE?" when armed), a tap calls FILES' own callback (`pressFileKey`), and
-without FILES on screen they are dimmed and do nothing. Cancel and the filter stay on FILES. The UI
+SAVE, SAVE AS, FROM…, so a file can be named, kept or loaded while typing. **They are the only file
+keys** (maintainer, 2026-10-16: file actions always via KEYS); FILES keeps its folders, filter, list
+and Cancel. The words and the lit/dark rule are FILES' (`currentLibraryKeys`, `scriptKeysFor`,
+"KEEP" while renaming, "SURE?" when armed, SAVE flashing with Cancel over unsaved text), a tap calls
+FILES' own callback (`pressFileKey`), and without FILES on screen they are dimmed and do nothing. The UI
 timer hands KEYS what FILES shows (`refreshKeyboardEncoders` → `BarKeyboardComponent::showFiles`),
 and nothing repaints while nothing changed.
 
