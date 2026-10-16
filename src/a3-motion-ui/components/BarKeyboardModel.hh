@@ -66,6 +66,12 @@ KeyOutcome pressKey (KeyboardState &state, KeyDef const &key, bool shiftHeld);
 /** Backspace and the cursor go on while held; nothing else does. */
 bool keyRepeatsWhileHeld (KeyAction action);
 
+/** Whether the keyboard shows after a field's edit began (`editing`) or
+ *  ended, or nothing to change. An edit opens it; its end closes it --
+ *  except while FILES is on screen, where KEYS is how files are worked and
+ *  its own keys and encoders end edits all the time. */
+std::optional<bool> keyboardAfterEdit (bool editing, bool filesOnScreen);
+
 /** The panel while the keyboard is up (since 2026-09-30):
  *
  *  | Panel                    | While typing                                  |

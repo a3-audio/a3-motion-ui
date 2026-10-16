@@ -195,3 +195,40 @@ TEST (KeyboardEncoders, EditIsFromActions)
   EXPECT_TRUE (ctor.substring (edit, end).contains (
       "takeFrom (BrowserList::Actions)"));
 }
+
+// While the keyboard is up no encoder, with SHIFT or without, ever goes back
+// to the page: the table answers for all sixteen.
+TEST (KeyboardEncoders, NoEncoderReachesThePageWhileTheKeyboardIsUp)
+{
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      for (bool shift : { false, true })
+        EXPECT_NE (keyboardEncoderJob (true, column, row, shift),
+                   Job::PageControl)
+            << column << "," << row << (shift ? " shift" : "");
+}
+
+// The bug from the device (796): E5, E6 and the file keys end the edit the
+// keyboard was opened for, and every edit's end closed KEYS -- after which
+// the next turn edited the clip settings under it. All three edits now go
+// through one place that keeps KEYS up while FILES is on screen.
+TEST (KeyboardEncoders, EveryEditEndGoesThroughOnePlace)
+{
+  auto const ctor = body ("A3MotionUIComponent::A3MotionUIComponent "
+                          "(unsigned int const numChannels)");
+  ASSERT_TRUE (ctor.isNotEmpty ());
+  for (auto const *callback :
+       { "_skinEditor->onNamingChanged", "_browser->onRenameEditingChanged",
+         "filesScript.onEditingChanged" })
+    {
+      auto const at = ctor.indexOf (callback);
+      ASSERT_GE (at, 0) << callback;
+      auto const lambda = ctor.substring (at, ctor.indexOf (at, "};"));
+      EXPECT_TRUE (lambda.contains ("followEdit (")) << callback;
+      EXPECT_FALSE (lambda.contains ("showKeyboard (")) << callback;
+    }
+
+  auto const follow = body ("A3MotionUIComponent::followEdit (bool editing)");
+  ASSERT_TRUE (follow.isNotEmpty ());
+  EXPECT_TRUE (follow.contains ("keyboardAfterEdit (editing, filesOnScreen ())"));
+}

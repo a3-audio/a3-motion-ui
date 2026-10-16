@@ -521,7 +521,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
 
   // The keyboard is the app's own, in the bar -- see BarKeyboardComponent.
   // It types into whatever holds the focus, which the mask takes.
-  _skinEditor->onNamingChanged = [this] (bool naming) { showKeyboard (naming); };
+  _skinEditor->onNamingChanged = [this] (bool naming) { followEdit (naming); };
   _skinEditor->onColourPicked = [this] (auto const &path, auto colour) {
     openColourPicker (path, colour);
   };
@@ -869,7 +869,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // so opening the row is what shows it -- the same arrangement the script
   // editor has.
   _browser->onRenameEditingChanged = [this] (bool editing) {
-    showKeyboard (editing);
+    followEdit (editing);
     refreshBrowser ();
   };
 
@@ -927,7 +927,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   // say they were pressed, what they mean is decided here.
   auto &filesScript = _browser->scriptPanel ();
   filesScript.onEditingChanged = [this] (bool editing) {
-    showKeyboard (editing);
+    followEdit (editing);
   };
   filesScript.onSave = [this] { saveFileText (); };
   filesScript.onSaveAs = [this] { saveFileTextAs (); };
@@ -8472,6 +8472,17 @@ A3MotionUIComponent::showKeyboard (bool shown)
     }
 
   refreshKeyboardIcon ();
+}
+
+void
+A3MotionUIComponent::followEdit (bool editing)
+{
+  // The one place an edit's start or end moves the keyboard (2026-10-16).
+  // It used to be showKeyboard (editing) in each of three callbacks, so E5,
+  // E6 and the file keys -- which end the edit they act from -- closed KEYS,
+  // and the next turn edited the clip settings under it.
+  if (auto const shown = keyboardAfterEdit (editing, filesOnScreen ()))
+    showKeyboard (*shown);
 }
 
 void

@@ -119,4 +119,16 @@ keyRepeatsWhileHeld (KeyAction action)
   __builtin_unreachable ();
 }
 
+std::optional<bool>
+keyboardAfterEdit (bool editing, bool filesOnScreen)
+{
+  if (editing)
+    return true;
+  // FILES is worked from KEYS: its folder, its file and its keys all end
+  // edits, and none of them may hand the encoders back to the page.
+  if (filesOnScreen)
+    return std::nullopt;
+  return false;
+}
+
 }

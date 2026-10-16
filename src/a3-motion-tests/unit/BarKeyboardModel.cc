@@ -162,3 +162,16 @@ TEST (BarKeyboardModel, OnlyTheCursorAndBackspaceRepeatWhileHeld)
   EXPECT_FALSE (keyRepeatsWhileHeld (KeyAction::Character));
   EXPECT_FALSE (keyRepeatsWhileHeld (KeyAction::Hide));
 }
+
+// The keyboard opens with an edit and, as a rule, closes with it -- except
+// while FILES is on screen, where KEYS is how files are worked (2026-10-16):
+// a folder turned on E5, a file on E6, a SAVE pressed all end the edit, and
+// closing KEYS with it handed every encoder back to the hidden page.
+TEST (BarKeyboardModel, AnEditOpensTheKeyboardAndOnlyClosesItWithoutFiles)
+{
+  EXPECT_EQ (keyboardAfterEdit (true, false), std::optional<bool> (true));
+  EXPECT_EQ (keyboardAfterEdit (true, true), std::optional<bool> (true));
+  EXPECT_EQ (keyboardAfterEdit (false, false), std::optional<bool> (false));
+  EXPECT_EQ (keyboardAfterEdit (false, true), std::nullopt)
+      << "FILES on screen: KEYS stays as it is";
+}

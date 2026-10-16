@@ -906,6 +906,9 @@ private:
    *  colours, which every blob, pad and frame is drawn in. */
   void  applyTheme () override;
   void  showKeyboard (bool shown);
+  /** A field's edit began or ended: the keyboard follows it, except that an
+   *  edit's end leaves KEYS up while FILES is on screen (keyboardAfterEdit). */
+  void followEdit (bool editing);
   void  toggleKeyboard ();
   /** The in-app keyboard is up -- and with it, owns the panel. */
   bool keyboardShown () const;
