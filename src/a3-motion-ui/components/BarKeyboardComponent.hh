@@ -24,9 +24,11 @@
 
 #include <a3-motion-ui/components/BarKeyboardLayout.hh>
 #include <a3-motion-ui/components/BarKeyboardModel.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
 
+#include <array>
 #include <functional>
 #include <map>
 #include <optional>
@@ -65,6 +67,14 @@ public:
    *  a desk keyboard; Backspace and the cursor go on while held. */
   void pressPanelCell (PanelCell cell, bool down);
 
+  /** What the eight encoder knobs over the keys show: whether a script
+   *  editor is on screen for E5 and E6 to scroll, and where its view stands
+   *  (x across, y down, 0 to 1). */
+  void showEncoderState (bool editorOnScreen,
+                         juce::Point<float> scrollFractions);
+  /** Encoder (`column`, `row`)'s knob, EncoderMap's four by two. */
+  PotKnob const &encoderKnob (int column, int row) const;
+
   std::function<void (juce::KeyPress const &)> onKey;
   std::function<void ()> onHide;
   /** SHIFT held -- the screen's. */
@@ -91,6 +101,11 @@ private:
   void stopRepeating ();
   bool keyIsLit (int keyIndex) const;
   void paintKey (juce::Graphics &g, int keyIndex) const;
+  void paintEncoderGlyph (juce::Graphics &g, int column, int row) const;
+  void dressEncoderKnobs ();
+
+  /** Display only: four columns of two, column-major. */
+  std::array<PotKnob, 8> _encoderKnobs;
 
   ControlMetrics _metrics{ 0, 0.f, 0.f };
   KeyboardState _state;

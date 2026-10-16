@@ -313,6 +313,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/BarKnob.cc
     components/KnobGlyph.cc
     components/KnobGlyph.hh
+    components/KeyboardEncoders.cc
+    components/KeyboardEncoders.hh
     components/KnobHold.cc
     components/EncoderMap.cc
     components/BarKeyboardLayout.cc

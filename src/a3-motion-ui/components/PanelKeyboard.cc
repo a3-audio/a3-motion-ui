@@ -114,6 +114,15 @@ layOutPanelKeyboard (juce::Rectangle<int> area, KeyboardPage page)
   return out;
 }
 
+KeyboardEncoderSlot
+keyboardEncoderSlot (juce::Rectangle<int> area, int column, int row)
+{
+  // Column 0 is the keys' column; a channel's two pad columns follow.
+  auto const left = 1 + 2 * column;
+  return { panelCellBounds (area, { row, left }),
+           panelCellBounds (area, { row, left + 1 }) };
+}
+
 KeyDef
 panelKeyAt (KeyboardPage page, PanelCell cell)
 {

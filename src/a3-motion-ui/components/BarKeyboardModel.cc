@@ -119,16 +119,4 @@ keyRepeatsWhileHeld (KeyAction action)
   __builtin_unreachable ();
 }
 
-std::optional<juce::KeyPress>
-cursorKeyOfEncoder (bool keyboardShown, int column, int row, int increment)
-{
-  if (!keyboardShown || column != 0 || row != 0 || increment == 0)
-    return std::nullopt;
-
-  return juce::KeyPress (increment > 0 ? juce::KeyPress::rightKey
-                                       : juce::KeyPress::leftKey);
-}
-
-
-
 }

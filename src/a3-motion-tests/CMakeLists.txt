@@ -220,6 +220,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChannelFaces.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/BarKnob.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/KnobGlyph.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/KeyboardEncoders.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ScriptEditorScroll.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ActionKnobs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClipKnobs.cc"

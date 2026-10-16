@@ -47,6 +47,20 @@ KeyDef panelKeyAt (KeyboardPage page, PanelCell cell);
 std::vector<KeyCap> layOutPanelKeyboard (juce::Rectangle<int> area,
                                          KeyboardPage page);
 
+/** Where KEYS shows encoder (`column`, `row`) -- EncoderMap's four by two,
+ *  column the channel, row 0 the upper encoder: over the channel's two pad
+ *  columns in rows 0-1, which on the panel carry the pots. The knob stands in
+ *  the left cell, the sign of what it does in the right (decided
+ *  2026-10-16: beside, not on the knob, so the sign is twice the size). */
+struct KeyboardEncoderSlot
+{
+  juce::Rectangle<int> knob;
+  juce::Rectangle<int> glyph;
+};
+
+KeyboardEncoderSlot keyboardEncoderSlot (juce::Rectangle<int> area,
+                                         int column, int row);
+
 /** A key's LED while the keyboard owns the panel: letters and other
  *  characters in \`letter\`, every other key in \`accent\`, no key unlit. */
 juce::Colour keyboardLedColour (KeyDef const &key, juce::Colour accent,

@@ -22,6 +22,8 @@
 
 #include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/KeyboardEncoders.hh>
+#include <a3-motion-ui/components/KnobGlyph.hh>
 #include <a3-motion-ui/components/PanelKeyboard.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
@@ -39,6 +41,28 @@ constexpr int repeatIntervalMs = 70;
 
 /** The cursor keys' arrow, as a share of the key's shorter side. */
 constexpr float arrowShareOfKey = 0.28f;
+
+/** The air round a knob's sign, as a share of its cell's width. */
+constexpr float glyphInsetShare = 0.22f;
+
+constexpr int numEncoderColumns = 4;
+constexpr int numEncoderRows = 2;
+
+/** What encoder `index` (column-major) does while the keyboard is up and
+ *  SHIFT is not held -- the knobs draw that. */
+KeyboardEncoderJob
+jobOfKnob (size_t index)
+{
+  auto const i = static_cast<int> (index);
+  return keyboardEncoderJob (true, i / numEncoderRows, i % numEncoderRows,
+                             false);
+}
+
+size_t
+knobIndex (int column, int row)
+{
+  return static_cast<size_t> (column * numEncoderRows + row);
+}
 }
 
 BarKeyboardComponent::BarKeyboardComponent ()
@@ -48,6 +72,83 @@ BarKeyboardComponent::BarKeyboardComponent ()
   setWantsKeyboardFocus (false);
   setMouseClickGrabsKeyboardFocus (false);
   setOpaque (true);
+
+  // The encoders' knobs only show: at 5 mm they are below a fingertip, and
+  // a touch meant for a key must never turn one. The script is scrolled by
+  // dragging it.
+  for (size_t i = 0; i < _encoderKnobs.size (); ++i)
+    {
+      auto &knob = _encoderKnobs[i];
+      knob.setInterceptsMouseClicks (false, false);
+      // No caption, a cell of its own: as large as the cell, so the knob
+      // grows and shrinks with the keys around it.
+      knob.setFillsItsCell (true);
+      knob.setWantsKeyboardFocus (false);
+      knob.setMouseClickGrabsKeyboardFocus (false);
+      switch (jobOfKnob (i))
+        {
+        case KeyboardEncoderJob::Cursor:
+          // A cursor has no position on a scale: a ring with its tick up.
+          knob.setWraps (true);
+          break;
+        case KeyboardEncoderJob::ScrollLines:
+        case KeyboardEncoderJob::ScrollColumns:
+          knob.setEnabled (false);
+          break;
+        case KeyboardEncoderJob::PageControl:
+        case KeyboardEncoderJob::ChannelPot:
+        case KeyboardEncoderJob::Nothing:
+          // Nothing to show: the tick up, no arc, dimmed for good.
+          knob.setFillsFromTheMiddle (true);
+          knob.setValue (0.5, juce::dontSendNotification);
+          knob.setEnabled (false);
+          break;
+        }
+      addAndMakeVisible (knob);
+    }
+  dressEncoderKnobs ();
+}
+
+void
+BarKeyboardComponent::dressEncoderKnobs ()
+{
+  // The keyboard belongs to no channel: neutral arcs, the light tick.
+  for (auto &knob : _encoderKnobs)
+    knob.setKnobColour (toColour (theme ().textMuted));
+}
+
+void
+BarKeyboardComponent::showEncoderState (bool editorOnScreen,
+                                        juce::Point<float> scrollFractions)
+{
+  for (size_t i = 0; i < _encoderKnobs.size (); ++i)
+    {
+      auto &knob = _encoderKnobs[i];
+      auto const job = jobOfKnob (i);
+      if (job != KeyboardEncoderJob::ScrollLines
+          && job != KeyboardEncoderJob::ScrollColumns)
+        continue;
+
+      knob.setValue (job == KeyboardEncoderJob::ScrollLines
+                         ? scrollFractions.y
+                         : scrollFractions.x,
+                     juce::dontSendNotification);
+      if (knob.isEnabled () != editorOnScreen)
+        {
+          knob.setEnabled (editorOnScreen);
+          // The sign beside it is the keyboard's to draw.
+          auto const slot = keyboardEncoderSlot (
+              getLocalBounds (), static_cast<int> (i) / numEncoderRows,
+              static_cast<int> (i) % numEncoderRows);
+          repaint (slot.glyph);
+        }
+    }
+}
+
+PotKnob const &
+BarKeyboardComponent::encoderKnob (int column, int row) const
+{
+  return _encoderKnobs[knobIndex (column, row)];
 }
 
 void
@@ -66,6 +167,7 @@ BarKeyboardComponent::resized ()
 void
 BarKeyboardComponent::applyTheme ()
 {
+  dressEncoderKnobs ();
   if (onPlacementStale)
     onPlacementStale ();
 }
@@ -74,6 +176,10 @@ void
 BarKeyboardComponent::relayout ()
 {
   _keys = layOutPanelKeyboard (getLocalBounds (), _state.page);
+  for (int column = 0; column < numEncoderColumns; ++column)
+    for (int row = 0; row < numEncoderRows; ++row)
+      _encoderKnobs[knobIndex (column, row)].setBounds (
+          keyboardEncoderSlot (getLocalBounds (), column, row).knob);
   _pressed.clear ();
   stopRepeating ();
   repaint ();
@@ -284,6 +390,30 @@ BarKeyboardComponent::paint (juce::Graphics &g)
 
   for (int i = 0; i < static_cast<int> (_keys.size ()); ++i)
     paintKey (g, i);
+
+  for (int column = 0; column < numEncoderColumns; ++column)
+    for (int row = 0; row < numEncoderRows; ++row)
+      paintEncoderGlyph (g, column, row);
+}
+
+void
+BarKeyboardComponent::paintEncoderGlyph (juce::Graphics &g, int column,
+                                         int row) const
+{
+  auto const index = knobIndex (column, row);
+  auto const glyph = keyboardEncoderGlyph (jobOfKnob (index));
+  if (glyph == KnobGlyph::None)
+    return;
+
+  auto const cell
+      = keyboardEncoderSlot (getLocalBounds (), column, row).glyph.toFloat ();
+  // Dimmed with its knob, the way every control that cannot act is.
+  auto const alpha = _encoderKnobs[index].isEnabled ()
+                         ? 1.f
+                         : theme ().alphaDisabled;
+  g.setColour (toColour (theme ().textPrimary, alpha));
+  g.fillPath (knobGlyphPath (
+      glyph, cell.reduced (cell.getWidth () * glyphInsetShare)));
 }
 
 }

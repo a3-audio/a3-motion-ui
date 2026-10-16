@@ -53,6 +53,7 @@
 #include <a3-motion-ui/components/fpv/PilotKey.hh>
 #include <a3-motion-engine/ScriptLine.hh>
 #include <a3-motion-ui/components/ActionKnobs.hh>
+#include <a3-motion-ui/components/KeyboardEncoders.hh>
 #include <a3-motion-ui/components/ActionMotionKnobs.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-engine/OscEndpoints.hh>
@@ -7326,6 +7327,11 @@ A3MotionUIComponent::timerCallback ()
   if (_clipSettings)
     _clipSettings->repaintChannelMeters ();
 
+  // E5 and E6's knobs follow the script, whoever moved it -- a drag, the
+  // caret, the encoders -- and dim when FILES is closed. Polled, like the
+  // meters: nothing changed repaints nothing.
+  refreshKeyboardEncoders ();
+
   // While a take runs its write head moves, and while a clip plays its
   // playhead does. Both fill the tick indicator, so both have to be followed
   // -- watching only the recording is what left a playing clip with a
@@ -8517,7 +8523,10 @@ A3MotionUIComponent::showKeyboard (bool shown)
   // Above ACTION and CHMIX, which share its area -- without taking the
   // focus from the field it types into.
   if (shown)
-    _barKeyboard->toFront (false);
+    {
+      _barKeyboard->toFront (false);
+      refreshKeyboardEncoders ();
+    }
 
   refreshKeyboardIcon ();
 }
@@ -8564,6 +8573,27 @@ bool
 A3MotionUIComponent::keyboardShown () const
 {
   return _barKeyboard && _barKeyboard->isVisible ();
+}
+
+ScriptPanel *
+A3MotionUIComponent::scriptOnScreen ()
+{
+  if (!_browser || !_browser->scriptPanel ().isShowing ())
+    return nullptr;
+  return &_browser->scriptPanel ();
+}
+
+void
+A3MotionUIComponent::refreshKeyboardEncoders ()
+{
+  if (!keyboardShown ())
+    return;
+
+  auto const *script = scriptOnScreen ();
+  _barKeyboard->showEncoderState (script != nullptr,
+                                  script != nullptr
+                                      ? script->scrollFractions ()
+                                      : juce::Point<float> ());
 }
 
 void
@@ -9591,11 +9621,34 @@ A3MotionUIComponent::encoderTargetAt (int column, int row)
 void
 A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
 {
-  if (auto const cursor = cursorKeyOfEncoder (keyboardShown (), column, row,
-                                               increment))
+  // While KEYS is up the keyboard's table decides first -- SHIFT included,
+  // so SHIFT + E1 is ch 1 FREQ as on every page, not the cursor.
+  auto const keyboardJob = keyboardEncoderJob (
+      keyboardShown (), column, row, isButtonPressed (Button::Shift));
+  switch (keyboardJob)
     {
+    case KeyboardEncoderJob::PageControl:
+    case KeyboardEncoderJob::ChannelPot:
+      break;
+
+    case KeyboardEncoderJob::Nothing:
+      return;
+
+    case KeyboardEncoderJob::Cursor:
       for (int step = 0; step < std::abs (increment); ++step)
-        typeKey (*cursor);
+        typeKey (cursorKeyOfDetent (increment));
+      return;
+
+    case KeyboardEncoderJob::ScrollLines:
+      if (auto *script = scriptOnScreen ())
+        script->scrollLinesBy (keyboardScrollStep (keyboardJob, increment));
+      refreshKeyboardEncoders ();
+      return;
+
+    case KeyboardEncoderJob::ScrollColumns:
+      if (auto *script = scriptOnScreen ())
+        script->scrollColumnsBy (keyboardScrollStep (keyboardJob, increment));
+      refreshKeyboardEncoders ();
       return;
     }
 
@@ -9695,6 +9748,11 @@ A3MotionUIComponent::handleEncoderPress (int column, int row)
 
   // Nothing to click or choose in FPV: those belong to FULL's hidden page.
   if (_view == AppView::Fpv)
+    return;
+
+  // Nor while the keyboard covers the page: a press used to switch what the
+  // hidden page's encoder turns.
+  if (keyboardShown ())
     return;
 
   // A click switches what the encoder turns, where there are two things

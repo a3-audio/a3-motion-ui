@@ -907,10 +907,12 @@ private:
   void  applyTheme () override;
   void  showKeyboard (bool shown);
   void  toggleKeyboard ();
-  /** Whether the panel's encoders type rather than turn: the keyboard is
-   *  up and SHIFT is not held (BarKeyboardModel.hh has the table). */
   /** The in-app keyboard is up -- and with it, owns the panel. */
   bool keyboardShown () const;
+  /** FILES' script panel while it is on screen, for E5 and E6 to scroll. */
+  ScriptPanel *scriptOnScreen ();
+  /** Tells the keyboard's encoder knobs where the script stands. */
+  void refreshKeyboardEncoders ();
   /** A letter's LED while the keyboard owns the panel. */
   juce::Colour keyboardLetterLed () const;
   /** A key press to whatever holds the focus, as a plugged-in keyboard's. */

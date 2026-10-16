@@ -24,7 +24,12 @@
 
 #include <a3-motion-ui/components/BarKeyboardComponent.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/LookAndFeel.hh>
 #include <a3-motion-ui/components/PanelKeyboard.hh>
+#include <a3-motion-ui/components/PotKnob.hh>
+#include <a3-motion-ui/theme/Theme.hh>
+
+#include <ShippedSkin.hh>
 
 #include <set>
 
@@ -252,4 +257,172 @@ TEST (PanelKeyboard, TheLedsShowTheKeyboard)
   EXPECT_EQ (
       keyboardLedColour ({ KeyAction::None, 0, 1 }, accent, dim).getAlpha (),
       0);
+}
+
+// -- The eight encoders on KEYS (2026-10-16) ----------------------------------
+
+// Rows 0-1 over the pads are the panel's pots, so that is where the screen
+// shows them: one slot per encoder over its channel's two pad columns, the
+// knob in the left cell and its sign in the right.
+TEST (PanelKeyboard, TheEncoderSlotsFillTheBandBetweenTheCorners)
+{
+  auto const keys = layOutPanelKeyboard (barArea, KeyboardPage::Letters);
+  std::vector<juce::Rectangle<int>> taken;
+
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      {
+        auto const slot = keyboardEncoderSlot (barArea, column, row);
+        EXPECT_EQ (slot.knob, panelCellBounds (barArea, { row, 1 + 2 * column }))
+            << column << "," << row;
+        EXPECT_EQ (slot.glyph,
+                   panelCellBounds (barArea, { row, 2 + 2 * column }))
+            << column << "," << row;
+
+        for (auto const part : { slot.knob, slot.glyph })
+          {
+            EXPECT_FALSE (part.isEmpty ());
+            EXPECT_TRUE (barArea.contains (part));
+            for (auto const &key : keys)
+              EXPECT_FALSE (part.intersects (key.bounds))
+                  << "over a key: " << column << "," << row;
+            for (auto const &other : taken)
+              EXPECT_FALSE (part.intersects (other));
+            taken.push_back (part);
+          }
+      }
+  EXPECT_EQ (taken.size (), 16u) << "the sixteen cells of the band";
+}
+
+namespace
+{
+std::vector<PotKnob *>
+encoderKnobsOf (BarKeyboardComponent &keyboard)
+{
+  std::vector<PotKnob *> knobs;
+  for (auto *child : keyboard.getChildren ())
+    if (auto *knob = dynamic_cast<PotKnob *> (child))
+      knobs.push_back (knob);
+  return knobs;
+}
+
+struct Keys
+{
+  Keys ()
+  {
+    juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
+    keyboard.setBounds (barArea);
+    keyboard.setMetrics ({ 40, 14.f, 12.f });
+  }
+  ~Keys () { juce::LookAndFeel::setDefaultLookAndFeel (nullptr); }
+
+  LookAndFeel_A3 lookAndFeel;
+  BarKeyboardComponent keyboard;
+};
+}
+
+// The knobs only show: at 5 mm they are below a fingertip, and a touch meant
+// for a key must never turn one.
+TEST (PanelKeyboard, TheKeyboardShowsEightKnobsThatTakeNoTouch)
+{
+  Keys k;
+  auto const knobs = encoderKnobsOf (k.keyboard);
+  ASSERT_EQ (knobs.size (), 8u);
+
+  for (int column = 0; column < 4; ++column)
+    for (int row = 0; row < 2; ++row)
+      {
+        auto const &knob = k.keyboard.encoderKnob (column, row);
+        EXPECT_EQ (knob.getBounds (),
+                   keyboardEncoderSlot (barArea, column, row).knob);
+        EXPECT_TRUE (knob.isVisible ());
+        bool children = true, self = true;
+        knob.getInterceptsMouseClicks (self, children);
+        EXPECT_FALSE (self) << column << "," << row;
+        EXPECT_FALSE (children);
+      }
+}
+
+// E5 and E6 show where the script stands, and are dimmed with no script on
+// screen; E1 is always the cursor; the other five are always dimmed.
+TEST (PanelKeyboard, TheKnobsSayWhatTheirEncoderDoes)
+{
+  Keys k;
+  k.keyboard.showEncoderState (true, { 0.25f, 0.5f });
+
+  EXPECT_TRUE (k.keyboard.encoderKnob (0, 0).isEnabled ()) << "E1, cursor";
+  EXPECT_TRUE (k.keyboard.encoderKnob (0, 1).isEnabled ()) << "E5";
+  EXPECT_TRUE (k.keyboard.encoderKnob (1, 1).isEnabled ()) << "E6";
+  EXPECT_DOUBLE_EQ (k.keyboard.encoderKnob (0, 1).getValue (), 0.5)
+      << "E5 is how far down";
+  EXPECT_DOUBLE_EQ (k.keyboard.encoderKnob (1, 1).getValue (), 0.25)
+      << "E6 is how far across";
+  for (auto const [column, row] : { std::pair{ 1, 0 }, std::pair{ 2, 0 },
+                                    std::pair{ 3, 0 }, std::pair{ 2, 1 },
+                                    std::pair{ 3, 1 } })
+    EXPECT_FALSE (k.keyboard.encoderKnob (column, row).isEnabled ())
+        << column << "," << row;
+
+  k.keyboard.showEncoderState (false, { 0.25f, 0.5f });
+  EXPECT_TRUE (k.keyboard.encoderKnob (0, 0).isEnabled ());
+  EXPECT_FALSE (k.keyboard.encoderKnob (0, 1).isEnabled ());
+  EXPECT_FALSE (k.keyboard.encoderKnob (1, 1).isEnabled ());
+}
+
+namespace
+{
+float
+brightestIn (juce::Image const &image, juce::Rectangle<int> area)
+{
+  float brightest = 0.f;
+  for (int y = area.getY (); y < area.getBottom (); ++y)
+    for (int x = area.getX (); x < area.getRight (); ++x)
+      brightest = std::max (brightest,
+                            image.getPixelAt (x, y).getPerceivedBrightness ());
+  return brightest;
+}
+
+void
+writeSnapshot (juce::Image const &image, juce::String const &name)
+{
+  auto const dir
+      = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
+  if (dir.isEmpty ())
+    return;
+  auto file = juce::File (dir).getChildFile (name);
+  file.deleteFile ();
+  juce::FileOutputStream out (file);
+  juce::PNGImageFormat ().writeImageToStream (image, out);
+}
+}
+
+// A page test must paint: KEYS with its knobs, with a script on screen and
+// without. The signs beside E5 and E6 are lit with the script and dimmed
+// without it; the cursor's sign is lit either way.
+TEST (PanelKeyboard, TheKeyboardPaintsItsKnobsWithAndWithoutAScript)
+{
+  auto const before = theme ();
+  setTheme (loadTheme (shippedSkin ()));
+  {
+    Keys k;
+    k.keyboard.showEncoderState (true, { 0.f, 0.35f });
+    auto const withScript = k.keyboard.createComponentSnapshot (barArea);
+    k.keyboard.showEncoderState (false, { 0.f, 0.35f });
+    auto const without = k.keyboard.createComponentSnapshot (barArea);
+    writeSnapshot (withScript, "keys-with-editor.png");
+    writeSnapshot (without, "keys-without-editor.png");
+
+    auto const glyphOf = [] (int column, int row) {
+      return keyboardEncoderSlot (barArea, column, row).glyph;
+    };
+    EXPECT_GT (brightestIn (withScript, glyphOf (0, 1)),
+               brightestIn (without, glyphOf (0, 1)) + 0.2f);
+    EXPECT_GT (brightestIn (withScript, glyphOf (1, 1)),
+               brightestIn (without, glyphOf (1, 1)) + 0.2f);
+    EXPECT_GT (brightestIn (without, glyphOf (0, 0)), 0.6f) << "cursor sign";
+    EXPECT_LT (brightestIn (without, glyphOf (2, 0)),
+               brightestIn (without, glyphOf (0, 0)) - 0.2f)
+        << "no sign where an encoder does nothing";
+  }
+  setTheme (before);
 }

@@ -73,20 +73,14 @@ bool keyRepeatsWhileHeld (KeyAction action);
  *  | the 44 keys              | the keyboard's keys (PanelKeyboard.hh); no    |
  *  |                          | clip fires, TAP/REC/MENU/SHIFT do nothing     |
  *  |                          | else. HIDE or ESC gives the panel back.       |
- *  | encoder 1, turned        | the text cursor, left or right                |
- *  | the other encoders, pots | unchanged -- the mix stays under the hands    |
+ *  | the encoders             | KeyboardEncoders.hh: E1 the cursor, E5 and E6 |
+ *  |                          | scroll the script, the rest nothing; SHIFT +  |
+ *  |                          | encoder FREQ / Q as on every page             |
+ *  | the pots                 | unchanged -- the mix stays under the hands    |
  *
  *  Until then the pads kept playing while a name was typed, on purpose ("a
  *  pad that types instead of firing ... is a clip that did not start"). The
  *  maintainer asked for the opposite: "den hardware controller komplett
  *  übernehmen wenn aktiviert" -- running clips go on, new ones wait. */
-
-/** While the keyboard is up, encoder 1 (column 0, the upper row) moves the
- *  text cursor, one key press per detent in the turn's direction -- the
- *  other encoders keep their own jobs. Nothing for any other encoder, or
- *  with the keyboard down. */
-std::optional<juce::KeyPress> cursorKeyOfEncoder (bool keyboardShown,
-                                                  int column, int row,
-                                                  int increment);
 
 }

@@ -162,18 +162,3 @@ TEST (BarKeyboardModel, OnlyTheCursorAndBackspaceRepeatWhileHeld)
   EXPECT_FALSE (keyRepeatsWhileHeld (KeyAction::Character));
   EXPECT_FALSE (keyRepeatsWhileHeld (KeyAction::Hide));
 }
-
-// Encoder 1 moves the text cursor while the keyboard is up (2026-09-30):
-// with 44 real keys the encoders no longer walk keys; the others keep their
-// own jobs.
-TEST (BarKeyboardModel, EncoderOneMovesTheCursorWhileTyping)
-{
-  EXPECT_EQ (cursorKeyOfEncoder (true, 0, 0, 1),
-             juce::KeyPress (juce::KeyPress::rightKey));
-  EXPECT_EQ (cursorKeyOfEncoder (true, 0, 0, -2),
-             juce::KeyPress (juce::KeyPress::leftKey));
-  EXPECT_FALSE (cursorKeyOfEncoder (true, 1, 0, 1).has_value ());
-  EXPECT_FALSE (cursorKeyOfEncoder (true, 0, 1, 1).has_value ());
-  EXPECT_FALSE (cursorKeyOfEncoder (false, 0, 0, 1).has_value ());
-  EXPECT_FALSE (cursorKeyOfEncoder (true, 0, 0, 0).has_value ());
-}
