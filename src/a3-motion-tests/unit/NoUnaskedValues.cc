@@ -220,3 +220,18 @@ TEST (PanelPot, AReportedMoveIsTheNewReference)
   EXPECT_FALSE (pot.read (2000 + PanelPot::deadband).has_value ());
   EXPECT_TRUE (pot.read (1000).has_value ());
 }
+
+// protocol.h documents the pots as 0..4095 and the firmware now ends there:
+// the end stops read exactly 0 and 1 (2026-10-17: they read 1/4095 too much).
+TEST (PanelPot, TheEndStopsReadExactlyZeroAndOne)
+{
+  PanelPot pot;
+  pot.read (2000);
+  auto const top = pot.read (static_cast<int> (PanelPot::fullScale));
+  ASSERT_TRUE (top.has_value ());
+  EXPECT_EQ (*top, 1.f);
+
+  auto const bottom = pot.read (0);
+  ASSERT_TRUE (bottom.has_value ());
+  EXPECT_EQ (*bottom, 0.f);
+}

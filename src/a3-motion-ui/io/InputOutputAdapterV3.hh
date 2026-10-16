@@ -32,6 +32,7 @@
 #include <a3-motion-ui/io/ButtonLedColours.hh>
 #include <a3-motion-ui/io/LedLoad.hh>
 #include <a3-motion-ui/io/LedCache.hh>
+#include <a3-motion-ui/io/PanelPoll.hh>
 #include <a3-motion-ui/io/PanelPot.hh>
 #include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
@@ -63,7 +64,7 @@ namespace a3
  *   Odd   (1,3,5,7) → Motion-Encoder (encoder B) per channel 0-3:
  *                     mapped to base-class encoderIndex 0
  *
- * Hardware pots (4 total, read every potDivider cycles):
+ * Hardware pots (4 total, read in every poll cycle):
  *   Exposed via getGlobalPot(0-3), independent of the per-channel pot system.
  */
 class InputOutputAdapterV3 : public InputOutputAdapter
@@ -92,9 +93,8 @@ private:
   /** Throw away a slipped stream so the next poll starts on a frame boundary. */
   void resynchronise ();
   bool readExact (uint8_t *buf, std::size_t n);
-  bool resolveFrameOffsets (const uint8_t *raw, bool withPots,
-                            int &buttonOffset, int &encoderOffset,
-                            int &potOffset);
+  bool resolveFrameOffsets (const uint8_t *raw, int &buttonOffset,
+                            int &encoderOffset);
 
   LibSerial::SerialPort _serialPort;
   /** When to stop believing an open port, and how often to look for one that
@@ -120,20 +120,6 @@ private:
    *  that can know what actually reached the panel. See LedCache.hh. */
   LedCache _ledCache;
 
-  // ── Protocol constants ────────────────────────────────────────────────────
-  static constexpr uint8_t cmdPing       = 0x01;
-  static constexpr uint8_t cmdGetPots    = 0x02;
-  static constexpr uint8_t cmdGetEncoders = 0x03;
-  static constexpr uint8_t cmdGetButtons = 0x04;
-  static constexpr uint8_t cmdSetLed      = 0x05;
-  static constexpr uint8_t cmdSetAllLeds  = 0x06;
-
-  // Response sizes (including the leading command echo byte)
-  static constexpr std::size_t btnFrameSize = 12;  // 1 + 11 packed bytes
-  static constexpr std::size_t encFrameSize = 25;  // 1 + 8×3 bytes
-  static constexpr std::size_t potFrameSize =  9;  // 1 + 4×u16
-
-  static constexpr int potDivider      = 5;   // read pots every Nth cycle
   static constexpr unsigned int serialTimeoutMs = 250;
   /** How often to ask a freshly opened port who it is, and how long to wait
    *  between tries. Opening resets the board, so the first questions land
@@ -269,7 +255,6 @@ private:
   void parsePots (const uint8_t *raw, int offset);
 
   // ── Cycle counter ─────────────────────────────────────────────────────────
-  int _cycle = 0;
 };
 
 }
