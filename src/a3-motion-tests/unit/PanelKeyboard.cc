@@ -343,30 +343,115 @@ TEST (PanelKeyboard, TheKeyboardShowsEightKnobsThatTakeNoTouch)
       }
 }
 
-// E5 and E6 show where the script stands, and are dimmed with no script on
-// screen; E1 is always the cursor; the other five are always dimmed.
+// E1 and E2 are the cursor and always lit; E5 and E6 show FILES' folder and
+// file, and are dimmed while FILES is not on screen; the other four are
+// always dimmed.
 TEST (PanelKeyboard, TheKnobsSayWhatTheirEncoderDoes)
 {
   Keys k;
-  k.keyboard.showEncoderState (true, { 0.25f, 0.5f });
+  KeyboardFilesView view;
+  view.filesOnScreen = true;
+  view.folderFraction = 2.f / 3.f;
+  view.fileFraction = 0.25f;
+  k.keyboard.showFiles (view);
 
-  EXPECT_TRUE (k.keyboard.encoderKnob (0, 0).isEnabled ()) << "E1, cursor";
+  EXPECT_TRUE (k.keyboard.encoderKnob (0, 0).isEnabled ()) << "E1";
+  EXPECT_TRUE (k.keyboard.encoderKnob (1, 0).isEnabled ()) << "E2";
   EXPECT_TRUE (k.keyboard.encoderKnob (0, 1).isEnabled ()) << "E5";
   EXPECT_TRUE (k.keyboard.encoderKnob (1, 1).isEnabled ()) << "E6";
-  EXPECT_DOUBLE_EQ (k.keyboard.encoderKnob (0, 1).getValue (), 0.5)
-      << "E5 is how far down";
+  EXPECT_NEAR (k.keyboard.encoderKnob (0, 1).getValue (), 2.0 / 3.0, 1e-6)
+      << "E5 is which folder";
   EXPECT_DOUBLE_EQ (k.keyboard.encoderKnob (1, 1).getValue (), 0.25)
-      << "E6 is how far across";
-  for (auto const [column, row] : { std::pair{ 1, 0 }, std::pair{ 2, 0 },
-                                    std::pair{ 3, 0 }, std::pair{ 2, 1 },
-                                    std::pair{ 3, 1 } })
+      << "E6 is how far down the list";
+  for (auto const [column, row] : { std::pair{ 2, 0 }, std::pair{ 3, 0 },
+                                    std::pair{ 2, 1 }, std::pair{ 3, 1 } })
     EXPECT_FALSE (k.keyboard.encoderKnob (column, row).isEnabled ())
         << column << "," << row;
 
-  k.keyboard.showEncoderState (false, { 0.25f, 0.5f });
+  view.filesOnScreen = false;
+  k.keyboard.showFiles (view);
   EXPECT_TRUE (k.keyboard.encoderKnob (0, 0).isEnabled ());
+  EXPECT_TRUE (k.keyboard.encoderKnob (1, 0).isEnabled ());
   EXPECT_FALSE (k.keyboard.encoderKnob (0, 1).isEnabled ());
   EXPECT_FALSE (k.keyboard.encoderKnob (1, 1).isEnabled ());
+}
+
+// -- The file keys, in the margin left of the keys ---------------------------
+
+// One key a row, left of ESC, 123, q, a, z and SHIFT, in the dark margin --
+// RENAME, DELETE, LOAD, SAVE, SAVE AS, FROM… top to bottom.
+TEST (PanelKeyboard, TheFileKeysStandLeftOfTheKeysOneARow)
+{
+  auto const keys = layOutPanelKeyboard (barArea, KeyboardPage::Letters);
+  FileKey const order[] = { FileKey::Rename, FileKey::Delete, FileKey::Load,
+                            FileKey::Save,   FileKey::SaveAs, FileKey::From };
+  for (int row = 0; row < panelRows; ++row)
+    {
+      EXPECT_EQ (fileKeyOfRow (row), order[row]) << row;
+      auto const slot = keyboardFileKeySlot (barArea, row);
+      auto const first = panelCellBounds (barArea, { row, 0 });
+      EXPECT_FALSE (slot.isEmpty ()) << row;
+      EXPECT_TRUE (barArea.contains (slot)) << row;
+      EXPECT_LT (slot.getRight (), first.getX ()) << "left of the keys";
+      EXPECT_EQ (slot.getY (), first.getY ()) << "on its key row";
+      EXPECT_EQ (slot.getHeight (), first.getHeight ());
+      for (auto const &key : keys)
+        EXPECT_FALSE (slot.intersects (key.bounds)) << row;
+    }
+}
+
+namespace
+{
+juce::MouseEvent
+touchAt (juce::Component &on, juce::Point<int> at)
+{
+  auto const source = juce::Desktop::getInstance ().getMainMouseSource ();
+  auto const p = at.toFloat ();
+  return juce::MouseEvent (source, p, {},
+                           juce::MouseInputSource::defaultPressure, 0.f, 0.f,
+                           0.f, 0.f, &on, &on, juce::Time::getCurrentTime (),
+                           p, juce::Time::getCurrentTime (), 1, false);
+}
+
+KeyboardFilesView
+filesWithAllKeys (bool onScreen)
+{
+  KeyboardFilesView view;
+  view.filesOnScreen = onScreen;
+  for (auto &key : view.keys)
+    key = { "KEY", true, false };
+  return view;
+}
+}
+
+// A tap on a file key asks for it -- only while FILES is on screen and the
+// key can act, the rule FILES lights its own keys by.
+TEST (PanelKeyboard, ATapOnAFileKeyAsksForIt)
+{
+  Keys k;
+  std::vector<FileKey> asked;
+  k.keyboard.onFileKey = [&asked] (FileKey key) { asked.push_back (key); };
+
+  auto const tap = [&k] (int row) {
+    auto const at = keyboardFileKeySlot (barArea, row).getCentre ();
+    k.keyboard.mouseDown (touchAt (k.keyboard, at));
+    k.keyboard.mouseUp (touchAt (k.keyboard, at));
+  };
+
+  k.keyboard.showFiles (filesWithAllKeys (true));
+  tap (2);
+  ASSERT_EQ (asked.size (), 1u);
+  EXPECT_EQ (asked[0], FileKey::Load);
+
+  auto dark = filesWithAllKeys (true);
+  dark.keys[static_cast<size_t> (FileKey::Save)].enabled = false;
+  k.keyboard.showFiles (dark);
+  tap (3);
+  EXPECT_EQ (asked.size (), 1u) << "a dark key does nothing";
+
+  k.keyboard.showFiles (filesWithAllKeys (false));
+  tap (5);
+  EXPECT_EQ (asked.size (), 1u) << "nothing without FILES on screen";
 }
 
 namespace
@@ -396,33 +481,50 @@ writeSnapshot (juce::Image const &image, juce::String const &name)
 }
 }
 
-// A page test must paint: KEYS with its knobs, with a script on screen and
-// without. The signs beside E5 and E6 are lit with the script and dimmed
-// without it; the cursor's sign is lit either way.
-TEST (PanelKeyboard, TheKeyboardPaintsItsKnobsWithAndWithoutAScript)
+// A page test must paint: KEYS with its knobs and file keys, with FILES on
+// screen and without. The cursor's signs are lit either way; the folder's
+// and the file's only with FILES; the file keys are dimmed without it.
+TEST (PanelKeyboard, TheKeyboardPaintsItsKnobsAndFileKeys)
 {
   auto const before = theme ();
   setTheme (loadTheme (shippedSkin ()));
   {
     Keys k;
-    k.keyboard.showEncoderState (true, { 0.f, 0.35f });
-    auto const withScript = k.keyboard.createComponentSnapshot (barArea);
-    k.keyboard.showEncoderState (false, { 0.f, 0.35f });
+    auto view = filesWithAllKeys (true);
+    juce::StringArray const labels{ "RENAME", "DELETE", "LOAD",
+                                    "SAVE",   "SAVE AS",
+                                    juce::String::fromUTF8 ("FROM\xe2\x80\xa6") };
+    for (size_t i = 0; i < view.keys.size (); ++i)
+      view.keys[i].label = labels[static_cast<int> (i)];
+    view.folderFraction = 1.f / 3.f;
+    view.fileFraction = 0.4f;
+    k.keyboard.showFiles (view);
+    auto const withFiles = k.keyboard.createComponentSnapshot (barArea);
+    view.filesOnScreen = false;
+    k.keyboard.showFiles (view);
     auto const without = k.keyboard.createComponentSnapshot (barArea);
-    writeSnapshot (withScript, "keys-with-editor.png");
-    writeSnapshot (without, "keys-without-editor.png");
+    writeSnapshot (withFiles, "keys-with-files.png");
+    writeSnapshot (without, "keys-without-files.png");
 
     auto const glyphOf = [] (int column, int row) {
       return keyboardEncoderSlot (barArea, column, row).glyph;
     };
-    EXPECT_GT (brightestIn (withScript, glyphOf (0, 1)),
-               brightestIn (without, glyphOf (0, 1)) + 0.2f);
-    EXPECT_GT (brightestIn (withScript, glyphOf (1, 1)),
-               brightestIn (without, glyphOf (1, 1)) + 0.2f);
-    EXPECT_GT (brightestIn (without, glyphOf (0, 0)), 0.6f) << "cursor sign";
+    for (auto const column : { 0, 1 })
+      {
+        EXPECT_GT (brightestIn (without, glyphOf (column, 0)), 0.6f)
+            << "cursor sign " << column;
+        EXPECT_GT (brightestIn (withFiles, glyphOf (column, 1)),
+                   brightestIn (without, glyphOf (column, 1)) + 0.2f)
+            << "files sign " << column;
+      }
     EXPECT_LT (brightestIn (without, glyphOf (2, 0)),
                brightestIn (without, glyphOf (0, 0)) - 0.2f)
         << "no sign where an encoder does nothing";
+
+    auto const load = keyboardFileKeySlot (barArea, 2);
+    EXPECT_GT (brightestIn (withFiles, load),
+               brightestIn (without, load) + 0.1f)
+        << "the file keys dim without FILES";
   }
   setTheme (before);
 }

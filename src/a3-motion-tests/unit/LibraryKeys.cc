@@ -199,3 +199,41 @@ TEST (LibraryDriftDot, OnlyTheClipsTabCanShowIt)
                            BrowserList::Sessions })
     EXPECT_EQ (-1, driftedRowIn (list, 5, true));
 }
+
+// -- E5 and E6 on KEYS (2026-10-16) -----------------------------------------
+
+// E5 steps the folders in the order their tabs stand, and stops at the ends.
+TEST (LibraryKeys, TheFoldersStepInTheOrderOfTheirTabs)
+{
+  auto const &order = browserListOrder ();
+  EXPECT_EQ (order[0], BrowserList::Sessions);
+  EXPECT_EQ (order[1], BrowserList::Clips);
+  EXPECT_EQ (order[2], BrowserList::Shapes);
+  EXPECT_EQ (order[3], BrowserList::Actions);
+
+  EXPECT_EQ (steppedBrowserList (BrowserList::Sessions, 1), BrowserList::Clips);
+  EXPECT_EQ (steppedBrowserList (BrowserList::Clips, 2), BrowserList::Actions);
+  EXPECT_EQ (steppedBrowserList (BrowserList::Shapes, -1), BrowserList::Clips);
+  EXPECT_EQ (steppedBrowserList (BrowserList::Actions, 1), BrowserList::Actions);
+  EXPECT_EQ (steppedBrowserList (BrowserList::Clips, -5), BrowserList::Sessions);
+}
+
+TEST (LibraryKeys, AFoldersFractionIsWhereItsTabStands)
+{
+  EXPECT_FLOAT_EQ (browserListFraction (BrowserList::Sessions), 0.f);
+  EXPECT_FLOAT_EQ (browserListFraction (BrowserList::Shapes), 2.f / 3.f);
+  EXPECT_FLOAT_EQ (browserListFraction (BrowserList::Actions), 1.f);
+}
+
+// E6 walks the list and stops at both ends; nothing chosen, it starts at
+// the first row.
+TEST (LibraryKeys, AFileStepsThroughTheListAndStopsAtTheEnds)
+{
+  EXPECT_EQ (steppedEntry (3, 1, 10), 4);
+  EXPECT_EQ (steppedEntry (3, -2, 10), 1);
+  EXPECT_EQ (steppedEntry (8, 5, 10), 9);
+  EXPECT_EQ (steppedEntry (1, -5, 10), 0);
+  EXPECT_EQ (steppedEntry (-1, 1, 10), 0);
+  EXPECT_EQ (steppedEntry (-1, -1, 10), 0);
+  EXPECT_EQ (steppedEntry (-1, 1, 0), -1);
+}

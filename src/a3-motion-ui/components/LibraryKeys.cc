@@ -85,4 +85,53 @@ driftedRowIn (BrowserList list, int slotRow, bool slotHasDrifted)
   return slotRow;
 }
 
+std::array<BrowserList, 4> const &
+browserListOrder ()
+{
+  static std::array<BrowserList, 4> const order{
+    BrowserList::Sessions, BrowserList::Clips, BrowserList::Shapes,
+    BrowserList::Actions
+  };
+  return order;
+}
+
+namespace
+{
+int
+positionOf (BrowserList list)
+{
+  auto const &order = browserListOrder ();
+  for (size_t i = 0; i < order.size (); ++i)
+    if (order[i] == list)
+      return static_cast<int> (i);
+  return 0;
+}
+}
+
+BrowserList
+steppedBrowserList (BrowserList from, int delta)
+{
+  auto const &order = browserListOrder ();
+  auto const last = static_cast<int> (order.size ()) - 1;
+  return order[static_cast<size_t> (
+      juce::jlimit (0, last, positionOf (from) + delta))];
+}
+
+float
+browserListFraction (BrowserList list)
+{
+  auto const last = static_cast<float> (browserListOrder ().size () - 1);
+  return static_cast<float> (positionOf (list)) / last;
+}
+
+int
+steppedEntry (int chosen, int delta, int count)
+{
+  if (count <= 0)
+    return -1;
+  if (chosen < 0)
+    return 0;
+  return juce::jlimit (0, count - 1, chosen + delta);
+}
+
 }

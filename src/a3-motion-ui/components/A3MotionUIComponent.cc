@@ -823,21 +823,12 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     refreshBrowser ();
   };
 
-  // EDIT: the shown clip's action, opened beside the list in FILES. A Save
-  // as from there points this clip at the copy (takeEditOrigin), as the
-  // editor on this page did before it moved (2026-09-27). The panel is
-  // brought to the chosen row by refreshBrowser -- see syncFilePanel.
+  // EDIT: the shown clip's action, beside the list in FILES -- FROM… on
+  // ACTIONS, one route (2026-10-16). A Save as from there points this clip's
+  // button at the copy (takeEditOrigin).
   _action->onEditPressed = [this] {
-    // The origin's second index is the button EDIT came from.
-    _editOrigin = SlotRef{ _clipSettingsChannel,
-                           static_cast<index_t> (
-                               _chosenActionButton[_clipSettingsChannel]) };
     showOverSphere (SphereOverlay::Files);
-    _browserList = BrowserList::Actions;
-    _browser->setShowingList (BrowserList::Actions);
-    _deleteArmed = false;
-    _browser->cancelRename ();
-    refreshBrowser (BrowserSelection::PointAtTheSlot);
+    takeFrom (BrowserList::Actions);
   };
 
   // The browser: the library the shown slot is filled from. What a row means
@@ -928,42 +919,9 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
     refreshBrowser (BrowserSelection::PointAtTheSlot);
   };
 
-  _browser->onClipsChosen = [this] {
-    // Another tab is another file: unsaved text holds it here.
-    if (fileTextHoldsTheList ())
-      return;
-    _browser->scriptPanel ().stopEditing ();
-    _browserList = BrowserList::Clips;
-    _deleteArmed = false;
-    _browser->cancelRename ();
-    _browser->setSelectedEntry (-1);
-    // Reiterwechsel: eine andere Liste, also eine andere Frage.
-    refreshBrowser (BrowserSelection::PointAtTheSlot);
-  };
-  _browser->onShapesChosen = [this] {
-    // Another tab is another file: unsaved text holds it here.
-    if (fileTextHoldsTheList ())
-      return;
-    _browser->scriptPanel ().stopEditing ();
-    _browserList = BrowserList::Shapes;
-    _deleteArmed = false;
-    _browser->cancelRename ();
-    _browser->setSelectedEntry (-1);
-    // Reiterwechsel.
-    refreshBrowser (BrowserSelection::PointAtTheSlot);
-  };
-  _browser->onActionsChosen = [this] {
-    // Another tab is another file: unsaved text holds it here.
-    if (fileTextHoldsTheList ())
-      return;
-    _browserList = BrowserList::Actions;
-    _deleteArmed = false;
-    _browser->cancelRename ();
-    _browser->setSelectedEntry (-1);
-    // Reiterwechsel. The script beside the list follows through
-    // syncFilePanel, which keeps unsaved text rather than dropping it.
-    refreshBrowser (BrowserSelection::PointAtTheSlot);
-  };
+  _browser->onClipsChosen = [this] { tapBrowserList (BrowserList::Clips); };
+  _browser->onShapesChosen = [this] { tapBrowserList (BrowserList::Shapes); };
+  _browser->onActionsChosen = [this] { tapBrowserList (BrowserList::Actions); };
 
   // The chosen action's script beside the list (2026-09-27): the keys only
   // say they were pressed, what they mean is decided here.
@@ -974,31 +932,16 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   filesScript.onSave = [this] { saveFileText (); };
   filesScript.onSaveAs = [this] { saveFileTextAs (); };
   filesScript.onCancel = [this] { showFileText (_panelFile); };
-  // FROM: the current state as this tab's file text, written by the same
-  // writer Save used to call straight into the file (currentStateText).
-  filesScript.onFromClip = [this] {
-    auto const text = currentList ().currentStateText ();
-    if (text.isNotEmpty ())
-      _browser->scriptPanel ().offerScript (text);
-  };
-  _browser->onSetsChosen = [this] {
-    // Another tab is another file: unsaved text holds it here.
-    if (fileTextHoldsTheList ())
-      return;
-    _browser->scriptPanel ().stopEditing ();
-    _browserList = BrowserList::Sessions;
-    _deleteArmed = false;
-    _browser->cancelRename ();
-    _browser->setSelectedEntry (-1);
-    // Reiterwechsel.
-    refreshBrowser (BrowserSelection::PointAtTheSlot);
-  };
+  // FROM…: armed by a press, aimed by the next tap on a folder (takeFrom).
+  filesScript.onFromClip = [this] { armFrom (!_fromArmed); };
+  _browser->onSetsChosen = [this] { tapBrowserList (BrowserList::Sessions); };
   _browser->onEntryChosen = [this] (int index) {
     if (fileTextHoldsTheList ())
       return;
     // Anything else you do puts the delete key back to sleep. An armed key
-    // you have forgotten about is worse than no key at all.
+    // you have forgotten about is worse than no key at all -- FROM… too.
     _deleteArmed = false;
+    armFrom (false);
     _browser->cancelRename ();
     _browser->setSelectedEntry (index);
 
@@ -1036,6 +979,7 @@ A3MotionUIComponent::A3MotionUIComponent (unsigned int const numChannels)
   _barKeyboard->onKey = [this] (juce::KeyPress const &key) { typeKey (key); };
   _barKeyboard->onHide = [this] { showKeyboard (false); };
   _barKeyboard->onPlacementStale = [this] { placeKeyboard (); };
+  _barKeyboard->onFileKey = [this] (FileKey key) { pressFileKey (key); };
   _barKeyboard->isShiftHeld
       = [this] { return isButtonPressed (Button::Shift); };
   _clipSettings->addChildComponent (*_barKeyboard);
@@ -3320,7 +3264,7 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
   // Action" spent a word saying it again, and keys that reword themselves
   // between tabs are keys you read instead of aim at.
   auto const chosen = chosenEntryHasAFile ();
-  auto const rename = _browser->isRenaming () ? "Keep" : "Rename";
+  auto const rename = renameKeyLabel ();
 
   // The word on the key is the state it is in, not the one the next press
   // would bring -- a key naming what you would get rather than what you have
@@ -3340,7 +3284,7 @@ A3MotionUIComponent::refreshBrowser (BrowserSelection selection)
   // The delete key says what the next press will do. Armed it wears the word
   // rather than a colour, because a key that only changed colour would be a
   // key you have to have been watching.
-  auto const remove = _deleteArmed ? "Sure?" : "Delete";
+  auto const remove = deleteKeyLabel ();
 
   // A set can always be put away -- there is always an arrangement to keep --
   // where a clip and an action are made out of what a slot holds, and an
@@ -3879,7 +3823,6 @@ A3MotionUIComponent::showFileText (juce::File const &file)
   auto &panel = _browser->scriptPanel ();
   _panelFile = file;
   panel.setLanguage (languageFor (file));
-  panel.setFromLabel (fromKeyLabelFor (_browserList));
   dressFilePanel ();
   panel.stopEditing ();
 
@@ -7327,8 +7270,8 @@ A3MotionUIComponent::timerCallback ()
   if (_clipSettings)
     _clipSettings->repaintChannelMeters ();
 
-  // E5 and E6's knobs follow the script, whoever moved it -- a drag, the
-  // caret, the encoders -- and dim when FILES is closed. Polled, like the
+  // KEYS follows FILES -- its folder, its file, its keys -- whoever changed
+  // it, and dims what needs FILES when it is closed. Polled, like the
   // meters: nothing changed repaints nothing.
   refreshKeyboardEncoders ();
 
@@ -8575,25 +8518,145 @@ A3MotionUIComponent::keyboardShown () const
   return _barKeyboard && _barKeyboard->isVisible ();
 }
 
-ScriptPanel *
-A3MotionUIComponent::scriptOnScreen ()
+bool
+A3MotionUIComponent::filesOnScreen () const
 {
-  if (!_browser || !_browser->scriptPanel ().isShowing ())
-    return nullptr;
-  return &_browser->scriptPanel ();
+  return _browser && _browser->isShowing ();
+}
+
+juce::String
+A3MotionUIComponent::renameKeyLabel () const
+{
+  return _browser->isRenaming () ? "Keep" : "Rename";
+}
+
+juce::String
+A3MotionUIComponent::deleteKeyLabel () const
+{
+  return _deleteArmed ? "Sure?" : "Delete";
 }
 
 void
 A3MotionUIComponent::refreshKeyboardEncoders ()
 {
-  if (!keyboardShown ())
+  if (!keyboardShown () || !_browser)
     return;
 
-  auto const *script = scriptOnScreen ();
-  _barKeyboard->showEncoderState (script != nullptr,
-                                  script != nullptr
-                                      ? script->scrollFractions ()
-                                      : juce::Point<float> ());
+  KeyboardFilesView view;
+  view.filesOnScreen = filesOnScreen ();
+  view.folderFraction = browserListFraction (_browserList);
+  auto const count = _browser->getNumEntries ();
+  view.fileFraction
+      = count > 1 ? juce::jlimit (0.f, 1.f,
+                                  static_cast<float> (_browser->getSelectedEntry ())
+                                      / static_cast<float> (count - 1))
+                  : 0.f;
+
+  // FILES' own words and FILES' own rules, so the two columns of keys never
+  // disagree about what can be pressed.
+  auto const library = currentLibraryKeys ();
+  auto const script = _browser->scriptPanel ().keys ();
+  auto const look = [&view] (FileKey key, juce::String const &label,
+                             bool enabled, bool lit = false) {
+    view.keys[static_cast<size_t> (key)]
+        = { label.toUpperCase (), enabled, lit };
+  };
+  look (FileKey::Rename, renameKeyLabel (), library.rename);
+  look (FileKey::Delete, deleteKeyLabel (), library.remove);
+  look (FileKey::Load, "Load", library.load);
+  look (FileKey::Save, "Save", script.save);
+  look (FileKey::SaveAs, "Save as", script.saveAs);
+  look (FileKey::From, fromKeyLabel (), script.fromClip, _fromArmed);
+  _barKeyboard->showFiles (view);
+}
+
+void
+A3MotionUIComponent::pressFileKey (FileKey key)
+{
+  // Exactly what FILES' own key does -- the same callback, the same guard.
+  auto const call = [] (std::function<void ()> const &f) {
+    if (f)
+      f ();
+  };
+  auto &script = _browser->scriptPanel ();
+  switch (key)
+    {
+    case FileKey::Rename: call (_browser->onRenamePressed); break;
+    case FileKey::Delete: call (_browser->onDeletePressed); break;
+    case FileKey::Load: call (_browser->onLoadPressed); break;
+    case FileKey::Save: script.pressSave (); break;
+    case FileKey::SaveAs: script.pressSaveAs (); break;
+    case FileKey::From: script.pressFromClip (); break;
+    }
+  refreshKeyboardEncoders ();
+}
+
+void
+A3MotionUIComponent::armFrom (bool armed)
+{
+  _fromArmed = armed;
+  if (!_browser)
+    return;
+  _browser->scriptPanel ().setFromArmed (armed);
+  if (armed)
+    updateControlReadout ("-- FROM: TAP A FOLDER");
+}
+
+void
+A3MotionUIComponent::tapBrowserList (BrowserList list)
+{
+  if (_fromArmed)
+    {
+      takeFrom (list);
+      return;
+    }
+  chooseBrowserList (list);
+}
+
+void
+A3MotionUIComponent::chooseBrowserList (BrowserList list)
+{
+  // Another tab is another file: unsaved text holds it here.
+  if (fileTextHoldsTheList ())
+    return;
+  _browser->scriptPanel ().stopEditing ();
+  _browserList = list;
+  _deleteArmed = false;
+  _browser->cancelRename ();
+  _browser->setSelectedEntry (-1);
+  // Reiterwechsel: eine andere Liste, also eine andere Frage.
+  refreshBrowser (BrowserSelection::PointAtTheSlot);
+}
+
+void
+A3MotionUIComponent::takeFrom (BrowserList list)
+{
+  armFrom (false);
+  // Unsaved text is not thrown away: Save or Cancel first.
+  if (fileTextHoldsTheList ())
+    return;
+  chooseBrowserList (list);
+
+  if (list == BrowserList::Actions)
+    {
+      // A Save as from here points the button at the copy (takeEditOrigin).
+      auto const channel = _clipSettingsChannel;
+      auto const button = _chosenActionButton[channel];
+      _editOrigin = SlotRef{ channel, static_cast<index_t> (button) };
+      // The action the button fires opens as it is, chosen in the list --
+      // what EDIT always did. Only a button with none is given a script made
+      // from the clip.
+      if (channel < _channelActions.size ()
+          && juce::isPositiveAndBelow (button, numActionButtons)
+          && _channelActions[channel][static_cast<size_t> (button)]
+                 .file.existsAsFile ())
+        return;
+    }
+
+  // The shown slot's state, as this tab's file text, unsaved.
+  auto const text = currentList ().currentStateText ();
+  if (text.isNotEmpty ())
+    _browser->scriptPanel ().offerScript (text);
 }
 
 void
@@ -9634,21 +9697,25 @@ A3MotionUIComponent::handleEncoderTurn (int column, int row, int increment)
     case KeyboardEncoderJob::Nothing:
       return;
 
-    case KeyboardEncoderJob::Cursor:
+    case KeyboardEncoderJob::CursorVertical:
+    case KeyboardEncoderJob::CursorHorizontal:
+      // The editor scrolls itself to keep the cursor in view.
       for (int step = 0; step < std::abs (increment); ++step)
-        typeKey (cursorKeyOfDetent (increment));
+        typeKey (cursorKeyOfDetent (keyboardJob, increment));
       return;
 
-    case KeyboardEncoderJob::ScrollLines:
-      if (auto *script = scriptOnScreen ())
-        script->scrollLinesBy (keyboardScrollStep (keyboardJob, increment));
-      refreshKeyboardEncoders ();
+    case KeyboardEncoderJob::Folder:
+      // The route a tap on the tab takes -- but never FROM…'s target: that
+      // is said by a tap, on purpose.
+      if (filesOnScreen ())
+        chooseBrowserList (steppedBrowserList (_browserList, increment));
       return;
 
-    case KeyboardEncoderJob::ScrollColumns:
-      if (auto *script = scriptOnScreen ())
-        script->scrollColumnsBy (keyboardScrollStep (keyboardJob, increment));
-      refreshKeyboardEncoders ();
+    case KeyboardEncoderJob::File:
+      if (filesOnScreen () && _browser->onEntryChosen)
+        _browser->onEntryChosen (steppedEntry (_browser->getSelectedEntry (),
+                                               increment,
+                                               _browser->getNumEntries ()));
       return;
     }
 

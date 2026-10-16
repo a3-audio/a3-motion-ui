@@ -69,7 +69,8 @@ enum class ScriptLanguage
 
 ScriptLanguage languageFor (juce::File const &file);
 
-/** The word on the FROM key: what it takes the current state of. */
-char const *fromKeyLabelFor (BrowserList list);
+/** The word on the FROM key, the same on every tab: the folder tapped
+ *  after it says where from (2026-10-16). */
+juce::String fromKeyLabel ();
 
 }

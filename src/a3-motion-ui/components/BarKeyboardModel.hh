@@ -73,9 +73,9 @@ bool keyRepeatsWhileHeld (KeyAction action);
  *  | the 44 keys              | the keyboard's keys (PanelKeyboard.hh); no    |
  *  |                          | clip fires, TAP/REC/MENU/SHIFT do nothing     |
  *  |                          | else. HIDE or ESC gives the panel back.       |
- *  | the encoders             | KeyboardEncoders.hh: E1 the cursor, E5 and E6 |
- *  |                          | scroll the script, the rest nothing; SHIFT +  |
- *  |                          | encoder FREQ / Q as on every page             |
+ *  | the encoders             | KeyboardEncoders.hh: E1/E2 the cursor, E5/E6  |
+ *  |                          | FILES' folder and file, the rest nothing;     |
+ *  |                          | SHIFT + encoder FREQ / Q as on every page     |
  *  | the pots                 | unchanged -- the mix stays under the hands    |
  *
  *  Until then the pads kept playing while a name was typed, on purpose ("a

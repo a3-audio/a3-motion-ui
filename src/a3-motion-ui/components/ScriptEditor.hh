@@ -54,19 +54,9 @@ public:
   /** Escape, while it is being typed into. */
   std::function<void ()> onEscape;
 
-  /** Moves the view by whole lines, down for positive, and leaves the
-   *  caret where it is -- what E5 does while KEYS is up. Stops with the last
-   *  line at the bottom. */
-  void scrollLinesBy (int lineCount);
-  /** The same sideways, right for positive (E6). */
-  void scrollColumnsBy (int columnCount);
   /** The column the view starts at -- the horizontal scroll bar's, so a
-   *  drag, the encoder and the editor keeping its caret in view all read
-   *  the one position. */
+   *  drag and the editor keeping its caret in view read one position. */
   int firstColumnOnScreen () const;
-  /** Where the view stands in the text, 0 at the start and 1 at the end:
-   *  x across, y down. */
-  juce::Point<float> scrollFractions () const;
 
   void mouseDown (juce::MouseEvent const &event) override;
   void mouseDrag (juce::MouseEvent const &event) override;

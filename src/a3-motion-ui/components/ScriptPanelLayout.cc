@@ -59,10 +59,10 @@ languageFor (juce::File const &file)
                                        : ScriptLanguage::CLike;
 }
 
-char const *
-fromKeyLabelFor (BrowserList list)
+juce::String
+fromKeyLabel ()
 {
-  return list == BrowserList::Sessions ? "from set" : "from clip";
+  return juce::String::fromUTF8 ("FROM\xe2\x80\xa6");
 }
 
 }

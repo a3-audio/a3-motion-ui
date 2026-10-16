@@ -909,10 +909,25 @@ private:
   void  toggleKeyboard ();
   /** The in-app keyboard is up -- and with it, owns the panel. */
   bool keyboardShown () const;
-  /** FILES' script panel while it is on screen, for E5 and E6 to scroll. */
-  ScriptPanel *scriptOnScreen ();
-  /** Tells the keyboard's encoder knobs where the script stands. */
+  /** FILES is on screen, for E5, E6 and KEYS' file keys to act on. */
+  bool filesOnScreen () const;
+  /** Tells KEYS what FILES shows: its folder, its file, its keys. */
   void refreshKeyboardEncoders ();
+  /** A file key on KEYS: exactly what FILES' own key does. */
+  void pressFileKey (FileKey key);
+  /** FILES' Rename and Delete keys say what the next press does. */
+  juce::String renameKeyLabel () const;
+  juce::String deleteKeyLabel () const;
+  /** FROM… armed: the next tap on a folder says where from. */
+  void armFrom (bool armed);
+  /** A tap on a folder's tab: FROM…'s target while it is armed, else the
+   *  folder. */
+  void tapBrowserList (BrowserList list);
+  /** Shows `list`, as a tap on its tab and E5 do. */
+  void chooseBrowserList (BrowserList list);
+  /** FROM… + a folder: that folder, offering the shown slot's state there as
+   *  unsaved text -- or, on ACTIONS, the action its button fires. */
+  void takeFrom (BrowserList list);
   /** A letter's LED while the keyboard owns the panel. */
   juce::Colour keyboardLetterLed () const;
   /** A key press to whatever holds the focus, as a plugged-in keyboard's. */
@@ -1118,6 +1133,8 @@ private:
   /** The clip EDIT on ACTION opened FILES for: a Save as there points it at
    *  the copy. Cleared when FILES is left, so it lasts one visit. */
   std::optional<SlotRef> _editOrigin;
+  /** FROM… was pressed and waits for a folder. */
+  bool _fromArmed = false;
   /** The file the script beside the FILES list was loaded from. Save writes
    *  here, never to whichever row is chosen -- the two can differ. */
   juce::File _panelFile;

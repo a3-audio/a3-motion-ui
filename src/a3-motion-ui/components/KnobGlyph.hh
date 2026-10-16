@@ -30,17 +30,19 @@ namespace a3
 enum class KnobGlyph
 {
   None,
-  /** A text caret, an I-beam, with a small triangle either side. */
-  Cursor,
-  /** A scroll bar standing up: a groove with a triangle at each end. */
-  ScrollVertical,
+  /** Up and down: two arrows apart, one above the other. */
+  UpDown,
   /** The same lying down. */
-  ScrollHorizontal,
+  LeftRight,
+  /** A folder with its tab: which of FILES' folders. */
+  Folder,
+  /** A list of lines with one marked: which file in the list. */
+  File,
 };
 
 /** The glyph as one path to fill, inside `box` and centred in it. The
- *  triangles are the keyboard's own arrow; the strokes are already outlined,
- *  so the caller fills the whole thing in one colour. Empty for None. */
+ *  triangles are the keyboard's own arrow; strokes come already outlined, so
+ *  the caller fills the whole thing in one colour. Empty for None. */
 juce::Path knobGlyphPath (KnobGlyph glyph, juce::Rectangle<float> box);
 
 }

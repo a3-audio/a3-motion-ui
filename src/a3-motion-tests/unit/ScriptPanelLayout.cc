@@ -114,12 +114,9 @@ TEST (ScriptPanelLayout, EachKindOfFileIsColouredInItsOwnLanguage)
   EXPECT_EQ (languageFor (juce::File{}), ScriptLanguage::CLike);
 }
 
-// What the FROM key takes the current state of: the shown clip on three
-// tabs, the arrangement on SETS.
-TEST (ScriptPanelLayout, TheFromKeySaysWhatItTakes)
+// One FROM key on every tab (2026-10-16): it says where from by the tab
+// tapped after it, not by its own word.
+TEST (ScriptPanelLayout, TheFromKeyIsOneKeyOnEveryTab)
 {
-  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Clips)), "from clip");
-  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Shapes)), "from clip");
-  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Actions)), "from clip");
-  EXPECT_EQ (juce::String (fromKeyLabelFor (BrowserList::Sessions)), "from set");
+  EXPECT_EQ (fromKeyLabel (), juce::String::fromUTF8 ("FROM\xe2\x80\xa6"));
 }

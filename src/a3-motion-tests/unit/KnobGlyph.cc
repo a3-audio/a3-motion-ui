@@ -39,8 +39,8 @@ TEST (KnobGlyph, NoneIsEmpty)
 // Each sign is drawn, and stays inside the box it was given.
 TEST (KnobGlyph, EachGlyphIsDrawnInsideItsBox)
 {
-  for (auto glyph : { KnobGlyph::Cursor, KnobGlyph::ScrollVertical,
-                      KnobGlyph::ScrollHorizontal })
+  for (auto glyph : { KnobGlyph::UpDown, KnobGlyph::LeftRight,
+                      KnobGlyph::Folder, KnobGlyph::File })
     {
       auto const path = knobGlyphPath (glyph, box);
       EXPECT_FALSE (path.isEmpty ()) << static_cast<int> (glyph);
@@ -50,30 +50,39 @@ TEST (KnobGlyph, EachGlyphIsDrawnInsideItsBox)
 }
 
 // Up-and-down stands, left-and-right lies: the shape says the direction.
-TEST (KnobGlyph, TheScrollSignsPointTheirWay)
+TEST (KnobGlyph, TheArrowsPointTheirWay)
 {
-  auto const upright = knobGlyphPath (KnobGlyph::ScrollVertical, box).getBounds ();
-  auto const lying
-      = knobGlyphPath (KnobGlyph::ScrollHorizontal, box).getBounds ();
+  auto const upright = knobGlyphPath (KnobGlyph::UpDown, box).getBounds ();
+  auto const lying = knobGlyphPath (KnobGlyph::LeftRight, box).getBounds ();
   EXPECT_GT (upright.getHeight (), 2.f * upright.getWidth ());
   EXPECT_GT (lying.getWidth (), 2.f * lying.getHeight ());
 }
 
-// The cursor reaches out both sides: its triangles point left and right.
-TEST (KnobGlyph, TheCursorIsCentredAndReachesBothSides)
+// A folder and a list are told apart at a glance: a folder is a solid shape
+// wider than it is tall, a list a stack of lines.
+TEST (KnobGlyph, AFolderIsNotAList)
 {
-  auto const bounds = knobGlyphPath (KnobGlyph::Cursor, box).getBounds ();
-  EXPECT_NEAR (bounds.getCentreX (), box.getCentreX (), 0.5f);
-  EXPECT_NEAR (bounds.getCentreY (), box.getCentreY (), 0.5f);
-  EXPECT_GT (bounds.getWidth (), 0.6f * box.getWidth ());
+  auto const folder = knobGlyphPath (KnobGlyph::Folder, box);
+  auto const list = knobGlyphPath (KnobGlyph::File, box);
+  EXPECT_GT (folder.getBounds ().getWidth (),
+             folder.getBounds ().getHeight ());
+  // The folder is filled in its middle, the list has a gap between lines.
+  auto const centre = box.getCentre ();
+  EXPECT_TRUE (folder.contains (centre));
+  EXPECT_FALSE (list.contains (centre.translated (0.f, box.getHeight () * 0.12f)));
 }
 
 // It scales with its box: no pixel sizes.
 TEST (KnobGlyph, ItScalesWithItsBox)
 {
-  auto const small = knobGlyphPath (KnobGlyph::ScrollVertical, box).getBounds ();
-  auto const big = knobGlyphPath (KnobGlyph::ScrollVertical,
-                                  box.withSizeKeepingCentre (80.f, 80.f))
-                       .getBounds ();
-  EXPECT_NEAR (big.getHeight (), 2.f * small.getHeight (), 0.5f);
+  for (auto glyph : { KnobGlyph::UpDown, KnobGlyph::Folder, KnobGlyph::File })
+    {
+      auto const small = knobGlyphPath (glyph, box).getBounds ();
+      auto const big
+          = knobGlyphPath (glyph, box.withSizeKeepingCentre (80.f, 80.f))
+                .getBounds ();
+      EXPECT_GT (small.getHeight (), 0.f);
+      EXPECT_NEAR (big.getHeight (), 2.f * small.getHeight (), 0.5f)
+          << static_cast<int> (glyph);
+    }
 }

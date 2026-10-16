@@ -98,12 +98,11 @@ ScriptPanel::setLanguage (ScriptLanguage language)
 }
 
 void
-ScriptPanel::setFromLabel (juce::String const &label)
+ScriptPanel::setFromArmed (bool armed)
 {
-  if (label == _fromLabel)
+  if (_fromArmed == armed)
     return;
-  _fromLabel = label;
-  repaint ();
+  _fromArmed = armed;
   notifyKeys ();
 }
 
@@ -362,24 +361,6 @@ ScriptPanel::stopEditing ()
     onEditingChanged (false);
 
   repaint ();
-}
-
-void
-ScriptPanel::scrollLinesBy (int lines)
-{
-  _editor->scrollLinesBy (lines);
-}
-
-void
-ScriptPanel::scrollColumnsBy (int columns)
-{
-  _editor->scrollColumnsBy (columns);
-}
-
-juce::Point<float>
-ScriptPanel::scrollFractions () const
-{
-  return _editor->scrollFractions ();
 }
 
 void

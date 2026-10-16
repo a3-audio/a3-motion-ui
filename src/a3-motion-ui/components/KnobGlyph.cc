@@ -29,12 +29,21 @@ namespace
 constexpr float halfExtent = 0.48f;   // how far from the centre it reaches
 constexpr float triangleShare = 0.2f; // the arrows' size
 constexpr float lineShare = 0.09f;    // the strokes' width
-// Half the scroll groove: short enough to clear the arrows, so the two
+// Half the groove between two arrows: short enough to clear them, so the
 // shapes never overlap and cancel out under the fill rule.
 constexpr float grooveShare = 0.1f;
-constexpr float caretShare = 0.4f;    // half the I-beam's height
-constexpr float serifShare = 0.1f;    // half its serifs' width
-constexpr float caretArrowShare = 0.85f; // the caret's arrows, of a scroll arrow
+// The folder: its body, its tab, its corners.
+constexpr float folderHalfWidth = 0.42f;
+constexpr float folderTop = -0.22f;
+constexpr float folderBottom = 0.3f;
+constexpr float folderTabWidth = 0.36f;
+constexpr float folderTabHeight = 0.1f;
+constexpr float folderCorner = 0.05f;
+// The list: three lines, the middle one marked by an arrow at its left.
+constexpr float listLineSpacing = 0.28f;
+constexpr float listLineLeft = -0.12f;
+constexpr float listLineRight = 0.45f;
+constexpr float listMarkerSize = 0.13f;
 
 /** The keyboard's arrow: an isosceles triangle with its tip `size` from
  *  `centre` along `angle` (0 = up, clockwise). */
@@ -54,6 +63,21 @@ addLine (juce::Path &path, juce::Point<float> from, juce::Point<float> to)
   path.startNewSubPath (from);
   path.lineTo (to);
 }
+
+/** Two arrows apart with a short groove between them, along `angle` (0 =
+ *  up and down). */
+void
+addArrowPair (juce::Path &filled, juce::Path &lines, juce::Point<float> c,
+              float s, float angle)
+{
+  auto const tri = s * triangleShare;
+  auto const along = juce::Point<float> (0.f, -1.f).rotatedAboutOrigin (angle);
+  auto const reach = s * halfExtent - tri;
+  addArrow (filled, c + along * reach, tri, angle);
+  addArrow (filled, c - along * reach, tri,
+            angle + juce::MathConstants<float>::pi);
+  addLine (lines, c - along * (s * grooveShare), c + along * (s * grooveShare));
+}
 }
 
 juce::Path
@@ -61,39 +85,39 @@ knobGlyphPath (KnobGlyph glyph, juce::Rectangle<float> box)
 {
   auto const s = juce::jmin (box.getWidth (), box.getHeight ());
   auto const c = box.getCentre ();
-  auto const reach = s * halfExtent;
-  auto const tri = s * triangleShare;
-  auto const halfPi = juce::MathConstants<float>::halfPi;
 
   juce::Path filled;
   juce::Path lines;
   switch (glyph)
     {
     case KnobGlyph::None: return {};
-    case KnobGlyph::ScrollVertical:
-      addArrow (filled, { c.x, c.y - reach + tri }, tri, 0.f);
-      addArrow (filled, { c.x, c.y + reach - tri }, tri, 2.f * halfPi);
-      addLine (lines, { c.x, c.y - s * grooveShare },
-               { c.x, c.y + s * grooveShare });
+    case KnobGlyph::UpDown: addArrowPair (filled, lines, c, s, 0.f); break;
+    case KnobGlyph::LeftRight:
+      addArrowPair (filled, lines, c, s, juce::MathConstants<float>::halfPi);
       break;
-    case KnobGlyph::ScrollHorizontal:
-      addArrow (filled, { c.x - reach + tri, c.y }, tri, -halfPi);
-      addArrow (filled, { c.x + reach - tri, c.y }, tri, halfPi);
-      addLine (lines, { c.x - s * grooveShare, c.y },
-               { c.x + s * grooveShare, c.y });
-      break;
-    case KnobGlyph::Cursor:
+    case KnobGlyph::Folder:
       {
-        auto const h = s * caretShare;
-        auto const serif = s * serifShare;
-        addLine (lines, { c.x, c.y - h }, { c.x, c.y + h });
-        addLine (lines, { c.x - serif, c.y - h }, { c.x + serif, c.y - h });
-        addLine (lines, { c.x - serif, c.y + h }, { c.x + serif, c.y + h });
-        auto const t = tri * caretArrowShare;
-        addArrow (filled, { c.x - reach + t, c.y }, t, -halfPi);
-        addArrow (filled, { c.x + reach - t, c.y }, t, halfPi);
+        auto const left = c.x - s * folderHalfWidth;
+        filled.addRoundedRectangle (left, c.y + s * folderTop,
+                                    2.f * s * folderHalfWidth,
+                                    s * (folderBottom - folderTop),
+                                    s * folderCorner);
+        filled.addRoundedRectangle (left, c.y + s * (folderTop - folderTabHeight),
+                                    s * folderTabWidth,
+                                    s * folderTabHeight * 2.f,
+                                    s * folderCorner);
         break;
       }
+    case KnobGlyph::File:
+      for (int line = -1; line <= 1; ++line)
+        {
+          auto const y = c.y + static_cast<float> (line) * s * listLineSpacing;
+          addLine (lines, { c.x + s * listLineLeft, y },
+                   { c.x + s * listLineRight, y });
+        }
+      addArrow (filled, { c.x - s * halfExtent + s * listMarkerSize, c.y },
+                s * listMarkerSize, juce::MathConstants<float>::halfPi);
+      break;
     }
 
   juce::Path outlined;

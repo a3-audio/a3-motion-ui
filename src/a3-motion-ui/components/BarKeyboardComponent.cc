@@ -22,11 +22,16 @@
 
 #include <a3-motion-ui/components/BarButton.hh>
 #include <a3-motion-ui/components/ControllerLayout.hh>
+#include <a3-motion-ui/components/FittedFont.hh>
+#include <a3-motion-ui/components/SourceKeys.hh>
 #include <a3-motion-ui/components/KeyboardEncoders.hh>
 #include <a3-motion-ui/components/KnobGlyph.hh>
 #include <a3-motion-ui/components/PanelKeyboard.hh>
 #include <a3-motion-ui/theme/Theme.hh>
 #include <a3-motion-ui/theme/ThemeColours.hh>
+
+#include <algorithm>
+#include <utility>
 
 namespace a3
 {
@@ -44,6 +49,9 @@ constexpr float arrowShareOfKey = 0.28f;
 
 /** The air round a knob's sign, as a share of its cell's width. */
 constexpr float glyphInsetShare = 0.22f;
+
+/** How much of a file key's width its word may take. */
+constexpr float fileKeyTextShare = 0.85f;
 
 constexpr int numEncoderColumns = 4;
 constexpr int numEncoderRows = 2;
@@ -87,12 +95,13 @@ BarKeyboardComponent::BarKeyboardComponent ()
       knob.setMouseClickGrabsKeyboardFocus (false);
       switch (jobOfKnob (i))
         {
-        case KeyboardEncoderJob::Cursor:
+        case KeyboardEncoderJob::CursorVertical:
+        case KeyboardEncoderJob::CursorHorizontal:
           // A cursor has no position on a scale: a ring with its tick up.
           knob.setWraps (true);
           break;
-        case KeyboardEncoderJob::ScrollLines:
-        case KeyboardEncoderJob::ScrollColumns:
+        case KeyboardEncoderJob::Folder:
+        case KeyboardEncoderJob::File:
           knob.setEnabled (false);
           break;
         case KeyboardEncoderJob::PageControl:
@@ -118,31 +127,49 @@ BarKeyboardComponent::dressEncoderKnobs ()
 }
 
 void
-BarKeyboardComponent::showEncoderState (bool editorOnScreen,
-                                        juce::Point<float> scrollFractions)
+BarKeyboardComponent::showFiles (KeyboardFilesView const &view)
 {
   for (size_t i = 0; i < _encoderKnobs.size (); ++i)
     {
       auto &knob = _encoderKnobs[i];
       auto const job = jobOfKnob (i);
-      if (job != KeyboardEncoderJob::ScrollLines
-          && job != KeyboardEncoderJob::ScrollColumns)
+      if (job != KeyboardEncoderJob::Folder && job != KeyboardEncoderJob::File)
         continue;
 
-      knob.setValue (job == KeyboardEncoderJob::ScrollLines
-                         ? scrollFractions.y
-                         : scrollFractions.x,
+      knob.setValue (job == KeyboardEncoderJob::Folder ? view.folderFraction
+                                                       : view.fileFraction,
                      juce::dontSendNotification);
-      if (knob.isEnabled () != editorOnScreen)
-        {
-          knob.setEnabled (editorOnScreen);
-          // The sign beside it is the keyboard's to draw.
-          auto const slot = keyboardEncoderSlot (
-              getLocalBounds (), static_cast<int> (i) / numEncoderRows,
-              static_cast<int> (i) % numEncoderRows);
-          repaint (slot.glyph);
-        }
+      knob.setEnabled (view.filesOnScreen);
     }
+
+  auto const changed
+      = view.filesOnScreen != _files.filesOnScreen
+        || !std::equal (view.keys.begin (), view.keys.end (),
+                        _files.keys.begin (),
+                        [] (FileKeyLook const &a, FileKeyLook const &b) {
+                          return a.label == b.label && a.enabled == b.enabled
+                                 && a.lit == b.lit;
+                        });
+  _files = view;
+  // Nothing moved, nothing repainted: this is asked on every UI tick.
+  if (changed)
+    repaint ();
+}
+
+bool
+BarKeyboardComponent::fileKeyActs (int row) const
+{
+  return _files.filesOnScreen
+         && _files.keys[static_cast<size_t> (fileKeyOfRow (row))].enabled;
+}
+
+int
+BarKeyboardComponent::fileKeyRowAt (juce::Point<int> at) const
+{
+  for (int row = 0; row < numFileKeys; ++row)
+    if (keyboardFileKeySlot (getLocalBounds (), row).contains (at))
+      return row;
+  return -1;
 }
 
 PotKnob const &
@@ -251,7 +278,10 @@ BarKeyboardComponent::mouseDown (juce::MouseEvent const &e)
 {
   auto const key = keyAt (_keys, e.getPosition ());
   if (key < 0)
-    return;
+    {
+      pressFileKey (e);
+      return;
+    }
 
   auto const source = e.source.getIndex ();
   _pressed[source] = key;
@@ -289,8 +319,45 @@ BarKeyboardComponent::mouseDrag (juce::MouseEvent const &e)
 }
 
 void
+BarKeyboardComponent::pressFileKey (juce::MouseEvent const &e)
+{
+  auto const row = fileKeyRowAt (e.getPosition ());
+  if (row < 0)
+    return;
+
+  // One finger arrives twice on the device, as a touch and as X's mouse
+  // (#64): the first leads, so DELETE is not pressed twice and confirmed.
+  _fileGesture.forgetIfNotDown (isSourceDown);
+  if (!_fileGesture.press (sourceKeyOf (e.source)))
+    return;
+  _fileKeyDown = row;
+  repaint (keyboardFileKeySlot (getLocalBounds (), row));
+}
+
+bool
+BarKeyboardComponent::releaseFileKey (juce::MouseEvent const &e)
+{
+  if (_fileKeyDown < 0)
+    return false;
+  if (!_fileGesture.release (sourceKeyOf (e.source)))
+    return true;
+
+  auto const row = std::exchange (_fileKeyDown, -1);
+  repaint (keyboardFileKeySlot (getLocalBounds (), row));
+  // On release, like the keys: a finger that landed on the wrong one can
+  // slide off it.
+  if (fileKeyRowAt (e.getPosition ()) == row && fileKeyActs (row)
+      && onFileKey)
+    onFileKey (fileKeyOfRow (row));
+  return true;
+}
+
+void
 BarKeyboardComponent::mouseUp (juce::MouseEvent const &e)
 {
+  if (releaseFileKey (e))
+    return;
+
   auto const source = e.source.getIndex ();
   auto const found = _pressed.find (source);
   if (found == _pressed.end ())
@@ -334,6 +401,7 @@ BarKeyboardComponent::visibilityChanged ()
   // keyboard brought back for a number comes back on the digits.
   _pressed.clear ();
   _panelHeld.clear ();
+  _fileKeyDown = -1;
   stopRepeating ();
   _state.shift = ShiftState::Off;
 }
@@ -394,6 +462,41 @@ BarKeyboardComponent::paint (juce::Graphics &g)
   for (int column = 0; column < numEncoderColumns; ++column)
     for (int row = 0; row < numEncoderRows; ++row)
       paintEncoderGlyph (g, column, row);
+
+  paintFileKeys (g);
+}
+
+void
+BarKeyboardComponent::paintFileKeys (juce::Graphics &g) const
+{
+  // One size for all six, the one the longest word fits at -- a column of
+  // keys in six sizes reads as six kinds of key.
+  auto metrics = _metrics;
+  auto const width = static_cast<float> (
+      keyboardFileKeySlot (getLocalBounds (), 0).getWidth ());
+  juce::Font const font{ juce::FontOptions (metrics.valueSize) };
+  for (auto const &key : _files.keys)
+    if (key.label.isNotEmpty ())
+      metrics.valueSize = juce::jmin (
+          metrics.valueSize,
+          heightToFitWidth (font, key.label, width * fileKeyTextShare));
+
+  for (int row = 0; row < numFileKeys; ++row)
+    {
+      auto const &key = _files.keys[static_cast<size_t> (fileKeyOfRow (row))];
+      if (key.label.isEmpty ())
+        continue;
+
+      auto const bounds = keyboardFileKeySlot (getLocalBounds (), row);
+      // Dimmed the way every control that cannot act is.
+      auto const acts = fileKeyActs (row);
+      if (!acts)
+        g.beginTransparencyLayer (theme ().alphaDisabled);
+      paintBarButton (g, bounds, metrics, {}, key.label, {},
+                      _fileKeyDown == row || (acts && key.lit), false);
+      if (!acts)
+        g.endTransparencyLayer ();
+    }
 }
 
 void

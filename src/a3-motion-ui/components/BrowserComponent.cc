@@ -424,8 +424,11 @@ BrowserComponent::paintScriptKeys (juce::Graphics &g)
   // script's edge already wears for it.
   auto const flash = _script->isFlashing () ? toColour (theme ().warning)
                                             : juce::Colour{};
+  // Armed, FROM… wears the accent until a folder is tapped.
   paintButton (g, _layout.fromClipButton, _script->fromLabel (),
-               keys.fromClip);
+               keys.fromClip,
+               _script->isFromArmed () ? toColour (theme ().accent)
+                                       : juce::Colour{});
   paintButton (g, _layout.cancelButton, "Cancel", keys.cancel, flash);
   paintButton (g, _layout.saveButton, "Save", keys.save,
                keys.save ? flash : juce::Colour{});

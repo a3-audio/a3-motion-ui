@@ -28,39 +28,27 @@ keyboardEncoderJob (bool keyboardShown, int column, int row, bool shiftHeld)
 {
   if (!keyboardShown)
     return KeyboardEncoderJob::PageControl;
-  // Before the cursor: SHIFT + encoder is FREQ / Q on every page.
+  // Before anything else: SHIFT + encoder is FREQ / Q on every page.
   if (shiftHeld)
     return KeyboardEncoderJob::ChannelPot;
-  if (column == 0 && row == 0)
-    return KeyboardEncoderJob::Cursor;
-  if (column == 0 && row == 1)
-    return KeyboardEncoderJob::ScrollLines;
-  if (column == 1 && row == 1)
-    return KeyboardEncoderJob::ScrollColumns;
+  if (column == 0)
+    return row == 0 ? KeyboardEncoderJob::CursorVertical
+                    : KeyboardEncoderJob::Folder;
+  if (column == 1)
+    return row == 0 ? KeyboardEncoderJob::CursorHorizontal
+                    : KeyboardEncoderJob::File;
   return KeyboardEncoderJob::Nothing;
 }
 
-int
-keyboardScrollStep (KeyboardEncoderJob job, int increment)
-{
-  switch (job)
-    {
-    case KeyboardEncoderJob::ScrollLines: return increment * linesPerDetent;
-    case KeyboardEncoderJob::ScrollColumns:
-      return increment * columnsPerDetent;
-    case KeyboardEncoderJob::PageControl:
-    case KeyboardEncoderJob::ChannelPot:
-    case KeyboardEncoderJob::Cursor:
-    case KeyboardEncoderJob::Nothing: return 0;
-    }
-  return 0;
-}
-
 juce::KeyPress
-cursorKeyOfDetent (int increment)
+cursorKeyOfDetent (KeyboardEncoderJob job, int increment)
 {
-  return juce::KeyPress (increment > 0 ? juce::KeyPress::rightKey
-                                       : juce::KeyPress::leftKey);
+  auto const forward = increment > 0;
+  if (job == KeyboardEncoderJob::CursorVertical)
+    return juce::KeyPress (forward ? juce::KeyPress::downKey
+                                   : juce::KeyPress::upKey);
+  return juce::KeyPress (forward ? juce::KeyPress::rightKey
+                                 : juce::KeyPress::leftKey);
 }
 
 KnobGlyph
@@ -68,9 +56,10 @@ keyboardEncoderGlyph (KeyboardEncoderJob job)
 {
   switch (job)
     {
-    case KeyboardEncoderJob::Cursor: return KnobGlyph::Cursor;
-    case KeyboardEncoderJob::ScrollLines: return KnobGlyph::ScrollVertical;
-    case KeyboardEncoderJob::ScrollColumns: return KnobGlyph::ScrollHorizontal;
+    case KeyboardEncoderJob::CursorVertical: return KnobGlyph::UpDown;
+    case KeyboardEncoderJob::CursorHorizontal: return KnobGlyph::LeftRight;
+    case KeyboardEncoderJob::Folder: return KnobGlyph::Folder;
+    case KeyboardEncoderJob::File: return KnobGlyph::File;
     case KeyboardEncoderJob::PageControl:
     case KeyboardEncoderJob::ChannelPot:
     case KeyboardEncoderJob::Nothing: return KnobGlyph::None;

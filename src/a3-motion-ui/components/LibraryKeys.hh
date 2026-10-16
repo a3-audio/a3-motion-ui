@@ -22,6 +22,8 @@
 
 #include <a3-motion-ui/components/BrowserComponent.hh>
 
+#include <array>
+
 namespace a3
 {
 
@@ -83,5 +85,22 @@ LibraryKeyStates libraryKeysFor (BrowserList list,
  */
 /** @param slotRow the row of the clip the shown slot came from. */
 int driftedRowIn (BrowserList list, int slotRow, bool slotHasDrifted);
+
+/** FILES' folders in the order their tabs stand: SETS, CLIPS, SVG,
+ *  ACTIONS -- the order E5 steps through them on KEYS. */
+std::array<BrowserList, 4> const &browserListOrder ();
+
+/** The folder `delta` tabs on from `from`, stopping at the first and the
+ *  last: an encoder at an end stays there, as a list does. */
+BrowserList steppedBrowserList (BrowserList from, int delta);
+
+/** Where `list` stands among the tabs, 0 for the first and 1 for the last --
+ *  what E5's knob shows. */
+float browserListFraction (BrowserList list);
+
+/** The row `delta` on from `chosen` in a list of `count`, stopping at both
+ *  ends -- what E6 does. With nothing chosen the first turn chooses the
+ *  first row; an empty list has none (-1). */
+int steppedEntry (int chosen, int delta, int count);
 
 }

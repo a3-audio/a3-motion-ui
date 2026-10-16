@@ -26,8 +26,7 @@
 
 using namespace a3;
 
-// The view moves under E5 and E6 while KEYS is up (2026-10-16): scrolling,
-// the way the scroll bars do it -- the caret stays where it was.
+// The editor's view, as the caret, a drag and the scroll bars move it.
 
 namespace
 {
@@ -64,81 +63,25 @@ struct Editor
 };
 }
 
-TEST (ScriptEditorScroll, LinesMoveTheViewAndLeaveTheCaret)
+// Moving the caret scrolls the editor to keep it in view (E1 and E2 on
+// KEYS); the column the view starts at is the scroll bar's, so it knows.
+TEST (ScriptEditorScroll, TheColumnFollowsTheCaret)
 {
   Editor e;
-  auto const caret = e.editor.getCaretPos ().getPosition ();
-  e.editor.scrollLinesBy (3);
-  EXPECT_EQ (e.editor.getFirstLineOnScreen (), 3);
-  EXPECT_EQ (e.editor.getCaretPos ().getPosition (), caret);
-
-  e.editor.scrollLinesBy (-1);
-  EXPECT_EQ (e.editor.getFirstLineOnScreen (), 2);
+  e.editor.moveCaretTo (juce::CodeDocument::Position (e.document, 0,
+                                                      lineLength),
+                        false);
+  EXPECT_GT (e.editor.firstColumnOnScreen (), 0);
 }
 
-// The view stops with the last line at the bottom, not with one line left
-// on an empty screen, and never above the first.
-TEST (ScriptEditorScroll, LinesStopAtTheEnds)
+// The finger and the editor share one truth: a drag after the view has moved
+// on its own -- the caret kept in view -- starts from where the view is, not
+// from where the last drag ended.
+TEST (ScriptEditorScroll, ADragContinuesFromWhereTheViewIs)
 {
   Editor e;
-  e.editor.scrollLinesBy (-5);
-  EXPECT_EQ (e.editor.getFirstLineOnScreen (), 0);
-
-  e.editor.scrollLinesBy (10000);
-  EXPECT_EQ (e.editor.getFirstLineOnScreen (),
-             numLines - e.editor.getNumLinesOnScreen ());
-}
-
-TEST (ScriptEditorScroll, ColumnsMoveTheViewAndStopAtBothEnds)
-{
-  Editor e;
-  auto const caret = e.editor.getCaretPos ().getPosition ();
-  e.editor.scrollColumnsBy (-4);
-  EXPECT_EQ (e.editor.firstColumnOnScreen (), 0);
-
-  e.editor.scrollColumnsBy (8);
-  EXPECT_EQ (e.editor.firstColumnOnScreen (), 8);
-  EXPECT_EQ (e.editor.getCaretPos ().getPosition (), caret);
-
-  e.editor.scrollColumnsBy (10000);
-  EXPECT_EQ (e.editor.firstColumnOnScreen (),
-             e.document.getMaximumLineLength ()
-                 - e.editor.getNumColumnsOnScreen ());
-}
-
-// What the KEYS knobs show: 0 at the top or the left, 1 at the end.
-TEST (ScriptEditorScroll, TheFractionsRunFromStartToEnd)
-{
-  Editor e;
-  EXPECT_FLOAT_EQ (e.editor.scrollFractions ().x, 0.f);
-  EXPECT_FLOAT_EQ (e.editor.scrollFractions ().y, 0.f);
-
-  e.editor.scrollLinesBy (10000);
-  e.editor.scrollColumnsBy (10000);
-  EXPECT_FLOAT_EQ (e.editor.scrollFractions ().x, 1.f);
-  EXPECT_FLOAT_EQ (e.editor.scrollFractions ().y, 1.f);
-}
-
-// A script shorter than the view has nowhere to scroll: it reads as the top.
-TEST (ScriptEditorScroll, AShortScriptIsAtTheTop)
-{
-  juce::CodeDocument document;
-  document.replaceAllContent ("~a = 1;");
-  ScriptEditor editor (document, nullptr);
-  editor.setBounds (0, 0, 300, 200);
-  editor.scrollLinesBy (3);
-  EXPECT_EQ (editor.getFirstLineOnScreen (), 0);
-  EXPECT_FLOAT_EQ (editor.scrollFractions ().y, 0.f);
-}
-
-// The finger and the encoder share one truth: a drag after the encoder has
-// moved the view starts from where the encoder left it, not from where the
-// last drag ended.
-TEST (ScriptEditorScroll, ADragContinuesFromWhereTheEncoderLeftIt)
-{
-  Editor e;
-  e.editor.scrollColumnsBy (8);
-  e.editor.scrollLinesBy (5);
+  e.editor.scrollToColumn (8);
+  e.editor.scrollToLine (5);
 
   juce::Point<float> const at{ 100.f, 100.f };
   e.editor.mouseDown (e.eventAt (at, at));

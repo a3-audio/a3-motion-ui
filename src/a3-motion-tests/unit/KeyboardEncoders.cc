@@ -39,19 +39,19 @@ typing (int column, int row)
 }
 }
 
-// While KEYS is up: E1 is the cursor, E5 scrolls the lines, E6 the columns
-// (decided 2026-10-16).
-TEST (KeyboardEncoders, EOneIsTheCursorEFiveAndSixScroll)
+// While KEYS is up (second round, 2026-10-16): E1 and E2 move the cursor,
+// up/down and left/right; E5 chooses FILES' folder, E6 the file in it.
+TEST (KeyboardEncoders, TheTopTwoAreTheCursorTheBottomTwoTheFiles)
 {
-  EXPECT_EQ (typing (0, 0), Job::Cursor);
-  EXPECT_EQ (typing (0, 1), Job::ScrollLines);
-  EXPECT_EQ (typing (1, 1), Job::ScrollColumns);
+  EXPECT_EQ (typing (0, 0), Job::CursorVertical);
+  EXPECT_EQ (typing (1, 0), Job::CursorHorizontal);
+  EXPECT_EQ (typing (0, 1), Job::Folder);
+  EXPECT_EQ (typing (1, 1), Job::File);
 }
 
-// The other five do nothing -- they used to turn the hidden page's fields.
-TEST (KeyboardEncoders, TheOtherFiveDoNothing)
+// The other four do nothing -- they used to turn the hidden page's fields.
+TEST (KeyboardEncoders, TheOtherFourDoNothing)
 {
-  EXPECT_EQ (typing (1, 0), Job::Nothing);
   EXPECT_EQ (typing (2, 0), Job::Nothing);
   EXPECT_EQ (typing (3, 0), Job::Nothing);
   EXPECT_EQ (typing (2, 1), Job::Nothing);
@@ -77,29 +77,26 @@ TEST (KeyboardEncoders, WithTheKeyboardDownThePageDecides)
                    Job::PageControl);
 }
 
-// Clockwise is positive: down and right. One line, four columns a detent.
-TEST (KeyboardEncoders, ADetentIsOneLineOrFourColumns)
-{
-  EXPECT_EQ (keyboardScrollStep (Job::ScrollLines, 1), 1);
-  EXPECT_EQ (keyboardScrollStep (Job::ScrollLines, -3), -3);
-  EXPECT_EQ (keyboardScrollStep (Job::ScrollColumns, 1), 4);
-  EXPECT_EQ (keyboardScrollStep (Job::ScrollColumns, -2), -8);
-  EXPECT_EQ (keyboardScrollStep (Job::Cursor, 1), 0);
-  EXPECT_EQ (keyboardScrollStep (Job::Nothing, 5), 0);
-}
-
+// Clockwise is down and right, as on every list and fader of the device.
 TEST (KeyboardEncoders, TheCursorFollowsTheTurn)
 {
-  EXPECT_EQ (cursorKeyOfDetent (1), juce::KeyPress (juce::KeyPress::rightKey));
-  EXPECT_EQ (cursorKeyOfDetent (-2), juce::KeyPress (juce::KeyPress::leftKey));
+  EXPECT_EQ (cursorKeyOfDetent (Job::CursorVertical, 1),
+             juce::KeyPress (juce::KeyPress::downKey));
+  EXPECT_EQ (cursorKeyOfDetent (Job::CursorVertical, -2),
+             juce::KeyPress (juce::KeyPress::upKey));
+  EXPECT_EQ (cursorKeyOfDetent (Job::CursorHorizontal, 1),
+             juce::KeyPress (juce::KeyPress::rightKey));
+  EXPECT_EQ (cursorKeyOfDetent (Job::CursorHorizontal, -1),
+             juce::KeyPress (juce::KeyPress::leftKey));
 }
 
 TEST (KeyboardEncoders, EachJobWithASignHasItsGlyph)
 {
-  EXPECT_EQ (keyboardEncoderGlyph (Job::Cursor), KnobGlyph::Cursor);
-  EXPECT_EQ (keyboardEncoderGlyph (Job::ScrollLines), KnobGlyph::ScrollVertical);
-  EXPECT_EQ (keyboardEncoderGlyph (Job::ScrollColumns),
-             KnobGlyph::ScrollHorizontal);
+  EXPECT_EQ (keyboardEncoderGlyph (Job::CursorVertical), KnobGlyph::UpDown);
+  EXPECT_EQ (keyboardEncoderGlyph (Job::CursorHorizontal),
+             KnobGlyph::LeftRight);
+  EXPECT_EQ (keyboardEncoderGlyph (Job::Folder), KnobGlyph::Folder);
+  EXPECT_EQ (keyboardEncoderGlyph (Job::File), KnobGlyph::File);
   EXPECT_EQ (keyboardEncoderGlyph (Job::Nothing), KnobGlyph::None);
 }
 
@@ -132,4 +129,69 @@ TEST (KeyboardEncoders, APressDoesNothingWhileTheKeyboardIsUp)
   auto const guard = body.indexOf ("if (keyboardShown ())");
   ASSERT_GE (guard, 0);
   EXPECT_LT (guard, body.indexOf ("encoderClicksOfPage"));
+}
+
+namespace
+{
+juce::String
+body (juce::String const &signature)
+{
+  return a3::test::uiComponentBodyOf (signature);
+}
+}
+
+// E5 and E6 act on FILES the way a finger does: the folder through the same
+// route as a tap on its tab, the file through the same as a tap on its row.
+TEST (KeyboardEncoders, EFiveAndSixGoThroughTheFingersRoutes)
+{
+  auto const turn = body ("A3MotionUIComponent::handleEncoderTurn (int "
+                          "column, int row, int increment)");
+  ASSERT_TRUE (turn.isNotEmpty ());
+  EXPECT_TRUE (turn.contains ("chooseBrowserList (steppedBrowserList ("));
+  EXPECT_TRUE (turn.contains ("steppedEntry ("));
+  EXPECT_TRUE (turn.contains ("cursorKeyOfDetent (keyboardJob, increment)"));
+}
+
+// The four folder tabs go through one route (they were four copies, one of
+// which forgot to stop the editing), and that route asks FROM… first.
+TEST (KeyboardEncoders, TheFourTabsShareOneRouteThatAsksFromFirst)
+{
+  auto const ctor = body ("A3MotionUIComponent::A3MotionUIComponent "
+                          "(unsigned int const numChannels)");
+  ASSERT_TRUE (ctor.isNotEmpty ());
+  for (auto const *list : { "Sessions", "Clips", "Shapes", "Actions" })
+    EXPECT_TRUE (ctor.contains (juce::String ("tapBrowserList (BrowserList::")
+                                + list + ")"))
+        << list;
+
+  auto const tap = body ("A3MotionUIComponent::tapBrowserList (BrowserList "
+                         "list)");
+  ASSERT_TRUE (tap.isNotEmpty ());
+  auto const asked = tap.indexOf ("_fromArmed");
+  ASSERT_GE (asked, 0);
+  EXPECT_LT (asked, tap.indexOf ("takeFrom (list)"));
+}
+
+// FROM… + a tab takes the shown slot's state for that tab; on ACTIONS it
+// remembers where it came from, so Save as points the button at the copy.
+TEST (KeyboardEncoders, FromTakesTheShownSlotsStateForTheTabTapped)
+{
+  auto const from = body ("A3MotionUIComponent::takeFrom (BrowserList list)");
+  ASSERT_TRUE (from.isNotEmpty ());
+  EXPECT_TRUE (from.contains ("fileTextHoldsTheList ()"));
+  EXPECT_TRUE (from.contains ("chooseBrowserList (list)"));
+  EXPECT_TRUE (from.contains ("currentStateText ()"));
+  EXPECT_TRUE (from.contains ("_editOrigin"));
+}
+
+// ACTION's EDIT has no route of its own any more: FILES, then FROM… ACTIONS.
+TEST (KeyboardEncoders, EditIsFromActions)
+{
+  auto const ctor = body ("A3MotionUIComponent::A3MotionUIComponent "
+                          "(unsigned int const numChannels)");
+  auto const edit = ctor.indexOf ("_action->onEditPressed");
+  ASSERT_GE (edit, 0);
+  auto const end = ctor.indexOf (edit, "};");
+  EXPECT_TRUE (ctor.substring (edit, end).contains (
+      "takeFrom (BrowserList::Actions)"));
 }

@@ -123,6 +123,28 @@ keyboardEncoderSlot (juce::Rectangle<int> area, int column, int row)
            panelCellBounds (area, { row, left + 1 }) };
 }
 
+FileKey
+fileKeyOfRow (int row)
+{
+  static FileKey const order[] = { FileKey::Rename, FileKey::Delete,
+                                   FileKey::Load,   FileKey::Save,
+                                   FileKey::SaveAs, FileKey::From };
+  return order[juce::jlimit (0, numFileKeys - 1, row)];
+}
+
+juce::Rectangle<int>
+keyboardFileKeySlot (juce::Rectangle<int> area, int row)
+{
+  // In the margin left of the row's first key, kept off the edge and off
+  // the key by the grid's own gap between two keys.
+  auto const first = panelCellBounds (area, { row, 0 });
+  auto const gap = panelCellBounds (area, { row, 1 }).getX () - first.getRight ();
+  auto const left = area.getX () + gap;
+  auto const right = first.getX () - gap;
+  return { left, first.getY (), juce::jmax (0, right - left),
+           first.getHeight () };
+}
+
 KeyDef
 panelKeyAt (KeyboardPage page, PanelCell cell)
 {

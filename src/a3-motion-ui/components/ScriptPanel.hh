@@ -34,7 +34,7 @@ namespace a3
 {
 
 /** A script to read and edit: the text, what is wrong with it, and four keys
- *  under it -- FROM CLIP, Cancel, Save, Save as.
+ *  under it -- FROM…, Cancel, Save, Save as.
  *
  *  Pulled out of the ACTION page on 2026-09-27 so the editor could stand in
  *  FILES beside the list, without a second copy of it. It decides nothing:
@@ -59,7 +59,7 @@ public:
    *  being typed into, and only when it differs -- the host refreshes on a
    *  timer, and either would throw away what is being written. */
   void setScript (juce::String const &script);
-  /** Text that is on no disk yet (FROM CLIP): in, and marked unsaved. */
+  /** Text that is on no disk yet (FROM…): in, and marked unsaved. */
   void offerScript (juce::String const &script);
   /** ACTION wrote into the script this shows (2026-09-29): in even while it
    *  is being typed into, the caret kept on its line, the unsaved mark left
@@ -76,7 +76,7 @@ public:
   void setProtected (bool locked);
   /** A file stands behind the text to write back to. */
   void setHasFile (bool hasFile);
-  /** The shown slot holds a clip, so FROM CLIP has something to take. */
+  /** The shown slot holds a clip, so FROM… has something to take. */
   void setSlotHolds (bool holds);
   void setChannelColour (juce::Colour colour);
   void stopEditing ();
@@ -84,8 +84,10 @@ public:
    *  JUCE's editor takes its tokeniser once, so this builds a new one; the
    *  text, being the document's, stays. */
   void setLanguage (ScriptLanguage language);
-  /** The word on the FROM key -- what it takes the current state of. */
-  void setFromLabel (juce::String const &label);
+  /** FROM… is armed: the next tap on a folder says where from. Lit while
+   *  it is. */
+  void setFromArmed (bool armed);
+  bool isFromArmed () const { return _fromArmed; }
 
   /** How wide the panel has to be for `characters` of text in a line, line
    *  numbers, scroll bar and insets included -- so the page can give it just
@@ -96,12 +98,6 @@ public:
   int usualWidthFor (int characters) const;
   /** The size the text is read at: the list's beside it (2026-09-27). */
   float fontSize () const { return usualFontSize (); }
-  /** The editor's view, moved by the encoders while KEYS is up -- see
-   *  ScriptEditor::scrollLinesBy. The caret stays where it is. */
-  void scrollLinesBy (int lines);
-  void scrollColumnsBy (int columns);
-  juce::Point<float> scrollFractions () const;
-
   /** Save and Cancel light up for a moment: the list beside the panel is
    *  waiting for one of them (2026-09-27). */
   void flashKeys ();
@@ -112,7 +108,7 @@ public:
    *  where the same rule that lights a key guards it. */
   ScriptKeyStates keys () const;
   bool isFlashing () const { return _flashing; }
-  juce::String const &fromLabel () const { return _fromLabel; }
+  juce::String fromLabel () const { return fromKeyLabel (); }
   void pressFromClip ();
   void pressCancel ();
   void pressSave ();
@@ -166,7 +162,7 @@ private:
   juce::CPlusPlusCodeTokeniser _tokeniser;
   juce::XmlTokeniser _xmlTokeniser;
   ScriptLanguage _language = ScriptLanguage::CLike;
-  juce::String _fromLabel{ "from clip" };
+  bool _fromArmed = false;
   std::unique_ptr<ScriptEditor> _editor;
   juce::StringArray _errors;
   bool _editing = false;

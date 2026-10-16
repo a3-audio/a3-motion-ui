@@ -24,6 +24,8 @@
 
 #include <a3-motion-ui/components/BarKeyboardLayout.hh>
 #include <a3-motion-ui/components/BarKeyboardModel.hh>
+#include <a3-motion-ui/components/FirstSourceOnly.hh>
+#include <a3-motion-ui/components/PanelKeyboard.hh>
 #include <a3-motion-ui/components/PotKnob.hh>
 #include <a3-motion-ui/io/PanelGrid.hh>
 #include <a3-motion-ui/theme/ThemedComponent.hh>
@@ -36,6 +38,27 @@
 
 namespace a3
 {
+
+/** A file key as FILES has it right now. */
+struct FileKeyLook
+{
+  juce::String label;
+  /** It can act -- FILES lights its own key by the same rule. */
+  bool enabled = false;
+  /** Armed, waiting for the next tap (FROM…). */
+  bool lit = false;
+};
+
+/** What KEYS shows of FILES: whether it is on screen, where its folder and
+ *  its chosen file stand (0 to 1, for E5 and E6), and its keys, indexed by
+ *  FileKey. */
+struct KeyboardFilesView
+{
+  bool filesOnScreen = false;
+  float folderFraction = 0.f;
+  float fileFraction = 0.f;
+  std::array<FileKeyLook, numFileKeys> keys;
+};
 
 /** The in-app keyboard, in the bar's clip content (2026-09-28).
  *
@@ -67,11 +90,10 @@ public:
    *  a desk keyboard; Backspace and the cursor go on while held. */
   void pressPanelCell (PanelCell cell, bool down);
 
-  /** What the eight encoder knobs over the keys show: whether a script
-   *  editor is on screen for E5 and E6 to scroll, and where its view stands
-   *  (x across, y down, 0 to 1). */
-  void showEncoderState (bool editorOnScreen,
-                         juce::Point<float> scrollFractions);
+  /** What the encoder knobs and the file keys show of FILES. */
+  void showFiles (KeyboardFilesView const &view);
+  /** A file key was tapped while it could act. */
+  std::function<void (FileKey)> onFileKey;
   /** Encoder (`column`, `row`)'s knob, EncoderMap's four by two. */
   PotKnob const &encoderKnob (int column, int row) const;
 
@@ -102,10 +124,20 @@ private:
   bool keyIsLit (int keyIndex) const;
   void paintKey (juce::Graphics &g, int keyIndex) const;
   void paintEncoderGlyph (juce::Graphics &g, int column, int row) const;
+  void paintFileKeys (juce::Graphics &g) const;
+  bool fileKeyActs (int row) const;
+  int fileKeyRowAt (juce::Point<int> at) const;
+  void pressFileKey (juce::MouseEvent const &e);
+  /** True when the release belonged to a file key. */
+  bool releaseFileKey (juce::MouseEvent const &e);
   void dressEncoderKnobs ();
 
   /** Display only: four columns of two, column-major. */
   std::array<PotKnob, 8> _encoderKnobs;
+  KeyboardFilesView _files;
+  /** The file key a finger is on, by row; -1 for none. */
+  int _fileKeyDown = -1;
+  FirstSourceOnly _fileGesture;
 
   ControlMetrics _metrics{ 0, 0.f, 0.f };
   KeyboardState _state;

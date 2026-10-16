@@ -61,6 +61,28 @@ struct KeyboardEncoderSlot
 KeyboardEncoderSlot keyboardEncoderSlot (juce::Rectangle<int> area,
                                          int column, int row);
 
+/** The file keys on KEYS (2026-10-16): FILES' keys in a column left of the
+ *  keys, one per key row, so a file can be named, kept or loaded while the
+ *  keyboard is up. Top to bottom. */
+enum class FileKey
+{
+  Rename,
+  Delete,
+  Load,
+  Save,
+  SaveAs,
+  From,
+};
+
+constexpr int numFileKeys = 6;
+
+/** Which file key stands beside key row `row` (0-5). */
+FileKey fileKeyOfRow (int row);
+
+/** Where it stands: in the margin left of the row's first key, as tall as
+ *  the key. */
+juce::Rectangle<int> keyboardFileKeySlot (juce::Rectangle<int> area, int row);
+
 /** A key's LED while the keyboard owns the panel: letters and other
  *  characters in \`letter\`, every other key in \`accent\`, no key unlit. */
 juce::Colour keyboardLedColour (KeyDef const &key, juce::Colour accent,
