@@ -31,6 +31,78 @@ ScriptEditor::ScriptEditor (juce::CodeDocument &document,
   setReadOnly (true);
 }
 
+namespace
+{
+/** JUCE keeps its two scroll bars private, but they are the editor's
+ *  children, and they hold the view's position whoever moved it. */
+juce::ScrollBar const *
+scrollBarOf (juce::Component const &editor, bool vertical)
+{
+  for (auto *child : editor.getChildren ())
+    if (auto const *bar = dynamic_cast<juce::ScrollBar const *> (child))
+      if (bar->isVertical () == vertical)
+        return bar;
+  return nullptr;
+}
+
+/** How far along its range a scroll bar stands, 0 to 1; 0 with nowhere to go. */
+float
+fractionOf (juce::ScrollBar const *bar)
+{
+  if (bar == nullptr)
+    return 0.f;
+  auto const room = bar->getMaximumRangeLimit () - bar->getMinimumRangeLimit ()
+                    - bar->getCurrentRangeSize ();
+  if (room <= 0.0)
+    return 0.f;
+  return static_cast<float> (juce::jlimit (
+      0.0, 1.0,
+      (bar->getCurrentRangeStart () - bar->getMinimumRangeLimit ()) / room));
+}
+
+/** `from` moved by `delta`, never below 0 and -- moving forward -- never past
+ *  `last`. A view a drag has carried beyond `last` is not pulled back by a
+ *  turn the other way; it simply moves. */
+int
+steppedWithin (int from, int delta, int last)
+{
+  auto target = from + delta;
+  if (delta > 0)
+    target = juce::jmin (target, juce::jmax (from, last));
+  return juce::jmax (0, target);
+}
+}
+
+void
+ScriptEditor::scrollLinesBy (int lineCount)
+{
+  auto const last = juce::jmax (0, getDocument ().getNumLines ()
+                                       - getNumLinesOnScreen ());
+  scrollToLine (steppedWithin (getFirstLineOnScreen (), lineCount, last));
+}
+
+void
+ScriptEditor::scrollColumnsBy (int columnCount)
+{
+  auto const last = juce::jmax (0, getDocument ().getMaximumLineLength ()
+                                       - getNumColumnsOnScreen ());
+  scrollToColumn (steppedWithin (firstColumnOnScreen (), columnCount, last));
+}
+
+int
+ScriptEditor::firstColumnOnScreen () const
+{
+  auto const *bar = scrollBarOf (*this, false);
+  return bar != nullptr ? juce::roundToInt (bar->getCurrentRangeStart ()) : 0;
+}
+
+juce::Point<float>
+ScriptEditor::scrollFractions () const
+{
+  return { fractionOf (scrollBarOf (*this, false)),
+           fractionOf (scrollBarOf (*this, true)) };
+}
+
 void
 ScriptEditor::mouseDown (juce::MouseEvent const &event)
 {
@@ -41,7 +113,7 @@ ScriptEditor::mouseDown (juce::MouseEvent const &event)
       // scroll, and one that turns out to be a tap starts the edit when the
       // finger comes up -- see mouseUp.
       _dragLine = getFirstLineOnScreen ();
-      _dragColumn = _column;
+      _dragColumn = firstColumnOnScreen ();
       return;
     }
 
@@ -67,13 +139,12 @@ ScriptEditor::mouseDrag (juce::MouseEvent const &event)
 
   scrollToLine (_dragLine - event.getDistanceFromDragStartY () / lineHeight);
 
-  // The editor keeps no public reckoning of which column it starts at, so
-  // this one does: a drag counts from where the finger came down.
-  _column = juce::jmax (0, _dragColumn
-                               - juce::roundToInt (
-                                   event.getDistanceFromDragStartX ()
-                                   / charWidth));
-  scrollToColumn (_column);
+  // Counted from the column the view stood at when the finger came down --
+  // the scroll bar's, so a turn of E6 in between is not undone.
+  scrollToColumn (juce::jmax (
+      0, _dragColumn
+             - juce::roundToInt (event.getDistanceFromDragStartX ()
+                                 / charWidth)));
 }
 
 void

@@ -96,6 +96,12 @@ public:
   int usualWidthFor (int characters) const;
   /** The size the text is read at: the list's beside it (2026-09-27). */
   float fontSize () const { return usualFontSize (); }
+  /** The editor's view, moved by the encoders while KEYS is up -- see
+   *  ScriptEditor::scrollLinesBy. The caret stays where it is. */
+  void scrollLinesBy (int lines);
+  void scrollColumnsBy (int columns);
+  juce::Point<float> scrollFractions () const;
+
   /** Save and Cancel light up for a moment: the list beside the panel is
    *  waiting for one of them (2026-09-27). */
   void flashKeys ();

@@ -365,6 +365,24 @@ ScriptPanel::stopEditing ()
 }
 
 void
+ScriptPanel::scrollLinesBy (int lines)
+{
+  _editor->scrollLinesBy (lines);
+}
+
+void
+ScriptPanel::scrollColumnsBy (int columns)
+{
+  _editor->scrollColumnsBy (columns);
+}
+
+juce::Point<float>
+ScriptPanel::scrollFractions () const
+{
+  return _editor->scrollFractions ();
+}
+
+void
 ScriptPanel::flashKeys ()
 {
   // Long enough to be seen, short enough not to be mistaken for a state.
