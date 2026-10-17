@@ -16,8 +16,9 @@ STAGE = REPO / "packaging/stage"
 UNIT = REPO / "platform_config/a3-motion.service"
 SHARE = "usr/share/a3-motion-ui"
 BINARY = "src/a3-motion-ui/a3-motion-ui_artefacts/Release/Standalone/a3-motion-ui"
-EXTRA_DEPENDS = ("x11-utils", "x11-xserver-utils", "python3")
+EXTRA_DEPENDS = ("x11-utils", "x11-xserver-utils", "python3", "ffmpeg")
 RECOMMENDS = ("onboard", "dbus-bin", "i3")
+SCREENCAST = ("a3-motion-screencast", "a3-screencast", "a3_screencast_fanout.py")
 TOOLS = ("a3-wait-for-the-screen", "a3-motion-ui-seed")
 
 
@@ -130,6 +131,8 @@ class TheStagedTree(unittest.TestCase):
             "usr/bin/a3-motion-ui",
             *(f"usr/lib/a3-motion-ui/{tool}" for tool in TOOLS),
             "usr/lib/systemd/user/a3-motion.service",
+            "usr/lib/systemd/user/a3-motion-screencast.service",
+            *(f"usr/lib/a3-motion-ui/{name}" for name in SCREENCAST),
             f"{SHARE}/config/config.json",
             "usr/share/doc/a3-motion-ui/copyright",
         }
@@ -145,7 +148,8 @@ class TheStagedTree(unittest.TestCase):
         stage = self.stage()
         for name in self.files(stage):
             mode = (stage / name).stat().st_mode & 0o777
-            program = name.startswith(("usr/bin/", "usr/lib/a3-motion-ui/"))
+            program = (name.startswith(("usr/bin/", "usr/lib/a3-motion-ui/"))
+                       and not name.endswith(".py"))
             with self.subTest(file=name):
                 self.assertEqual(0o755 if program else 0o644, mode)
 

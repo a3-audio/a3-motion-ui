@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Patric Schmitz, Raphael Eismann
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Starts the vendored a3-screencast on a machine without a3-core.
+
+a3nuc2 runs Motion alone, so there is no osc.env rendered by a3-osc-render.
+The port comes from the same a3-osc.json Motion reads, in the same order:
+$A3_OSC_TRUTH, ~/.cache/a3/a3-osc.json, /usr/share/a3/a3-osc.json.
+
+a3-screencast is a byte-equal copy of a3-core's and runs the fan-out from
+$HOME/.local/lib. Rather than edit the copy, this hands it a home in which
+that path exists (a symlink to the packaged module); XAUTHORITY keeps the
+real home's X cookie reachable.
+"""
+
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+INSTALLED_TRUTH = Path("/usr/share/a3/a3-osc.json")
+FANOUT = "a3_screencast_fanout.py"
+LISTENER = "screencast.stream"
+
+
+def truth_path(env, home):
+    given = env.get("A3_OSC_TRUTH")
+    if given:
+        return Path(given)
+    cached = Path(home) / ".cache/a3/a3-osc.json"
+    if cached.is_file():
+        return cached
+    return INSTALLED_TRUTH
+
+
+def port_from(path):
+    listeners = json.loads(Path(path).read_text()).get("listeners", [])
+    for listener in listeners:
+        if listener.get("name") == LISTENER:
+            return int(listener["port"])
+    sys.exit(f"a3-motion-screencast: {path} has no {LISTENER} listener")
+
+
+def shim_home(libdir, run):
+    lib = Path(run) / "home/.local/lib"
+    lib.mkdir(parents=True, exist_ok=True)
+    link = lib / FANOUT
+    link.unlink(missing_ok=True)
+    link.symlink_to(Path(libdir) / FANOUT)
+    return Path(run) / "home"
+
+
+def environment(env, port, libdir, run):
+    real_home = env["HOME"]
+    return {
+        **env,
+        "HOME": str(shim_home(libdir, run)),
+        "XAUTHORITY": env.get("XAUTHORITY", f"{real_home}/.Xauthority"),
+        "A3_SCREENCAST_PORT": str(port),
+    }
+
+
+def runtime_dir(env):
+    base = env.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    return Path(base) / "a3-motion-screencast"
+
+
+def main():
+    truth = truth_path(os.environ, os.environ["HOME"])
+    if not truth.is_file():
+        sys.exit("a3-motion-screencast: no a3-osc.json yet — Motion fetches it from Core")
+    libdir = Path(__file__).resolve().parent
+    env = environment(dict(os.environ), port_from(truth), libdir, runtime_dir(os.environ))
+    script = str(libdir / "a3-screencast")
+    os.execve(script, [script], env)
+
+
+if __name__ == "__main__":
+    main()

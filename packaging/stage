@@ -76,6 +76,18 @@ ship_tree() {
     done < <(find "$src/$dir" -type f -print0)
 }
 
+# Opt-in screencast for a machine without a3-core: the unit is shipped, never
+# enabled. a3-screencast and its fan-out are byte-equal copies of a3-core's.
+ship_screencast() {
+    local src=$1 stage=$2 lib=usr/lib/a3-motion-ui
+    install -D -m 755 "$src/platform_config/a3-motion-screencast" "$stage/$lib/a3-motion-screencast"
+    install -D -m 755 "$src/platform_config/screencast/a3-screencast" "$stage/$lib/a3-screencast"
+    install -D -m 644 "$src/platform_config/screencast/a3_screencast_fanout.py" \
+        "$stage/$lib/a3_screencast_fanout.py"
+    install -D -m 644 "$src/platform_config/a3-motion-screencast.service" \
+        "$stage/usr/lib/systemd/user/a3-motion-screencast.service"
+}
+
 files() {
     [[ $# -eq 3 ]] || usage
     local src=$1 build=$2 stage=$3 tool skin
@@ -85,6 +97,7 @@ files() {
     done
     install -D -m 644 "$src/platform_config/a3-motion.service" \
         "$stage/usr/lib/systemd/user/a3-motion.service"
+    ship_screencast "$src" "$stage"
     ship_tree "$src" resources "$stage/$SHARE"
     ship_tree "$src" pattern "$stage/$SHARE"
     install -D -m 644 "$src/config/config.json" "$stage/$SHARE/config/config.json"
