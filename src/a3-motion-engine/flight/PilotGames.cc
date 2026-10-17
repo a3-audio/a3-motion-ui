@@ -349,11 +349,14 @@ PilotGames::chainIntoSlap (int slot, GameShips const &ships, FlightBodies const 
   if (!dropOpensOn (cue, dropBar))
     return; // no drop: the climb holds at the top, then lets go
 
-  auto call = callFor (ships, running.plan.leader);
+  auto const leader = leaderIn (slot);
+  if (leader < 0)
+    return;
+  auto call = callFor (ships, leader);
   call.openingBeats = climax;
   call.snaps = true;
   call.endByBeats = climax + static_cast<double> (_tuning.hardDropBars) * beatsPerBar;
-  turnIntoSlap (slot, ships, bodies, cue, climax, beatsPerBar, call);
+  turnIntoSlap (slot, leader, ships, bodies, cue, climax, beatsPerBar, call);
 }
 
 void
@@ -362,34 +365,49 @@ PilotGames::yieldToTheDrop (int slot, GameShips const &ships, FlightBodies const
 {
   if (pilotFamily (cue, _bar, Asker::Pilot, _tuning) != PilotFamily::Hard)
     return;
-  auto const call = pilotsCall (PilotGame::Slap, cue, ships, _games[shipIndex (slot)].plan.leader,
-                                beats, beatsPerBar);
+  auto const leader = leaderIn (slot);
+  if (leader < 0)
+    return;
+  auto const call = pilotsCall (PilotGame::Slap, cue, ships, leader, beats, beatsPerBar);
   if (slapHasRoom (call))
-    turnIntoSlap (slot, ships, bodies, cue, beats, beatsPerBar, call);
+    turnIntoSlap (slot, leader, ships, bodies, cue, beats, beatsPerBar, call);
 }
 
 void
-PilotGames::turnIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
-                          MusicCue const &cue, double beats, int beatsPerBar,
-                          FigureCall const &call)
+PilotGames::turnIntoSlap (int slot, int leader, GameShips const &ships,
+                          FlightBodies const &bodies, MusicCue const &cue, double beats,
+                          int beatsPerBar, FigureCall const &call)
 {
   auto &running = _games[shipIndex (slot)];
-  // A slap is a pair at most: the leader and the first other ship in it.
-  auto crew = running.plan.crew;
+  // A slap is a pair at most: the leader and the first other ship still in
+  // the game. The plan's crew still names ships a press has taken since.
+  std::array<bool, flightShips> crew{};
+  crew[shipIndex (leader)] = true;
   auto partners = 0;
   for (auto s = 0; s < flightShips; ++s)
     {
-      if (!crew[shipIndex (s)] || s == running.plan.leader)
+      if (_slotOf[shipIndex (s)] != slot || s == leader)
         continue;
-      if (partners++ > 0)
-        {
-          crew[shipIndex (s)] = false;
-          _slotOf[shipIndex (s)] = -1;
-        }
+      if (partners++ == 0)
+        crew[shipIndex (s)] = true;
+      else
+        _slotOf[shipIndex (s)] = -1;
     }
-  running.plan = planGame (PilotGame::Slap, running.plan.leader, crew, statesOf (ships),
+  running.plan = planGame (PilotGame::Slap, leader, crew, statesOf (ships),
                            PilotTarget{}, bodies, cue, beats, beatsPerBar, _dice, _flight,
                            _tuning, call);
+}
+
+int
+PilotGames::leaderIn (int slot) const
+{
+  auto const leader = _games[shipIndex (slot)].plan.leader;
+  if (isShip (leader) && _slotOf[shipIndex (leader)] == slot)
+    return leader;
+  for (auto s = 0; s < flightShips; ++s)
+    if (_slotOf[shipIndex (s)] == slot)
+      return s;
+  return -1;
 }
 
 bool

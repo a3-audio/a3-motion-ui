@@ -333,6 +333,31 @@ TEST (ClimbChain, AChainedSlapKeepsAPairAtMost)
   EXPECT_EQ (crewOf (games, PilotGame::Climb), 0);
 }
 
+TEST (ClimbChain, AChainedSlapPairsOnlyShipsStillInTheClimb)
+{
+  for (auto const pressed : { 0, 1, 3 })
+    {
+      PilotGames games (1);
+      auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 4);
+      auto const group = oneGroupAt ({ -0.5f, 0.3f });
+      games.request (asking (PilotGame::Climb, 0, PilotRecruit::All), flying (), group, build, 0.,
+                     fourFour);
+      ASSERT_EQ (crewOf (games, PilotGame::Climb), 4);
+      // An encircle from beat 40 runs four bars: still the DJ's on the drop's 1.
+      ASSERT_TRUE (games.request (asking (PilotGame::Encircle, pressed), flying (), group, build,
+                                  40., fourFour));
+      auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+      games.step (flying (), group, drop, PilotLevel::Off, 48., fourFour);
+      EXPECT_EQ (gameOn (games, pressed), PilotGame::Encircle)
+          << "ship " << pressed << " keeps the figure it was pressed for";
+      EXPECT_EQ (crewOf (games, PilotGame::Slap), 2)
+          << "a pair of ships still in the climb, pressed " << pressed;
+      for (auto s = 0; s < flightShips; ++s)
+        if (gameOn (games, s) == PilotGame::Slap)
+          EXPECT_NE (games.gameOf (s)->leader, pressed) << "a ship that left leads nothing";
+    }
+}
+
 TEST (SoftFigures, AnEncircleFollowsItsGroup)
 {
   PilotGames games (1);

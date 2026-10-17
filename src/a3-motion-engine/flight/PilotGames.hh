@@ -148,10 +148,13 @@ private:
    *  for one. */
   void yieldToTheDrop (int slot, GameShips const &ships, FlightBodies const &bodies,
                        MusicCue const &cue, double beats, int beatsPerBar);
-  /** The game in `slot` replanned as a slap called `call`, for its leader
-   *  and the first other ship in it at most. */
-  void turnIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
+  /** The game in `slot` replanned as a slap called `call`, for `leader`
+   *  and the first other ship still in it at most; the rest are released. */
+  void turnIntoSlap (int slot, int leader, GameShips const &ships, FlightBodies const &bodies,
                      MusicCue const &cue, double beats, int beatsPerBar, FigureCall const &call);
+  /** The leader of the game in `slot` while it still plays in it, else the
+   *  first ship still in it, or -1. */
+  int leaderIn (int slot) const;
   /** Whether a slap called `call` leaves room for a step after its opening. */
   bool slapHasRoom (FigureCall const &call) const;
   void leave (int ship);
