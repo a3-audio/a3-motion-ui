@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Patric Schmitz, Raphael Eismann
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=The picture of Motion's screen for OBS and the pro-DJ (MPEG-TS, several viewers)
+After=graphical.target
+StartLimitIntervalSec=0
+
+[Service]
+Environment=DISPLAY=:0
+# Port from the OSC truth, found by the wrapper; the settings file is optional.
+EnvironmentFile=-%h/.config/a3/screencast.env
+ExecStartPre=/usr/lib/a3-motion-ui/a3-wait-for-the-screen
+ExecStart=/usr/lib/a3-motion-ui/a3-motion-screencast
+# No truth yet (Motion has not fetched one from Core), or the fan-out or the
+# encoder died: start again.
+Restart=always
+RestartSec=2
+
+# Not enabled by the package: each machine opts in with
+#   systemctl --user enable --now a3-motion-screencast.service
+[Install]
+WantedBy=default.target

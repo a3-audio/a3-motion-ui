@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Patric Schmitz, Raphael Eismann
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Starts the vendored a3-screencast on a machine without a3-core.
+
+a3nuc2 runs Motion alone, so there is no osc.env rendered by a3-osc-render.
+The port comes from the same a3-osc.json Motion reads, in the same order:
+$A3_OSC_TRUTH, ~/.cache/a3/a3-osc.json, /usr/share/a3/a3-osc.json.
+
+a3-screencast is a byte-equal copy of a3-core's; it takes the fan-out's path
+from A3_SCREENCAST_FANOUT, which this sets to the packaged module.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+INSTALLED_TRUTH = Path("/usr/share/a3/a3-osc.json")
+FANOUT = "/usr/lib/a3-motion-ui/a3_screencast_fanout.py"
+LISTENER = "screencast.stream"
+
+
+def truth_path(env, home):
+    given = env.get("A3_OSC_TRUTH")
+    if given:
+        return Path(given)
+    cached = Path(home) / ".cache/a3/a3-osc.json"
+    if cached.is_file():
+        return cached
+    return INSTALLED_TRUTH
+
+
+def port_from(path):
+    listeners = json.loads(Path(path).read_text()).get("listeners", [])
+    for listener in listeners:
+        if listener.get("name") == LISTENER:
+            return int(listener["port"])
+    sys.exit(f"a3-motion-screencast: {path} has no {LISTENER} listener")
+
+
+def environment(env, port):
+    return {
+        # Motion's unit is pinned to CPU 0; the copy's own default would put the encoder there.
+        "A3_SCREENCAST_CPUS": "1-3",
+        **env,
+        "A3_SCREENCAST_FANOUT": FANOUT,
+        "A3_SCREENCAST_PORT": str(port),
+    }
+
+
+def main():
+    truth = truth_path(os.environ, os.environ["HOME"])
+    if not truth.is_file():
+        sys.exit("a3-motion-screencast: no a3-osc.json yet — Motion fetches it from Core")
+    env = environment(dict(os.environ), port_from(truth))
+    script = str(Path(__file__).resolve().parent / "a3-screencast")
+    os.execve(script, [script], env)
+
+
+if __name__ == "__main__":
+    main()

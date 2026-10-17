@@ -4,7 +4,7 @@ Architecture: amd64
 Maintainer: Rafjagger
 Section: sound
 Priority: optional
-Depends: ${shlibs:Depends}, x11-utils, x11-xserver-utils, python3
+Depends: ${shlibs:Depends}, x11-utils, x11-xserver-utils, python3, ffmpeg
 Recommends: onboard, dbus-bin, i3
 Description: A3 Motion UI, the touch surface of the A3 Motion controller
  Records and plays movement trajectories for four channels and sends
