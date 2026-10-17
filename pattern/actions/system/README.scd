@@ -235,11 +235,12 @@
 //                            graze takes one.
 //
 // The PILOTS key on the status bar (FPV) says how much the pilots do on
-// their own: OFF, games only from these lines; HINT, a pad lights up in
-// the beat when its game fits the moment the music is in; FLY, pilots
-// start games themselves -- a tap of yours that starts a game, or touches
-// a ship in a pilot's game, takes over at once and sets the key back to
-// HINT; one press takes it to FLY again. Leaving FPV ends every game.
+// their own: OFF, figures only from your presses; HINT, a pad lights up in
+// the beat when its ~game or ~style fits the moment the music is in (a pad
+// that leaves the choice to the music never lights); FLY, pilots climb
+// builds, hit drops and graze breakdowns themselves. A press of yours at
+// FLY takes over its own ship only; the key stays at FLY and the other
+// pilots fly on. Leaving FPV ends every figure.
 //
 // On a flying ship (ORBIT) the Motion keys mean flight, not figure, for as
 // long as the action's accent lasts: ~spin the bars per lap and the way
