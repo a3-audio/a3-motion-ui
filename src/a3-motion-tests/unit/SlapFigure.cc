@@ -166,6 +166,22 @@ TEST (SlapFigure, InThreeFourItKeepsOffTheBreath)
     }
 }
 
+TEST (SlapFigure, InSevenEightItKeepsOffTheBreath)
+{
+  constexpr int sevenEight = 7;
+  auto const tuning = leftRightOnly ();
+  auto const plan
+      = slapPlan (openingAt (sevenEight, true), tuning, only (0), cruising (), {}, 5, sevenEight);
+  auto const events = eventsOf (plan, 0, tuning, sevenEight);
+  ASSERT_GE (events.size (), 2u);
+  for (size_t i = 0; i < events.size (); ++i)
+    {
+      EXPECT_NE (std::fmod (events[i], sevenEight), sevenEight - 1.) << events[i];
+      if (i > 0)
+        EXPECT_GE (events[i] - events[i - 1], tuning.eventSpacingBeats);
+    }
+}
+
 TEST (SlapFigure, InTwoFourItStepsOnEveryOne)
 {
   auto const tuning = leftRightOnly ();
