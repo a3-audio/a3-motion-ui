@@ -20,6 +20,7 @@
 
 #include "GameFigures.hh"
 
+#include <a3-motion-engine/flight/SlapFigure.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
 #include <algorithm>
@@ -527,14 +528,15 @@ GamePlan
 planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
           std::array<ShipState, flightShips> const &ships, PilotTarget target,
           FlightBodies const &bodies, MusicCue const &cue, double beats, int beatsPerBar,
-          juce::Random &dice, FlightTuning const &flight, GameTuning const &tuning)
+          juce::Random &dice, FlightTuning const &flight, GameTuning const &tuning,
+          FigureCall const &call)
 {
   GamePlan plan;
   plan.game = game;
   plan.leader = isShip (leader) ? leader : 0;
   plan.crew = crew;
   plan.crewSize = static_cast<int> (std::count (crew.begin (), crew.end (), true));
-  plan.startBeats = beats;
+  plan.startBeats = isContrastFigure (game) ? call.openingBeats.value_or (beats) : beats;
   plan.climaxBeats = climaxBeatsFor (game, cue, beats, beatsPerBar, tuning);
   plan.endBeats = plan.climaxBeats + afterClimaxBeats (game, beatsPerBar, tuning);
   for (auto s = 0; s < flightShips; ++s)
@@ -564,8 +566,10 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
     case PilotGame::CallAndResponse:
       planCallAndResponse (plan);
       break;
-    case PilotGame::None:
     case PilotGame::Slap:
+      planSlap (plan, ships, call, beatsPerBar, dice, tuning);
+      break;
+    case PilotGame::None:
     case PilotGame::Climb:
     case PilotGame::Graze:
     case PilotGame::Encircle:
@@ -593,14 +597,38 @@ figureGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
       return hideAndSeekGoal (plan, ship, beats, beatsPerBar, tuning);
     case PilotGame::CallAndResponse:
       return callAndResponseGoal (plan, ship, beats, beatsPerBar, tuning);
-    case PilotGame::None:
     case PilotGame::Slap:
+      return slapGoal (plan, ship, beats, beatsPerBar, tuning);
+    case PilotGame::None:
     case PilotGame::Climb:
     case PilotGame::Graze:
     case PilotGame::Encircle:
       break;
     }
   return standAt (plan.from[at (ship)]);
+}
+
+FigureStance
+figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
+              GameTuning const &tuning)
+{
+  if (!isShip (ship) || !plan.crew[at (ship)] || beatsPerBar <= 0 || beats < plan.startBeats)
+    return {};
+  switch (plan.game)
+    {
+    case PilotGame::Slap:
+      return slapStance (plan, beats, beatsPerBar, tuning);
+    case PilotGame::None:
+    case PilotGame::FakeOut:
+    case PilotGame::Formation:
+    case PilotGame::HideAndSeek:
+    case PilotGame::CallAndResponse:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
+      return {};
+    }
+  return {};
 }
 
 }

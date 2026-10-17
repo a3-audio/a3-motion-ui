@@ -20,8 +20,10 @@
 
 #include "GameMoments.hh"
 
+#include <a3-motion-engine/flight/Breath.hh>
 #include <a3-motion-engine/flight/PilotFamily.hh>
 
+#include <algorithm>
 #include <cmath>
 
 namespace a3
@@ -242,6 +244,26 @@ fittingGames (MusicCue const &cue, long long bar, int beatsPerBar, GameTuning co
   out.graze = out.family == PilotFamily::Soft;
   out.encircle = out.graze;
   return out;
+}
+
+double
+nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning)
+{
+  auto const earliest = after + static_cast<double> (tuning.eventSpacingBeats);
+  if (beatsPerBar <= 0)
+    return earliest;
+  auto const bar = static_cast<double> (beatsPerBar);
+  auto const step = std::max (0.25, static_cast<double> (tuning.slapBeatsPerSide));
+  // The bar's 1 is always a line and never the breath's, so two bars hold one.
+  auto const first = std::floor (earliest / bar);
+  for (auto b = first; b <= first + 2.; b += 1.)
+    for (auto at = 0.; at < bar - 1e-9; at += step)
+      {
+        auto const beat = b * bar + at;
+        if (beat + 1e-9 >= earliest && !breathHolds (beat, beatsPerBar))
+          return beat;
+      }
+  return (first + 3.) * bar;
 }
 
 }

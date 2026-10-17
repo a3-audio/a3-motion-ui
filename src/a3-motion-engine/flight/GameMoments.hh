@@ -76,4 +76,9 @@ double afterClimaxBeats (PilotGame game, int beatsPerBar, GameTuning const &tuni
 FittingGames fittingGames (MusicCue const &cue, long long bar, int beatsPerBar,
                            GameTuning const &tuning);
 
+/** The first beat at least eventSpacingBeats after `after` that a slap may
+ *  step on: a line slapBeatsPerSide apart counted from the bar's 1 (beats 1
+ *  and 3 in 4/4), never the breath's beat. */
+double nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning);
+
 }

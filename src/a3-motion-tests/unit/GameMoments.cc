@@ -221,3 +221,12 @@ TEST (GameMoments, ABreakdownFitsAGrazeAndAnEncircle)
   EXPECT_TRUE (fitting.fits (PilotFamily::Soft));
   EXPECT_FALSE (fitting.fits (PilotFamily::Hard));
 }
+
+TEST (GameMoments, ASlapStepsOnTheOneAndTheThreeTwoBeatsApart)
+{
+  EXPECT_DOUBLE_EQ (nextSlapEvent (8., fourFour, tuning), 10.);
+  EXPECT_DOUBLE_EQ (nextSlapEvent (10., fourFour, tuning), 12.);
+  EXPECT_DOUBLE_EQ (nextSlapEvent (9., fourFour, tuning), 12.) << "never on beat 4, the breath";
+  EXPECT_DOUBLE_EQ (nextSlapEvent (6., 3, tuning), 9.) << "in 3/4 the third beat breathes";
+  EXPECT_DOUBLE_EQ (nextSlapEvent (4., 2, tuning), 6.) << "2/4 has no breath";
+}
