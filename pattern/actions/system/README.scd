@@ -201,7 +201,8 @@
 //                            band, turning twice as fast every four bars,
 //                            into a slap on the drop StemDeck saw coming.
 //                            \soft: a graze -- a slow pass close by a guest
-//                            group -- or a wide circle round it.
+//                            group -- or a wide circle round it; with no
+//                            group, or no room to pass one, a hide & seek.
 //                            \groove: two ships answering each other.
 //                            \none: no figure; only the Motion keys fly.
 //   ~game                    \none  \fakeout  \formation  \hideseek
@@ -220,8 +221,8 @@
 //   ~target                  \nearest  \group1 .. \group8  \crowd  \hotspot
 //                            whom it is played against: the nearest guest
 //                            group, the group labelled G1..G8 on the floor,
-//                            or the nearest crowd or hotspot. Fake-out and
-//                            formation only.
+//                            or the nearest crowd or hotspot. Fake-out,
+//                            formation, graze and circle only.
 //   ~with                    \self  \nearest  \all
 //                            which ships the game takes: this channel's
 //                            alone, it and the nearest free ship, or every
