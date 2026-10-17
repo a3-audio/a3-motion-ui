@@ -20,6 +20,8 @@
 
 #include "GameMoments.hh"
 
+#include <a3-motion-engine/flight/PilotFamily.hh>
+
 #include <cmath>
 
 namespace a3
@@ -76,11 +78,15 @@ FittingGames::has (PilotGame game) const
       return hideAndSeek;
     case PilotGame::CallAndResponse:
       return callAndResponse;
-    case PilotGame::None:
     case PilotGame::Slap:
+      return slap;
     case PilotGame::Climb:
+      return climb;
     case PilotGame::Graze:
+      return graze;
     case PilotGame::Encircle:
+      return encircle;
+    case PilotGame::None:
       return false;
     }
   return false;
@@ -89,7 +95,34 @@ FittingGames::has (PilotGame game) const
 bool
 FittingGames::any () const
 {
-  return fakeOut || formation || hideAndSeek || callAndResponse;
+  return fakeOut || formation || hideAndSeek || callAndResponse || slap || climb || graze
+         || encircle;
+}
+
+bool
+FittingGames::fits (PilotFamily wanted) const
+{
+  switch (wanted)
+    {
+    case PilotFamily::Hard:
+      return slap;
+    case PilotFamily::Rising:
+      return climb || fakeOut || formation;
+    case PilotFamily::Soft:
+      return graze || hideAndSeek;
+    case PilotFamily::Groove:
+      return callAndResponse;
+    }
+  return false;
+}
+
+bool
+climbFits (MusicCue const &cue, long long bar, GameTuning const &tuning)
+{
+  if (!headsFor (cue, MusicSection::Build, MusicSection::Drop))
+    return false;
+  auto const least = cue.previewed ? static_cast<long long> (tuning.climbMinBars) : 1LL;
+  return cue.changeBar - bar >= least;
 }
 
 double
@@ -202,6 +235,12 @@ fittingGames (MusicCue const &cue, long long bar, int beatsPerBar, GameTuning co
     case MusicSection::Drop:
       break;
     }
+
+  out.family = pilotFamily (cue, bar, Asker::Pilot, tuning);
+  out.slap = out.family == PilotFamily::Hard;
+  out.climb = out.family == PilotFamily::Rising && climbFits (cue, bar, tuning);
+  out.graze = out.family == PilotFamily::Soft;
+  out.encircle = out.graze;
   return out;
 }
 

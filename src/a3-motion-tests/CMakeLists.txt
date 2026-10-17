@@ -21,6 +21,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/MusicCue.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/LiveMood.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameMoments.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotFamily.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameTuning.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameFigures.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotGames.cc"
