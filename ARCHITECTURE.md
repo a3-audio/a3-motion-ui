@@ -569,8 +569,9 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
 - **Requests** from `PilotDesk` are taken on the next tick; one whose leader cannot fly is
   dropped. A DJ's figure takes its leader out of any game it was in and recruits free ships whose
   clip runs, ORBIT or CLIP; a newer press on a channel replaces its figure, and a partner is only
-  ever a free ship. `\none` releases that ship only (`PilotGames::release`); the rest of its game
-  plays on.
+  ever a free ship. `\none` on a ship in a pilot's game releases that ship only
+  (`PilotGames::release`), and the rest of that game plays on; on a ship in a DJ's game it ends
+  the whole game (`PilotGames::endGameOn`, `MotionEngine::postGame`).
 - **Never two games on one ship.** A game never writes the DJ's mode or escort: a borrowed CLIP
   ship flies (`readFlightModes`) and glides back to its clip when the game ends; a ship whose
   mode or escort the DJ changes (`ShipResume` differs) leaves at once.
