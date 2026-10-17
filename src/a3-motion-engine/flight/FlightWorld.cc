@@ -154,8 +154,34 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   auto const holds = _breathing && inTheStop;
   auto const moves = [&orders, holds] (int ch) {
     auto const &order = orders[index (ch)];
-    return order.flying && (!holds || order.goal == FlightGoal::Steer);
+    if (!order.flying || order.hold)
+      return false;
+    return !holds || (order.goal == FlightGoal::Steer && !order.breathes);
   };
+
+  // A held ship is placed, not flown: it stands where its figure says and
+  // pushes the others from there. Let go, it takes off along its path.
+  for (auto ch = 0; ch < flightShips; ++ch)
+    {
+      auto const &order = orders[index (ch)];
+      auto &held = _held[index (ch)];
+      if (!order.flying)
+        {
+          held = false;
+          continue;
+        }
+      if (order.hold)
+        {
+          _ships[index (ch)] = { order.steer.at, {} };
+          held = true;
+          continue;
+        }
+      if (held)
+        {
+          held = false;
+          launch (ch, _ships[index (ch)].p, beats, beatsPerBar);
+        }
+    }
 
   // Every ship's pulls are taken from where the others were before this
   // tick, so the order the four are stepped in does not matter.

@@ -151,6 +151,7 @@ target_sources("a3-motion-engine" PRIVATE
     flight/BeatPulse.cc
     flight/BeatPulse.hh
     flight/Breath.hh
+    flight/FigureStance.hh
     flight/BaseOrbit.cc
     flight/BaseOrbit.hh
     flight/ShipDynamics.cc
