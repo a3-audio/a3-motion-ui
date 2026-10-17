@@ -603,7 +603,11 @@ Tests: `MusicCue`, `GameMoments`, `LiveMood`, `BarMeter`, `FlightSteer`, `GameFi
 `StatusBarLayout`, `SettingsPersistence`, `PilotWiring`, `PilotHint`, `GameTuning`, `PilotFamily`,
 `ChooseFigure`, `PlayableFigure`, `FlightHold`, `BreathingSteer`, `SlapFigure`, `SlapGlide`,
 `SlapGlider`, `PressLanding`, `PressFigure`, `ClimbFigure`, `ClimbChain`, `GrazeFigure`,
-`EncircleFigure`, `SoftFigures`, `PilotsFly`, `LiveMoodFamilies`, `PilotContrasts`.
+`EncircleFigure`, `SoftFigures`, `PilotsFly`, `LiveMoodFamilies`, `PilotContrasts`,
+`PilotsOfflinePass`: a scripted set at 128 BPM on the game floor (`GameFloor.hh`, the engine's
+games-then-world step without the clock), so it is deterministic and takes about a second.
+`PilotsOfflinePassTool` runs the same scenarios on the real engine and clock and writes CSVs for
+plots (`A3_PASS_OUT=<dir>`); it takes minutes, so every case is `DISABLED_`.
 
 ### Engine (`src/a3-motion-engine`)
 
