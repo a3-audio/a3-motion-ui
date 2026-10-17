@@ -161,27 +161,33 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   };
 
   // A held ship is placed, not flown: it stands where its figure says and
-  // pushes the others from there. Let go, it takes off along its path.
+  // pushes the others from there. Let go, or out of its game, it takes off
+  // along its path from where it stands: its rabbit ran on meanwhile, maybe
+  // to the far side, and a chase there would cross the middle.
   for (auto ch = 0; ch < flightShips; ++ch)
     {
       auto const &order = orders[index (ch)];
       auto &held = _held[index (ch)];
+      auto &steered = _steered[index (ch)];
       if (!order.flying)
         {
           held = false;
+          steered = false;
           continue;
         }
+      auto const steering = order.goal == FlightGoal::Steer;
       if (order.hold)
         {
           _ships[index (ch)] = { order.steer.at, {} };
           held = true;
+          steered = steering;
           continue;
         }
-      if (held)
-        {
-          held = false;
-          launch (ch, _ships[index (ch)].p, beats, beatsPerBar);
-        }
+      auto const letGo = held || (steered && !steering);
+      held = false;
+      steered = steering;
+      if (letGo)
+        launch (ch, _ships[index (ch)].p, beats, beatsPerBar);
     }
 
   // Every ship's pulls are taken from where the others were before this

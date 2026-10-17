@@ -27,6 +27,8 @@
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <functional>
@@ -155,6 +157,18 @@ struct Floor
         beats += dt;
         if (look)
           look (beats);
+      }
+  }
+
+  /** Steps to beat `until`, each bar under the cue `cueOf` gives it. */
+  void
+  runScript (double until, std::function<MusicCue (long long)> const &cueOf,
+             std::function<void (double)> const &look = {})
+  {
+    while (beats < until - 1e-9)
+      {
+        auto const bar = static_cast<long long> (std::floor (beats / fourFour + 1e-9));
+        runTo (std::min (until, static_cast<double> (bar + 1) * fourFour), cueOf (bar), look);
       }
   }
 
@@ -655,4 +669,141 @@ TEST (PilotGamesFlight, ASlapHoldsItsShipAtItsSidesAndRelaunchesItAfterward)
   EXPECT_FALSE (floor.games.plays (0)) << "two bars, then over";
   EXPECT_GT (floor.world.ship (0).v.getDistanceFromOrigin (), FlightTuning{}.speedMin + 0.05f)
       << "relaunched at cruise, not crawling off from standing";
+}
+
+namespace
+{
+/** 64 bars as StemDeck previews them: a groove, a 16-bar build, the drop,
+ *  a breakdown. */
+MusicCue
+scriptedSet (long long bar)
+{
+  MusicCue cue;
+  cue.previewed = true;
+  if (bar < 16)
+    {
+      cue.section = MusicSection::Groove;
+      cue.next = MusicSection::Build;
+      cue.changeBar = 16;
+      cue.sectionStartBar = 0;
+      cue.energy = 0.5f;
+    }
+  else if (bar < 32)
+    {
+      cue.section = MusicSection::Build;
+      cue.next = MusicSection::Drop;
+      cue.changeBar = 32;
+      cue.sectionStartBar = 16;
+      cue.energy = 0.6f;
+    }
+  else if (bar < 48)
+    {
+      cue.section = MusicSection::Drop;
+      cue.next = MusicSection::Breakdown;
+      cue.changeBar = 48;
+      cue.sectionStartBar = 32;
+      cue.energy = 0.9f;
+    }
+  else
+    {
+      cue.section = MusicSection::Breakdown;
+      cue.next = MusicSection::Groove;
+      cue.changeBar = 64;
+      cue.sectionStartBar = 48;
+      cue.energy = 0.4f;
+    }
+  return cue;
+}
+
+/** When each ship is heard to start something: its floor point jumping a
+ *  heard bend in one tick, or moving again after standing a beat. */
+struct Onsets
+{
+  void
+  look (Floor const &floor, double beat)
+  {
+    for (auto ch = 0; ch < flightShips; ++ch)
+      {
+        auto const s = static_cast<size_t> (ch);
+        auto const p = floor.at (ch);
+        if (seen[s])
+          {
+            auto const moved = p.getDistanceFrom (last[s]) > 1e-6f;
+            auto const jumped = degreesBetween (p, last[s]) >= tuning.heardBendDegrees;
+            if (jumped || (moved && beat - movedAt[s] >= 1. - 1e-9))
+              at[s].push_back (beat);
+            if (moved)
+              movedAt[s] = beat;
+          }
+        else
+          movedAt[s] = beat;
+        last[s] = p;
+        seen[s] = true;
+      }
+  }
+
+  std::array<std::vector<double>, flightShips> at{};
+  std::array<Vec2, flightShips> last{};
+  std::array<double, flightShips> movedAt{};
+  std::array<bool, flightShips> seen{};
+};
+}
+
+TEST (PilotGamesFlight, AtFlyEachShipIsHeardAtMostOnceEveryTwoBeats)
+{
+  auto const tick = 1. / TempoClock::getTicksPerBeat ();
+  for (auto const seed : { 1, 2, 3, 4 })
+    {
+      Floor floor (oneGroupAt ({ -0.5f, 0.3f }), seed);
+      floor.world.setBreathing (true);
+      floor.level = PilotLevel::Fly;
+      Onsets onsets;
+      auto mostInFigures = 0;
+      auto wasHard = false;
+      std::optional<double> hardEnded;
+      auto pilotsBefore = false;
+      std::vector<double> pilotStarts;
+      floor.runScript (64. * fourFour, scriptedSet, [&] (double beat) {
+        onsets.look (floor, beat);
+        auto inFigures = 0;
+        auto hard = false;
+        auto pilots = false;
+        for (auto ch = 0; ch < flightShips; ++ch)
+          {
+            inFigures += floor.games.steerOf (ch, beat, fourFour).has_value () ? 1 : 0;
+            if (auto const game = floor.games.gameOf (ch); game && game->byPilot)
+              {
+                pilots = true;
+                hard = hard || game->game == PilotGame::Slap;
+              }
+          }
+        mostInFigures = std::max (mostInFigures, inFigures);
+        if (wasHard && !hard)
+          hardEnded = beat;
+        if (pilots && !pilotsBefore)
+          pilotStarts.push_back (beat);
+        wasHard = hard;
+        pilotsBefore = pilots;
+      });
+
+      for (auto ch = 0; ch < flightShips; ++ch)
+        {
+          auto const &at = onsets.at[static_cast<size_t> (ch)];
+          for (size_t i = 1; i < at.size (); ++i)
+            {
+              EXPECT_GE (at[i] - at[i - 1], tuning.eventSpacingBeats - tick)
+                  << "seed " << seed << ", ship " << ch << ", beat " << at[i];
+            }
+        }
+      EXPECT_LE (mostInFigures, 2) << "two ships move, the rest wait; seed " << seed;
+      ASSERT_TRUE (hardEnded.has_value ()) << "the drop was slapped; seed " << seed;
+      for (auto const start : pilotStarts)
+        {
+          if (start > *hardEnded)
+            {
+              EXPECT_GE (start - *hardEnded, tuning.restBars * fourFour - tick)
+                  << "cruise after the hit; seed " << seed;
+            }
+        }
+    }
 }

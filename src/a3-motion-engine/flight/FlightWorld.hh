@@ -66,7 +66,9 @@ struct ShipOrders
   OrbitPoint steer{};
   /** Steer only: the ship stands at `steer.at` -- placed there, velocity 0,
    *  no steering, gravity or wander. The first flying tick without it
-   *  relaunches the ship onto its path, as CLIP -> ORBIT does. */
+   *  relaunches the ship onto its path, as CLIP -> ORBIT does -- and so does
+   *  the first flying tick after any Steer: the rabbit ran on meanwhile, and
+   *  a chase to it could cross the middle. */
   bool hold = false;
   /** Steer only: the breath's stop holds this ship too. A game of the first
    *  version flies through it: its figure is counted in beats of its own. */
@@ -147,8 +149,10 @@ private:
   std::array<EscortLeg, flightShips> _escort{};
   std::array<FlightMotion, flightShips> _motion{};
   std::array<float, flightShips> _motionWeight{};
-  /** Per ship, whether it stood at a hold point last tick. */
+  /** Per ship, whether it stood at a hold point last tick, and whether a
+   *  game steered it. */
   std::array<bool, flightShips> _held{};
+  std::array<bool, flightShips> _steered{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
   bool _breathWanted = false;

@@ -89,9 +89,11 @@ public:
 
   /** One tick: ships that cannot fly or that the DJ moved leave; games
    *  past their last bar end, and the pilots' own below FLY; the targets
-   *  follow their groups; and at FLY, on a new bar, a pilot may start a game
-   *  whose moment has opened -- one pilot game at a time, ORBIT ships only,
-   *  restBars after the last one. */
+   *  follow their groups; and at FLY, on a new bar or when the music's cue
+   *  changes, a pilot may start a figure of the family the music asks for --
+   *  one pilot figure at a time, ORBIT ships only, restBars after the last
+   *  one. A pilot's climb that does not chain into a previewed drop yields
+   *  to a drop the room hears: a slap without the snap. */
   void step (GameShips const &ships, FlightBodies const &bodies, MusicCue const &cue,
              PilotLevel level, double beats, int beatsPerBar);
 
@@ -131,10 +133,27 @@ private:
                                           double beats, int beatsPerBar);
   FigureCall pressCall (PilotGame game, GameShips const &ships, int leader, double beats,
                         int beatsPerBar) const;
+  /** A pilot's figure as the music asks for it: it opens within
+   *  cueGraceBeats of the beat its cue was for; a Slap snaps only on a
+   *  previewed drop's 1, opens on a downbeat on a drop the room heard, and is
+   *  over hardDropBars after the drop's 1. */
+  FigureCall pilotsCall (PilotGame game, MusicCue const &cue, GameShips const &ships, int leader,
+                         double beats, int beatsPerBar) const;
   /** A climb on its 1 into a previewed drop becomes a slap for a pair at
    *  most, in the same game slot: the drop's first hardDropBars. */
   void chainIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
                       MusicCue const &cue, int beatsPerBar);
+  /** A pilot's climb that will not chain, as a drop the room heard asks for
+   *  HARD, becomes the pilots' slap on it; it climbs on when it is too late
+   *  for one. */
+  void yieldToTheDrop (int slot, GameShips const &ships, FlightBodies const &bodies,
+                       MusicCue const &cue, double beats, int beatsPerBar);
+  /** The game in `slot` replanned as a slap called `call`, for its leader
+   *  and the first other ship in it at most. */
+  void turnIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
+                     MusicCue const &cue, double beats, int beatsPerBar, FigureCall const &call);
+  /** Whether a slap called `call` leaves room for a step after its opening. */
+  bool slapHasRoom (FigureCall const &call) const;
   void leave (int ship);
   void end (int slot);
   int freeSlot () const;
@@ -151,6 +170,8 @@ private:
   long long _bar = 0;
   long long _lastBar = -1;
   long long _restUntilBar = 0;
+  /** The cue of the last step: a pilot looks again when it moves. */
+  MusicCue _lastCue{};
 };
 
 }

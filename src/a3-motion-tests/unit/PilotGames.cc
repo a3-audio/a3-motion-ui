@@ -282,16 +282,17 @@ TEST (PilotGames, TheTargetIsFollowedWhenTheGroupIsMoved)
   EXPECT_EQ (games.steerOf (0, 17., fourFour)->at, (Vec2{ 0.3f, -0.5f }));
 }
 
-TEST (PilotGames, AtFlyAPilotStartsAGameWhenItsMomentOpens)
+TEST (PilotGames, AtFlyALongBuildIsClimbedAndAShortOneFakedOutOrFormed)
 {
-  PilotGames games (1);
-  auto const cue = heading (MusicSection::Build, MusicSection::Drop, 12);
-  games.step (flying (), {}, cue, PilotLevel::Fly, 0., fourFour); // twelve bars out
-  EXPECT_FALSE (anyPlays (games));
-  games.step (flying (), {}, cue, PilotLevel::Fly, 12., fourFour); // nine bars out
-  EXPECT_FALSE (anyPlays (games));
-  games.step (flying (), {}, cue, PilotLevel::Fly, 16., fourFour); // eight bars out
-  auto const started = aPilotsGame (games);
+  auto cue = heading (MusicSection::Build, MusicSection::Drop, 12);
+  cue.previewed = true;
+  PilotGames early (1);
+  early.step (flying (), {}, cue, PilotLevel::Fly, 0., fourFour); // twelve bars out
+  ASSERT_TRUE (aPilotsGame (early).has_value ());
+  EXPECT_EQ (aPilotsGame (early)->game, PilotGame::Climb);
+  PilotGames late (1);
+  late.step (flying (), {}, cue, PilotLevel::Fly, 20., fourFour); // seven bars out
+  auto const started = aPilotsGame (late);
   ASSERT_TRUE (started.has_value ());
   EXPECT_TRUE (started->game == PilotGame::FakeOut || started->game == PilotGame::Formation);
 }

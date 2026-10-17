@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/PilotGames.hh>
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 
@@ -110,6 +111,16 @@ gameOn (PilotGames const &games, int ship)
 {
   auto const played = games.gameOf (ship);
   return played ? played->game : PilotGame::None;
+}
+
+/** The leader of the pilots' game, or -1. */
+int
+pilotLeader (PilotGames const &games)
+{
+  for (auto s = 0; s < flightShips; ++s)
+    if (auto const played = games.gameOf (s); played && played->byPilot)
+      return played->leader;
+  return -1;
 }
 }
 
@@ -340,4 +351,114 @@ TEST (PressFigure, AGrazeWithNoRoomForItsPassIsPlayedAsHideAndSeek)
   encircle.request (asking (PilotGame::Encircle, 0), flying (), oneGroupAt ({ 0.f, 0.f }), {}, 0.,
                     fourFour);
   EXPECT_EQ (gameOn (encircle, 0), PilotGame::Encircle) << "a circle needs only a group";
+}
+
+TEST (PilotsFly, ALongPreviewedBuildIsClimbedAndItsDropSlapped)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 0, 0.6f);
+  games.step (flying (), {}, build, PilotLevel::Fly, 0., fourFour);
+  auto const climber = pilotLeader (games);
+  ASSERT_GE (climber, 0);
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Climb);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 48., fourFour);
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Slap);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 56., fourFour);
+  EXPECT_LT (pilotLeader (games), 0) << "two bars of slap, then cruise";
+}
+
+TEST (PilotsFly, APreviewedDropNobodyClimbedIsSlappedOnItsOne)
+{
+  PilotGames games (1);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 48.05, fourFour); // the preview a moment late
+  auto const leader = pilotLeader (games);
+  ASSERT_GE (leader, 0);
+  EXPECT_EQ (gameOn (games, leader), PilotGame::Slap);
+  EXPECT_EQ (games.steerOf (leader, 48.05, fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "on the 1 it was for, with the snap";
+}
+
+TEST (PilotsFly, PastTheDropsSecondBarThePilotsLetItCruise)
+{
+  PilotGames games (1);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 56., fourFour);
+  EXPECT_LT (pilotLeader (games), 0);
+}
+
+TEST (PilotsFly, ACueThatChangesMidBarIsSeenAtOnce)
+{
+  PilotGames games (1);
+  auto const groove = heading (MusicSection::Groove, MusicSection::Drop, 12, true, 4, 0.5f);
+  games.step (flying (), {}, groove, PilotLevel::Fly, 48., fourFour); // bar 12: outside its window
+  ASSERT_LT (pilotLeader (games), 0);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 48.1, fourFour); // the same bar
+  EXPECT_GE (pilotLeader (games), 0);
+}
+
+TEST (PilotsFly, ABreakdownIsGrazedWithAGroupAndHiddenWithout)
+{
+  auto const breakdown = heading (MusicSection::Breakdown, MusicSection::Build, 20, true, 4);
+  PilotGames withGroup (1);
+  withGroup.step (flying (), oneGroupAt ({ -0.5f, 0.3f }), breakdown, PilotLevel::Fly, 16.,
+                  fourFour);
+  EXPECT_EQ (gameOn (withGroup, pilotLeader (withGroup)), PilotGame::Graze);
+  PilotGames without (1);
+  without.step (flying (), {}, breakdown, PilotLevel::Fly, 16., fourFour);
+  EXPECT_EQ (gameOn (without, pilotLeader (without)), PilotGame::HideAndSeek);
+}
+
+TEST (PilotsFly, APilotNeverEncircles)
+{
+  auto const breakdown = heading (MusicSection::Breakdown, MusicSection::Build, 20, true, 4);
+  for (auto seed = 0; seed < 100; ++seed)
+    {
+      PilotGames games (seed);
+      games.step (flying (), oneGroupAt ({ -0.5f, 0.3f }), breakdown, PilotLevel::Fly, 16.,
+                  fourFour);
+      EXPECT_NE (gameOn (games, std::max (0, pilotLeader (games))), PilotGame::Encircle) << seed;
+    }
+}
+
+TEST (PilotsFly, QuietMusicStartsNothing)
+{
+  PilotGames games (1);
+  games.step (flying (), {}, heading (MusicSection::Drop, std::nullopt, -1, true, 12, 0.f),
+              PilotLevel::Fly, 48., fourFour);
+  EXPECT_LT (pilotLeader (games), 0);
+}
+
+TEST (LiveMoodFamilies, ADropTheRoomHeardIsSlappedForABarWithoutTheSnap)
+{
+  PilotGames games (1);
+  auto const heard = heading (MusicSection::Drop, MusicSection::Groove, 16, false, 8, 0.4f);
+  games.step (flying (), {}, heard, PilotLevel::Fly, 36., fourFour); // bar 9: the drop was bar 8
+  auto const leader = pilotLeader (games);
+  ASSERT_GE (leader, 0);
+  EXPECT_EQ (gameOn (games, leader), PilotGame::Slap);
+  EXPECT_NE (games.steerOf (leader, 36., fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "its 1 has passed: no snap";
+  games.step (flying (), {}, heard, PilotLevel::Fly, 40., fourFour);
+  EXPECT_FALSE (games.plays (leader)) << "over two bars after the drop";
+}
+
+TEST (LiveMoodFamilies, ABuildTheRoomHeardIsClimbedToItsLineAndLetGoWithoutASnap)
+{
+  PilotGames games (1);
+  auto const heard = heading (MusicSection::Build, MusicSection::Drop, 16, false, 13, 0.5f);
+  games.step (flying (), {}, heard, PilotLevel::Fly, 52., fourFour); // bar 13, three to the line
+  auto const climber = pilotLeader (games);
+  ASSERT_GE (climber, 0);
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Climb);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Groove, 24, false, 16, 0.6f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 64., fourFour);
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Slap) << "the climb yields to the drop it hears";
+  auto const opening = games.steerOf (climber, 64., fourFour);
+  ASSERT_TRUE (opening.has_value ());
+  EXPECT_NE (opening->at, (Vec2{ tuning.slapSideRadius, 0.f })) << "its 1 has passed: no snap";
+  games.step (flying (), {}, drop, PilotLevel::Fly, 72., fourFour);
+  EXPECT_FALSE (games.plays (climber)) << "over by the end of the drop's second bar";
 }

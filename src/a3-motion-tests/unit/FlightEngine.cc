@@ -764,7 +764,7 @@ TEST (FlightEngine, AtFlyAPilotStartsAGameOfItsOwnAndStopsBelowIt)
   ASSERT_TRUE (waitUntil (
       [&] {
         auto const game = flight.engine->gameOf (0);
-        return game && game->byPilot && game->game == PilotGame::HideAndSeek;
+        return game && game->byPilot && game->game == PilotGame::Graze;
       },
       3000));
   EXPECT_FALSE (flight.engine->gameOf (1).has_value ()) << "a pilot takes no ship off its clip";

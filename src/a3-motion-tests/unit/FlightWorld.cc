@@ -1305,6 +1305,21 @@ TEST (FlightHold, ALetGoShipRelaunchesAlongItsPath)
   EXPECT_LT (towardsTheMiddle, 0.5f) << "along the path, not a chase across it";
 }
 
+TEST (FlightSteer, AShipLetGoFromAFigureRelaunchesAlongItsPathNotAcrossTheRoom)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  auto const start = world.ship (0).p;
+  // The figure keeps the ship where it started while its rabbit runs on,
+  // round to the far side of the path.
+  run (world, shipZeroSteeringFor ({ start, {} }), {}, ticksIn (6.));
+  auto const after = run (world, allPatrolling (), {}, ticksIn (4.), 6.);
+  auto nearest = 1.f;
+  for (auto const &sample : after)
+    nearest = std::min (nearest, sample.ships[0].p.getDistanceFromOrigin ());
+  EXPECT_GT (nearest, 0.4f) << "no chase through the middle to where its rabbit ran";
+}
+
 TEST (FlightHold, AShipThatStopsFlyingWhileHeldIsNotRelaunchedLater)
 {
   FlightWorld world (aSeed);

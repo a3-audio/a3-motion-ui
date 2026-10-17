@@ -115,22 +115,12 @@ pilotsCrew (PilotGame game)
   return PilotRecruit::Self;
 }
 
-/** The game a pilot picks from those that fit: fake-out or formation on a
- *  throw when both do. */
-std::optional<PilotGame>
-pilotsChoice (FittingGames const &fitting, juce::Random &dice)
+/** Whether two cues name the same moment: a pilot looks again when it moves. */
+bool
+sameMoment (MusicCue const &a, MusicCue const &b)
 {
-  if (fitting.fakeOut && fitting.formation)
-    return dice.nextBool () ? PilotGame::Formation : PilotGame::FakeOut;
-  if (fitting.fakeOut)
-    return PilotGame::FakeOut;
-  if (fitting.formation)
-    return PilotGame::Formation;
-  if (fitting.hideAndSeek)
-    return PilotGame::HideAndSeek;
-  if (fitting.callAndResponse)
-    return PilotGame::CallAndResponse;
-  return std::nullopt;
+  return a.section == b.section && a.next == b.next && a.changeBar == b.changeBar
+         && a.sectionStartBar == b.sectionStartBar;
 }
 }
 
@@ -328,6 +318,9 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
       if (running.plan.game == PilotGame::Climb && running.plan.chainsIntoSlap
           && beats >= running.plan.climaxBeats)
         chainIntoSlap (slot, ships, bodies, cue, beatsPerBar);
+      if (running.byPilot && level == PilotLevel::Fly && running.plan.game == PilotGame::Climb
+          && !running.plan.chainsIntoSlap)
+        yieldToTheDrop (slot, ships, bodies, cue, beats, beatsPerBar);
       if (beats >= running.plan.endBeats || (running.byPilot && level != PilotLevel::Fly))
         {
           end (slot);
@@ -337,7 +330,10 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
         running.plan.target = *place;
     }
 
-  if (level == PilotLevel::Fly && bar != _lastBar && bar >= _restUntilBar && !aPilotPlays ())
+  auto const cueMoved = !sameMoment (cue, _lastCue);
+  _lastCue = cue;
+  if (level == PilotLevel::Fly && (bar != _lastBar || cueMoved) && bar >= _restUntilBar
+      && !aPilotPlays ())
     letAPilotPlay (ships, bodies, cue, bar, beats, beatsPerBar);
   _lastBar = bar;
 }
@@ -353,7 +349,32 @@ PilotGames::chainIntoSlap (int slot, GameShips const &ships, FlightBodies const 
   if (!dropOpensOn (cue, dropBar))
     return; // no drop: the climb holds at the top, then lets go
 
-  // A slap is a pair at most: the leader and the first other ship climbing.
+  auto call = callFor (ships, running.plan.leader);
+  call.openingBeats = climax;
+  call.snaps = true;
+  call.endByBeats = climax + static_cast<double> (_tuning.hardDropBars) * beatsPerBar;
+  turnIntoSlap (slot, ships, bodies, cue, climax, beatsPerBar, call);
+}
+
+void
+PilotGames::yieldToTheDrop (int slot, GameShips const &ships, FlightBodies const &bodies,
+                            MusicCue const &cue, double beats, int beatsPerBar)
+{
+  if (pilotFamily (cue, _bar, Asker::Pilot, _tuning) != PilotFamily::Hard)
+    return;
+  auto const call = pilotsCall (PilotGame::Slap, cue, ships, _games[shipIndex (slot)].plan.leader,
+                                beats, beatsPerBar);
+  if (slapHasRoom (call))
+    turnIntoSlap (slot, ships, bodies, cue, beats, beatsPerBar, call);
+}
+
+void
+PilotGames::turnIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
+                          MusicCue const &cue, double beats, int beatsPerBar,
+                          FigureCall const &call)
+{
+  auto &running = _games[shipIndex (slot)];
+  // A slap is a pair at most: the leader and the first other ship in it.
   auto crew = running.plan.crew;
   auto partners = 0;
   for (auto s = 0; s < flightShips; ++s)
@@ -366,41 +387,76 @@ PilotGames::chainIntoSlap (int slot, GameShips const &ships, FlightBodies const 
           _slotOf[shipIndex (s)] = -1;
         }
     }
-
-  auto call = callFor (ships, running.plan.leader);
-  call.openingBeats = climax;
-  call.snaps = true;
-  call.endByBeats = climax + static_cast<double> (_tuning.hardDropBars) * beatsPerBar;
   running.plan = planGame (PilotGame::Slap, running.plan.leader, crew, statesOf (ships),
-                           PilotTarget{}, bodies, cue, climax, beatsPerBar, _dice, _flight,
+                           PilotTarget{}, bodies, cue, beats, beatsPerBar, _dice, _flight,
                            _tuning, call);
+}
+
+bool
+PilotGames::slapHasRoom (FigureCall const &call) const
+{
+  auto const opening = call.openingBeats.value_or (0.);
+  return call.endByBeats - opening >= static_cast<double> (_tuning.eventSpacingBeats);
 }
 
 void
 PilotGames::letAPilotPlay (GameShips const &ships, FlightBodies const &bodies,
                            MusicCue const &cue, long long bar, double beats, int beatsPerBar)
 {
-  auto const game = pilotsChoice (fittingGames (cue, bar, beatsPerBar, _tuning), _dice);
-  if (!game)
+  auto const family = pilotFamily (cue, bar, Asker::Pilot, _tuning);
+  if (!family)
     return;
 
   std::array<bool, flightShips> free{};
   auto freeShips = 0;
   for (auto s = 0; s < flightShips; ++s)
     {
-      free[shipIndex (s)] = ships[shipIndex (s)].canFly && ships[shipIndex (s)].now.orbiting && _slotOf[shipIndex (s)] < 0;
+      free[shipIndex (s)] = ships[shipIndex (s)].canFly && ships[shipIndex (s)].now.orbiting
+                            && _slotOf[shipIndex (s)] < 0;
       freeShips += free[shipIndex (s)] ? 1 : 0;
     }
   if (freeShips == 0)
     return;
-
   auto pick = _dice.nextInt (freeShips);
   auto leader = -1;
   for (auto s = 0; s < flightShips && leader < 0; ++s)
     if (free[shipIndex (s)] && pick-- == 0)
       leader = s;
-  start (*game, leader, pilotsCrew (*game), PilotTarget{}, true, free, ships, bodies, cue,
-         beats, beatsPerBar, FigureCall{});
+
+  auto const room = roomFor (PilotTarget{}, ships[shipIndex (leader)].state.p, bodies);
+  // A pilot never encircles: chooseFigure leaves the escort to the DJ,
+  // whatever fittingGames says fits.
+  auto const game = chooseFigure (*family, Asker::Pilot,
+                                  fittingGames (cue, bar, beatsPerBar, _tuning), room.grazeFits,
+                                  _dice);
+  if (!game)
+    return;
+  auto const call = pilotsCall (*game, cue, ships, leader, beats, beatsPerBar);
+  // Too late in the drop's window for even one step after the opening.
+  if (*game == PilotGame::Slap && !slapHasRoom (call))
+    return;
+  start (*game, leader, pilotsCrew (*game), PilotTarget{}, true, free, ships, bodies, cue, beats,
+         beatsPerBar, call);
+}
+
+FigureCall
+PilotGames::pilotsCall (PilotGame game, MusicCue const &cue, GameShips const &ships, int leader,
+                        double beats, int beatsPerBar) const
+{
+  auto call = callFor (ships, leader);
+  call.openingBeats = openingBeats (game, beats, beatsPerBar, _tuning.cueGraceBeats);
+  if (game != PilotGame::Slap || cue.sectionStartBar < 0)
+    return call;
+  auto const bar = static_cast<double> (beatsPerBar);
+  auto const dropOne = static_cast<double> (cue.sectionStartBar) * bar;
+  // The room hears a drop a bar late, when its 1 has passed: the slap waits
+  // for the next downbeat. Only a previewed drop is hit on its 1 with the
+  // jump to the front.
+  if (!cue.previewed)
+    call.openingBeats = std::ceil (*call.openingBeats / bar - 1e-9) * bar;
+  call.snaps = cue.previewed && std::abs (*call.openingBeats - dropOne) < 1e-9;
+  call.endByBeats = dropOne + static_cast<double> (_tuning.hardDropBars) * bar;
+  return call;
 }
 
 bool
