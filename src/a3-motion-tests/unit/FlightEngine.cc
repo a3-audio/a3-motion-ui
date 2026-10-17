@@ -870,20 +870,25 @@ namespace
 {
 constexpr double standStill = 0.01; // degrees a tick
 
-struct Glides
+/** One run of movement between two stands: how many ticks it took, and the
+ *  angle between the two stands. */
+struct Glide
 {
-  int count = 0;
-  size_t longestRun = 0;
+  size_t ticks = 0;
+  double degrees = 0.;
 };
 
 /** The runs of movement that start from a stand and end in one again. A run
  *  still going when the samples end is the hand-back to the ship's own flight
- *  and does not count. */
-Glides
+ *  and does not count. A ship held on its very first tick has no heard
+ *  history to glide from: it is turn-limited onto its first side, by design,
+ *  and that approach is not a run either (it has no stand before it). */
+std::vector<Glide>
 glidesBetweenStands (std::vector<Sample> const &samples)
 {
-  Glides found;
+  std::vector<Glide> found;
   size_t run = 0;
+  size_t lastStand = 0;
   auto stood = false;
   for (size_t i = 1; i < samples.size (); ++i)
     {
@@ -895,11 +900,9 @@ glidesBetweenStands (std::vector<Sample> const &samples)
           continue;
         }
       if (run > 0)
-        {
-          ++found.count;
-          found.longestRun = std::max (found.longestRun, run);
-        }
+        found.push_back ({ run, degreesBetween (samples[lastStand].orbit, samples[i].orbit) });
       run = 0;
+      lastStand = i;
       stood = true;
     }
   return found;
@@ -920,12 +923,17 @@ TEST (FlightEngine, ASlapIsHeardOnItsSideAGlideAfterItsStep)
   ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
   GameTuning const tuning;
   auto const ticksPerBeat = static_cast<double> (TempoClock::getTicksPerBeat ());
-  auto const longestGlide = std::max (slapGlideLength (GlidePath::ViaFront, tuning),
-                                      slapGlideLength (GlidePath::Vertical, tuning));
-  auto const found = glidesBetweenStands (samples);
-  EXPECT_GT (found.count, 0) << "the slap changed sides at least once";
-  EXPECT_LE (static_cast<double> (found.longestRun), longestGlide * ticksPerBeat + 2.)
-      << "the ear stands on the side no later than the glide's length after the step";
-  EXPECT_LE (widestStep (samples), 180. / (tuning.slapGlideBeats * ticksPerBeat) + 1.)
-      << "and gets there spread over the glide";
+  auto const horizontalTicks = slapGlideLength (GlidePath::ViaFront, tuning) * ticksPerBeat;
+  auto const verticalTicks = slapGlideLength (GlidePath::Vertical, tuning) * ticksPerBeat;
+  auto const takes = [] (size_t ticks, double glideTicks) {
+    return std::abs (static_cast<double> (ticks) - glideTicks) <= 2.;
+  };
+  // The glide, not the turn limit, paces the ear: a wide step would take the
+  // limit far longer than the glide, a narrow up-down one far less. Either
+  // way the run is as long as the glide of its path.
+  auto const glides = glidesBetweenStands (samples);
+  for (auto const &glide : glides)
+    EXPECT_TRUE (takes (glide.ticks, horizontalTicks) || takes (glide.ticks, verticalTicks))
+        << "a " << glide.degrees << " deg step took " << glide.ticks << " ticks";
+  EXPECT_FALSE (glides.empty ()) << "the slap changed sides at least once";
 }
