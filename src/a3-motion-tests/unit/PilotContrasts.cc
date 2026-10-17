@@ -251,3 +251,54 @@ TEST (PilotGames, AShipReleasedFromAGameLeavesTheRestPlaying)
   EXPECT_TRUE (games.plays (0));
   EXPECT_TRUE (games.plays (3));
 }
+
+TEST (ClimbChain, AClimbIntoAPreviewedDropBecomesASlapOnTheOne)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 4);
+  ASSERT_TRUE (games.request (asking (PilotGame::Climb, 0), flying (), {}, build, 0., fourFour));
+  games.step (flying (), {}, build, PilotLevel::Off, 47.9, fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::Climb);
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Off, 48., fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::Slap);
+  EXPECT_TRUE (games.stanceOf (0, 48., fourFour).hold);
+  EXPECT_EQ (games.steerOf (0, 48., fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "the snap to the front on the 1";
+  games.step (flying (), {}, drop, PilotLevel::Off, 56., fourFour);
+  EXPECT_FALSE (games.plays (0)) << "two bars of it, then cruise";
+}
+
+TEST (ClimbChain, APreviewAMomentLateStillChains)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 4);
+  games.request (asking (PilotGame::Climb, 0), flying (), {}, build, 0., fourFour);
+  games.step (flying (), {}, build, PilotLevel::Off, 48., fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::Slap);
+}
+
+TEST (ClimbChain, NoDropOnTheOneMeansNoSlap)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 4);
+  games.request (asking (PilotGame::Climb, 0), flying (), {}, build, 0., fourFour);
+  auto const looped = heading (MusicSection::Build, MusicSection::Drop, 16, true, 4);
+  games.step (flying (), {}, looped, PilotLevel::Off, 48., fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::Climb) << "it holds at the top";
+  games.step (flying (), {}, looped, PilotLevel::Off, 48. + tuning.climbHoldBars * fourFour,
+              fourFour);
+  EXPECT_FALSE (games.plays (0)) << "then lets go, without a snap";
+}
+
+TEST (ClimbChain, AChainedSlapKeepsAPairAtMost)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 4);
+  games.request (asking (PilotGame::Climb, 0, PilotRecruit::All), flying (), {}, build, 0.,
+                 fourFour);
+  ASSERT_EQ (crewOf (games, PilotGame::Climb), 4);
+  games.step (flying (), {}, build, PilotLevel::Off, 48., fourFour);
+  EXPECT_EQ (crewOf (games, PilotGame::Slap), 2);
+  EXPECT_EQ (crewOf (games, PilotGame::Climb), 0);
+}

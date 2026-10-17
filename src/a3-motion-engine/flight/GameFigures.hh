@@ -81,6 +81,10 @@ struct GamePlan
   Vec2 opening;
   bool snaps = false;
   GlidePath sideGlide = GlidePath::Shortest;
+  /** Climb: whether its 1 is a previewed drop it turns into a Slap on. */
+  bool chainsIntoSlap = false;
+  /** Climb: the radius it starts at; Encircle: its circle's. */
+  float radius = 0.f;
 };
 
 /** What a contrast figure is told when it is planned, besides the game's

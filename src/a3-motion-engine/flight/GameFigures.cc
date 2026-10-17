@@ -20,6 +20,7 @@
 
 #include "GameFigures.hh"
 
+#include <a3-motion-engine/flight/ClimbFigure.hh>
 #include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/flight/SlapFigure.hh>
 #include <a3-motion-engine/util/Geometry.hh>
@@ -37,24 +38,6 @@ bool
 isShip (int ship)
 {
   return ship >= 0 && ship < flightShips;
-}
-
-float
-radians (float degrees)
-{
-  return degrees * pi<float> () / 180.f;
-}
-
-Vec2
-polar (float angle, float radius)
-{
-  return { radius * std::cos (angle), radius * std::sin (angle) };
-}
-
-float
-angleOf (Vec2 p)
-{
-  return std::atan2 (p.y, p.x);
 }
 
 Vec2
@@ -337,7 +320,7 @@ planHideAndSeek (GamePlan &plan, std::array<ShipState, flightShips> const &ships
       if (!plan.crew[shipIndex (s)])
         continue;
       auto const &ship = ships[shipIndex (s)];
-      auto const sense = ship.p.x * ship.v.y - ship.p.y * ship.v.x < 0.f ? -1.f : 1.f;
+      auto const sense = flightSense (ship.p, ship.v);
       plan.turn[shipIndex (s)] = angleOf (ship.p) + sense * radians (tuning.hideSideDegrees);
     }
 }
@@ -564,8 +547,10 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
     case PilotGame::Slap:
       planSlap (plan, ships, call, beatsPerBar, dice, tuning);
       break;
-    case PilotGame::None:
     case PilotGame::Climb:
+      planClimb (plan, ships, cue, beatsPerBar, flight, tuning);
+      break;
+    case PilotGame::None:
     case PilotGame::Graze:
     case PilotGame::Encircle:
       break;
@@ -594,8 +579,9 @@ figureGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
       return callAndResponseGoal (plan, ship, beats, beatsPerBar, tuning);
     case PilotGame::Slap:
       return slapGoal (plan, ship, beats, beatsPerBar, tuning);
-    case PilotGame::None:
     case PilotGame::Climb:
+      return climbGoal (plan, ship, beats, beatsPerBar, tuning);
+    case PilotGame::None:
     case PilotGame::Graze:
     case PilotGame::Encircle:
       break;
@@ -613,12 +599,17 @@ figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
     {
     case PilotGame::Slap:
       return slapStance (plan, beats, beatsPerBar, tuning);
+    case PilotGame::Climb:
+      {
+        FigureStance stance;
+        stance.breathes = true;
+        return stance;
+      }
     case PilotGame::None:
     case PilotGame::FakeOut:
     case PilotGame::Formation:
     case PilotGame::HideAndSeek:
     case PilotGame::CallAndResponse:
-    case PilotGame::Climb:
     case PilotGame::Graze:
     case PilotGame::Encircle:
       return {};

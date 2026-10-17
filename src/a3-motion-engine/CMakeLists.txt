@@ -171,6 +171,8 @@ target_sources("a3-motion-engine" PRIVATE
     flight/PilotFamily.hh
     flight/GameFigures.cc
     flight/GameFigures.hh
+    flight/ClimbFigure.cc
+    flight/ClimbFigure.hh
     flight/SlapFigure.cc
     flight/SlapFigure.hh
     flight/SlapGlide.cc

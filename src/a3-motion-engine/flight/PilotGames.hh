@@ -131,6 +131,10 @@ private:
                                           double beats, int beatsPerBar);
   FigureCall pressCall (PilotGame game, GameShips const &ships, int leader, double beats,
                         int beatsPerBar) const;
+  /** A climb on its 1 into a previewed drop becomes a slap for a pair at
+   *  most, in the same game slot: the drop's first hardDropBars. */
+  void chainIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
+                      MusicCue const &cue, int beatsPerBar);
   void leave (int ship);
   void end (int slot);
   int freeSlot () const;

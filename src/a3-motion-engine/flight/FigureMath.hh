@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/FlightVec.hh>
+#include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/Types.hh>
 
 #include <JuceHeader.h>
@@ -43,6 +45,36 @@ inline size_t
 axisIndex (int axis)
 {
   return static_cast<size_t> (axis);
+}
+
+/** Degrees as radians. */
+inline float
+radians (float degrees)
+{
+  return degrees * pi<float> () / 180.f;
+}
+
+/** The point at `radius` from the middle, `angle` radians round from the
+ *  floor's x axis. */
+inline Vec2
+polar (float angle, float radius)
+{
+  return { radius * std::cos (angle), radius * std::sin (angle) };
+}
+
+/** The angle of `p` round the middle, radians from the floor's x axis. */
+inline float
+angleOf (Vec2 p)
+{
+  return std::atan2 (p.y, p.x);
+}
+
+/** +1 when a ship at `p` flying with `v` circles the middle counter-clockwise,
+ *  -1 clockwise: the way a figure turns it without reversing it. */
+inline float
+flightSense (Vec2 p, Vec2 v)
+{
+  return p.x * v.y - p.y * v.x < 0.f ? -1.f : 1.f;
 }
 
 /** The angle between two directions, in degrees (distances do not count). */

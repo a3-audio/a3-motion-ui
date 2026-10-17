@@ -20,6 +20,7 @@
 
 #include "PilotGames.hh"
 
+#include <a3-motion-engine/flight/ClimbFigure.hh>
 #include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
@@ -41,6 +42,26 @@ bool
 sameDoing (ShipResume const &a, ShipResume const &b)
 {
   return a.orbiting == b.orbiting && a.bodyId == b.bodyId;
+}
+
+std::array<ShipState, flightShips>
+statesOf (GameShips const &ships)
+{
+  std::array<ShipState, flightShips> states{};
+  for (auto s = 0; s < flightShips; ++s)
+    states[shipIndex (s)] = ships[shipIndex (s)].state;
+  return states;
+}
+
+/** What every figure is told about the ships: the leader's band, who flies. */
+FigureCall
+callFor (GameShips const &ships, int leader)
+{
+  FigureCall call;
+  call.bandFreq = ships[shipIndex (leader)].bandFreq;
+  for (auto s = 0; s < flightShips; ++s)
+    call.flying[shipIndex (s)] = ships[shipIndex (s)].canFly;
+  return call;
 }
 
 /** Whom an action's game takes: call & response is a pair whatever the
@@ -176,14 +197,11 @@ FigureCall
 PilotGames::pressCall (PilotGame game, GameShips const &ships, int leader, double beats,
                        int beatsPerBar) const
 {
-  FigureCall call;
+  auto call = callFor (ships, leader);
   call.openingBeats = openingBeats (game, beats, beatsPerBar, 0.);
   // A press on a 1 hits it with the jump to the front; off the 1 a slap
   // opens on its first side.
   call.snaps = game == PilotGame::Slap && isDownbeat (*call.openingBeats, beatsPerBar);
-  call.bandFreq = ships[shipIndex (leader)].bandFreq;
-  for (auto s = 0; s < flightShips; ++s)
-    call.flying[shipIndex (s)] = ships[shipIndex (s)].canFly;
   return call;
 }
 
@@ -206,12 +224,10 @@ PilotGames::start (PilotGame game, int leader, PilotRecruit with, PilotTarget ta
 
   std::array<Vec2, flightShips> where{};
   std::array<ShipResume, flightShips> now{};
-  std::array<ShipState, flightShips> states{};
   for (auto s = 0; s < flightShips; ++s)
     {
       where[shipIndex (s)] = ships[shipIndex (s)].state.p;
       now[shipIndex (s)] = ships[shipIndex (s)].now;
-      states[shipIndex (s)] = ships[shipIndex (s)].state;
     }
   auto const crew = recruit (with, leader, where, free, now);
 
@@ -219,7 +235,7 @@ PilotGames::start (PilotGame game, int leader, PilotRecruit with, PilotTarget ta
   running.live = true;
   running.byPilot = byPilot;
   running.resume = crew.resume;
-  running.plan = planGame (game, leader, crew.ships, states, target, bodies, cue, beats,
+  running.plan = planGame (game, leader, crew.ships, statesOf (ships), target, bodies, cue, beats,
                            beatsPerBar, _dice, _flight, _tuning, call);
   for (auto s = 0; s < flightShips; ++s)
     if (crew.ships[shipIndex (s)])
@@ -305,6 +321,9 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
       auto &running = _games[shipIndex (slot)];
       if (!running.live)
         continue;
+      if (running.plan.game == PilotGame::Climb && running.plan.chainsIntoSlap
+          && beats >= running.plan.climaxBeats)
+        chainIntoSlap (slot, ships, bodies, cue, beatsPerBar);
       if (beats >= running.plan.endBeats || (running.byPilot && level != PilotLevel::Fly))
         {
           end (slot);
@@ -317,6 +336,40 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
   if (level == PilotLevel::Fly && bar != _lastBar && bar >= _restUntilBar && !aPilotPlays ())
     letAPilotPlay (ships, bodies, cue, bar, beats, beatsPerBar);
   _lastBar = bar;
+}
+
+void
+PilotGames::chainIntoSlap (int slot, GameShips const &ships, FlightBodies const &bodies,
+                           MusicCue const &cue, int beatsPerBar)
+{
+  auto &running = _games[shipIndex (slot)];
+  running.plan.chainsIntoSlap = false; // asked once, on the 1
+  auto const climax = running.plan.climaxBeats;
+  auto const dropBar = static_cast<long long> (std::llround (climax / beatsPerBar));
+  if (!dropOpensOn (cue, dropBar))
+    return; // no drop: the climb holds at the top, then lets go
+
+  // A slap is a pair at most: the leader and the first other ship climbing.
+  auto crew = running.plan.crew;
+  auto partners = 0;
+  for (auto s = 0; s < flightShips; ++s)
+    {
+      if (!crew[shipIndex (s)] || s == running.plan.leader)
+        continue;
+      if (partners++ > 0)
+        {
+          crew[shipIndex (s)] = false;
+          _slotOf[shipIndex (s)] = -1;
+        }
+    }
+
+  auto call = callFor (ships, running.plan.leader);
+  call.openingBeats = climax;
+  call.snaps = true;
+  call.endByBeats = climax + static_cast<double> (_tuning.hardDropBars) * beatsPerBar;
+  running.plan = planGame (PilotGame::Slap, running.plan.leader, crew, statesOf (ships),
+                           PilotTarget{}, bodies, cue, climax, beatsPerBar, _dice, _flight,
+                           _tuning, call);
 }
 
 void
