@@ -109,6 +109,14 @@ TEST (FiredAction, AShippedSpinFlies)
   auto const fired = fire (file.loadFileAsString ());
   EXPECT_EQ (fired.flight.spin, std::optional<int> (5));
   EXPECT_FALSE (fired.pilot.game.has_value ()) << "shipped scripts carry the section commented";
+  EXPECT_FALSE (fired.pilot.style.has_value ()) << "shipped scripts leave the choice to the music";
+}
+
+TEST (FiredAction, ThePilotsStyleRidesAlong)
+{
+  auto const fired = fire ("~style = \\rising;\n");
+  ASSERT_TRUE (fired.pilot.style.has_value ());
+  EXPECT_EQ (*fired.pilot.style, PilotStyle::Rising);
 }
 
 TEST (FiredAction, ThePilotRidesAlong)

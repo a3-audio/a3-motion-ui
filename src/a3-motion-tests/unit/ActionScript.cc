@@ -822,8 +822,61 @@ TEST (ActionScript, TheTemplateOffersThePilotSectionCommentedOut)
   EXPECT_FALSE (runActionScript (text, ClipSettings{}, 1).pilot.game.has_value ());
   EXPECT_TRUE (actionScriptFor (ClipSettings{}).contains ("//~game = \\none;"))
       << "FROM CLIP writes the section too, commented";
-  for (auto const *name : { "game", "target", "with" })
+  for (auto const *name : { "style", "game", "target", "with" })
     EXPECT_TRUE (actionScriptNames ().contains (name)) << name;
+}
+
+TEST (ActionScript, APilotStyleIsReadAndAGameNamedBesideItIsKeptToo)
+{
+  auto const r = runActionScript ("~style = \\hard;\n", ClipSettings{}, 1);
+  ASSERT_TRUE (r.errors.isEmpty ()) << r.errors.joinIntoString ("; ");
+  ASSERT_TRUE (r.pilot.style.has_value ());
+  EXPECT_EQ (*r.pilot.style, PilotStyle::Hard);
+  EXPECT_FALSE (r.pilot.game.has_value ());
+  EXPECT_TRUE (r.assigned.contains ("style"));
+  auto const both = runActionScript ("~style = \\soft;\n~game = \\slap;\n", ClipSettings{}, 1);
+  ASSERT_TRUE (both.pilot.game.has_value ());
+  EXPECT_EQ (*both.pilot.game, PilotGame::Slap);
+  EXPECT_EQ (*both.pilot.style, PilotStyle::Soft) << "kept; at the press the game wins";
+}
+
+TEST (ActionScript, EveryStyleWordReadsAndNothingElseDoes)
+{
+  for (auto const style : { PilotStyle::Auto, PilotStyle::Hard, PilotStyle::Rising,
+                            PilotStyle::Soft, PilotStyle::Groove, PilotStyle::None })
+    {
+      auto const r = runActionScript ("~style = \\" + pilotWord (style) + ";", ClipSettings{}, 1);
+      ASSERT_TRUE (r.pilot.style.has_value ()) << pilotWord (style);
+      EXPECT_EQ (*r.pilot.style, style);
+    }
+  for (auto const *line : { "~style = \\loud;", "~style = 2;", "~style = \\slap;" })
+    {
+      auto const r = runActionScript (line, ClipSettings{}, 1);
+      ASSERT_EQ (r.errors.size (), 1) << line;
+      EXPECT_TRUE (r.errors[0].contains ("takes")) << r.errors[0];
+      EXPECT_FALSE (r.pilot.style.has_value ()) << line;
+    }
+}
+
+TEST (ActionScript, TheFourContrastFiguresAreGamesAScriptCanName)
+{
+  for (auto const game : { PilotGame::Slap, PilotGame::Climb, PilotGame::Graze,
+                           PilotGame::Encircle })
+    {
+      auto const r = runActionScript ("~game = \\" + pilotWord (game) + ";", ClipSettings{}, 1);
+      ASSERT_TRUE (r.pilot.game.has_value ()) << pilotWord (game);
+      EXPECT_EQ (*r.pilot.game, game);
+    }
+}
+
+TEST (ActionScript, TheTemplateOffersTheStyleFirstAndCommentedOut)
+{
+  auto const text = actionScriptTemplate ();
+  auto const style = text.indexOf ("//~style = \\auto;");
+  ASSERT_GE (style, 0);
+  EXPECT_LT (style, text.indexOf ("//~game = \\none;"));
+  EXPECT_FALSE (runActionScript (text, ClipSettings{}, 1).pilot.style.has_value ());
+  EXPECT_TRUE (actionScriptNames ().contains ("style"));
 }
 
 // Every script on the rig was written before this section.
