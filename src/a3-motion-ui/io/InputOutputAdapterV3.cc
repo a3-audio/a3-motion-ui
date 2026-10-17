@@ -33,6 +33,8 @@
 namespace a3
 {
 
+using namespace panel_poll;
+
 // ── constexpr out-of-line definition (C++14 compatibility) ───────────────────
 constexpr InputOutputAdapterV3::ButtonMapping InputOutputAdapterV3::buttonMap[44];
 constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
@@ -211,20 +213,17 @@ InputOutputAdapterV3::readExact (uint8_t *buf, std::size_t n)
 }
 
 bool
-InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw, bool withPots,
+InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw,
                                            int &buttonOffset,
-                                           int &encoderOffset,
-                                           int &potOffset)
+                                           int &encoderOffset)
 {
-  potOffset = withPots ? static_cast<int> (btnFrameSize + encFrameSize) : -1;
-
-  // Layout A: BTN(12) + ENC(25) [+ POT(9)]
+  // Layout A: BTN(12) + ENC(25) + POT(9)
   if (raw[0] == cmdGetButtons && raw[btnFrameSize] == cmdGetEncoders)
     {
       buttonOffset = 0;
       encoderOffset = static_cast<int> (btnFrameSize);
     }
-  // Layout B: ENC(25) + BTN(12) [+ POT(9)]
+  // Layout B: ENC(25) + BTN(12) + POT(9)
   else if (raw[0] == cmdGetEncoders && raw[encFrameSize] == cmdGetButtons)
     {
       encoderOffset = 0;
@@ -240,7 +239,7 @@ InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw, bool withPots,
       return false;
     }
 
-  if (withPots && raw[potOffset] != cmdGetPots)
+  if (raw[potOffset] != cmdGetPots)
     {
       juce::Logger::writeToLog (
           "InputOutputAdapterV3: bad pot frame marker: "
@@ -291,78 +290,32 @@ InputOutputAdapterV3::processInput ()
 
   refreshIdleButtonLeds ();
 
-  bool includePots = (_cycle % potDivider == 0);
+  _serialPort.Write (std::string (request.begin (), request.end ()));
 
-  if (includePots)
+  uint8_t raw[replySize];
+  if (!readExact (raw, sizeof (raw)))
     {
-      const char cmd[] = { static_cast<char> (cmdGetButtons),
-                           static_cast<char> (cmdGetEncoders),
-                           static_cast<char> (cmdGetPots) };
-      _serialPort.Write (std::string (cmd, 3));
+      if (_reconnect.noteQuietPoll ())
+        serialReopen ();
 
-      uint8_t raw[btnFrameSize + encFrameSize + potFrameSize];
-      if (!readExact (raw, sizeof (raw)))
-        {
-          _cycle = 0;
-          if (_reconnect.noteQuietPoll ())
-            serialReopen ();
-
-          return;
-        }
-
-      int buttonOffset = 0;
-      int encoderOffset = 0;
-      int potOffset = -1;
-      if (!resolveFrameOffsets (raw, true, buttonOffset, encoderOffset,
-                                potOffset))
-        {
-          _cycle = 0;
-          resynchronise ();
-          return;
-        }
-
-      // Bytes arrived and made sense: whatever is on the other end is alive,
-      // so the silence count starts over.
-      _reconnect.noteFrameReceived ();
-
-      parseButtons (raw, buttonOffset);
-      parseEncoders (raw, encoderOffset);
-      parsePots (raw, potOffset);
-    }
-  else
-    {
-      const char cmd[] = { static_cast<char> (cmdGetButtons),
-                           static_cast<char> (cmdGetEncoders) };
-      _serialPort.Write (std::string (cmd, 2));
-
-      uint8_t raw[btnFrameSize + encFrameSize];
-      if (!readExact (raw, sizeof (raw)))
-        {
-          _cycle = 0;
-          if (_reconnect.noteQuietPoll ())
-            serialReopen ();
-
-          return;
-        }
-
-      int buttonOffset = 0;
-      int encoderOffset = 0;
-      int potOffset = -1;
-      if (!resolveFrameOffsets (raw, false, buttonOffset, encoderOffset,
-                                potOffset))
-        {
-          _cycle = 0;
-          resynchronise ();
-          return;
-        }
-
-      _reconnect.noteFrameReceived ();
-
-      parseButtons (raw, buttonOffset);
-      parseEncoders (raw, encoderOffset);
+      return;
     }
 
-  ++_cycle;
+  int buttonOffset = 0;
+  int encoderOffset = 0;
+  if (!resolveFrameOffsets (raw, buttonOffset, encoderOffset))
+    {
+      resynchronise ();
+      return;
+    }
+
+  // Bytes arrived and made sense: whatever is on the other end is alive, so
+  // the silence count starts over.
+  _reconnect.noteFrameReceived ();
+
+  parseButtons (raw, buttonOffset);
+  parseEncoders (raw, encoderOffset);
+  parsePots (raw, static_cast<int> (potOffset));
 }
 
 // ── Button parsing ────────────────────────────────────────────────────────────
