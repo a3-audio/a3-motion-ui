@@ -31,6 +31,7 @@
 #include <a3-motion-engine/flight/FlightBodiesBox.hh>
 #include <a3-motion-engine/flight/FlightMotion.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
+#include <a3-motion-engine/flight/GameTuning.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/flight/PilotDesk.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
@@ -73,9 +74,11 @@ public:
   MotionEngine (index_t numChannels, HeightMap &heightMap);
 
   /** The same engine, sending through `backend` instead of to A3 Core's
-   *  default OSC backend. */
+   *  default OSC backend. `gameTuning` is for tests that need a moment the
+   *  music opens only now and then (a groove's window) open at any bar,
+   *  without waiting on the clock for it. */
   MotionEngine (index_t numChannels, HeightMap &heightMap,
-                std::unique_ptr<SpatBackend> backend);
+                std::unique_ptr<SpatBackend> backend, GameTuning const &gameTuning = {});
 
   /** New OSC addresses, e.g. after config.json was edited on the device.
    *  Reaches the backend on its own thread — see AsyncCommandQueue. */
@@ -833,7 +836,7 @@ private:
   std::vector<std::atomic<int>> _pendingGameView;
   /** The games: the clock thread's alone, like the desk. `_musicCue` is the
    *  newest cue the message thread sent. */
-  GameTuning const _gameTuning{};
+  GameTuning const _gameTuning;
   PilotGames _games{ /* seed */ 2, _flightTuning, _gameTuning };
   MusicCue _musicCue{};
   std::atomic<int> _pilotLevel{ static_cast<int> (PilotLevel::Off) };

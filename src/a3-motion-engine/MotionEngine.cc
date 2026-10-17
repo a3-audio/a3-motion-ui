@@ -128,9 +128,10 @@ MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
 }
 
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap,
-                            std::unique_ptr<SpatBackend> backend)
+                            std::unique_ptr<SpatBackend> backend, GameTuning const &gameTuning)
     : _heightMap (heightMap),
-      _commandQueue (requireBackend (std::move (backend)))
+      _commandQueue (requireBackend (std::move (backend))),
+      _gameTuning (gameTuning)
 {
   createChannels (numChannels);
 

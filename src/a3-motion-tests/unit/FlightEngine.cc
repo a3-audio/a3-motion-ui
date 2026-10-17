@@ -148,7 +148,8 @@ private:
 struct Flight
 {
   explicit Flight (index_t sending = 99,
-                   std::function<void (Pattern &)> const &shape = {})
+                   std::function<void (Pattern &)> const &shape = {},
+                   GameTuning const &gameTuning = {})
   {
     if (shape)
       {
@@ -157,7 +158,7 @@ struct Flight
       }
     auto owned = std::make_unique<OfflineBackend> ();
     backend = owned.get ();
-    engine = std::make_unique<MotionEngine> (4, heightMap, std::move (owned));
+    engine = std::make_unique<MotionEngine> (4, heightMap, std::move (owned), gameTuning);
     for (index_t channel = 0; channel < 4; ++channel)
       engine->setPreviewMode (channel, channel != sending);
     engine->setTempoBPM (bpm);
@@ -737,16 +738,14 @@ TEST (FlightEngine, TheDjsPagePressTakesAShipOutOfItsGame)
 
 TEST (FlightEngine, ANoneOnAPilotsShipEndsItsFigureAndFlyStays)
 {
-  Flight flight;
+  // A groove opens its call & response moment on the first bars of every
+  // sixteen; here it is open at every bar, so the test waits for no bar.
+  GameTuning alwaysOpen;
+  alwaysOpen.grooveWindowBars = alwaysOpen.grooveEveryBars;
+  Flight flight (99, {}, alwaysOpen);
   ASSERT_TRUE (flight.playing ());
   flight.engine->setFlightMode (0, FlightMode::Orbit);
   flight.engine->setFlightMode (1, FlightMode::Orbit);
-  // A groove's window opens on the first bars of every sixteen: call &
-  // response, a pilot's figure for two ships.
-  auto const everyBars = static_cast<long long> (GameTuning{}.grooveEveryBars);
-  auto const windowOpen = [&] { return barNow (*flight.engine) % everyBars < 2; };
-  while (!windowOpen ())
-    juce::Thread::sleep (100);
   auto groove = headingFor (MusicSection::Groove, MusicSection::Groove, 0);
   groove.next.reset ();
   flight.engine->setMusicCue (groove);

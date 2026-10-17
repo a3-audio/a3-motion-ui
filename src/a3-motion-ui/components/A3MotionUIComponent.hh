@@ -667,6 +667,9 @@ private:
   /** Per channel, the pad whose press left its figure to the music, until
    *  the engine says which figure it chose. Message thread. */
   std::array<juce::String, 4> _askedPad{};
+  /** The beat each _askedPad was set on: a style press that yields no game
+   *  leaves nothing to announce, so the name goes after a bar. */
+  std::array<double, 4> _askedAtBeat{};
   /** Per channel, the game that ended last and the beat it ended on, so its
    *  label can stay for a bar and fade (heldGame). */
   std::array<std::optional<ShipGame>, 4> _endedGames{};

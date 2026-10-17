@@ -179,6 +179,16 @@ TEST (PilotWiring, TheReadoutNamesTheFigureThePressWasGiven)
   EXPECT_TRUE (announce.contains ("_askedPad["));
 }
 
+TEST (PilotWiring, AnAskedPadNameDoesNotOutliveItsPress)
+{
+  auto const announce = a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()");
+  EXPECT_TRUE (announce.contains ("_askedAtBeat["))
+      << "a style press that yields no game is forgotten after a bar";
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::setView (AppView view)")
+                   .contains ("_askedPad = {}"))
+      << "leaving FPV calls the games off and forgets the pads";
+}
+
 TEST (PilotWiring, APreviewedDropsStartIsKnownToTheHints)
 {
   EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::pushMusicCue ()")

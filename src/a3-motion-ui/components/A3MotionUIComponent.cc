@@ -1905,7 +1905,10 @@ A3MotionUIComponent::setView (AppView view)
   // and every queued request off, and the pilots rest while FULL is shown.
   // The level itself is kept and comes back with FPV.
   if (!fpv)
-    _engine.callOffGames ();
+    {
+      _engine.callOffGames ();
+      _askedPad = {};
+    }
   _engine.setPilotLevel (fpv ? _pilotLevel : PilotLevel::Off);
   _statusBar->setPilotLevel (_pilotLevel);
   refreshPilotHints ();
@@ -3776,7 +3779,10 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
       else
         {
           if (channel < _askedPad.size ())
-            _askedPad[channel] = padName;
+            {
+              _askedPad[channel] = padName;
+              _askedAtBeat[channel] = uiBeats ();
+            }
           updateControlReadout (
               pilotStyleReadout (static_cast<int> (channel), padName, *order->style));
         }
@@ -7811,6 +7817,9 @@ A3MotionUIComponent::announcePilotGames ()
       if (isNew && game->byPilot && game->leader == ch)
         updateControlReadout (pilotGameReadout (ch, game->game));
       auto &asked = _askedPad[static_cast<size_t> (ch)];
+      if (asked.isNotEmpty ()
+          && uiBeats () - _askedAtBeat[static_cast<size_t> (ch)] > _engine.getBeatsPerBar ())
+        asked = {};
       if (isNew && !game->byPilot && game->leader == ch && asked.isNotEmpty ())
         {
           updateControlReadout (pilotReadout (ch, asked, game->game));
