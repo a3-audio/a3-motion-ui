@@ -79,12 +79,6 @@ TEST (OscTruthContract, TheTruthHasTheOptionalAddresses)
   auto const truth = realTruth ();
   ASSERT_TRUE (truth.isValid ()) << truth.error ();
 
-  // The pro-DJ's two words come with a later truth (a3-core, pro-DJ stage 1).
-  // Until then Motion is inert towards them; once they are there, take this
-  // list away and the loop holds them to the truth like the rest.
-  juce::StringArray const notInTheTruthYet{ "prodj.live", "motion.pointer" };
-
   for (auto const &key : optionalOscAddressKeys ())
-    if (!notInTheTruthYet.contains (key))
-      EXPECT_TRUE (truth.pattern (key).isNotEmpty ()) << key;
+    EXPECT_TRUE (truth.pattern (key).isNotEmpty ()) << key;
 }
