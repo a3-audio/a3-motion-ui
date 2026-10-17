@@ -26,6 +26,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/GameFigures.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/ClimbFigure.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SlapFigure.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/SoftFigures.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SlapGlide.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotGames.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotGamesFlight.cc"

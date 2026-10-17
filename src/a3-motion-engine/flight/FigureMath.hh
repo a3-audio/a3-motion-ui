@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/flight/BaseOrbit.hh>
 #include <a3-motion-engine/flight/FlightVec.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/Types.hh>
@@ -75,6 +76,24 @@ inline float
 flightSense (Vec2 p, Vec2 v)
 {
   return p.x * v.y - p.y * v.x < 0.f ? -1.f : 1.f;
+}
+
+/** The goal on a circle of `radius` round `centre`, going round `sense`
+ *  (+1 counter-clockwise, -1 clockwise) once every `lapBeats`, `startAngle`
+ *  radians round at `startBeats`, with its velocity. With no lap (<= 0) it
+ *  stands where it started. An escort's circle and an encircle's both. */
+inline OrbitPoint
+circleGoal (Vec2 centre, float radius, double lapBeats, float startAngle, float sense,
+            double beats, double startBeats)
+{
+  auto const turns = lapBeats > 0. ? (beats - startBeats) / lapBeats : 0.;
+  auto const angle = startAngle
+                     + sense * 2.f * pi<float> () * static_cast<float> (turns - std::floor (turns));
+  auto const rate = lapBeats > 0. ? sense * 2.f * pi<float> () / static_cast<float> (lapBeats)
+                                  : 0.f;
+  Vec2 const out = polar (angle, 1.f);
+  Vec2 const along{ -out.y, out.x };
+  return { centre + out * radius, along * (radius * rate) };
 }
 
 /** The angle between two directions, in degrees (distances do not count). */

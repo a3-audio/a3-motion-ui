@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/ClimbFigure.hh>
 #include <a3-motion-engine/flight/FigureMath.hh>
+#include <a3-motion-engine/flight/SoftFigures.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
 #include <algorithm>
@@ -166,8 +167,11 @@ PilotGames::Room
 PilotGames::roomFor (PilotTarget target, Vec2 from, FlightBodies const &bodies) const
 {
   Room room;
-  room.group = targetBody (target, from, bodies, _flight) != noBodyId;
-  room.grazeFits = room.group; // a group is room enough to pass
+  auto const id = targetBody (target, from, bodies, _flight);
+  room.group = id != noBodyId;
+  if (auto const place = bodyPlace (bodies, id))
+    room.grazeFits
+        = grazeRun (*place, bodyMass (bodies, id, _flight), _flight, _tuning).has_value ();
   return room;
 }
 

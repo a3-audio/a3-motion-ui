@@ -23,6 +23,7 @@
 #include <a3-motion-engine/flight/ClimbFigure.hh>
 #include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/flight/SlapFigure.hh>
+#include <a3-motion-engine/flight/SoftFigures.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 
 #include <algorithm>
@@ -51,40 +52,6 @@ OrbitPoint
 standAt (Vec2 p)
 {
   return { p, {} };
-}
-
-/** A goal sliding from `a` to `b` between beats `from` and `to`, with its
- *  velocity, so the ship follows it at the goal's pace. */
-OrbitPoint
-glide (Vec2 a, Vec2 b, double beats, double from, double to)
-{
-  if (to <= from || beats >= to)
-    return standAt (b);
-  auto const u = static_cast<float> (std::clamp ((beats - from) / (to - from), 0., 1.));
-  return { a + (b - a) * u, (b - a) / static_cast<float> (to - from) };
-}
-
-/** A goal sweeping round the middle from `a` to `b` between beats `from`
- *  and `to`, radius and angle each at an even pace, going round the way
- *  `turning` says (+1 counter-clockwise, -1 clockwise) even when the other
- *  way is shorter, with its velocity. */
-OrbitPoint
-sweep (Vec2 a, Vec2 b, float turning, double beats, double from, double to)
-{
-  if (to <= from || beats >= to)
-    return standAt (b);
-  auto const u = static_cast<float> (std::clamp ((beats - from) / (to - from), 0., 1.));
-  auto const span = static_cast<float> (to - from);
-  auto const radiusA = a.getDistanceFromOrigin ();
-  auto const radiusB = b.getDistanceFromOrigin ();
-  auto turn = std::remainder (angleOf (b) - angleOf (a), 2.f * pi<float> ());
-  if (turning * turn < 0.f)
-    turn += turning * 2.f * pi<float> ();
-  auto const angle = angleOf (a) + turn * u;
-  auto const radius = radiusA + (radiusB - radiusA) * u;
-  Vec2 const out{ std::cos (angle), std::sin (angle) };
-  Vec2 const along{ -out.y, out.x };
-  return { out * radius, (out * (radiusB - radiusA) + along * (radius * turn)) / span };
 }
 
 /** Call & response: how many calls `part` has made before phrase `phrase`. */
@@ -346,13 +313,13 @@ fakeOutGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
       auto const from = plan.from[shipIndex (ship)];
       auto const standOff = approachGoal (plan, ship, tuning);
       if (plan.crewSize <= 1)
-        return glide (from, standOff, beats, plan.startBeats, veerFrom);
+        return glideGoal (from, standOff, beats, plan.startBeats, veerFrom);
       // A crew's glide keeps a pace a ship can fly: a goal creeping below
       // the ships' least speed is circled, not followed, and the crew would
       // reach its stand-offs out of step. So the glide waits, then goes.
       auto const beatsAtPace = from.getDistanceFrom (standOff) / tuning.crewApproachPace;
-      return glide (from, standOff, beats, std::max (plan.startBeats, veerFrom - beatsAtPace),
-                    veerFrom);
+      return glideGoal (from, standOff, beats, std::max (plan.startBeats, veerFrom - beatsAtPace),
+                         veerFrom);
     }
   // A lone ship's goal jumps, and the ship flies hard for it. A crew's goals
   // sweep, so the pack flies in step and its lanes stay a lane apart: the
@@ -362,13 +329,13 @@ fakeOutGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
     {
       if (plan.crewSize <= 1)
         return standAt (veerPoint (plan, ship, lane, tuning));
-      return sweep (approachGoal (plan, ship, tuning), veerPoint (plan, ship, lane, tuning),
-                    plan.turn[shipIndex (ship)], beats, veerFrom, strikeFrom);
+      return sweepGoal (approachGoal (plan, ship, tuning), veerPoint (plan, ship, lane, tuning),
+                       plan.turn[shipIndex (ship)], beats, veerFrom, strikeFrom);
     }
   if (plan.crewSize <= 1)
     return standAt (strikePoint (plan, ship, tuning));
-  return glide (veerPoint (plan, ship, lane, tuning), strikePoint (plan, ship, tuning), beats,
-                strikeFrom, plan.climaxBeats);
+  return glideGoal (veerPoint (plan, ship, lane, tuning), strikePoint (plan, ship, tuning), beats,
+                    strikeFrom, plan.climaxBeats);
 }
 
 OrbitPoint
@@ -387,7 +354,7 @@ formationGoal (GamePlan const &plan, int ship, double beats, GameTuning const &t
   // Glided to, not rushed: a ship sent straight at a place 0.2 from its
   // neighbour's overshoots it and the two swing through each other for bars.
   auto const standFrom = std::max (plan.startBeats, plan.climaxBeats - tuning.lineUpSettleBeats);
-  return glide (plan.from[shipIndex (ship)], placeAt, beats, plan.startBeats, standFrom);
+  return glideGoal (plan.from[shipIndex (ship)], placeAt, beats, plan.startBeats, standFrom);
 }
 
 OrbitPoint
@@ -399,7 +366,7 @@ hideAndSeekGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
   if (beats >= crossFrom)
     return standAt (polar (plan.turn[shipIndex (ship)] + pi<float> (), tuning.hideRadius));
   auto const slipEnd = std::min (plan.startBeats + tuning.slipBars * beatsPerBar, crossFrom);
-  return glide (plan.from[shipIndex (ship)], hide, beats, plan.startBeats, slipEnd);
+  return glideGoal (plan.from[shipIndex (ship)], hide, beats, plan.startBeats, slipEnd);
 }
 
 OrbitPoint
@@ -426,6 +393,34 @@ callAndResponseGoal (GamePlan const &plan, int ship, double beats, int beatsPerB
   return { polar (angle, tuning.callRadius),
            tangent * (tuning.callRadius * sweep / static_cast<float> (beatsPerBar)) };
 }
+}
+
+OrbitPoint
+glideGoal (Vec2 a, Vec2 b, double beats, double from, double to)
+{
+  if (to <= from || beats >= to)
+    return standAt (b);
+  auto const u = static_cast<float> (std::clamp ((beats - from) / (to - from), 0., 1.));
+  return { a + (b - a) * u, (b - a) / static_cast<float> (to - from) };
+}
+
+OrbitPoint
+sweepGoal (Vec2 a, Vec2 b, float turning, double beats, double from, double to)
+{
+  if (to <= from || beats >= to)
+    return standAt (b);
+  auto const u = static_cast<float> (std::clamp ((beats - from) / (to - from), 0., 1.));
+  auto const span = static_cast<float> (to - from);
+  auto const radiusA = a.getDistanceFromOrigin ();
+  auto const radiusB = b.getDistanceFromOrigin ();
+  auto turn = std::remainder (angleOf (b) - angleOf (a), 2.f * pi<float> ());
+  if (turning * turn < 0.f)
+    turn += turning * 2.f * pi<float> ();
+  auto const angle = angleOf (a) + turn * u;
+  auto const radius = radiusA + (radiusB - radiusA) * u;
+  Vec2 const out{ std::cos (angle), std::sin (angle) };
+  Vec2 const along{ -out.y, out.x };
+  return { out * radius, (out * (radiusB - radiusA) + along * (radius * turn)) / span };
 }
 
 int
@@ -523,7 +518,8 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
   // Hide & seek and call & response are played against no group: whatever
   // the order names, they follow none and are spared none.
   auto const lead = plan.from[shipIndex (plan.leader)];
-  auto const playedAgainstAGroup = game == PilotGame::FakeOut || game == PilotGame::Formation;
+  auto const playedAgainstAGroup = game == PilotGame::FakeOut || game == PilotGame::Formation
+                                   || game == PilotGame::Graze || game == PilotGame::Encircle;
   plan.targetBodyId = playedAgainstAGroup ? targetBody (target, lead, bodies, flight) : noBodyId;
   if (auto const place = bodyPlace (bodies, plan.targetBodyId))
     plan.target = *place;
@@ -550,9 +546,13 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
     case PilotGame::Climb:
       planClimb (plan, ships, cue, beatsPerBar, flight, tuning);
       break;
-    case PilotGame::None:
     case PilotGame::Graze:
+      planGraze (plan, bodies, beatsPerBar, flight, tuning);
+      break;
     case PilotGame::Encircle:
+      planEncircle (plan, ships, bodies, beatsPerBar, flight, tuning);
+      break;
+    case PilotGame::None:
       break;
     }
   return plan;
@@ -581,9 +581,11 @@ figureGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
       return slapGoal (plan, ship, beats, beatsPerBar, tuning);
     case PilotGame::Climb:
       return climbGoal (plan, ship, beats, beatsPerBar, tuning);
-    case PilotGame::None:
     case PilotGame::Graze:
+      return grazeGoal (plan, ship, beats);
     case PilotGame::Encircle:
+      return encircleGoal (plan, ship, beats);
+    case PilotGame::None:
       break;
     }
   return standAt (plan.from[shipIndex (ship)]);
@@ -600,6 +602,8 @@ figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
     case PilotGame::Slap:
       return slapStance (plan, beats, beatsPerBar, tuning);
     case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       {
         FigureStance stance;
         stance.breathes = true;
@@ -610,8 +614,6 @@ figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
     case PilotGame::Formation:
     case PilotGame::HideAndSeek:
     case PilotGame::CallAndResponse:
-    case PilotGame::Graze:
-    case PilotGame::Encircle:
       return {};
     }
   return {};

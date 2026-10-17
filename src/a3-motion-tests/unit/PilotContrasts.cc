@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/PilotGames.hh>
 
+#include <cmath>
 #include <optional>
 
 using namespace a3;
@@ -301,4 +302,42 @@ TEST (ClimbChain, AChainedSlapKeepsAPairAtMost)
   games.step (flying (), {}, build, PilotLevel::Off, 48., fourFour);
   EXPECT_EQ (crewOf (games, PilotGame::Slap), 2);
   EXPECT_EQ (crewOf (games, PilotGame::Climb), 0);
+}
+
+TEST (SoftFigures, AnEncircleFollowsItsGroup)
+{
+  PilotGames games (1);
+  auto bodies = oneGroupAt ({ -0.4f, 0.3f });
+  games.request (asking (PilotGame::Encircle, 0), flying (), bodies, {}, 8., fourFour);
+  bodies.body[0].at = { 0.3f, -0.4f };
+  games.step (flying (), bodies, {}, PilotLevel::Off, 9., fourFour);
+  auto const goal = games.steerOf (0, 9., fourFour);
+  ASSERT_TRUE (goal.has_value ());
+  EXPECT_LT (goal->at.getDistanceFrom ({ 0.3f, -0.4f }), 0.5f) << "round the group where it is now";
+}
+
+TEST (SoftFigures, AGroupRemovedMidFigureLeavesItFinite)
+{
+  for (auto const game : { PilotGame::Encircle, PilotGame::Graze })
+    {
+      PilotGames games (1);
+      games.request (asking (game, 0), flying (), oneGroupAt ({ -0.5f, 0.3f }), {}, 8., fourFour);
+      games.step (flying (), {}, {}, PilotLevel::Off, 9., fourFour);
+      auto const goal = games.steerOf (0, 9.5, fourFour);
+      ASSERT_TRUE (goal.has_value ()) << pilotWord (game);
+      EXPECT_TRUE (std::isfinite (goal->at.x) && std::isfinite (goal->at.y)) << pilotWord (game);
+      EXPECT_GT (goal->at.getDistanceFromOrigin (), 0.1f) << "no jump to the middle";
+    }
+}
+
+TEST (PressFigure, AGrazeWithNoRoomForItsPassIsPlayedAsHideAndSeek)
+{
+  PilotGames graze (1);
+  graze.request (asking (PilotGame::Graze, 0), flying (), oneGroupAt ({ 0.f, 0.f }), {}, 0.,
+                 fourFour);
+  EXPECT_EQ (gameOn (graze, 0), PilotGame::HideAndSeek);
+  PilotGames encircle (1);
+  encircle.request (asking (PilotGame::Encircle, 0), flying (), oneGroupAt ({ 0.f, 0.f }), {}, 0.,
+                    fourFour);
+  EXPECT_EQ (gameOn (encircle, 0), PilotGame::Encircle) << "a circle needs only a group";
 }

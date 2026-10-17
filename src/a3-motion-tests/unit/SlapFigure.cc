@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include "FigureFixtures.hh"
+
 #include <a3-motion-engine/flight/GameFigures.hh>
 #include <a3-motion-engine/flight/SlapFigure.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
@@ -32,6 +34,7 @@
 #include <vector>
 
 using namespace a3;
+using namespace a3::figurefixtures;
 
 // The slap as the floor plays it: two sides fixed in the room, a step from
 // one to the other on the grid, held in between. Front is +x, left +y.
@@ -56,20 +59,6 @@ only (int ship)
   std::array<bool, flightShips> crew{};
   crew[static_cast<size_t> (ship)] = true;
   return crew;
-}
-
-/** Four ships on a circle of 0.7 between the side points (on the
- *  diagonals, so no side is blocked), flying counter-clockwise. */
-std::array<ShipState, flightShips>
-cruising ()
-{
-  constexpr float d = 0.495f; // 0.7 / sqrt 2
-  std::array<Vec2, flightShips> const at{ Vec2{ d, d }, Vec2{ -d, d }, Vec2{ -d, -d },
-                                         Vec2{ d, -d } };
-  std::array<ShipState, flightShips> ships{};
-  for (size_t i = 0; i < ships.size (); ++i)
-    ships[i] = { at[i], Vec2{ -at[i].y, at[i].x } * 0.5f };
-  return ships;
 }
 
 FigureCall

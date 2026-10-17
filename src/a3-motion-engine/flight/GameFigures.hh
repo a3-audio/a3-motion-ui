@@ -85,6 +85,11 @@ struct GamePlan
   bool chainsIntoSlap = false;
   /** Climb: the radius it starts at; Encircle: its circle's. */
   float radius = 0.f;
+  /** Graze: the pass's two ends, in at the first; the beat the pass starts
+   *  after the glide to it. Encircle: the lap, in beats. */
+  std::array<Vec2, 2> run{};
+  double passFromBeats = 0.;
+  double lapBeats = 0.;
 };
 
 /** What a contrast figure is told when it is planned, besides the game's
@@ -142,5 +147,15 @@ OrbitPoint figureGoal (GamePlan const &plan, int ship, double beats, int beatsPe
  *  default outside the crew and before the figure opens. */
 FigureStance figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
                            GameTuning const &tuning);
+
+/** A goal sliding from `a` to `b` between beats `from` and `to`, with its
+ *  velocity, so the ship follows it at the goal's pace. `b` from `to` on. */
+OrbitPoint glideGoal (Vec2 a, Vec2 b, double beats, double from, double to);
+
+/** A goal sweeping round the middle from `a` to `b` between beats `from`
+ *  and `to`, radius and angle each at an even pace, the way `turning` says
+ *  (+1 counter-clockwise, -1 clockwise) even when the other way is shorter,
+ *  with its velocity. */
+OrbitPoint sweepGoal (Vec2 a, Vec2 b, float turning, double beats, double from, double to);
 
 }

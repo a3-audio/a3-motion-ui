@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include "FigureFixtures.hh"
+
 #include <a3-motion-engine/flight/ClimbFigure.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
@@ -27,6 +29,7 @@
 #include <cmath>
 
 using namespace a3;
+using namespace a3::figurefixtures;
 
 // The riser: a circle that shrinks towards the middle -- the band's top --
 // and turns twice as fast on every 4-bar line counted back from the drop,
@@ -37,27 +40,6 @@ namespace
 constexpr int fourFour = 4;
 FlightTuning const flight;
 GameTuning const tuning;
-
-std::array<bool, flightShips>
-crewOf (std::initializer_list<int> ships)
-{
-  std::array<bool, flightShips> crew{};
-  for (auto const s : ships)
-    crew[static_cast<size_t> (s)] = true;
-  return crew;
-}
-
-std::array<ShipState, flightShips>
-cruising ()
-{
-  constexpr float d = 0.495f;
-  std::array<Vec2, flightShips> const at{ Vec2{ d, d }, Vec2{ -d, d }, Vec2{ -d, -d },
-                                         Vec2{ d, -d } };
-  std::array<ShipState, flightShips> ships{};
-  for (size_t i = 0; i < ships.size (); ++i)
-    ships[i] = { at[i], Vec2{ -at[i].y, at[i].x } * 0.5f };
-  return ships;
-}
 
 MusicCue
 towardsADrop (long long dropBar, bool previewed)
