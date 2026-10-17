@@ -20,6 +20,12 @@
 
 #pragma once
 
+#include <a3-motion-engine/util/Types.hh>
+
+#include <JuceHeader.h>
+
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace a3
@@ -37,6 +43,16 @@ inline size_t
 axisIndex (int axis)
 {
   return static_cast<size_t> (axis);
+}
+
+/** The angle between two directions, in degrees (distances do not count). */
+inline double
+degreesBetween (Pos const &a, Pos const &b)
+{
+  auto const dot = a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
+  auto const cosine = std::clamp (static_cast<double> (dot / (a.distance () * b.distance ())),
+                                  -1., 1.);
+  return std::acos (cosine) * 180. / juce::MathConstants<double>::pi;
 }
 
 }

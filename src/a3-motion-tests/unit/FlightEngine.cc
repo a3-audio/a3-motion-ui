@@ -31,7 +31,9 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
+#include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-engine/flight/SlapGlide.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/preview/MusicCue.hh>
 
@@ -81,15 +83,6 @@ oneGroup ()
   bodies.count = 1;
   bodies.body[0] = { { -0.4f, 0.3f }, 1.f, 1 };
   return bodies;
-}
-
-double
-degreesBetween (Pos const &a, Pos const &b)
-{
-  auto const dot = a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
-  auto const lengths = a.distance () * b.distance ();
-  auto const cosine = std::clamp (static_cast<double> (dot / lengths), -1., 1.);
-  return std::acos (cosine) * 180. / juce::MathConstants<double>::pi;
 }
 
 /** What channels 0 and 1 looked like after the engine's tick: the handler is
@@ -866,4 +859,73 @@ TEST (FlightEngine, AShipInAGameIsSparedItsTargetsPull)
   EXPECT_NEAR (place.x, 0.4f, 0.1f) << "not lined up on the group's side";
   EXPECT_GT (floorPointOf (flight, aBeatLater->orbit).getDistanceFrom (place), 0.25f)
       << "held at its place by the group's pull through the burst beat";
+}
+
+// A slap holds its ship still at a side; the heard direction stands as still
+// as the ship. When the side changes, the ear is led to the new one in the
+// glide's own length and stands there: a run of movement between two stands
+// is never longer than the longest glide.
+
+namespace
+{
+constexpr double standStill = 0.01; // degrees a tick
+
+struct Glides
+{
+  int count = 0;
+  size_t longestRun = 0;
+};
+
+/** The runs of movement that start from a stand and end in one again. A run
+ *  still going when the samples end is the hand-back to the ship's own flight
+ *  and does not count. */
+Glides
+glidesBetweenStands (std::vector<Sample> const &samples)
+{
+  Glides found;
+  size_t run = 0;
+  auto stood = false;
+  for (size_t i = 1; i < samples.size (); ++i)
+    {
+      auto const still = degreesBetween (samples[i - 1].orbit, samples[i].orbit) < standStill;
+      if (!still)
+        {
+          if (stood)
+            ++run;
+          continue;
+        }
+      if (run > 0)
+        {
+          ++found.count;
+          found.longestRun = std::max (found.longestRun, run);
+        }
+      run = 0;
+      stood = true;
+    }
+  return found;
+}
+}
+
+TEST (FlightEngine, ASlapIsHeardOnItsSideAGlideAfterItsStep)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  TickRecorder recorder (*flight.engine);
+  flight.engine->requestGame (0, playing (PilotGame::Slap));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (0).has_value (); }));
+  ASSERT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (0).has_value (); }, 6000));
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  GameTuning const tuning;
+  auto const ticksPerBeat = static_cast<double> (TempoClock::getTicksPerBeat ());
+  auto const longestGlide = std::max (slapGlideLength (GlidePath::ViaFront, tuning),
+                                      slapGlideLength (GlidePath::Vertical, tuning));
+  auto const found = glidesBetweenStands (samples);
+  EXPECT_GT (found.count, 0) << "the slap changed sides at least once";
+  EXPECT_LE (static_cast<double> (found.longestRun), longestGlide * ticksPerBeat + 2.)
+      << "the ear stands on the side no later than the glide's length after the step";
+  EXPECT_LE (widestStep (samples), 180. / (tuning.slapGlideBeats * ticksPerBeat) + 1.)
+      << "and gets there spread over the glide";
 }

@@ -35,6 +35,7 @@
 #include <a3-motion-engine/flight/PilotDesk.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/flight/PilotLevel.hh>
+#include <a3-motion-engine/flight/SlapGlide.hh>
 #include <a3-motion-engine/preview/MusicCue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
@@ -823,6 +824,9 @@ private:
    *  turn limit still holds it back. Clock thread only. */
   std::vector<Pos> _lastHeard;
   std::vector<char> _turnTrailing;
+  /** Per ship, the slap glide leading its heard direction to a new side;
+   *  clock thread only. */
+  std::array<SlapGlider, flightShips> _slapGlides{};
   /** The pilots' pending game requests (clock thread), and what any thread
    *  may read of them: the game as an int, -1 for none. */
   PilotDesk _pilotDesk;

@@ -2197,6 +2197,7 @@ MotionEngine::performFlight ()
 
   std::array<ShipOrders, flightShips> orders{};
   std::array<ElevationParams, flightShips> flyingBand{};
+  std::array<FigureStance, flightShips> stances{};
 
   auto const ships
       = std::min (_channels.size (), static_cast<std::size_t> (flightShips));
@@ -2237,6 +2238,7 @@ MotionEngine::performFlight ()
           startGlideIn (ch);
           _lastHeard[ch] = Pos::invalid;
           _turnTrailing[ch] = 0;
+          _slapGlides[ch].reset ();
         }
       _flightModeSeen[ch] = FlightMode::Orbit;
 
@@ -2247,8 +2249,12 @@ MotionEngine::performFlight ()
       // group the game is played against, as an escort is its own: the
       // world spares only the body the orders name.
       if (auto const steer = _games.steerOf (static_cast<int> (ch), beats, beatsPerBar))
-        orders[ch] = { true, FlightGoal::Steer, _games.gameOf (static_cast<int> (ch))->target,
-                       _flightMotion[ch], driven, *steer };
+        {
+          auto const stance = _games.stanceOf (static_cast<int> (ch), beats, beatsPerBar);
+          orders[ch] = { true, FlightGoal::Steer, _games.gameOf (static_cast<int> (ch))->target,
+                         _flightMotion[ch], driven, *steer, stance.hold, stance.breathes };
+          stances[ch] = stance;
+        }
       else
         orders[ch] = { true,
                        target == noBodyId ? FlightGoal::Patrol : FlightGoal::Escort,
@@ -2272,7 +2278,12 @@ MotionEngine::performFlight ()
       auto const shaped = heardShip (mapped, _flight.motion (shipIndex),
                                      _flight.motionWeight (shipIndex), beats,
                                      beatsPerBar, _flightTuning);
-      auto const heard = turnLimitedHeard (ch, shaped);
+      // A slap's step is heard as a step: the glide to its side is the one
+      // move the 180 deg/beat limit does not hold, and it lands where the
+      // limit takes over again.
+      auto const glided
+          = _slapGlides[ch].step (stances[ch], p, _lastHeard[ch], shaped, beats, _gameTuning);
+      auto const heard = glided ? *glided : turnLimitedHeard (ch, shaped);
       _lastHeard[ch] = heard;
       auto const written = glideIntoTheFlight (ch, heard);
       _channels[ch]->setPosition (written);
@@ -2371,6 +2382,9 @@ MotionEngine::gameShips () const
       // a ship it borrowed from its clip still reads CLIP here.
       ship.now = { getFlightMode (ch) == FlightMode::Orbit,
                    _flightTarget[ch].load (std::memory_order_relaxed) };
+      // The knob as the DJ set it, not an accent's sweep of it: it gates which
+      // slap axes the music may throw.
+      ship.bandFreq = _channels[ch]->getPot1 ();
       if (_flightModeSeen[ch] == FlightMode::Orbit)
         ship.state = _flight.ship (static_cast<int> (ch));
       else if (playing != nullptr)
