@@ -139,7 +139,7 @@ struct GameTuning
   // localisation is coarser and slower (Saberi & Perrott 1990, JASA 88(6)
   // 2639) [research; the factor is a guess].
   float slapVerticalRateFactor = 0.5f;
-  float slapSideRadius = 0.85f;  // = hideRadius, inside the soft wall at 0.9
+  float slapSideRadius = hideRadius; // inside the soft wall at 0.9
   // How often each axis is thrown. Left-right is the robust one: front-back
   // is ambiguous below 1 kHz and wants 8-16 kHz, up-down 6-12 kHz
   // (Langendijk & Bronkhorst 2002, JASA 112(4) 1583) [research; the weights
@@ -171,15 +171,15 @@ struct GameTuning
   // Graze: a slow straight pass at a group's escort radius, at cruise pace
   // (halving it hurt in the model) [lab].
   float grazePaceFactor = 1.f;
-  float grazeMinSweepDegrees = 30.f; // = heardBendDegrees (Grantham 1986)
+  float grazeMinSweepDegrees = heardBendDegrees; // Grantham 1986
   float grazeInnerRadius = 0.3f;     // off the middle, which is overhead [guess]
-  float grazeOuterRadius = 0.85f;    // = hideRadius, inside the soft wall [guess]
+  float grazeOuterRadius = hideRadius; // inside the soft wall [guess]
   int grazeMaxBars = 4;              // the approach shortens past this [guess]
 
   // Encircle: the escort's circle, widened until it subtends a heard bend
   // from the middle [research: Grantham 1986]; escort duty at most 4 bars in
   // 16 [lab]. Its lap is FlightTuning::captureLapBars.
-  float encircleMinDegrees = 30.f;
+  float encircleMinDegrees = heardBendDegrees;
   int encircleBars = 4;
 };
 
