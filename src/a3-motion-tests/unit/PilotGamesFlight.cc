@@ -797,6 +797,9 @@ TEST (PilotGamesFlight, AtFlyEachShipIsHeardAtMostOnceEveryTwoBeats)
         }
       EXPECT_LE (mostInFigures, 2) << "two ships move, the rest wait; seed " << seed;
       ASSERT_TRUE (hardEnded.has_value ()) << "the drop was slapped; seed " << seed;
+      EXPECT_TRUE (std::any_of (pilotStarts.begin (), pilotStarts.end (),
+                                [&] (double start) { return start > *hardEnded; }))
+          << "a pilot plays again after the hit, so the rest is measured; seed " << seed;
       for (auto const start : pilotStarts)
         {
           if (start > *hardEnded)
