@@ -115,22 +115,23 @@ pilotsCrew (PilotGame game)
   return PilotRecruit::Self;
 }
 
-/** A figure of the SOFT family: the drop's 1 pre-empts it when a pilot plays it. */
+/** A figure that meets the drop's 1 itself: the slap, and the climb that
+ *  turns into one. The drop pre-empts every other figure a pilot plays. */
 bool
-isSoftFigure (PilotGame game)
+meetsTheDrop (PilotGame game)
 {
   switch (game)
     {
-    case PilotGame::HideAndSeek:
-    case PilotGame::Graze:
-    case PilotGame::Encircle:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
       return true;
     case PilotGame::None:
     case PilotGame::FakeOut:
     case PilotGame::Formation:
+    case PilotGame::HideAndSeek:
     case PilotGame::CallAndResponse:
-    case PilotGame::Slap:
-    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return false;
     }
   return false;
@@ -335,7 +336,7 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
         leave (s);
     }
 
-  // The drop's 1 pre-empts a pilot's soft figure, and takes no rest for it:
+  // The drop's 1 pre-empts a pilot's figure, and takes no rest for it:
   // the slap that hits the drop starts on the same tick.
   auto const dropHits = level == PilotLevel::Fly
                         && pilotFamily (cue, bar, Asker::Pilot, _tuning) == PilotFamily::Hard;
@@ -344,7 +345,7 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
       auto &running = _games[shipIndex (slot)];
       if (!running.live)
         continue;
-      if (dropHits && running.byPilot && isSoftFigure (running.plan.game))
+      if (dropHits && running.byPilot && !meetsTheDrop (running.plan.game))
         {
           clear (slot);
           continue;

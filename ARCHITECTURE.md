@@ -552,7 +552,9 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
   to `cueGraceBeats` late. Until then `steerOf` is empty and the ship flies on as it was.
 - **Chains.** A pilot's climb that sees a previewed drop turns into a slap on the drop's 1, with
   the snap (`chainIntoSlap`); one with no previewed drop yields to a one-bar slap, without the snap,
-  when the room hears the drop (`yieldToTheDrop`). Both go through `turnIntoSlap`. The crews are
+  when the room hears the drop (`yieldToTheDrop`). Both go through `turnIntoSlap`. Every other figure a
+  pilot plays -- call, hide, the old four, a graze -- ends on the drop's first tick, without the
+  rest, so the slap opens on it; a DJ's figure plays on. The crews are
   built by `callFor`/`statesOf` for every figure alike, press or pilot.
 - **Hold and relaunch.** A slap holds its ship (`ShipOrders::hold`): `FlightWorld` places it at its
   point, still, unsteered, and relaunches it along its path (`launch`) on the first flying tick
