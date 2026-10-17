@@ -41,10 +41,10 @@ def core_checkout():
 class TheVendoredCopy(unittest.TestCase):
     def test_the_vendored_files_equal_a3_cores(self):
         core = core_checkout()
-        if not (core / CORE_TREE).is_dir():
-            self.skipTest(f"no a3-core beside the checkout ({core})")
         pairs = (("a3-screencast", "bin/a3-screencast"),
                  ("a3_screencast_fanout.py", "lib/a3_screencast_fanout.py"))
+        if not all((core / CORE_TREE / theirs).is_file() for _, theirs in pairs):
+            self.skipTest(f"no a3-core with the screencast beside the checkout ({core})")
         for ours, theirs in pairs:
             with self.subTest(file=ours):
                 self.assertEqual((core / CORE_TREE / theirs).read_bytes(),
@@ -97,31 +97,23 @@ class TheTruth(unittest.TestCase):
 
 
 class TheCopyFindsItsFanOut(unittest.TestCase):
-    """a3-screencast runs $HOME/.local/lib/a3_screencast_fanout.py; on Motion
-    the module lives in /usr/lib/a3-motion-ui. The copy stays byte-equal, so
-    the wrapper hands it a home in which that path exists."""
+    """a3-screencast takes the fan-out path from A3_SCREENCAST_FANOUT; on
+    Motion the module lives in /usr/lib/a3-motion-ui."""
 
-    def test_the_shim_home_holds_the_fan_out_where_the_script_looks(self):
+    def test_the_environment_names_the_packaged_fan_out(self):
         module = load_wrapper()
-        with tempfile.TemporaryDirectory() as tmp:
-            libdir = Path(tmp) / "lib"
-            libdir.mkdir()
-            (libdir / "a3_screencast_fanout.py").write_text("# fan-out")
-            env = module.environment({"HOME": "/home/dj"}, 4321, libdir, Path(tmp) / "run")
-            fanout = Path(env["HOME"]) / ".local/lib/a3_screencast_fanout.py"
-            self.assertEqual("# fan-out", fanout.read_text())
-            self.assertEqual("4321", env["A3_SCREENCAST_PORT"])
+        env = module.environment({"HOME": "/home/dj"}, 4321)
+        self.assertEqual("/usr/lib/a3-motion-ui/a3_screencast_fanout.py",
+                         env["A3_SCREENCAST_FANOUT"])
+        self.assertEqual("4321", env["A3_SCREENCAST_PORT"])
 
-    def test_the_real_home_stays_reachable_for_the_x_cookie(self):
+    def test_home_and_the_x_environment_stay_the_real_ones(self):
         module = load_wrapper()
-        with tempfile.TemporaryDirectory() as tmp:
-            libdir = Path(tmp)
-            (libdir / "a3_screencast_fanout.py").write_text("")
-            env = module.environment({"HOME": "/home/dj"}, 1, libdir, Path(tmp) / "run")
-            self.assertEqual("/home/dj/.Xauthority", env["XAUTHORITY"])
-            kept = module.environment({"HOME": "/home/dj", "XAUTHORITY": "/x/auth"}, 1,
-                                      libdir, Path(tmp) / "run")
-            self.assertEqual("/x/auth", kept["XAUTHORITY"])
+        given = {"HOME": "/home/dj", "DISPLAY": ":0", "XAUTHORITY": "/x/auth"}
+        env = module.environment(given, 1)
+        for key, value in given.items():
+            self.assertEqual(value, env[key])
+        self.assertNotIn("XAUTHORITY", module.environment({"HOME": "/home/dj"}, 1))
 
 
 class TheUnit(unittest.TestCase):
