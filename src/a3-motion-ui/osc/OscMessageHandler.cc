@@ -113,6 +113,54 @@ OscMessageHandler::routePreview (juce::OSCMessage const &message)
     _listener.onMusicPreview (ahead);
 }
 
+namespace
+{
+/** A number argument as the int it stands for, whichever way the sender
+ *  wrote it. */
+std::optional<int>
+intArgument (juce::OSCArgument const &arg)
+{
+  if (arg.isInt32 ())
+    return arg.getInt32 ();
+  if (arg.isFloat32 ())
+    return static_cast<int> (arg.getFloat32 ());
+  return std::nullopt;
+}
+
+std::optional<float>
+floatArgument (juce::OSCArgument const &arg)
+{
+  if (arg.isFloat32 ())
+    return arg.getFloat32 ();
+  if (arg.isInt32 ())
+    return static_cast<float> (arg.getInt32 ());
+  return std::nullopt;
+}
+}
+
+void
+OscMessageHandler::routeProdjLive (juce::OSCMessage const &message)
+{
+  if (message.size () < 1)
+    return;
+
+  if (auto const value = intArgument (message[0]))
+    _listener.onProdjLive (*value != 0);
+}
+
+void
+OscMessageHandler::routePointer (juce::OSCMessage const &message)
+{
+  if (message.size () < 3)
+    return;
+
+  auto const phase = intArgument (message[0]);
+  auto const x = floatArgument (message[1]);
+  auto const y = floatArgument (message[2]);
+  if (phase && x && y)
+    _listener.onRemotePointer (*phase, *x, *y);
+}
+
 void
 OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                                   int clockMode)
@@ -157,6 +205,20 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
   if (address == _addresses.stemdeckAhead)
     {
       routePreview (message);
+      return;
+    }
+
+  // Both words are empty in a truth that lacks them, and an address is never
+  // empty: with today's truth these two never match and the feature is inert.
+  if (address == _addresses.prodjLive)
+    {
+      routeProdjLive (message);
+      return;
+    }
+
+  if (address == _addresses.motionPointer)
+    {
+      routePointer (message);
       return;
     }
 

@@ -42,6 +42,8 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PatternLibrary.hh>
 #include <a3-motion-ui/components/PendingScriptWrites.hh>
+#include <a3-motion-ui/components/PointerInjector.hh>
+#include <a3-motion-ui/components/RemotePointer.hh>
 #include <a3-motion-ui/components/SphereProjection.hh>
 
 #include <a3-motion-ui/SettingsPersistence.hh>
@@ -141,10 +143,20 @@ public:
   void onMasterValue (int slot, float value) override;
   void onFilterValue (int slot, float value) override;
   void onMusicPreview (std::optional<MusicAhead> const &ahead) override;
+  void onProdjLive (bool on) override;
+  void onRemotePointer (int phase, float x, float y) override;
   void repaintMixerPages ();
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
   void sayHelloWhenDue ();
+
+  /** The pro-DJ's remote pointer: put the gate's decisions on the screen as
+   *  touch #9 of the top-level window, and keep the bar's LIVE badge in step
+   *  with the gate. Inert while the truth lacks the two words. */
+  void injectRemote (std::vector<Inject> const &injects);
+  void tickRemotePointer ();
+  /** The badge was tapped: LIVE off, locally at once and to Core. Never on. */
+  void switchProdjLiveOff ();
 
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
@@ -735,6 +747,12 @@ private:
   /** When Motion next tells Core who it is (/device/hello). Asked from
    *  timerCallback(), which runs with or without the panel attached. */
   HelloSchedule _helloSchedule;
+
+  RemotePointerGate _remoteGate;
+  PointerInjector _remoteInjector{ [this] (PointerInjector::Touch const &touch) {
+    if (auto *peer = getPeer ())
+      peerSink (*peer) (touch);
+  } };
   
   // ClockMode toggle state: 0 = INT, 1 = EXT, 2 = PIO
   int _clockMode = 0;

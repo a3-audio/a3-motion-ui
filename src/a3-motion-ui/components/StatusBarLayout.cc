@@ -37,7 +37,7 @@ statusLabelWidth (juce::Font const &font, juce::String const &text, int air)
 
 StatusBarLayout
 statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding,
-                 int bpmWidth, int readoutWidth)
+                 int bpmWidth, int readoutWidth, bool live)
 {
   StatusBarLayout out{};
 
@@ -90,12 +90,19 @@ statusBarLayout (juce::Rectangle<int> row, int barWidth, int padding,
   out.clockKey = rest.removeFromLeft (keyW);
   out.viewKey = rest.removeFromLeft (keyW);
   out.breathKey = rest.removeFromLeft (keyW);
+  // The LIVE badge stands against BREATH and takes its width from the
+  // readings, which already give way; the keys and the display keep theirs.
+  if (live)
+    out.liveBadge = rest.removeFromLeft (keyW * statusLiveBadgeWidthOfKey);
 
   // Still centred, but never under a key: on a narrow bar the display gives
   // way rather than the keys.
   auto const innermostKey
       = out.pilotKey.isEmpty () ? out.cleanKey.getX () : out.pilotKey.getX ();
-  auto const tickRoom = 2 * (innermostKey - barWidth / 2);
+  auto tickRoom = 2 * (innermostKey - barWidth / 2);
+  if (!out.liveBadge.isEmpty ())
+    tickRoom = juce::jmin (tickRoom,
+                           2 * (barWidth / 2 - out.liveBadge.getRight ()));
   if (out.tick.getWidth () > tickRoom)
     out.tick = out.tick.withSizeKeepingCentre (juce::jmax (0, tickRoom),
                                                out.tick.getHeight ());

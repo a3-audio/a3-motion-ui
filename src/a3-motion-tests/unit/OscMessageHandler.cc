@@ -110,6 +110,30 @@ struct RecordingListener : public OscMessageHandler::Listener
     lastPreview = ahead;
   }
 
+  int liveCalls = 0;
+  bool lastLive = false;
+
+  void
+  onProdjLive (bool on) override
+  {
+    ++liveCalls;
+    lastLive = on;
+  }
+
+  int pointerCalls = 0;
+  int lastPhase = -1;
+  float lastPointerX = -1.f;
+  float lastPointerY = -1.f;
+
+  void
+  onRemotePointer (int phase, float x, float y) override
+  {
+    ++pointerCalls;
+    lastPhase = phase;
+    lastPointerX = x;
+    lastPointerY = y;
+  }
+
   void
   onFilterValue (int slot, float value) override
   {
@@ -986,4 +1010,101 @@ TEST (OscMessageHandler, WithoutTheWordInTheTruthNoPreviewArrives)
       aheadMessage ("/t/stemdeck.ahead", "build", "drop", 4, 0.5f), 0);
 
   EXPECT_EQ (listener.previewCalls, 0);
+}
+
+TEST (OscMessageHandler, ProdjLiveReachesTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  // An empty address would not even build a message.
+  ASSERT_TRUE (madeUpAddresses ().prodjLive.isNotEmpty ());
+  juce::OSCMessage on (madeUpAddresses ().prodjLive);
+  on.addInt32 (1);
+  handler.handleMessage (on, 0);
+
+  EXPECT_EQ (listener.liveCalls, 1);
+  EXPECT_TRUE (listener.lastLive);
+
+  juce::OSCMessage off (madeUpAddresses ().prodjLive);
+  off.addInt32 (0);
+  handler.handleMessage (off, 0);
+
+  EXPECT_EQ (listener.liveCalls, 2);
+  EXPECT_FALSE (listener.lastLive);
+}
+
+TEST (OscMessageHandler, APointerReachesTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  ASSERT_TRUE (madeUpAddresses ().motionPointer.isNotEmpty ());
+  juce::OSCMessage pointer (madeUpAddresses ().motionPointer);
+  pointer.addInt32 (0);
+  pointer.addFloat32 (.25f);
+  pointer.addFloat32 (.75f);
+  handler.handleMessage (pointer, 0);
+
+  EXPECT_EQ (listener.pointerCalls, 1);
+  EXPECT_EQ (listener.lastPhase, 0);
+  EXPECT_FLOAT_EQ (listener.lastPointerX, .25f);
+  EXPECT_FLOAT_EQ (listener.lastPointerY, .75f);
+}
+
+TEST (OscMessageHandler, AMalformedPointerOrLiveIsNotReported)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  ASSERT_TRUE (madeUpAddresses ().motionPointer.isNotEmpty ());
+  ASSERT_TRUE (madeUpAddresses ().prodjLive.isNotEmpty ());
+  juce::OSCMessage tooShort (madeUpAddresses ().motionPointer);
+  tooShort.addInt32 (0);
+  tooShort.addFloat32 (.25f);
+  handler.handleMessage (tooShort, 0);
+
+  juce::OSCMessage words (madeUpAddresses ().motionPointer);
+  words.addString ("down");
+  words.addString ("x");
+  words.addString ("y");
+  handler.handleMessage (words, 0);
+
+  juce::OSCMessage bareLive (madeUpAddresses ().prodjLive);
+  handler.handleMessage (bareLive, 0);
+
+  EXPECT_EQ (listener.pointerCalls, 0);
+  EXPECT_EQ (listener.liveCalls, 0);
+}
+
+TEST (OscMessageHandler, WithoutTheWordsInTheTruthNeitherArrives)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (
+      madeUpOscTruth ({ "prodj.live", "motion.pointer" })));
+
+  juce::OSCMessage on ("/t/prodj.live");
+  on.addInt32 (1);
+  handler.handleMessage (on, 0);
+
+  juce::OSCMessage pointer ("/t/motion.pointer");
+  pointer.addInt32 (0);
+  pointer.addFloat32 (.25f);
+  pointer.addFloat32 (.75f);
+  handler.handleMessage (pointer, 0);
+
+  EXPECT_EQ (listener.liveCalls, 0);
+  EXPECT_EQ (listener.pointerCalls, 0);
 }

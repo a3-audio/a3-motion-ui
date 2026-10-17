@@ -189,7 +189,8 @@ StatusBar::resized ()
   _layout = statusBarLayout (bounds, getWidth (),
                              juce::roundToInt (theme ().paddingSmall),
                              statusLabelWidth (font, "BPM 000.0", air),
-                             statusLabelWidth (font, "-- BREATH OFF", air));
+                             statusLabelWidth (font, "-- BREATH OFF", air),
+                             _prodjLive);
 
   _labelBPM.setBounds (_layout.bpm);
   _labelReadout.setBounds (_layout.readout);
@@ -377,6 +378,13 @@ StatusBar::mouseUp (juce::MouseEvent const &event)
       return;
     }
 
+  if (_layout.liveBadge.contains (at))
+    {
+      if (onLiveBadgeTapped)
+        onLiveBadgeTapped ();
+      return;
+    }
+
   if (_layout.pilotKey.contains (at))
     {
       if (_fpv && onPilotKeyTapped)
@@ -443,6 +451,29 @@ StatusBar::paintKeyboardKey (juce::Graphics &g)
 }
 
 void
+StatusBar::paintLiveBadge (juce::Graphics &g)
+{
+  if (_layout.liveBadge.isEmpty ())
+    return;
+
+  // Someone else's hand is on this screen: caution, the colour of "not ours"
+  // (EXT is warning for the same reason). The key is washed in it like any
+  // key that is on, so the badge is found by its ground before it is read.
+  auto const face
+      = _layout.liveBadge.reduced (juce::roundToInt (theme ().paddingHair))
+            .toFloat ();
+  g.setColour (toColour (theme ().warning, theme ().alphaFillEmphasis));
+  g.fillRoundedRectangle (face, theme ().radiusControl);
+  g.setColour (toColour (theme ().warning, theme ().alphaSecondary));
+  g.drawRoundedRectangle (face, theme ().radiusControl, theme ().strokeThin);
+
+  g.setFont (juce::Font (juce::FontOptions (headerFontSize ())));
+  g.setColour (toColour (theme ().warning));
+  g.drawFittedText ("PRO-DJ LIVE", _layout.liveBadge,
+                    juce::Justification::centred, 1);
+}
+
+void
 StatusBar::paintPilotKey (juce::Graphics &g)
 {
   if (_layout.pilotKey.isEmpty ())
@@ -477,6 +508,7 @@ StatusBar::paint (juce::Graphics &g)
   paintWordKey (g, _layout.viewKey,
                 appViewName (_fpv ? AppView::Fpv : AppView::Full), true, _fpv);
   paintWordKey (g, _layout.breathKey, "BREATH", true, _breathing);
+  paintLiveBadge (g);
   paintPilotKey (g);
 
   // The switch in StemDeck's look, not the skin's: it is the same key in
@@ -607,6 +639,18 @@ StatusBar::setBreathing (bool on)
     return;
   _breathing = on;
   repaint (_layout.breathKey);
+}
+
+void
+StatusBar::setProdjLive (bool live)
+{
+  if (live == _prodjLive)
+    return;
+  _prodjLive = live;
+  // The badge takes width from the readings, so the whole row is laid out
+  // again rather than one rectangle repainted.
+  resized ();
+  repaint ();
 }
 
 void

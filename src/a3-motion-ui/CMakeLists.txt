@@ -254,6 +254,10 @@ target_sources(a3-motion-ui-shared PRIVATE
     components/SourceKeys.cc
     components/SourceKeys.hh
     components/CameraFingers.hh
+    components/RemotePointer.cc
+    components/RemotePointer.hh
+    components/PointerInjector.cc
+    components/PointerInjector.hh
     components/TouchGrabs.cc
     components/TouchGrabs.hh
     components/SpeakerLightScaling.cc

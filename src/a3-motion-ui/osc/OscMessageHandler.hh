@@ -140,6 +140,15 @@ public:
      *  message Motion cannot read is not reported at all, so the last good
      *  preview stands until it goes stale. */
     virtual void onMusicPreview (std::optional<MusicAhead> const &ahead) = 0;
+
+    /** Pro-DJ LIVE switched on or off (the `prodj.live` word, from Core).
+     *  Nothing arrives while the truth lacks the word. */
+    virtual void onProdjLive (bool on) = 0;
+
+    /** The pro-DJ's pointer (the `motion.pointer` word): phase 0 down,
+     *  1 move, 2 up, then x and y as a share of the screen picture. Passed
+     *  on as it came; the gate decides what it is worth. */
+    virtual void onRemotePointer (int phase, float x, float y) = 0;
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
@@ -156,6 +165,8 @@ public:
 private:
   void routeMeter (int number, float peak, float rms);
   void routePreview (juce::OSCMessage const &message);
+  void routeProdjLive (juce::OSCMessage const &message);
+  void routePointer (juce::OSCMessage const &message);
   void routeChannelSide (std::size_t channel, std::size_t side, float peak,
                          float rms);
 

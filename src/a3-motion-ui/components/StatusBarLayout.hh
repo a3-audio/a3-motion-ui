@@ -67,6 +67,10 @@ struct StatusBarLayout
   /** The breath on or off, right of the view key, in both views: a breath
    *  switched on in FPV keeps the ships breathing in FULL, so FULL shows it. */
   juce::Rectangle<int> breathKey;
+  /** PRO-DJ LIVE, right of BREATH. Empty unless live: the badge exists only
+   *  while a remote pointer may touch this screen, and takes the readout's
+   *  width while it does. */
+  juce::Rectangle<int> liveBadge;
   /** The pilots' level, left of CLEAN. Left of the readings it would cut the
    *  tempo on the device; here it takes width the beat display can give.
    *  Empty on a bar too narrow for it beside the beat display's floor. */
@@ -108,6 +112,10 @@ clockModeName (int mode)
  *  like CLEAN or MENU at the header size. */
 constexpr int statusKeyWidthOfHeight = 2;
 
+/** The PRO-DJ LIVE badge's width, in key widths: "PRO-DJ LIVE" is longer
+ *  than any word a key carries. */
+constexpr int statusLiveBadgeWidthOfKey = 2;
+
 /** The narrowest the beat display gets when it gives way to the readings, in
  *  row heights: four beats, each a square. */
 constexpr int statusTickMinWidthOfHeight = 4;
@@ -132,6 +140,6 @@ constexpr float statusTickHeightOfRow = 3.f / 5.f;
  *  to statusTickMinWidthOfHeight row heights, and the tempo is served first. */
 StatusBarLayout statusBarLayout (juce::Rectangle<int> row, int barWidth,
                                  int padding, int bpmWidth = 0,
-                                 int readoutWidth = 0);
+                                 int readoutWidth = 0, bool live = false);
 
 }

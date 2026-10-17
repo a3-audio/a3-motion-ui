@@ -39,7 +39,8 @@ namespace a3
  *  every finger a second time as an emulated mouse, and keyed by source alone
  *  (9a04236) one finger was two and the view would not turn. The same rule as
  *  FirstSourceOnly, widened from one source to one kind, so that two real
- *  touches still pinch. */
+ *  touches still pinch. The pro-DJ's remote pointer (touch #remoteTouchIndex)
+ *  is a kind of its own: it never pinches with the DJ's fingers. */
 class CameraFingers
 {
 public:
