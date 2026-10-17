@@ -20,6 +20,8 @@
 
 #include "PilotKey.hh"
 
+#include "ActionReach.hh"
+
 namespace a3
 {
 
@@ -46,14 +48,6 @@ pilotKeyFace (PilotLevel level, bool fpv)
   return face;
 }
 
-PilotLevel
-levelAfterTap (PilotLevel level, bool firesAGame, bool shipInAPilotsGame)
-{
-  if (level == PilotLevel::Fly && (firesAGame || shipInAPilotsGame))
-    return PilotLevel::Hint;
-  return level;
-}
-
 juce::String
 pilotLevelReadout (PilotLevel level)
 {
@@ -63,7 +57,7 @@ pilotLevelReadout (PilotLevel level)
 juce::String
 pilotGameReadout (int channel, PilotGame game)
 {
-  return "CH" + juce::String (channel + 1) + " FLY " + pilotWord (game).toUpperCase ();
+  return "CH" + juce::String (channel + 1) + " FLY " + readoutWord (game);
 }
 
 }

@@ -25,8 +25,13 @@ namespace a3
 
 namespace
 {
-constexpr PilotGame allGames[] = { PilotGame::None, PilotGame::FakeOut, PilotGame::Formation,
-                                   PilotGame::HideAndSeek, PilotGame::CallAndResponse };
+constexpr PilotGame allGames[] = { PilotGame::None,      PilotGame::FakeOut,
+                                   PilotGame::Formation, PilotGame::HideAndSeek,
+                                   PilotGame::CallAndResponse, PilotGame::Slap,
+                                   PilotGame::Climb,     PilotGame::Graze,
+                                   PilotGame::Encircle };
+constexpr PilotStyle allStyles[] = { PilotStyle::Auto, PilotStyle::Hard, PilotStyle::Rising,
+                                     PilotStyle::Soft, PilotStyle::Groove, PilotStyle::None };
 constexpr PilotRecruit allRecruits[] = { PilotRecruit::Self, PilotRecruit::Nearest,
                                          PilotRecruit::All };
 constexpr PilotTargetKind namedKinds[] = { PilotTargetKind::Nearest, PilotTargetKind::Crowd,
@@ -48,6 +53,14 @@ pilotWord (PilotGame game)
       return "hideseek";
     case PilotGame::CallAndResponse:
       return "callresponse";
+    case PilotGame::Slap:
+      return "slap";
+    case PilotGame::Climb:
+      return "climb";
+    case PilotGame::Graze:
+      return "graze";
+    case PilotGame::Encircle:
+      return "encircle";
     }
   return "none";
 }
@@ -116,6 +129,76 @@ pilotRecruitNamed (juce::String const &word)
     if (word == pilotWord (with))
       return with;
   return std::nullopt;
+}
+
+juce::String
+pilotWord (PilotStyle style)
+{
+  switch (style)
+    {
+    case PilotStyle::Auto:
+      return "auto";
+    case PilotStyle::Hard:
+      return "hard";
+    case PilotStyle::Rising:
+      return "rising";
+    case PilotStyle::Soft:
+      return "soft";
+    case PilotStyle::Groove:
+      return "groove";
+    case PilotStyle::None:
+      return "none";
+    }
+  return "auto";
+}
+
+std::optional<PilotStyle>
+pilotStyleNamed (juce::String const &word)
+{
+  for (auto const style : allStyles)
+    if (word == pilotWord (style))
+      return style;
+  return std::nullopt;
+}
+
+std::optional<PilotFamily>
+familyOf (PilotStyle style)
+{
+  switch (style)
+    {
+    case PilotStyle::Hard:
+      return PilotFamily::Hard;
+    case PilotStyle::Rising:
+      return PilotFamily::Rising;
+    case PilotStyle::Soft:
+      return PilotFamily::Soft;
+    case PilotStyle::Groove:
+      return PilotFamily::Groove;
+    case PilotStyle::Auto:
+    case PilotStyle::None:
+      return std::nullopt;
+    }
+  return std::nullopt;
+}
+
+bool
+isContrastFigure (PilotGame game)
+{
+  switch (game)
+    {
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
+      return true;
+    case PilotGame::None:
+    case PilotGame::FakeOut:
+    case PilotGame::Formation:
+    case PilotGame::HideAndSeek:
+    case PilotGame::CallAndResponse:
+      return false;
+    }
+  return false;
 }
 
 }

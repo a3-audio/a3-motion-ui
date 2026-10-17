@@ -447,3 +447,12 @@ TEST (LiveBars, AForwardJumpPastTheCatchUpStartsAfresh)
   EXPECT_EQ (bars.reach (bar + 100), LiveBars::catchUpBars);
   EXPECT_EQ (bars.cue ().section, MusicSection::Groove) << "a clock jump, not a stall";
 }
+
+TEST (LiveMood, TheCueSaysTheBarItsSectionBegan)
+{
+  LiveMood mood;
+  auto bar = play (mood, 0, 8, 0.2f);
+  mood.addBar (bar, 0.6f); // bar 8: the drop
+  EXPECT_EQ (mood.cue ().section, MusicSection::Drop);
+  EXPECT_EQ (mood.cue ().sectionStartBar, 8);
+}

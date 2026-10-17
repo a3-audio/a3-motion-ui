@@ -184,14 +184,32 @@
 // ---- PILOT: what the channel's ship is asked to play (FPV only) ----------
 //
 // FULL ignores this section; it is read when the button is pressed in FPV.
-// It starts a game: a figure the ship flies against the guests on the
-// floor, timed to the music -- StemDeck's preview of the set, or without
-// it the room's levels. The game starts at once and lands on the next
-// fitting change (a drop, the end of a breakdown), else on the next 4-bar
-// line. Every shipped script carries the three lines commented out.
+// Every press in FPV asks the channel's ship for a figure, which lands on
+// the next beat (a slap whose next beat is the fourth waits for the 1).
+// The music picks it unless these lines say otherwise: a drop asks for a
+// hit, a build for a rise, a breakdown for something soft, a groove for a
+// conversation -- StemDeck's preview of the set says which, or without it
+// the room's levels. A script with no ~style line (every shipped one)
+// leaves the choice to the music.
 //
+//   ~style                   \auto  \hard  \rising  \soft  \groove  \none
+//                            \auto: the music picks. \hard: a slap -- the
+//                            sound steps between two opposite sides, left
+//                            and right (front and back or up and down when
+//                            the band is bright), two beats a side for two
+//                            bars. \rising: a climb towards the top of the
+//                            band, turning twice as fast every four bars,
+//                            into a slap on the drop StemDeck saw coming.
+//                            \soft: a graze -- a slow pass close by a guest
+//                            group -- or a wide circle round it; with no
+//                            group, or no room to pass one, a hide & seek.
+//                            \groove: two ships answering each other.
+//                            \none: no figure; only the Motion keys fly.
 //   ~game                    \none  \fakeout  \formation  \hideseek
-//                            \callresponse
+//                            \callresponse  \slap  \climb  \graze
+//                            \encircle -- names the figure outright and
+//                            beats ~style. \slap \climb \graze \encircle:
+//                            as under ~style (\encircle is the circle).
 //                            \fakeout: heads for the target through the
 //                            build, veers off a bar before the drop, hits
 //                            it on the 1. \formation: lines up during the
@@ -203,8 +221,8 @@
 //   ~target                  \nearest  \group1 .. \group8  \crowd  \hotspot
 //                            whom it is played against: the nearest guest
 //                            group, the group labelled G1..G8 on the floor,
-//                            or the nearest crowd or hotspot. Fake-out and
-//                            formation only.
+//                            or the nearest crowd or hotspot. Fake-out,
+//                            formation, graze and circle only.
 //   ~with                    \self  \nearest  \all
 //                            which ships the game takes: this channel's
 //                            alone, it and the nearest free ship, or every
@@ -213,13 +231,17 @@
 //                            taken goes back to what it was doing when the
 //                            game ends. A fake-out with several ships flies
 //                            side by side, each on its own lane.
+//                            A slap and a circle take two ships at most,
+//                            the second always on the opposite side; a
+//                            graze takes one.
 //
 // The PILOTS key on the status bar (FPV) says how much the pilots do on
-// their own: OFF, games only from these lines; HINT, a pad lights up in
-// the beat when its game fits the moment the music is in; FLY, pilots
-// start games themselves -- a tap of yours that starts a game, or touches
-// a ship in a pilot's game, takes over at once and sets the key back to
-// HINT; one press takes it to FLY again. Leaving FPV ends every game.
+// their own: OFF, figures only from your presses; HINT, a pad lights up in
+// the beat when its ~game or ~style fits the moment the music is in (a pad
+// that leaves the choice to the music never lights); FLY, pilots climb
+// builds, hit drops and graze breakdowns themselves. A press of yours at
+// FLY takes over its own ship only; the key stays at FLY and the other
+// pilots fly on. Leaving FPV ends every figure.
 //
 // On a flying ship (ORBIT) the Motion keys mean flight, not figure, for as
 // long as the action's accent lasts: ~spin the bars per lap and the way

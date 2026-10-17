@@ -29,7 +29,9 @@ namespace a3
  *
  *  Tags as in FlightTuning: [research] a published finding, [sweep] chosen by
  *  running the figures through this flight model (PilotGamesFlight.cc),
- *  [guess] neither: listen on the rig. The pro-DJ owns these defaults. */
+ *  [lab] the motion-jockey simulation's finding, [practice] club practice,
+ *  [maintainer] the maintainer's decision, [guess] none of these: listen on
+ *  the rig. The pro-DJ owns these defaults. */
 struct GameTuning
 {
   // When a game may land. Each game needs a run-up before its 1.
@@ -101,6 +103,84 @@ struct GameTuning
   float callArcDegrees = 45.f; // one call, a heard bend with room to spare [guess]
   float callRadius = 0.7f;     // the big path's radius
   int exchanges = 2;           // each ship calls this many times
+
+  // ---- Families --------------------------------------------------------
+  // The music asks for a family -- HARD, RISING, SOFT, GROOVE -- and the
+  // floor picks the figure in it. An event is the heard direction starting a
+  // move of at least heardBendDegrees within a beat, or moving again after
+  // standing a beat.
+
+  // At most one event per ship this often [lab: a hypothesis built into the
+  // model's fatigue, so the model cannot test it -- listen].
+  float eventSpacingBeats = 2.f;
+  // StemDeck's energy (0-1, the bar against the set's loud bars) at or above
+  // which a groove asks a press for HARD, and below which it asks for SOFT
+  // [guess]. Only a previewed cue: the live mood's energy is a raw meter
+  // level and carries no threshold.
+  float hardEnergy = 0.75f;
+  float softEnergy = 0.3f;
+  // A pilot slaps only in a drop's first bars, then cruises [maintainer].
+  int hardDropBars = 2;
+  // A pilot's cue that arrives this little after a beat counts as on it: the
+  // music's news reaches the clock a message late [guess].
+  float cueGraceBeats = 0.25f;
+
+  // Slap: an auto-pan as steps between two opposite points, half a beat to
+  // two beats a side; a step reads better than a glide, and every effect
+  // costs a little, so it is an accent, not a routine [lab].
+  int slapBars = 2;              // [maintainer; lab]
+  float slapBeatsPerSide = 2.f;  // the slow end, forced by eventSpacingBeats [lab]
+  // The heard direction glides to a new side over this long: under the ear's
+  // integration time of about 336 ms a glide is heard as a step (Chandler &
+  // Grantham 1992, JASA 91(3) 1624) [research]; 150 / 119 / 86 ms at
+  // 100 / 126 / 174 BPM.
+  float slapGlideBeats = 0.25f;
+  // Up-down glides at this share of the horizontal rate: vertical
+  // localisation is coarser and slower (Saberi & Perrott 1990, JASA 88(6)
+  // 2639) [research; the factor is a guess].
+  float slapVerticalRateFactor = 0.5f;
+  float slapSideRadius = hideRadius; // inside the soft wall at 0.9
+  // How often each axis is thrown. Left-right is the robust one: front-back
+  // is ambiguous below 1 kHz and wants 8-16 kHz, up-down 6-12 kHz
+  // (Langendijk & Bronkhorst 2002, JASA 112(4) 1583) [research; the weights
+  // are a guess].
+  float slapLeftRightWeight = 2.f;
+  float slapFrontBackWeight = 1.f;
+  float slapUpDownWeight = 1.f;
+  // A side another flying ship stands this near is left for another axis:
+  // about two of the ships' separation cores and a margin [guess].
+  float slapClearSide = 0.3f;
+  // The FREQ knob (0-1) from which front-back and up-down slaps are thrown:
+  // both need energy above 6 kHz (Langendijk & Bronkhorst 2002). 0: on at
+  // every band until the knob's Hz are measured [maintainer].
+  float highBandFreq = 0.f;
+
+  // Climb, the riser: a shrinking circle that turns twice as fast on every
+  // 4-bar line counted back from the drop, 8-16 bars long, and lands on the
+  // 1 [practice; lab: a speed change is heard at x2 or not at all].
+  int climbMinBars = 8;             // the shortest previewed build that holds a doubling
+  int climbDoubleEveryBars = 4;
+  float climbStartLapBars = 4.f;    // the cruise's lap [lab]
+  // A lap a bar is the ceiling for a path (Roggerone et al. 2019, Sci Rep
+  // 9:16437) [research].
+  float climbFastestLapBars = 1.f;
+  float climbTopRadius = 0.25f;     // near the middle, the band's top [guess]
+  int climbHoldBars = 8;            // no drop on the 1: hold at the top this long [guess]
+  float climbHoldLapBars = 2.f;     // [guess]
+
+  // Graze: a slow straight pass at a group's escort radius, at cruise pace
+  // (halving it hurt in the model) [lab].
+  float grazePaceFactor = 1.f;
+  float grazeMinSweepDegrees = heardBendDegrees; // Grantham 1986
+  float grazeInnerRadius = 0.3f;     // off the middle, which is overhead [guess]
+  float grazeOuterRadius = hideRadius; // inside the soft wall [guess]
+  int grazeMaxBars = 4;              // the approach shortens past this [guess]
+
+  // Encircle: the escort's circle, widened until it subtends a heard bend
+  // from the middle [research: Grantham 1986]; escort duty at most 4 bars in
+  // 16 [lab]. Its lap is FlightTuning::captureLapBars.
+  float encircleMinDegrees = heardBendDegrees;
+  int encircleBars = 4;
 };
 
 }

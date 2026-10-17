@@ -50,6 +50,7 @@
 //~then = 1;             // 1..6    fires that button when the accent is over
 
 // ---- Pilot -----------------------------------------------------------
-~game = \formation;      //         \none \fakeout \formation \hideseek \callresponse
+//~style = \auto;        //         \auto \hard \rising \soft \groove \none
+~game = \formation;      //         \none \fakeout \formation \hideseek \callresponse \slap \climb \graze \encircle
 //~target = \nearest;    //         \nearest \group1..\group8 \crowd \hotspot
 ~with = \all;            //         \self \nearest \all

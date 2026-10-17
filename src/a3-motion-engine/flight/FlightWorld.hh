@@ -41,8 +41,9 @@ enum class FlightGoal
   Patrol,
   Escort,
   /** ShipOrders::steer, as a game sets it tick by tick. The ship is not
-   *  carried by an action's floor keys and flies through the breath's stop:
-   *  a game's figure is counted in beats of its own. */
+   *  carried by an action's floor keys and flies through the breath's stop
+   *  unless the orders say it breathes: a game's figure is counted in beats
+   *  of its own. */
   Steer
 };
 
@@ -63,6 +64,15 @@ struct ShipOrders
   bool driven = false;
   /** Where a game wants the ship this tick, for FlightGoal::Steer. */
   OrbitPoint steer{};
+  /** Steer only: the ship stands at `steer.at` -- placed there, velocity 0,
+   *  no steering, gravity or wander. The first flying tick without it
+   *  relaunches the ship onto its path, as CLIP -> ORBIT does -- and so does
+   *  the first flying tick after any Steer: the rabbit ran on meanwhile, and
+   *  a chase to it could cross the middle. */
+  bool hold = false;
+  /** Steer only: the breath's stop holds this ship too. A game of the first
+   *  version flies through it: its figure is counted in beats of its own. */
+  bool breathes = false;
 };
 
 /** The four ships in one gravity field.
@@ -139,6 +149,10 @@ private:
   std::array<EscortLeg, flightShips> _escort{};
   std::array<FlightMotion, flightShips> _motion{};
   std::array<float, flightShips> _motionWeight{};
+  /** Per ship, whether it stood at a hold point last tick, and whether a
+   *  game steered it. */
+  std::array<bool, flightShips> _held{};
+  std::array<bool, flightShips> _steered{};
   std::array<juce::Random, flightShips> _dice;
   long long _lastWanderBar = -1;
   bool _breathWanted = false;

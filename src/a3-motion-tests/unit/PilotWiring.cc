@@ -159,16 +159,40 @@ TEST (PilotWiring, TheHintsFollowTheMusicTheLevelAndTheView)
   EXPECT_TRUE (refresh.contains ("hintedButton (_pilotLevel, _view"));
 }
 
-TEST (PilotWiring, ADjsTapTakesOverFromFly)
+TEST (PilotWiring, ADjsPressLeavesFlyOnAndTakesOnlyItsShip)
 {
   auto const route = a3::test::uiComponentBodyOf (
       "A3MotionUIComponent::sendFiredAction (index_t channel,");
   ASSERT_TRUE (route.isNotEmpty ());
-  EXPECT_TRUE (route.contains ("levelAfterTap (_pilotLevel"));
-  EXPECT_TRUE (route.contains ("setPilotLevel ("));
-  // The route that fires a game stays whole.
+  EXPECT_FALSE (route.contains ("setPilotLevel (")) << "a press never changes the level";
   EXPECT_TRUE (route.contains ("pilotOrderAtPress (_view, fired->pilot)"));
   EXPECT_TRUE (route.contains ("_engine.requestGame (channel, *order)"));
+  EXPECT_TRUE (route.contains ("releasingItsShip ()"))
+      << "a press with no figure takes its ship out of a pilot's game";
+}
+
+TEST (PilotWiring, TheReadoutNamesTheFigureThePressWasGiven)
+{
+  auto const announce = a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()");
+  ASSERT_TRUE (announce.isNotEmpty ());
+  EXPECT_TRUE (announce.contains ("pilotReadout ("));
+  EXPECT_TRUE (announce.contains ("_askedPad["));
+}
+
+TEST (PilotWiring, AnAskedPadNameDoesNotOutliveItsPress)
+{
+  auto const announce = a3::test::uiComponentBodyOf ("A3MotionUIComponent::announcePilotGames ()");
+  EXPECT_TRUE (announce.contains ("_askedAtBeat["))
+      << "a style press that yields no game is forgotten after a bar";
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::setView (AppView view)")
+                   .contains ("_askedPad = {}"))
+      << "leaving FPV calls the games off and forgets the pads";
+}
+
+TEST (PilotWiring, APreviewedDropsStartIsKnownToTheHints)
+{
+  EXPECT_TRUE (a3::test::uiComponentBodyOf ("A3MotionUIComponent::pushMusicCue ()")
+                   .contains ("withSectionStart ("));
 }
 
 TEST (PilotWiring, OnlyTheComponentQueuesForTheGames)

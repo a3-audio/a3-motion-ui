@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-engine/flight/FigureStance.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/flight/GameMoments.hh>
 #include <a3-motion-engine/flight/ShipDynamics.hh>
@@ -29,6 +30,7 @@
 #include <JuceHeader.h>
 
 #include <array>
+#include <limits>
 #include <optional>
 
 namespace a3
@@ -72,6 +74,38 @@ struct GamePlan
    *  along the figure, floor units: the core of the push between ships
    *  plus a margin. */
   float laneClearance = 0.f;
+  /** Slap: the two sides, fixed in the room, the first the farther from
+   *  where it opens; the opening's point (the front when it snaps, else the
+   *  leader's place); whether it snaps; how the ear crosses between sides. */
+  std::array<Vec2, 2> sides{};
+  Vec2 opening;
+  bool snaps = false;
+  GlidePath sideGlide = GlidePath::Shortest;
+  /** Climb: whether its 1 is a previewed drop it turns into a Slap on. */
+  bool chainsIntoSlap = false;
+  /** Climb: the radius it starts at; Encircle: its circle's. */
+  float radius = 0.f;
+  /** Graze: the pass's two ends, in at the first; the beat the pass starts
+   *  after the glide to it. Encircle: the lap, in beats. */
+  std::array<Vec2, 2> run{};
+  double passFromBeats = 0.;
+  double lapBeats = 0.;
+};
+
+/** What a contrast figure is told when it is planned, besides the game's
+ *  own setup. The four first games read none of it. */
+struct FigureCall
+{
+  /** When the figure opens; empty: when it is planned. */
+  std::optional<double> openingBeats;
+  /** A Slap opens with the jump to the front. */
+  bool snaps = false;
+  /** A Slap is over by here at the latest: a pilot's drop window. */
+  double endByBeats = std::numeric_limits<double>::infinity ();
+  /** The leader's FREQ knob, 0-1: front-back and up-down want a high band. */
+  float bandFreq = 0.f;
+  /** Which ships fly: a slap's side keeps clear of where they stand. */
+  std::array<bool, flightShips> flying{ true, true, true, true };
 };
 
 /** The id of the body `target` names, as seen from `from`: \nearest the
@@ -99,12 +133,29 @@ GamePlan planGame (PilotGame game, int leader, std::array<bool, flightShips> con
                    std::array<ShipState, flightShips> const &ships, PilotTarget target,
                    FlightBodies const &bodies, MusicCue const &cue, double beats,
                    int beatsPerBar, juce::Random &dice, FlightTuning const &flight,
-                   GameTuning const &tuning);
+                   GameTuning const &tuning, FigureCall const &call = {});
 
 /** What ship `ship` of `plan` steers for at `beats`: a point, and how it
  *  moves when the figure slides it. A ship outside the crew is told to stay
  *  where it started. No allocation: safe on the clock thread. */
 OrbitPoint figureGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
                        GameTuning const &tuning);
+
+/** How ship `ship` of `plan` stands at `beats` besides its point: held, and
+ *  how the ear reaches a new hold point (Slap); whether the breath stops it
+ *  (the contrast figures breathe; the four first games fly through). The
+ *  default outside the crew and before the figure opens. */
+FigureStance figureStance (GamePlan const &plan, int ship, double beats, int beatsPerBar,
+                           GameTuning const &tuning);
+
+/** A goal sliding from `a` to `b` between beats `from` and `to`, with its
+ *  velocity, so the ship follows it at the goal's pace. `b` from `to` on. */
+OrbitPoint glideGoal (Vec2 a, Vec2 b, double beats, double from, double to);
+
+/** A goal sweeping round the middle from `a` to `b` between beats `from`
+ *  and `to`, radius and angle each at an even pace, the way `turning` says
+ *  (+1 counter-clockwise, -1 clockwise) even when the other way is shorter,
+ *  with its velocity. */
+OrbitPoint sweepGoal (Vec2 a, Vec2 b, float turning, double beats, double from, double to);
 
 }

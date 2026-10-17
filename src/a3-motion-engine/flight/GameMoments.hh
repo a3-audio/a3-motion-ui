@@ -24,20 +24,36 @@
 #include <a3-motion-engine/flight/GameTuning.hh>
 #include <a3-motion-engine/preview/MusicCue.hh>
 
+#include <optional>
+
 namespace a3
 {
 
-/** The games whose moment is open in a bar. */
+/** The games whose moment is open in a bar, and the family the music asks
+ *  a pilot for in it. */
 struct FittingGames
 {
   bool fakeOut = false;
   bool formation = false;
   bool hideAndSeek = false;
   bool callAndResponse = false;
+  bool slap = false;
+  bool climb = false;
+  bool graze = false;
+  bool encircle = false;
+  /** Nothing while the music is quiet, or past a drop's first bars. */
+  std::optional<PilotFamily> family;
 
   bool has (PilotGame game) const;
   bool any () const;
+  /** Whether a figure of `family` would be played now. */
+  bool fits (PilotFamily family) const;
 };
+
+/** A climb fits a build heading for a drop that is far enough: a previewed
+ *  one climbMinBars or more away, one the room heard (the live mood's next
+ *  line) a bar or more. */
+bool climbFits (MusicCue const &cue, long long bar, GameTuning const &tuning);
 
 /** How long before its 1 a game must start, in beats: the run-up its figure
  *  needs. */
@@ -59,5 +75,21 @@ double afterClimaxBeats (PilotGame game, int beatsPerBar, GameTuning const &tuni
  *  from the bar's downbeat; nothing while the music is quiet. */
 FittingGames fittingGames (MusicCue const &cue, long long bar, int beatsPerBar,
                            GameTuning const &tuning);
+
+/** The first beat at least eventSpacingBeats after `after` that a slap may
+ *  step on: a line slapBeatsPerSide apart counted from the bar's 1 (beats 1
+ *  and 3 in 4/4), never the breath's beat. */
+double nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning);
+
+/** The beat a figure asked for at `beats` opens on. The four first games:
+ *  `beats` itself -- they start at once and land on their own 1. A contrast
+ *  figure: the next beat, a beat itself when on one (the rule a pad press
+ *  follows, TempoClock::nextBeat), or the beat just passed when that is at
+ *  most `graceBeats` ago; a Slap whose beat is the breath's opens on the
+ *  following 1. */
+double openingBeats (PilotGame game, double beats, int beatsPerBar, double graceBeats);
+
+/** Whether `beats` is a bar's 1. */
+bool isDownbeat (double beats, int beatsPerBar);
 
 }

@@ -56,21 +56,6 @@ TEST (PilotKey, FullShowsTheLevelDimmedAndQuiet)
     }
 }
 
-TEST (PilotKey, AtFlyADjsGameOrATouchedPilotsShipTakesOver)
-{
-  EXPECT_EQ (levelAfterTap (PilotLevel::Fly, true, false), PilotLevel::Hint);
-  EXPECT_EQ (levelAfterTap (PilotLevel::Fly, false, true), PilotLevel::Hint);
-  EXPECT_EQ (levelAfterTap (PilotLevel::Fly, true, true), PilotLevel::Hint);
-  EXPECT_EQ (levelAfterTap (PilotLevel::Fly, false, false), PilotLevel::Fly)
-      << "an action on a ship no pilot is playing with leaves FLY alone";
-}
-
-TEST (PilotKey, BelowFlyATapChangesNoLevel)
-{
-  for (auto const level : { PilotLevel::Off, PilotLevel::Hint })
-    EXPECT_EQ (levelAfterTap (level, true, true), level);
-}
-
 TEST (PilotKey, TheReadoutsSayItInCapitals)
 {
   EXPECT_EQ (pilotLevelReadout (PilotLevel::Hint), "-- PILOTS HINT");

@@ -44,12 +44,6 @@ struct PilotKeyFace
 
 PilotKeyFace pilotKeyFace (PilotLevel level, bool fpv);
 
-/** The level after a DJ's tap in FPV. At FLY, firing a game (a `\none`
- *  too), or firing anything at a ship a pilot is playing with, takes over:
- *  the pilots step back to HINT, which ends their games, and FLY is one
- *  deliberate press of the key away. Below FLY a tap changes no level. */
-PilotLevel levelAfterTap (PilotLevel level, bool firesAGame, bool shipInAPilotsGame);
-
 /** "-- PILOTS OFF", "-- PILOTS HINT", "-- PILOTS FLY". */
 juce::String pilotLevelReadout (PilotLevel level);
 

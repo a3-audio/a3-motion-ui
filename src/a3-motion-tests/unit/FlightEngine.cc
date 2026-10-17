@@ -31,7 +31,9 @@
 #include <a3-motion-engine/Pattern.hh>
 #include <a3-motion-engine/PilotOrder.hh>
 #include <a3-motion-engine/elevation/HeightMapSphere.hh>
+#include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/flight/FlightField.hh>
+#include <a3-motion-engine/flight/SlapGlide.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/preview/MusicCue.hh>
 
@@ -81,15 +83,6 @@ oneGroup ()
   bodies.count = 1;
   bodies.body[0] = { { -0.4f, 0.3f }, 1.f, 1 };
   return bodies;
-}
-
-double
-degreesBetween (Pos const &a, Pos const &b)
-{
-  auto const dot = a.x () * b.x () + a.y () * b.y () + a.z () * b.z ();
-  auto const lengths = a.distance () * b.distance ();
-  auto const cosine = std::clamp (static_cast<double> (dot / lengths), -1., 1.);
-  return std::acos (cosine) * 180. / juce::MathConstants<double>::pi;
 }
 
 /** What channels 0 and 1 looked like after the engine's tick: the handler is
@@ -155,7 +148,8 @@ private:
 struct Flight
 {
   explicit Flight (index_t sending = 99,
-                   std::function<void (Pattern &)> const &shape = {})
+                   std::function<void (Pattern &)> const &shape = {},
+                   GameTuning const &gameTuning = {})
   {
     if (shape)
       {
@@ -164,7 +158,7 @@ struct Flight
       }
     auto owned = std::make_unique<OfflineBackend> ();
     backend = owned.get ();
-    engine = std::make_unique<MotionEngine> (4, heightMap, std::move (owned));
+    engine = std::make_unique<MotionEngine> (4, heightMap, std::move (owned), gameTuning);
     for (index_t channel = 0; channel < 4; ++channel)
       engine->setPreviewMode (channel, channel != sending);
     engine->setTempoBPM (bpm);
@@ -742,6 +736,35 @@ TEST (FlightEngine, TheDjsPagePressTakesAShipOutOfItsGame)
   EXPECT_TRUE (flight.engine->gameOf (0).has_value ()) << "the rest play on";
 }
 
+TEST (FlightEngine, ANoneOnAPilotsShipEndsItsFigureAndFlyStays)
+{
+  // A groove opens its call & response moment on the first bars of every
+  // sixteen; here it is open at every bar, so the test waits for no bar.
+  GameTuning alwaysOpen;
+  alwaysOpen.grooveWindowBars = alwaysOpen.grooveEveryBars;
+  Flight flight (99, {}, alwaysOpen);
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->setFlightMode (1, FlightMode::Orbit);
+  auto groove = headingFor (MusicSection::Groove, MusicSection::Groove, 0);
+  groove.next.reset ();
+  flight.engine->setMusicCue (groove);
+  flight.engine->setPilotLevel (PilotLevel::Fly);
+  ASSERT_TRUE (waitUntil (
+      [&] {
+        auto const leader = flight.engine->gameOf (0);
+        auto const partner = flight.engine->gameOf (1);
+        return leader && leader->byPilot && leader->game == PilotGame::CallAndResponse && partner;
+      },
+      3000));
+  PilotOrder none;
+  none.game = PilotGame::None;
+  flight.engine->requestGame (0, none);
+  EXPECT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (0).has_value (); }));
+  EXPECT_TRUE (flight.engine->gameOf (1).has_value ()) << "only that ship leaves";
+  EXPECT_EQ (flight.engine->getPilotLevel (), PilotLevel::Fly);
+}
+
 TEST (FlightEngine, CallingOffEndsEveryGameAndDropsWhatWaits)
 {
   Flight flight;
@@ -771,7 +794,7 @@ TEST (FlightEngine, AtFlyAPilotStartsAGameOfItsOwnAndStopsBelowIt)
   ASSERT_TRUE (waitUntil (
       [&] {
         auto const game = flight.engine->gameOf (0);
-        return game && game->byPilot && game->game == PilotGame::HideAndSeek;
+        return game && game->byPilot && game->game == PilotGame::Graze;
       },
       3000));
   EXPECT_FALSE (flight.engine->gameOf (1).has_value ()) << "a pilot takes no ship off its clip";
@@ -866,4 +889,81 @@ TEST (FlightEngine, AShipInAGameIsSparedItsTargetsPull)
   EXPECT_NEAR (place.x, 0.4f, 0.1f) << "not lined up on the group's side";
   EXPECT_GT (floorPointOf (flight, aBeatLater->orbit).getDistanceFrom (place), 0.25f)
       << "held at its place by the group's pull through the burst beat";
+}
+
+// A slap holds its ship still at a side; the heard direction stands as still
+// as the ship. When the side changes, the ear is led to the new one in the
+// glide's own length and stands there: a run of movement between two stands
+// is never longer than the longest glide.
+
+namespace
+{
+constexpr double standStill = 0.01; // degrees a tick
+
+/** One run of movement between two stands: how many ticks it took, and the
+ *  angle between the two stands. */
+struct Glide
+{
+  size_t ticks = 0;
+  double degrees = 0.;
+};
+
+/** The runs of movement that start from a stand and end in one again. A run
+ *  still going when the samples end is the hand-back to the ship's own flight
+ *  and does not count. A ship held on its very first tick has no heard
+ *  history to glide from: it is turn-limited onto its first side, by design,
+ *  and that approach is not a run either (it has no stand before it). */
+std::vector<Glide>
+glidesBetweenStands (std::vector<Sample> const &samples)
+{
+  std::vector<Glide> found;
+  size_t run = 0;
+  size_t lastStand = 0;
+  auto stood = false;
+  for (size_t i = 1; i < samples.size (); ++i)
+    {
+      auto const still = degreesBetween (samples[i - 1].orbit, samples[i].orbit) < standStill;
+      if (!still)
+        {
+          if (stood)
+            ++run;
+          continue;
+        }
+      if (run > 0)
+        found.push_back ({ run, degreesBetween (samples[lastStand].orbit, samples[i].orbit) });
+      run = 0;
+      lastStand = i;
+      stood = true;
+    }
+  return found;
+}
+}
+
+TEST (FlightEngine, ASlapIsHeardOnItsSideAGlideAfterItsStep)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  juce::Thread::sleep (300);
+  TickRecorder recorder (*flight.engine);
+  flight.engine->requestGame (0, playing (PilotGame::Slap));
+  ASSERT_TRUE (waitUntil ([&] { return flight.engine->gameOf (0).has_value (); }));
+  ASSERT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (0).has_value (); }, 6000));
+  auto const samples = recorder.samples ();
+  ASSERT_TRUE (contiguous (samples)) << "ticks were missed while sampling";
+  GameTuning const tuning;
+  auto const ticksPerBeat = static_cast<double> (TempoClock::getTicksPerBeat ());
+  auto const horizontalTicks = slapGlideLength (GlidePath::ViaFront, tuning) * ticksPerBeat;
+  auto const verticalTicks = slapGlideLength (GlidePath::Vertical, tuning) * ticksPerBeat;
+  auto const takes = [] (size_t ticks, double glideTicks) {
+    return std::abs (static_cast<double> (ticks) - glideTicks) <= 2.;
+  };
+  // The glide, not the turn limit, paces the ear: a wide step would take the
+  // limit far longer than the glide, a narrow up-down one far less. Either
+  // way the run is as long as the glide of its path.
+  auto const glides = glidesBetweenStands (samples);
+  for (auto const &glide : glides)
+    EXPECT_TRUE (takes (glide.ticks, horizontalTicks) || takes (glide.ticks, verticalTicks))
+        << "a " << glide.degrees << " deg step took " << glide.ticks << " ticks";
+  EXPECT_FALSE (glides.empty ()) << "the slap changed sides at least once";
 }

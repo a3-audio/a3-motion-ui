@@ -31,10 +31,12 @@
 #include <a3-motion-engine/flight/FlightBodiesBox.hh>
 #include <a3-motion-engine/flight/FlightMotion.hh>
 #include <a3-motion-engine/flight/FlightTuning.hh>
+#include <a3-motion-engine/flight/GameTuning.hh>
 #include <a3-motion-engine/flight/FlightWorld.hh>
 #include <a3-motion-engine/flight/PilotDesk.hh>
 #include <a3-motion-engine/flight/PilotGames.hh>
 #include <a3-motion-engine/flight/PilotLevel.hh>
+#include <a3-motion-engine/flight/SlapGlide.hh>
 #include <a3-motion-engine/preview/MusicCue.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Helpers.hh>
@@ -72,9 +74,11 @@ public:
   MotionEngine (index_t numChannels, HeightMap &heightMap);
 
   /** The same engine, sending through `backend` instead of to A3 Core's
-   *  default OSC backend. */
+   *  default OSC backend. `gameTuning` is for tests that need a moment the
+   *  music opens only now and then (a groove's window) open at any bar,
+   *  without waiting on the clock for it. */
   MotionEngine (index_t numChannels, HeightMap &heightMap,
-                std::unique_ptr<SpatBackend> backend);
+                std::unique_ptr<SpatBackend> backend, GameTuning const &gameTuning = {});
 
   /** New OSC addresses, e.g. after config.json was edited on the device.
    *  Reaches the backend on its own thread — see AsyncCommandQueue. */
@@ -823,13 +827,16 @@ private:
    *  turn limit still holds it back. Clock thread only. */
   std::vector<Pos> _lastHeard;
   std::vector<char> _turnTrailing;
+  /** Per ship, the slap glide leading its heard direction to a new side;
+   *  clock thread only. */
+  std::array<SlapGlider, flightShips> _slapGlides{};
   /** The pilots' pending game requests (clock thread), and what any thread
    *  may read of them: the game as an int, -1 for none. */
   PilotDesk _pilotDesk;
   std::vector<std::atomic<int>> _pendingGameView;
   /** The games: the clock thread's alone, like the desk. `_musicCue` is the
    *  newest cue the message thread sent. */
-  GameTuning const _gameTuning{};
+  GameTuning const _gameTuning;
   PilotGames _games{ /* seed */ 2, _flightTuning, _gameTuning };
   MusicCue _musicCue{};
   std::atomic<int> _pilotLevel{ static_cast<int> (PilotLevel::Off) };

@@ -66,6 +66,14 @@ gameWord (PilotGame game)
       return "HIDE";
     case PilotGame::CallAndResponse:
       return "CALL";
+    case PilotGame::Slap:
+      return "SLAP";
+    case PilotGame::Climb:
+      return "CLIMB";
+    case PilotGame::Graze:
+      return "GRAZE";
+    case PilotGame::Encircle:
+      return "CIRCLE";
     case PilotGame::None:
       return {};
     }

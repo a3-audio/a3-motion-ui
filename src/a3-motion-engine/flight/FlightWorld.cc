@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/BaseOrbit.hh>
 #include <a3-motion-engine/flight/Breath.hh>
+#include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/util/Geometry.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
@@ -154,8 +155,40 @@ FlightWorld::step (std::array<ShipOrders, flightShips> const &orders,
   auto const holds = _breathing && inTheStop;
   auto const moves = [&orders, holds] (int ch) {
     auto const &order = orders[index (ch)];
-    return order.flying && (!holds || order.goal == FlightGoal::Steer);
+    if (!order.flying || order.hold)
+      return false;
+    return !holds || (order.goal == FlightGoal::Steer && !order.breathes);
   };
+
+  // A held ship is placed, not flown: it stands where its figure says and
+  // pushes the others from there. Let go, or out of its game, it takes off
+  // along its path from where it stands: its rabbit ran on meanwhile, maybe
+  // to the far side, and a chase there would cross the middle.
+  for (auto ch = 0; ch < flightShips; ++ch)
+    {
+      auto const &order = orders[index (ch)];
+      auto &held = _held[index (ch)];
+      auto &steered = _steered[index (ch)];
+      if (!order.flying)
+        {
+          held = false;
+          steered = false;
+          continue;
+        }
+      auto const steering = order.goal == FlightGoal::Steer;
+      if (order.hold)
+        {
+          _ships[index (ch)] = { order.steer.at, {} };
+          held = true;
+          steered = steering;
+          continue;
+        }
+      auto const letGo = held || (steered && !steering);
+      held = false;
+      steered = steering;
+      if (letGo)
+        launch (ch, _ships[index (ch)].p, beats, beatsPerBar);
+    }
 
   // Every ship's pulls are taken from where the others were before this
   // tick, so the order the four are stepped in does not matter.
@@ -279,20 +312,11 @@ FlightWorld::escortGoal (int ch, FlightBody const &body, double beats,
                          int beatsPerBar) const
 {
   auto const &leg = _escort[index (ch)];
-  auto const radius = escortRadius (body.mass, _tuning);
   auto const lap = static_cast<double> (_tuning.captureLapBars) * beatsPerBar;
   // no lap (<= 0 bars): the goal stands where the ship came in, as a
   // rabbit stands at its slot when orbitLapBars is not positive
-  auto const turns = lap > 0. ? (beats - leg.startBeats) / lap : 0.;
-  auto const angle = leg.startAngle
-                     + leg.direction * 2.f * pi<float> ()
-                           * static_cast<float> (turns - std::floor (turns));
-  auto const rate = lap > 0. ? leg.direction * 2.f * pi<float> ()
-                                   / static_cast<float> (lap)
-                             : 0.f;
-  Vec2 const out{ std::cos (angle), std::sin (angle) };
-  Vec2 const along{ -out.y, out.x };
-  return { body.at + out * radius, along * (radius * rate) };
+  return circleGoal (body.at, escortRadius (body.mass, _tuning), lap, leg.startAngle,
+                     leg.direction, beats, leg.startBeats);
 }
 
 OrbitPoint

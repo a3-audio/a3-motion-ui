@@ -30,12 +30,26 @@
 namespace a3
 {
 
-/** What an action's Pilot section asks for at a press: in FPV the whole
- *  order goes to the channel's pilot; FULL ignores the section, because the
- *  games are played on the floor FPV shows. Nothing when the script names no
- *  game. The motion keys are not decided here: they fly a ship by its mode
- *  (ORBIT), in either view. */
+/** What an action's Pilot section asks for at a press. FPV: every press
+ *  asks -- the order as written when it names a game (\none too); with no
+ *  game, its style, \auto when none is written (the music picks); nothing
+ *  for \none as a style, which leaves only the floor keys. FULL ignores the
+ *  section: the games are played on the floor FPV shows. The motion keys
+ *  are not decided here: they fly a ship by its mode (ORBIT), in either
+ *  view. */
 std::optional<PilotOrder> pilotOrderAtPress (AppView view, PilotOrder const &order);
+
+/** What a press with no figure sends for its ship when a pilot plays with
+ *  it: \none, which takes that ship alone out of the pilot's game. */
+PilotOrder releasingItsShip ();
+
+/** The readout of a press that left the figure to its style: "CH1 A3 AUTO",
+ *  until the figure chosen is known (pilotReadout). */
+juce::String pilotStyleReadout (int channel, juce::String const &padName, PilotStyle style);
+
+/** A game as the readouts write it: its word in capitals, but CIRCLE for an
+ *  encircle, as the label under the ship says it. */
+juce::String readoutWord (PilotGame game);
 
 /** The readout after a press that asked a game: "CH1 A3 GAME FAKEOUT", and
  *  "CH1 A3 NO GAME" for a \none that calls one off. */

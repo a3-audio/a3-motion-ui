@@ -128,9 +128,10 @@ MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap)
 }
 
 MotionEngine::MotionEngine (index_t numChannels, HeightMap &heightMap,
-                            std::unique_ptr<SpatBackend> backend)
+                            std::unique_ptr<SpatBackend> backend, GameTuning const &gameTuning)
     : _heightMap (heightMap),
-      _commandQueue (requireBackend (std::move (backend)))
+      _commandQueue (requireBackend (std::move (backend))),
+      _gameTuning (gameTuning)
 {
   createChannels (numChannels);
 
@@ -1209,7 +1210,11 @@ MotionEngine::handleFifoMessage (Message const &message)
       }
     case Message::Command::SetMusicCue:
       {
-        _musicCue = message.cue;
+        // The bar a section began is what a pilot counts a drop's first bars
+        // from; StemDeck sends only what comes next.
+        _musicCue = withSectionStart (
+            message.cue, _musicCue,
+            nearestDownbeatBar (beatsNow (), _tempoClock.getBeatsPerBar ()));
         break;
       }
     case Message::Command::CallOffGames:
@@ -2193,6 +2198,7 @@ MotionEngine::performFlight ()
 
   std::array<ShipOrders, flightShips> orders{};
   std::array<ElevationParams, flightShips> flyingBand{};
+  std::array<FigureStance, flightShips> stances{};
 
   auto const ships
       = std::min (_channels.size (), static_cast<std::size_t> (flightShips));
@@ -2233,6 +2239,7 @@ MotionEngine::performFlight ()
           startGlideIn (ch);
           _lastHeard[ch] = Pos::invalid;
           _turnTrailing[ch] = 0;
+          _slapGlides[ch].reset ();
         }
       _flightModeSeen[ch] = FlightMode::Orbit;
 
@@ -2243,8 +2250,12 @@ MotionEngine::performFlight ()
       // group the game is played against, as an escort is its own: the
       // world spares only the body the orders name.
       if (auto const steer = _games.steerOf (static_cast<int> (ch), beats, beatsPerBar))
-        orders[ch] = { true, FlightGoal::Steer, _games.gameOf (static_cast<int> (ch))->target,
-                       _flightMotion[ch], driven, *steer };
+        {
+          auto const stance = _games.stanceOf (static_cast<int> (ch), beats, beatsPerBar);
+          orders[ch] = { true, FlightGoal::Steer, _games.gameOf (static_cast<int> (ch))->target,
+                         _flightMotion[ch], driven, *steer, stance.hold, stance.breathes };
+          stances[ch] = stance;
+        }
       else
         orders[ch] = { true,
                        target == noBodyId ? FlightGoal::Patrol : FlightGoal::Escort,
@@ -2268,7 +2279,12 @@ MotionEngine::performFlight ()
       auto const shaped = heardShip (mapped, _flight.motion (shipIndex),
                                      _flight.motionWeight (shipIndex), beats,
                                      beatsPerBar, _flightTuning);
-      auto const heard = turnLimitedHeard (ch, shaped);
+      // A slap's step is heard as a step: the glide to its side is the one
+      // move the 180 deg/beat limit does not hold, and it lands where the
+      // limit takes over again.
+      auto const glided
+          = _slapGlides[ch].step (stances[ch], p, _lastHeard[ch], shaped, beats, _gameTuning);
+      auto const heard = glided ? *glided : turnLimitedHeard (ch, shaped);
       _lastHeard[ch] = heard;
       auto const written = glideIntoTheFlight (ch, heard);
       _channels[ch]->setPosition (written);
@@ -2310,9 +2326,16 @@ MotionEngine::postGame (index_t channel, PilotOrder const &order)
   request.postedBeats = beatsNow ();
   _pilotDesk.post (request);
   // \none written out calls off what its ship is doing: a request still
-  // waiting, and the game it plays in.
+  // waiting, and the game it plays in -- a DJ's game for all its ships, a
+  // pilot's for this ship alone, so the other pilots fly on.
   if (order.game && *order.game == PilotGame::None)
-    _games.endGameOn (static_cast<int> (channel));
+    {
+      auto const game = _games.gameOf (static_cast<int> (channel));
+      if (game && game->byPilot)
+        _games.release (static_cast<int> (channel));
+      else
+        _games.endGameOn (static_cast<int> (channel));
+    }
   publishGames ();
 }
 
@@ -2367,6 +2390,9 @@ MotionEngine::gameShips () const
       // a ship it borrowed from its clip still reads CLIP here.
       ship.now = { getFlightMode (ch) == FlightMode::Orbit,
                    _flightTarget[ch].load (std::memory_order_relaxed) };
+      // The knob as the DJ set it, not an accent's sweep of it: it gates which
+      // slap axes the music may throw.
+      ship.bandFreq = _channels[ch]->getPot1 ();
       if (_flightModeSeen[ch] == FlightMode::Orbit)
         ship.state = _flight.ship (static_cast<int> (ch));
       else if (playing != nullptr)
@@ -2399,8 +2425,11 @@ MotionEngine::publishGames ()
       _gameView[ch].store (encodeGame (_games.gameOf (static_cast<int> (ch))),
                            std::memory_order_relaxed);
       auto const pending = _pilotDesk.pending (static_cast<int> (ch));
-      _pendingGameView[ch].store (pending ? static_cast<int> (*pending->order.game) : -1,
-                                  std::memory_order_relaxed);
+      // A pending style is chosen into a figure when the clock takes it:
+      // until then it shows as no game.
+      _pendingGameView[ch].store (
+          pending ? static_cast<int> (pending->order.game.value_or (PilotGame::None)) : -1,
+          std::memory_order_relaxed);
     }
 }
 

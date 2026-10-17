@@ -162,6 +162,7 @@ LiveMood::cue () const
   cue.section = _section;
   cue.energy = newest ();
   cue.previewed = false;
+  cue.sectionStartBar = _since;
 
   // the next line strictly after the running bar, even when it sits on one
   auto const running = std::max (0LL, _lastBar + 1);

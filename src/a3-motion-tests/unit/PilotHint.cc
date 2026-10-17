@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <a3-motion-engine/preview/MusicCue.hh>
 #include <a3-motion-ui/components/ControllerComponent.hh>
 #include <a3-motion-ui/components/fpv/PilotHint.hh>
 #include <a3-motion-ui/io/PadFunctions.hh>
@@ -39,7 +40,7 @@ using namespace a3;
 
 namespace
 {
-using Games = std::array<std::optional<PilotGame>, numActionButtons>;
+using Asks = std::array<PadAsk, numActionButtons>;
 
 FittingGames
 buildingToADrop ()
@@ -50,13 +51,31 @@ buildingToADrop ()
   return fitting;
 }
 
-Games
+Asks
 withGames (std::initializer_list<std::pair<int, PilotGame>> buttons)
 {
-  Games games{};
+  Asks asks{};
   for (auto const &[button, game] : buttons)
-    games[static_cast<size_t> (button)] = game;
-  return games;
+    asks[static_cast<size_t> (button)].game = game;
+  return asks;
+}
+
+Asks
+withStyles (std::initializer_list<std::pair<int, PilotStyle>> buttons)
+{
+  Asks asks{};
+  for (auto const &[button, style] : buttons)
+    asks[static_cast<size_t> (button)].style = style;
+  return asks;
+}
+
+FittingGames
+aDropsFirstBars ()
+{
+  FittingGames fitting;
+  fitting.slap = true;
+  fitting.family = PilotFamily::Hard;
+  return fitting;
 }
 }
 
@@ -80,10 +99,61 @@ TEST (PilotHint, OnlyAnActionCarryingAFittingGameLights)
 {
   auto const none = withGames ({ { 0, PilotGame::None }, { 2, PilotGame::CallAndResponse } });
   EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, buildingToADrop (), true, none), -1);
-  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, buildingToADrop (), true, Games{}), -1);
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, buildingToADrop (), true, Asks{}), -1);
   EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, FittingGames{}, true,
                            withGames ({ { 0, PilotGame::FakeOut } })),
              -1);
+}
+
+TEST (PilotHint, AnExplicitStyleLightsWhenItsFamilyFits)
+{
+  auto const asks = withStyles ({ { 2, PilotStyle::Hard } });
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, aDropsFirstBars (), true, asks), 2);
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, buildingToADrop (), true, asks), -1);
+}
+
+TEST (PilotHint, AnActionThatLeavesItToTheMusicNeverLights)
+{
+  // It would fit always and light every pad.
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, aDropsFirstBars (), true,
+                           withStyles ({ { 0, PilotStyle::Auto }, { 1, PilotStyle::None } })),
+             -1);
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, aDropsFirstBars (), true, Asks{}), -1);
+}
+
+TEST (PilotHint, AContrastFigureNamedLightsInItsMoment)
+{
+  EXPECT_EQ (hintedButton (PilotLevel::Hint, AppView::Fpv, aDropsFirstBars (), true,
+                           withGames ({ { 4, PilotGame::Slap } })),
+             4);
+}
+
+TEST (PilotHint, AHardStyleLightsInAPreviewedDropsFirstBarsAnAutoOneNever)
+{
+  // A preview names only what comes next; the UI works out where the drop
+  // began (withSectionStart) and the fitting needs that bar.
+  MusicCue build;
+  build.section = MusicSection::Build;
+  build.next = MusicSection::Drop;
+  build.changeBar = 32;
+  build.previewed = true;
+  build.energy = 0.9f;
+  MusicCue drop;
+  drop.section = MusicSection::Drop;
+  drop.previewed = true;
+  drop.energy = 0.9f;
+  GameTuning const tuning;
+  auto const hard = withStyles ({ { 3, PilotStyle::Hard } });
+  auto const autoStyled = withStyles ({ { 3, PilotStyle::Auto } });
+  auto const at = [&] (MusicCue const &cue, long long bar, Asks const &asks) {
+    return hintedButton (PilotLevel::Hint, AppView::Fpv, fittingGames (cue, bar, 4, tuning), true,
+                         asks);
+  };
+  EXPECT_EQ (at (drop, 33, hard), -1) << "a drop whose start nobody knows lights nothing";
+  auto const known = withSectionStart (drop, build, 33);
+  EXPECT_EQ (at (known, 33, hard), 3);
+  EXPECT_EQ (at (known, 33, autoStyled), -1);
+  EXPECT_EQ (at (known, 33, Asks{}), -1);
 }
 
 TEST (PilotHint, AHintedPadPulsesOnTheBeatInThePilotsColour)

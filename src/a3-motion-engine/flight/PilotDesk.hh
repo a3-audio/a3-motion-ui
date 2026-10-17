@@ -33,7 +33,7 @@ namespace a3
 {
 
 /** A game an action asked a pilot for (an action posts it, the game
- *  that starts takes it). `order.game` is set; `leader` is the channel whose
+ *  that starts takes it). `order.game` or `order.style` is set; `leader` is the channel whose
  *  action asked. */
 struct GameRequest
 {
@@ -79,7 +79,7 @@ class PilotDesk
 {
 public:
   /** A request whose game is None calls off the leader's pending one; a
-   *  request without a game, or for a ship outside the four, is ignored. */
+   *  request without a game or a style, or for a ship outside the four, is ignored. */
   void post (GameRequest request);
   std::optional<GameRequest> pending (int ship) const;
   /** The pending request, removed -- what whoever starts a game calls. */

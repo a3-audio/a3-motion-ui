@@ -20,6 +20,10 @@
 
 #include "GameMoments.hh"
 
+#include <a3-motion-engine/flight/Breath.hh>
+#include <a3-motion-engine/flight/PilotFamily.hh>
+
+#include <algorithm>
 #include <cmath>
 
 namespace a3
@@ -53,6 +57,10 @@ landsOnTheChange (PilotGame game, MusicCue const &cue)
       return cue.section == MusicSection::Breakdown && cue.next && cue.changeBar >= 0;
     case PilotGame::None:
     case PilotGame::CallAndResponse:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return false;
     }
   return false;
@@ -72,6 +80,14 @@ FittingGames::has (PilotGame game) const
       return hideAndSeek;
     case PilotGame::CallAndResponse:
       return callAndResponse;
+    case PilotGame::Slap:
+      return slap;
+    case PilotGame::Climb:
+      return climb;
+    case PilotGame::Graze:
+      return graze;
+    case PilotGame::Encircle:
+      return encircle;
     case PilotGame::None:
       return false;
     }
@@ -81,7 +97,34 @@ FittingGames::has (PilotGame game) const
 bool
 FittingGames::any () const
 {
-  return fakeOut || formation || hideAndSeek || callAndResponse;
+  return fakeOut || formation || hideAndSeek || callAndResponse || slap || climb || graze
+         || encircle;
+}
+
+bool
+FittingGames::fits (PilotFamily wanted) const
+{
+  switch (wanted)
+    {
+    case PilotFamily::Hard:
+      return slap;
+    case PilotFamily::Rising:
+      return climb || fakeOut || formation;
+    case PilotFamily::Soft:
+      return graze || hideAndSeek;
+    case PilotFamily::Groove:
+      return callAndResponse;
+    }
+  return false;
+}
+
+bool
+climbFits (MusicCue const &cue, long long bar, GameTuning const &tuning)
+{
+  if (!headsFor (cue, MusicSection::Build, MusicSection::Drop))
+    return false;
+  auto const least = cue.previewed ? static_cast<long long> (tuning.climbMinBars) : 1LL;
+  return cue.changeBar - bar >= least;
 }
 
 double
@@ -99,6 +142,10 @@ minLeadBeats (PilotGame game, int beatsPerBar, GameTuning const &tuning)
     case PilotGame::CallAndResponse:
       return tuning.callGatherBars * bar;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return 0.;
     }
   return 0.;
@@ -141,6 +188,10 @@ afterClimaxBeats (PilotGame game, int beatsPerBar, GameTuning const &tuning)
     case PilotGame::HideAndSeek:
       return tuning.afterClimaxBars * bar;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return 0.;
     }
   return 0.;
@@ -186,7 +237,51 @@ fittingGames (MusicCue const &cue, long long bar, int beatsPerBar, GameTuning co
     case MusicSection::Drop:
       break;
     }
+
+  out.family = pilotFamily (cue, bar, Asker::Pilot, tuning);
+  out.slap = out.family == PilotFamily::Hard;
+  out.climb = out.family == PilotFamily::Rising && climbFits (cue, bar, tuning);
+  out.graze = out.family == PilotFamily::Soft;
+  out.encircle = out.graze;
   return out;
+}
+
+double
+nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning)
+{
+  auto const earliest = after + static_cast<double> (tuning.eventSpacingBeats);
+  if (beatsPerBar <= 0)
+    return earliest;
+  auto const bar = static_cast<double> (beatsPerBar);
+  auto const step = std::max (0.25, static_cast<double> (tuning.slapBeatsPerSide));
+  // The bar's 1 is always a line and never the breath's, so two bars hold one.
+  auto const first = std::floor (earliest / bar);
+  for (auto b = first; b <= first + 2.; b += 1.)
+    for (auto at = 0.; at < bar - 1e-9; at += step)
+      {
+        auto const beat = b * bar + at;
+        if (beat + 1e-9 >= earliest && !breathHolds (beat, beatsPerBar))
+          return beat;
+      }
+  return (first + 3.) * bar;
+}
+
+double
+openingBeats (PilotGame game, double beats, int beatsPerBar, double graceBeats)
+{
+  if (!isContrastFigure (game) || beatsPerBar <= 0)
+    return beats;
+  auto const whole = std::floor (beats);
+  auto beat = beats - whole <= graceBeats ? whole : std::ceil (beats);
+  if (game == PilotGame::Slap && breathHolds (beat, beatsPerBar))
+    beat = (std::floor (beat / beatsPerBar) + 1.) * beatsPerBar;
+  return beat;
+}
+
+bool
+isDownbeat (double beats, int beatsPerBar)
+{
+  return beatsPerBar > 0 && std::abs (std::fmod (beats, static_cast<double> (beatsPerBar))) < 1e-9;
 }
 
 }

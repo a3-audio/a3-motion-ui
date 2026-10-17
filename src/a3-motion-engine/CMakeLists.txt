@@ -151,6 +151,7 @@ target_sources("a3-motion-engine" PRIVATE
     flight/BeatPulse.cc
     flight/BeatPulse.hh
     flight/Breath.hh
+    flight/FigureStance.hh
     flight/BaseOrbit.cc
     flight/BaseOrbit.hh
     flight/ShipDynamics.cc
@@ -166,8 +167,19 @@ target_sources("a3-motion-engine" PRIVATE
     flight/GameTuning.hh
     flight/GameMoments.cc
     flight/GameMoments.hh
+    flight/PilotFamily.cc
+    flight/PilotFamily.hh
     flight/GameFigures.cc
     flight/GameFigures.hh
+    flight/ClimbFigure.cc
+    flight/ClimbFigure.hh
+    flight/SlapFigure.cc
+    flight/SlapFigure.hh
+    flight/SoftFigures.cc
+    flight/SoftFigures.hh
+    flight/SlapGlide.cc
+    flight/SlapGlide.hh
+    flight/FigureMath.hh
     flight/PilotLevel.cc
     flight/PilotLevel.hh
     flight/PilotGames.cc

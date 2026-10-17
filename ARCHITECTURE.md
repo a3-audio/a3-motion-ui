@@ -481,12 +481,14 @@ CLIP ships keep the action's clip meaning; 3D/FREQ/Q accents are unchanged.
 - **The breath holds the floor:** the carry pauses in the stop; sway and lean keep turning.
   **An escort ignores the floor keys**; its circle is its order.
 
-**The Pilot section** (`// ---- Pilot ----`: `~game`, `~target`, `~with`; `PilotOrder`) is read
-with the script and kept with the press (`FiredAction`). In FPV a named game is posted to the
-channel's ship (`MotionEngine::requestGame`, message thread only) and waits on the clock thread's
-`PilotDesk`, newest wins, `\none` calls one off; the readout says `CHn An GAME X`. FULL ignores
-the section (`pilotOrderAtPress`), because the games are played on the floor FPV shows. The games
-take a request on the next clock tick (see the next section). Every shipped script carries the section commented out;
+**The Pilot section** (`// ---- Pilot ----`: `~style`, `~game`, `~target`, `~with`; `PilotOrder`) is
+read with the script and kept with the press (`FiredAction`). In FPV every press asks its ship for
+a figure: the game the script names, else its style's, else the music's (`\auto`); `\none` as a
+style asks for none. The request is posted to the channel's ship (`MotionEngine::requestGame`,
+message thread only) and waits on the clock thread's `PilotDesk`, newest wins. The readout says
+`CHn An AUTO` (or the style) at the press and `CHn An GAME X` once the engine has chosen. FULL
+ignores the section (`pilotOrderAtPress`), because the games are played on the floor FPV shows.
+The games take a request on the next clock tick (see the next section). Every shipped script carries the section commented out;
 `pattern/actions/system/README.scd` is its manual.
 
 **One route:** the bar's ACT, the pads and a chain all go through `sendFiredAction`; nothing else
@@ -497,14 +499,15 @@ Tests: `PilotOrder`, `ActionScript`, `FlightMotion`, `FiredAction`, `FlightMotio
 
 #### FPV: games and the pilots' level
 
-> Pilots that play: four games above the gravity flight, timed by the music, and a key that says
-> how much the pilots do of their own accord.
+> Pilots that play: eight figures above the gravity flight, four of them contrasts the music asks
+> for, timed by the music, and a key that says how much the pilots do of their own accord.
 
 **A game never moves a ship.** `PilotGames` (`flight/`) is a board on the clock thread: per ship
 and tick it names a point (`steerOf`), and `FlightWorld` flies it as `FlightGoal::Steer`: no
 rabbit, no carry by an action's floor keys, under the same steering, gravity and walls. A ship in
 a game is spared its target group's pull (as an escort is; `ShipOrders::bodyId`) and flies through
-the breath's stop. `GameFigures` sets a game up once (`GamePlan`: crew, parts, target, its 1) and
+the breath's stop unless its figure breathes (`FigureStance::breathes`: the four contrast figures
+do, the four first games do not). `GameFigures` sets a game up once (`GamePlan`: crew, parts, target, its 1) and
 works its goal out at every tick; `GameMoments` says when a game fits and where its 1 lands. All
 pure and seeded, counted in beats of the running meter; constants in `GameTuning`. The plan is
 fixed when the game starts: the formation's axis (the direction it faces, the line call & response
@@ -516,6 +519,10 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
 | formation & scatter | `~with` (`\all` in the shipped scripts) | build, ≥ 1 bar left | a line across the target's direction at 0.4 from the middle, bursting on the 1 along rays from a focus behind the line to 0.85, every ship ≥ 45° from its place |
 | hide & seek | `~with` | breakdown, ≥ 3 bars left or no known end | slips 75° round its way over 2 bars, runs across from 3 beats before the 1 |
 | call & response | always a pair | groove, the first 4 of every 16 bars | the two sides of the room, a 45° call a bar each, two each |
+| slap | `~with`, a pair at most (the partner on the opposite point, same beats) | HARD: a drop (a pilot: its first 2 bars), a previewed loud groove (a press) | the floor point jumps between two sides fixed in the room -- L↔R, or F↔B / U↔D from `highBandFreq` -- 2 beats a side on beats 1 and 3, never the breath's; on a 1 it opens with the jump to the front; 2 bars, then relaunched into cruise |
+| climb | `~with` | RISING: a build (a pilot: a previewed drop ≥ 8 bars away, or the live mood's line) | a circle from the cruise's radius to 0.25 turning twice as fast on every 4-bar line counted back from the drop (4 → 2 → 1 bars a lap); on a previewed drop's 1 it becomes a slap; without a drop it holds at the top 8 bars, then cruise |
+| graze | one ship | SOFT: a breakdown, a previewed quiet groove, a quiet bar (a press) | round to a straight line square to the group's direction at its escort radius, then along it at cruise pace, sweeping ≥ 30° seen from the middle, off the middle (≥ 0.3); no such line: hide & seek |
+| encircle | `~with`, a pair at most | SOFT, a press only | the escort's circle widened to subtend ≥ 30° from the middle, the escort's lap, 4 bars |
 
 - **A crew flies one rigid figure.** A fake-out crew shares the leader's figure in lanes 22°
   apart round the middle, widened near the middle so neighbours stay ≥ 0.08 apart (outer lanes
@@ -529,23 +536,60 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
   expected on the next 8-bar line). It is sent to the engine on every downbeat and preview
   (`setMusicCue`). A game's 1 is the next fitting change at least its run-up away, else the next
   4-bar line.
+- **Families.** `PilotFamily` (the enum in `PilotOrder.hh`; `flight/PilotFamily` holds the choice)
+  is a pure layer above the games: the cue (section, the bar it began --
+  `MusicCue::sectionStartBar`, kept by `withSectionStart`, which `pushMusicCue` applies --, energy,
+  previewed) names HARD, RISING, SOFT or GROOVE for a press or a pilot (`pilotFamily`), and
+  `chooseFigure` picks the figure in it from what fits and what the floor allows
+  (`playableFigure` falls back to hide & seek when no graze line or group is there). A press is
+  always answered; a pilot only in its moment, and never with an encircle. Every value is in
+  `GameTuning`, section "Families", each with its source tag ([lab], [practice], [maintainer],
+  [guess] or a published paper). `FigureMath` holds the helpers the figures share (ship and axis
+  indices, `polar`, `angleOf`, `flightSense`, `degreesBetween`, `circleGoal`: the escort's circle
+  and the encircle fly the same one).
+- **Opening on the beat.** A contrast figure opens on the next beat (`openingBeats`; a slap whose
+  next beat is the breath's on the following 1); a pilot's figure on the beat its cue was for, up
+  to `cueGraceBeats` late. Until then `steerOf` is empty and the ship flies on as it was.
+- **Chains.** A pilot's climb that sees a previewed drop turns into a slap on the drop's 1, with
+  the snap (`chainIntoSlap`); one with no previewed drop yields to a one-bar slap, without the snap,
+  when the room hears the drop (`yieldToTheDrop`). Both go through `turnIntoSlap`. The crews are
+  built by `callFor`/`statesOf` for every figure alike, press or pilot.
+- **Hold and relaunch.** A slap holds its ship (`ShipOrders::hold`): `FlightWorld` places it at its
+  point, still, unsteered, and relaunches it along its path (`launch`) on the first flying tick
+  without the hold -- and on the first flying tick after any Steer, so a ship leaving any game (the
+  first four included) cruises on from where it stands instead of chasing the rabbit across the
+  room.
+- **Heard as a step.** When a hold point moves, the engine's per-ship `SlapGlider`
+  (`flight/SlapGlide`) leads the heard direction there over `slapGlideBeats` (¼ beat; up-down at
+  half the rate), azimuth and elevation at an even pace: left-right through the front at one
+  height, front-back round the side it is heard on, up-down in height only (`GlidePath`). A glide
+  from no heard history is no glide: the ship is written at its side. The glide is the one move the
+  180°/beat limit does not hold; it lands where the limit takes over again. Tests may pass a
+  `GameTuning` to the engine; the default is unchanged.
 - **Requests** from `PilotDesk` are taken on the next tick; one whose leader cannot fly is
-  dropped. A DJ's game takes its leader out of any game it was in and recruits free ships whose
-  clip runs, ORBIT or CLIP; `~game = \none` ends the game its ship plays in.
+  dropped. A DJ's figure takes its leader out of any game it was in and recruits free ships whose
+  clip runs, ORBIT or CLIP; a newer press on a channel replaces its figure, and a partner is only
+  ever a free ship. `\none` on a ship in a pilot's game releases that ship only
+  (`PilotGames::release`), and the rest of that game plays on; on a ship in a DJ's game it ends
+  the whole game (`PilotGames::endGameOn`, `MotionEngine::postGame`).
 - **Never two games on one ship.** A game never writes the DJ's mode or escort: a borrowed CLIP
   ship flies (`readFlightModes`) and glides back to its clip when the game ends; a ship whose
   mode or escort the DJ changes (`ShipResume` differs) leaves at once.
 - **The 180°/beat heard-turn limit** holds every ship in a game, as it holds a driven one. The
-  glide of a borrowed CLIP ship back to its clip is outside it (one eased beat).
+  glide of a borrowed CLIP ship back to its clip is outside it (one eased beat), and so is a
+  slap's glide to its side (see "Heard as a step").
 - **Levels** (`PilotLevel`, the status bar's key left of CLEAN, saved as `pilotLevel` in the app
   settings): OFF, games only from actions; HINT, the lowest action button whose `~game` fits the
   current moment pulses in the notice colour on every beat (`hintedButton`, `padHintColour`),
-  while the channel's ship flies ORBIT and plays no game; FLY, on a downbeat a moment opens, a
-  pilot starts one game on free ORBIT ships (dice) and rests 4 bars after. The hints go by the
+  while the channel's ship flies ORBIT and plays no game; FLY, at every new bar and whenever the
+  cue changes, a pilot looks for its moment, starts one figure of the family the music asks for on
+  free ORBIT ships (dice) and rests 4 bars after. The hints go by the
   current bar and are refreshed whenever a fire, a clip, a script or a game changes, on every
-  step, on each music-cue push, and when the level or the view changes. A DJ's tap at
-  FLY that fires a game, or fires anything at a ship in a pilot's game, drops the level to HINT
-  (`levelAfterTap`), which ends the pilots' games; FLY again is one press. Leaving FPV calls every
+  step, on each music-cue push, and when the level or the view changes. A DJ's press at
+  FLY overrides its own ship only: that ship leaves the pilot's figure for the press's (or, for a
+  press with no figure, `\none` releases it), the level stays at FLY and the other pilots fly on.
+  At HINT a pad pulses only when its `~game` or an explicit `~style` fits (`askFits`); one that
+  leaves the choice to the music never does. Leaving FPV calls every
   game and request off (`callOffGames`) and keeps the engine's level OFF until FPV is back.
 - **Threads:** `requestGame`, `setMusicCue` and `callOffGames` share the engine's single-producer
   queue and are called from the message thread only (`PilotWiring.OnlyTheComponentQueuesForTheGames`);
@@ -554,7 +598,10 @@ lies on) is taken from the target's place then, or the leader's, and is not foll
 
 Tests: `MusicCue`, `GameMoments`, `LiveMood`, `BarMeter`, `FlightSteer`, `GameFigures`,
 `PilotLevel`, `PilotGames`, `PilotGamesFlight`, `FlightEngine`, `PilotKey`, `StatusBarPilotKey`,
-`StatusBarLayout`, `SettingsPersistence`, `PilotWiring`, `PilotHint`.
+`StatusBarLayout`, `SettingsPersistence`, `PilotWiring`, `PilotHint`, `GameTuning`, `PilotFamily`,
+`ChooseFigure`, `PlayableFigure`, `FlightHold`, `BreathingSteer`, `SlapFigure`, `SlapGlide`,
+`SlapGlider`, `PressLanding`, `PressFigure`, `ClimbFigure`, `ClimbChain`, `GrazeFigure`,
+`EncircleFigure`, `SoftFigures`, `PilotsFly`, `LiveMoodFamilies`, `PilotContrasts`.
 
 ### Engine (`src/a3-motion-engine`)
 

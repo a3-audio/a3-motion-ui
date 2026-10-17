@@ -508,7 +508,7 @@ findField (juce::String const &name)
 bool
 isPilotName (juce::String const &name)
 {
-  return name == "game" || name == "target" || name == "with";
+  return name == "style" || name == "game" || name == "target" || name == "with";
 }
 
 // ── Working an expression out ────────────────────────────────────────────
@@ -738,6 +738,14 @@ setPilotLine (PilotOrder &order, juce::String const &name, Value const &value)
   if (value.kind != Value::Kind::Symbol)
     fail (refusal);
 
+  if (name == "style")
+    {
+      auto const style = pilotStyleNamed (value.symbol);
+      if (!style)
+        fail (refusal);
+      order.style = *style;
+      return;
+    }
   if (name == "game")
     {
       auto const game = pilotGameNamed (value.symbol);
@@ -927,8 +935,9 @@ actionScriptNotes ()
     { "act", "Accent", "", "\\oneshot \\hold" },
     { "then", "Accent", "1..6", "fires that button when the accent is over" },
 
+    { "style", "Pilot", "", "\\auto \\hard \\rising \\soft \\groove \\none" },
     { "game", "Pilot", "",
-      "\\none \\fakeout \\formation \\hideseek \\callresponse" },
+      "\\none \\fakeout \\formation \\hideseek \\callresponse \\slap \\climb \\graze \\encircle" },
     { "target", "Pilot", "", "\\nearest \\group1..\\group8 \\crowd \\hotspot" },
     { "with", "Pilot", "", "\\self \\nearest \\all" },
   };
@@ -983,6 +992,8 @@ juce::String
 pilotDefaultWord (juce::String const &name)
 {
   PilotOrder const fresh;
+  if (name == "style")
+    return pilotWord (PilotStyle::Auto);
   if (name == "game")
     return pilotWord (PilotGame::None);
   if (name == "target")
@@ -1084,6 +1095,7 @@ actionScriptNames ()
   // Not a setting, but a line a script may write (2026-09-29).
   names.add ("then");
   // The Pilot section (FPV): lines a script may write, not settings.
+  names.add ("style");
   names.add ("game");
   names.add ("target");
   names.add ("with");

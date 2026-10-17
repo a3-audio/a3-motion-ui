@@ -32,12 +32,25 @@
 namespace a3
 {
 
+/** What one action button asks of its pilot, for the hint: its `~game` and
+ *  its `~style`, as written. */
+struct PadAsk
+{
+  std::optional<PilotGame> game;
+  std::optional<PilotStyle> style;
+};
+
+/** Whether the moment fits what `ask` names: a game (not \none) whose
+ *  moment is open, else a style of a family whose figures would be played
+ *  now. An action that names neither, or only \auto or \none, never fits:
+ *  it would fit always and light every pad. */
+bool askFits (PadAsk const &ask, FittingGames const &fitting);
+
 /** The action button a pilot lights on its channel at HINT: the lowest one
- *  whose script names a game that fits the moment, while the channel's ship
- *  is free to play (it flies its orbit with a running clip and plays no
- *  game). Only actions carrying a `~game` light, and `\none` never does.
- *  -1: none -- below or above HINT, in FULL, or nothing fits. */
+ *  whose ask fits, while the channel's ship is free to play (it flies its
+ *  orbit with a running clip and plays no game). -1: none -- below or above
+ *  HINT, in FULL, or nothing fits. */
 int hintedButton (PilotLevel level, AppView view, FittingGames const &fitting, bool shipIsFree,
-                  std::array<std::optional<PilotGame>, numActionButtons> const &games);
+                  std::array<PadAsk, numActionButtons> const &asks);
 
 }

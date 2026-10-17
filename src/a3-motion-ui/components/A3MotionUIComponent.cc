@@ -1905,7 +1905,10 @@ A3MotionUIComponent::setView (AppView view)
   // and every queued request off, and the pilots rest while FULL is shown.
   // The level itself is kept and comes back with FPV.
   if (!fpv)
-    _engine.callOffGames ();
+    {
+      _engine.callOffGames ();
+      _askedPad = {};
+    }
   _engine.setPilotLevel (fpv ? _pilotLevel : PilotLevel::Off);
   _statusBar->setPilotLevel (_pilotLevel);
   refreshPilotHints ();
@@ -3666,6 +3669,7 @@ A3MotionUIComponent::setButtonAction (index_t channel, int button,
   action.cueClip = juce::File{};
   action.isCue = false;
   action.game.reset ();
+  action.style.reset ();
 
   if (!file.existsAsFile ())
     {
@@ -3707,6 +3711,7 @@ A3MotionUIComponent::runButtonScript (index_t channel, ActionButton &action)
   action.after = result.then;
   // What a pilot at HINT looks for on this channel.
   action.game = result.pilot.game;
+  action.style = result.pilot.style;
 
   auto const cue = cueClipFor (result.clip, _patternLibrary->getClipDir ());
   action.cueClip = cue.file;
@@ -3756,24 +3761,35 @@ A3MotionUIComponent::sendFiredAction (index_t channel,
       return;
     }
 
-  // At FLY a DJ who fires a game, or fires anything at a ship a pilot is
-  // playing with, takes over at once: the pilots step back to HINT, which
-  // ends their games. Back to FLY is a deliberate press of the key.
+  // In FPV every press asks its ship for a figure (the music's, unless the
+  // script names a style or a game), and it overrides that ship alone: the
+  // level stays and the other pilots fly on. A press that asks for no
+  // figure still takes its ship out of a pilot's game.
   auto const order = pilotOrderAtPress (_view, fired->pilot);
   auto const playing = _engine.gameOf (channel);
-  auto const level = levelAfterTap (_pilotLevel, order.has_value (),
-                                    _view == AppView::Fpv && playing && playing->byPilot);
-  if (level != _pilotLevel)
-    setPilotLevel (level);
-
   _engine.setChannelAction (channel, fired->settings, fired->flight);
   refreshPilotHints ();
   if (order)
     {
       _engine.requestGame (channel, *order);
-      updateControlReadout (
-          pilotReadout (static_cast<int> (channel), padName, *order->game));
+      if (channel < _askedPad.size ())
+        _askedPad[channel] = {};
+      if (order->game)
+        updateControlReadout (pilotReadout (static_cast<int> (channel), padName, *order->game));
+      else
+        {
+          if (channel < _askedPad.size ())
+            {
+              _askedPad[channel] = padName;
+              _askedAtBeat[channel] = uiBeats ();
+            }
+          updateControlReadout (
+              pilotStyleReadout (static_cast<int> (channel), padName, *order->style));
+        }
+      return;
     }
+  if (_view == AppView::Fpv && playing && playing->byPilot)
+    _engine.requestGame (channel, releasingItsShip ());
 }
 
 juce::File
@@ -7733,8 +7749,13 @@ A3MotionUIComponent::pushMusicCue ()
 {
   auto const now = juce::Time::getMillisecondCounterHiRes () / 1000.0;
   auto const fresh = _musicPreview.current (now, _engine.getTempoBPM ());
-  _musicCue = chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt,
-                         _previewBar, _liveBars.cue ());
+  // The bar a section began is what a pilot counts a drop's first bars from;
+  // StemDeck sends only what comes next, so it is worked out here as the
+  // engine does.
+  _musicCue = withSectionStart (
+      chooseCue (fresh ? std::optional<MusicAhead> (fresh->ahead) : std::nullopt, _previewBar,
+                 _liveBars.cue ()),
+      _musicCue, nearestDownbeatBar (uiBeats (), _engine.getBeatsPerBar ()));
   _engine.setMusicCue (_musicCue);
   refreshPilotHints ();
 }
@@ -7749,14 +7770,14 @@ A3MotionUIComponent::refreshPilotHints ()
       = fittingGames (_musicCue, bar, _engine.getBeatsPerBar (), _engine.getGameTuning ());
   for (auto ch = 0u; ch < _hintedButton.size () && ch < _channelActions.size (); ++ch)
     {
-      std::array<std::optional<PilotGame>, numActionButtons> games{};
-      for (size_t button = 0; button < games.size (); ++button)
-        games[button] = _channelActions[ch][button].game;
+      std::array<PadAsk, numActionButtons> asks{};
+      for (size_t button = 0; button < asks.size (); ++button)
+        asks[button] = { _channelActions[ch][button].game, _channelActions[ch][button].style };
       auto const &clip = _patterns[ch][0];
       auto const shipIsFree = _engine.getFlightMode (ch) == FlightMode::Orbit
                               && !_engine.gameOf (ch).has_value () && clip
                               && clip->getStatus () == Pattern::Status::Playing;
-      _hintedButton[ch] = hintedButton (_pilotLevel, _view, fitting, shipIsFree, games);
+      _hintedButton[ch] = hintedButton (_pilotLevel, _view, fitting, shipIsFree, asks);
     }
 }
 
@@ -7795,6 +7816,15 @@ A3MotionUIComponent::announcePilotGames ()
         refreshPilotHints ();
       if (isNew && game->byPilot && game->leader == ch)
         updateControlReadout (pilotGameReadout (ch, game->game));
+      auto &asked = _askedPad[static_cast<size_t> (ch)];
+      if (asked.isNotEmpty ()
+          && uiBeats () - _askedAtBeat[static_cast<size_t> (ch)] > _engine.getBeatsPerBar ())
+        asked = {};
+      if (isNew && !game->byPilot && game->leader == ch && asked.isNotEmpty ())
+        {
+          updateControlReadout (pilotReadout (ch, asked, game->game));
+          asked = {};
+        }
     }
 }
 

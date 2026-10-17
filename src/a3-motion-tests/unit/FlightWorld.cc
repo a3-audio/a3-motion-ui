@@ -1244,3 +1244,106 @@ TEST (FlightSteer, ASteeringShipIsSparedThePullOfTheBodyItPlaysAgainst)
   EXPECT_NE (flownAlone (pulled, target), flownAlone (pulled, {}));
   EXPECT_EQ (flownAlone (spared, both), flownAlone (pulled, other));
 }
+
+namespace
+{
+std::array<ShipOrders, 4>
+shipZeroHeldAt (Vec2 point)
+{
+  auto orders = shipZeroSteeringFor ({ point, {} });
+  orders[0].hold = true;
+  return orders;
+}
+
+FlightBodies
+aHotspotAt (Vec2 at)
+{
+  FlightBodies bodies;
+  bodies.count = 1;
+  bodies.body[0] = { at, FlightTuning{}.hotspotMass, 0 };
+  return bodies;
+}
+}
+
+TEST (FlightHold, AHeldShipStandsAtItsPointAtOnceAndStill)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  Vec2 const left{ 0.f, 0.85f };
+  run (world, shipZeroHeldAt (left), {}, 1);
+  EXPECT_EQ (world.ship (0).p, left) << "placed, not flown";
+  EXPECT_EQ (world.ship (0).v, (Vec2{}));
+  run (world, shipZeroHeldAt (left), aHotspotAt ({ 0.f, 0.6f }), ticksIn (2.), tickBeats ());
+  EXPECT_EQ (world.ship (0).p, left) << "no steering, gravity or wander moves it";
+}
+
+TEST (FlightHold, AHoldCrossesTheRoomInOneTick)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, shipZeroHeldAt ({ 0.f, 0.85f }), {}, 1);
+  run (world, shipZeroHeldAt ({ 0.f, -0.85f }), {}, 1, tickBeats ());
+  EXPECT_EQ (world.ship (0).p, (Vec2{ 0.f, -0.85f }));
+}
+
+TEST (FlightHold, ALetGoShipRelaunchesAlongItsPath)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, shipZeroHeldAt ({ 0.f, -0.7f }), {}, ticksIn (2.));
+  run (world, allPatrolling (), {}, 1, 2.);
+  FlightTuning const tuning;
+  auto const v = world.ship (0).v;
+  auto const speed = v.getDistanceFromOrigin ();
+  // Unlaunched, one tick of steering from standing gives the least speed
+  // (stepShip holds every ship at speedMin or more); relaunched, the cruise.
+  EXPECT_GT (speed, tuning.speedMin + 0.05f) << "relaunched at cruise, not crawling off";
+  EXPECT_LE (speed, tuning.speedMax + speedSlack);
+  auto const p = world.ship (0).p;
+  auto const towardsTheMiddle
+      = std::abs (p.getDotProduct (v)) / (p.getDistanceFromOrigin () * speed);
+  EXPECT_LT (towardsTheMiddle, 0.5f) << "along the path, not a chase across it";
+}
+
+TEST (FlightSteer, AShipLetGoFromAFigureRelaunchesAlongItsPathNotAcrossTheRoom)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  auto const start = world.ship (0).p;
+  // The figure keeps the ship where it started while its rabbit runs on,
+  // round to the far side of the path.
+  run (world, shipZeroSteeringFor ({ start, {} }), {}, ticksIn (6.));
+  auto const after = run (world, allPatrolling (), {}, ticksIn (4.), 6.);
+  auto nearest = 1.f;
+  for (auto const &sample : after)
+    nearest = std::min (nearest, sample.ships[0].p.getDistanceFromOrigin ());
+  EXPECT_GT (nearest, 0.4f) << "no chase through the middle to where its rabbit ran";
+}
+
+TEST (FlightHold, AShipThatStopsFlyingWhileHeldIsNotRelaunchedLater)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  run (world, shipZeroHeldAt ({ 0.f, 0.7f }), {}, ticksIn (1.));
+  auto grounded = allPatrolling ();
+  grounded[0].flying = false;
+  run (world, grounded, {}, 1, 1.);
+  run (world, allPatrolling (), {}, 1, 1. + tickBeats ());
+  EXPECT_NEAR (world.ship (0).v.getDistanceFromOrigin (), FlightTuning{}.speedMin, 0.01f)
+      << "a ship that left the air is launched by whoever puts it back, not by a stale hold";
+}
+
+TEST (BreathingSteer, ABreathingSteerStandsThroughTheStop)
+{
+  FlightWorld world (aSeed);
+  launchAll (world);
+  world.setBreathing (true);
+  auto orders = shipZeroSteeringFor ({ { -0.6f, -0.2f }, {} });
+  orders[0].breathes = true;
+  run (world, orders, {}, ticksIn (3.)); // up to beat 4, the stop
+  auto const before = world.ship (0).p;
+  run (world, orders, {}, ticksIn (0.5), 3.);
+  EXPECT_EQ (world.ship (0).p, before);
+  run (world, orders, {}, ticksIn (1.), 4.); // the one: off again
+  EXPECT_NE (world.ship (0).p, before);
+}

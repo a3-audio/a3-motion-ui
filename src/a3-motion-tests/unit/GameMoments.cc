@@ -119,7 +119,9 @@ TEST (GameMoments, ABuildWithinEightBarsOfItsDropFitsTheFakeOutAndTheFormation)
   EXPECT_TRUE (fitting.formation);
   EXPECT_FALSE (fitting.hideAndSeek);
   EXPECT_FALSE (fitting.callAndResponse);
-  EXPECT_FALSE (fittingGames (cue, 2, fourFour, tuning).any ()) << "ten bars out: not yet";
+  auto const early = fittingGames (cue, 2, fourFour, tuning);
+  EXPECT_FALSE (early.fakeOut || early.formation) << "ten bars out: not yet";
+  EXPECT_TRUE (early.climb) << "a build the room heard climbs from a bar before its line";
 }
 
 TEST (GameMoments, InTheLastBarBeforeTheDropOnlyTheFormationStillFits)
@@ -176,4 +178,72 @@ TEST (GameMoments, FittingGamesAnswersForEveryGame)
   for (auto const game : { PilotGame::None, PilotGame::FakeOut, PilotGame::Formation,
                            PilotGame::CallAndResponse })
     EXPECT_FALSE (fitting.has (game));
+  for (auto const game : { PilotGame::Slap, PilotGame::Climb, PilotGame::Graze,
+                           PilotGame::Encircle })
+    EXPECT_FALSE (fitting.has (game));
+  FittingGames slap;
+  slap.slap = true;
+  EXPECT_TRUE (slap.any ());
+  EXPECT_TRUE (slap.has (PilotGame::Slap));
+}
+
+TEST (GameMoments, ALongPreviewedBuildFitsAClimbAShortOneDoesNot)
+{
+  auto previewed = heading (MusicSection::Build, MusicSection::Drop, 32);
+  previewed.previewed = true;
+  EXPECT_TRUE (fittingGames (previewed, 16, fourFour, tuning).climb) << "sixteen bars out";
+  EXPECT_TRUE (fittingGames (previewed, 24, fourFour, tuning).climb) << "eight bars out";
+  auto const short_ = fittingGames (previewed, 26, fourFour, tuning);
+  EXPECT_FALSE (short_.climb) << "six bars out";
+  EXPECT_TRUE (short_.fakeOut || short_.formation);
+}
+
+TEST (GameMoments, ABuildTheRoomHeardFitsAClimbToItsLine)
+{
+  auto const live = heading (MusicSection::Build, MusicSection::Drop, 32); // previewed false
+  EXPECT_TRUE (fittingGames (live, 29, fourFour, tuning).climb);
+}
+
+TEST (GameMoments, TheDropsFirstBarsFitASlapThenNothing)
+{
+  auto drop = heading (MusicSection::Drop, MusicSection::Groove, 40);
+  drop.sectionStartBar = 32;
+  EXPECT_TRUE (fittingGames (drop, 33, fourFour, tuning).slap);
+  EXPECT_FALSE (fittingGames (drop, 34, fourFour, tuning).any ());
+}
+
+TEST (GameMoments, ABreakdownFitsAGrazeAndAnEncircle)
+{
+  auto const fitting = fittingGames (heading (MusicSection::Breakdown, MusicSection::Build, 20), 12,
+                                     fourFour, tuning);
+  EXPECT_TRUE (fitting.graze);
+  EXPECT_TRUE (fitting.encircle);
+  EXPECT_TRUE (fitting.fits (PilotFamily::Soft));
+  EXPECT_FALSE (fitting.fits (PilotFamily::Hard));
+}
+
+TEST (GameMoments, ASlapStepsOnTheOneAndTheThreeTwoBeatsApart)
+{
+  EXPECT_DOUBLE_EQ (nextSlapEvent (8., fourFour, tuning), 10.);
+  EXPECT_DOUBLE_EQ (nextSlapEvent (10., fourFour, tuning), 12.);
+  EXPECT_DOUBLE_EQ (nextSlapEvent (9., fourFour, tuning), 12.) << "never on beat 4, the breath";
+  EXPECT_DOUBLE_EQ (nextSlapEvent (6., 3, tuning), 9.) << "in 3/4 the third beat breathes";
+  EXPECT_DOUBLE_EQ (nextSlapEvent (4., 2, tuning), 6.) << "2/4 has no breath";
+}
+
+TEST (GameMoments, AContrastFigureOpensOnTheNextBeat)
+{
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Graze, 5.3, fourFour, 0.), 6.);
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Graze, 6., fourFour, 0.), 6.)
+      << "on a beat: that beat, as a pad press lands";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Slap, 2.5, fourFour, 0.), 4.)
+      << "beat 4 breathes: a slap opens on the following 1";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Climb, 2.5, fourFour, 0.), 3.)
+      << "only a slap waits for the 1";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::FakeOut, 5.3, fourFour, 0.), 5.3)
+      << "the first four start at once";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Slap, 8.05, fourFour, 0.25), 8.)
+      << "a cue a moment late still lands on the beat it was for";
+  EXPECT_TRUE (isDownbeat (8., fourFour));
+  EXPECT_FALSE (isDownbeat (9., fourFour));
 }

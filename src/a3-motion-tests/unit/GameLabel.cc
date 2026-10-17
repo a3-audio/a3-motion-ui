@@ -35,6 +35,10 @@ TEST (GameLabel, EveryGameHasItsOwnShortWordAndNoneHasNone)
   EXPECT_EQ (gameWord (PilotGame::Formation), "FORMATION");
   EXPECT_EQ (gameWord (PilotGame::HideAndSeek), "HIDE");
   EXPECT_EQ (gameWord (PilotGame::CallAndResponse), "CALL");
+  EXPECT_EQ (gameWord (PilotGame::Slap), "SLAP");
+  EXPECT_EQ (gameWord (PilotGame::Climb), "CLIMB");
+  EXPECT_EQ (gameWord (PilotGame::Graze), "GRAZE");
+  EXPECT_EQ (gameWord (PilotGame::Encircle), "CIRCLE");
   EXPECT_TRUE (gameWord (PilotGame::None).isEmpty ());
 }
 
