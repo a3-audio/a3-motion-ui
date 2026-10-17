@@ -182,3 +182,23 @@ TEST (OscAddresses, StemDecksPreviewIsOptional)
   EXPECT_FALSE (oscAddressKeys ().contains ("stemdeck.ahead"));
   EXPECT_TRUE (optionalOscAddressKeys ().contains ("stemdeck.ahead"));
 }
+
+// The pro-DJ's pointer and its LIVE word arrive with a later truth. A truth
+// without them is not missing anything: both stay empty and Motion is deaf
+// to them -- the feature is inert.
+TEST (OscAddresses, PointerAndLiveAreOptional)
+{
+  EXPECT_EQ (oscAddressesFrom (madeUpOscTruth ()).prodjLive, "/t/prodj.live");
+  EXPECT_EQ (oscAddressesFrom (madeUpOscTruth ()).motionPointer,
+             "/t/motion.pointer");
+
+  auto const without = madeUpOscTruth ({ "prodj.live", "motion.pointer" });
+  EXPECT_TRUE (oscAddressesFrom (without).prodjLive.isEmpty ());
+  EXPECT_TRUE (oscAddressesFrom (without).motionPointer.isEmpty ());
+  EXPECT_FALSE (missingOscKeys (without).contains ("prodj.live"));
+  EXPECT_FALSE (missingOscKeys (without).contains ("motion.pointer"));
+  EXPECT_FALSE (oscAddressKeys ().contains ("prodj.live"));
+  EXPECT_FALSE (oscAddressKeys ().contains ("motion.pointer"));
+  EXPECT_TRUE (optionalOscAddressKeys ().contains ("prodj.live"));
+  EXPECT_TRUE (optionalOscAddressKeys ().contains ("motion.pointer"));
+}

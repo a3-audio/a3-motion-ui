@@ -92,6 +92,13 @@ public:
   void setPilotLevel (PilotLevel level);
   /** The key in this bar's coordinates; empty on a bar too narrow for it. */
   juce::Rectangle<int> pilotKeyArea () const { return _layout.pilotKey; }
+  /** PRO-DJ LIVE: a tap switches it off. Never switches it on. */
+  std::function<void ()> onLiveBadgeTapped;
+  /** Whether a remote pointer may touch this screen. The badge is on the bar
+   *  only while it does. */
+  void setProdjLive (bool live);
+  /** The badge in this bar's coordinates; empty unless live. */
+  juce::Rectangle<int> liveBadgeArea () const { return _layout.liveBadge; }
   /** STEMDECK, at the right end: over to StemDeck's workspace. */
   std::function<void ()> onDeckKeyTapped;
   /** The arrow beside it: list the rig's workspaces. */
@@ -203,6 +210,7 @@ private:
                      juce::String const &word, bool available, bool on);
   void paintKeyboardKey (juce::Graphics &g);
   void paintPilotKey (juce::Graphics &g);
+  void paintLiveBadge (juce::Graphics &g);
 
   /** Every rectangle on this bar, from the one pure calculation the test
    *  checks — so paint() draws into what resized() placed. */
@@ -230,6 +238,7 @@ private:
   std::atomic<int> _clockMode{ 0 };
   bool _fpv{ false }; // message thread only
   bool _breathing{ false }; // message thread only
+  bool _prodjLive{ false }; // message thread only
   PilotLevel _pilotLevel{ PilotLevel::Off }; // message thread only
 };
 

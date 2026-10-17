@@ -108,6 +108,13 @@ struct OscAddresses
    *  exception to "no default": it is only listened for, never sent, and a
    *  truth from before it must stay usable (optionalOscAddressKeys). */
   juce::String stemdeckAhead;
+  /** Pro-DJ LIVE, from Core: `/prodj/live i`. Listened for, and sent only
+   *  as 0 -- the badge's tap. **Optional, empty when the truth lacks it**;
+   *  with it empty the whole remote-pointer feature is inert. */
+  juce::String prodjLive;
+  /** The pro-DJ's pointer, relayed by Core: `/motion/pointer iff`. Optional
+   *  and empty like prodjLive. */
+  juce::String motionPointer;
 };
 
 /** Whether juce::OSCMessage will accept this as an address.

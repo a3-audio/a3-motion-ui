@@ -306,3 +306,62 @@ TEST (StatusBarLayout, ABarTooNarrowForThePilotKeyLeavesItOut)
   EXPECT_TRUE (l.pilotKey.isEmpty ());
   EXPECT_GE (l.tick.getWidth (), statusTickMinWidthOfHeight * l.menuKey.getHeight ());
 }
+
+namespace
+{
+StatusBarLayout
+liveLayout (bool live)
+{
+  return statusBarLayout (rowOf (deviceWidth, barHeight), deviceWidth, padding,
+                          0, 0, live);
+}
+}
+
+// The badge is there only while a remote pointer may touch the screen.
+TEST (StatusBarLayout, TheLiveBadgeHasASlotOnlyWhileLive)
+{
+  auto const row = rowOf (deviceWidth, barHeight);
+
+  EXPECT_TRUE (liveLayout (false).liveBadge.isEmpty ());
+
+  auto const l = liveLayout (true);
+  EXPECT_FALSE (l.liveBadge.isEmpty ());
+  EXPECT_TRUE (row.contains (l.liveBadge));
+  EXPECT_GT (l.liveBadge.getWidth (), l.menuKey.getWidth ())
+      << "PRO-DJ LIVE is longer than the words on the keys";
+
+  for (auto const &other :
+       { l.clockKey, l.viewKey, l.breathKey, l.pilotKey, l.deckKey,
+         l.workspacesKey, l.cleanKey, l.keyboardKey, l.menuKey, l.tick,
+         l.bpm, l.readout })
+    EXPECT_FALSE (l.liveBadge.intersects (other));
+}
+
+// What the badge takes, the rest gives up in order: the readout first. The
+// keys and the beat display keep their places.
+TEST (StatusBarLayout, TheBadgeStandsRightOfBreathAndLeavesTheKeysAlone)
+{
+  auto const without = liveLayout (false);
+  auto const l = liveLayout (true);
+
+  EXPECT_EQ (l.liveBadge.getX (), l.breathKey.getRight ());
+  for (auto const &pair : { std::pair{ l.clockKey, without.clockKey },
+                            std::pair{ l.viewKey, without.viewKey },
+                            std::pair{ l.breathKey, without.breathKey },
+                            std::pair{ l.cleanKey, without.cleanKey },
+                            std::pair{ l.menuKey, without.menuKey } })
+    EXPECT_EQ (pair.first, pair.second);
+  EXPECT_FALSE (l.tick.isEmpty ());
+  EXPECT_EQ (l.tick.getCentreX (), deviceWidth / 2);
+}
+
+TEST (StatusBarLayout, TheBadgeIsKeptOnANarrowBarToo)
+{
+  auto const narrow = 600;
+  auto const l = statusBarLayout (rowOf (narrow, barHeight), narrow, padding,
+                                  0, 0, true);
+
+  EXPECT_FALSE (l.liveBadge.isEmpty ());
+  EXPECT_FALSE (l.liveBadge.intersects (l.tick));
+  EXPECT_FALSE (l.liveBadge.intersects (l.cleanKey));
+}

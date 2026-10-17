@@ -1395,6 +1395,7 @@ A3MotionUIComponent::createMainUI ()
     _statusBar->setBreathing (on);
     updateControlReadout (on ? "-- BREATH ON" : "-- BREATH OFF");
   };
+  _statusBar->onLiveBadgeTapped = [this] { switchProdjLiveOff (); };
   _statusBar->onPilotKeyTapped = [this] { setPilotLevel (nextPilotLevel (_pilotLevel)); };
 
   // Hidden: no longer part of the visible layout (see resized()), but these
@@ -7210,6 +7211,7 @@ void
 A3MotionUIComponent::timerCallback ()
 {
   sayHelloWhenDue ();
+  tickRemotePointer ();
 
   if (_view == AppView::Fpv)
     {
@@ -7691,6 +7693,70 @@ A3MotionUIComponent::onMasterValue (int slot, float value)
   _mixerState.setMasterFromPeer (
       masterControlOrder[static_cast<std::size_t> (slot)], value);
   repaintMixerPages ();
+}
+
+void
+A3MotionUIComponent::onProdjLive (bool on)
+{
+  auto const now = juce::Time::getMillisecondCounterHiRes ();
+  injectRemote (_remoteGate.live (on, now));
+  if (_statusBar)
+    _statusBar->setProdjLive (_remoteGate.isLive (now));
+}
+
+void
+A3MotionUIComponent::onRemotePointer (int phase, float x, float y)
+{
+  auto const event = parsePointer (phase, x, y);
+  if (!event)
+    return;
+
+  injectRemote (_remoteGate.pointer (
+      *event, juce::Time::getMillisecondCounterHiRes ()));
+}
+
+void
+A3MotionUIComponent::injectRemote (std::vector<Inject> const &injects)
+{
+  auto *peer = getPeer ();
+  if (injects.empty () || peer == nullptr)
+    return;
+
+  auto const bounds = peer->getBounds ();
+  auto const *display
+      = juce::Desktop::getInstance ().getDisplays ().getDisplayForRect (bounds);
+  if (display == nullptr)
+    return;
+
+  auto const screen = display->totalArea.toFloat ();
+  auto const window = bounds.toFloat ();
+  auto const timeMs = juce::Time::currentTimeMillis ();
+  for (auto const &inject : injects)
+    _remoteInjector.deliver (inject, screen, window, timeMs);
+}
+
+void
+A3MotionUIComponent::tickRemotePointer ()
+{
+  auto const now = juce::Time::getMillisecondCounterHiRes ();
+  injectRemote (_remoteGate.tick (now));
+  if (_statusBar)
+    _statusBar->setProdjLive (_remoteGate.isLive (now));
+}
+
+void
+A3MotionUIComponent::switchProdjLiveOff ()
+{
+  // Off at once on this screen; Core's next /prodj/live confirms it. Only
+  // ever 0: this badge has no way to switch LIVE on.
+  if (_oscAddresses.prodjLive.isNotEmpty ())
+    {
+      auto message = juce::OSCMessage (_oscAddresses.prodjLive);
+      message.addInt32 (0);
+      _mixerSender.send (message);
+    }
+
+  onProdjLive (false);
 }
 
 void

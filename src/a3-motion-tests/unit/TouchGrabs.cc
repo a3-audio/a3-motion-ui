@@ -20,6 +20,8 @@
 
 #include <gtest/gtest.h>
 
+#include <a3-motion-ui/components/RemotePointer.hh>
+
 #include <algorithm>
 
 #include <a3-motion-ui/components/TouchGrabs.hh>
@@ -301,4 +303,26 @@ TEST (TouchGrabs, ReleaseAllHandsBackEveryHeldChannelAndForgetsEveryFinger)
   EXPECT_FALSE (grabs.isHeld (2u));
   EXPECT_EQ (grabs.firstSource (), std::nullopt);
   EXPECT_EQ (grabs.channelFor (grabKey (Type::touch, 0)), std::nullopt);
+}
+
+// The pro-DJ's pointer is a finger of its own: while the DJ holds one blob and
+// the remote holds another, neither lifting nor pressing disturbs the other.
+TEST (TouchGrabs, ARemotePointerKeepsItsOwnGrab)
+{
+  using Type = juce::MouseInputSource::InputSourceType;
+  auto const remoteKey = grabKey (Type::touch, remoteTouchIndex);
+
+  EXPECT_NE (remoteKey, grabKey (Type::touch, 0));
+  EXPECT_NE (remoteKey, grabKey (Type::mouse, 0));
+
+  TouchGrabs grabs;
+  grabs.down (grabKey (Type::touch, 0), 1u);
+  grabs.down (remoteKey, 2u);
+
+  EXPECT_TRUE (grabs.isHeld (1u));
+  EXPECT_TRUE (grabs.isHeld (2u));
+
+  EXPECT_EQ (grabs.up (remoteKey), std::optional<index_t>{ 2u });
+  EXPECT_TRUE (grabs.isHeld (1u));
+  EXPECT_FALSE (grabs.isHeld (2u));
 }
