@@ -20,10 +20,30 @@
 
 #include "CameraFingers.hh"
 
+#include <a3-motion-ui/components/RemotePointer.hh>
+
 #include <algorithm>
 
 namespace a3
 {
+
+namespace
+{
+bool
+isRemotePointer (SourceKey source)
+{
+  return source.type == SourceKey::touch && source.index == remoteTouchIndex;
+}
+
+// Fingers of one gesture come from one kind of source on one glass: the
+// pro-DJ's remote pointer is a touch too, but never a second finger to the
+// DJ's -- with it, a remote tap during a camera drag was a pinch.
+bool
+sameGesture (SourceKey a, SourceKey b)
+{
+  return a.type == b.type && isRemotePointer (a) == isRemotePointer (b);
+}
+}
 
 CameraFingers::Finger *
 CameraFingers::find (SourceKey source)
@@ -47,7 +67,7 @@ CameraFingers::press (SourceKey source, juce::Point<float> at)
   // mouse at the same point. Counted as two, one finger was a pinch. So the
   // kind of source that touched first holds the sphere -- every finger of it,
   // for a pinch -- and the other kinds wait until its last one is up.
-  if (!_down.empty () && _down.front ().first.type != source.type)
+  if (!_down.empty () && !sameGesture (_down.front ().first, source))
     return false;
 
   _down.emplace_back (source, at);

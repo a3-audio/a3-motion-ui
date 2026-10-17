@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/components/CameraFingers.hh>
+#include <a3-motion-ui/components/RemotePointer.hh>
 
 using namespace a3;
 
@@ -30,6 +31,7 @@ constexpr SourceKey finger{ SourceKey::touch, 0 };
 constexpr SourceKey emulatedMouse{ SourceKey::mouse, 0 };
 constexpr SourceKey secondFinger{ SourceKey::touch, 1 };
 constexpr SourceKey penTip{ SourceKey::pen, 0 };
+constexpr SourceKey remotePointer{ SourceKey::touch, remoteTouchIndex };
 
 juce::Point<float> const landing{ 100.f, 120.f };
 }
@@ -115,4 +117,38 @@ TEST (CameraFingers, ALostReleaseDoesNotLockTheCamera)
 
   fingers.forgetIfNotDown ([] (SourceKey) { return true; });
   EXPECT_EQ (fingers.count (), 1u) << "still down, still counted";
+}
+
+// The pro-DJ's remote pointer is a touch too (#9), but on someone else's
+// glass: while the DJ turns the view with one finger, a remote tap must not
+// turn the drag into a pinch. It is a pointer of its own, never a second
+// finger to the DJ's.
+TEST (CameraFingers, ARemotePointerIsNotASecondFingerToTheDJs)
+{
+  CameraFingers fingers;
+
+  EXPECT_TRUE (fingers.press (finger, { 0.f, 0.f }));
+  EXPECT_FALSE (fingers.press (remotePointer, { 30.f, 40.f }))
+      << "the pro-DJ's pointer joined the DJ's drag";
+  EXPECT_EQ (fingers.count (), 1u);
+  EXPECT_FLOAT_EQ (fingers.pinchDistance (), 0.f) << "no pinch";
+  EXPECT_FALSE (fingers.move (remotePointer, { 60.f, 80.f }));
+  EXPECT_FALSE (fingers.release (remotePointer));
+  EXPECT_EQ (fingers.count (), 1u);
+}
+
+// The other way round: while the remote pointer turns the view, the DJ's
+// finger waits for it rather than pinching with it -- and its emulated mouse
+// waits too.
+TEST (CameraFingers, ADJsFingerDoesNotPinchWithTheRemotePointer)
+{
+  CameraFingers fingers;
+
+  EXPECT_TRUE (fingers.press (remotePointer, landing));
+  EXPECT_FALSE (fingers.press (finger, landing));
+  EXPECT_FALSE (fingers.press (emulatedMouse, landing));
+  EXPECT_EQ (fingers.count (), 1u);
+
+  EXPECT_TRUE (fingers.release (remotePointer));
+  EXPECT_TRUE (fingers.press (finger, landing)) << "the next gesture is anyone's";
 }
