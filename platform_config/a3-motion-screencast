@@ -42,6 +42,8 @@ def port_from(path):
 
 def environment(env, port):
     return {
+        # Motion's unit is pinned to CPU 0; the copy's own default would put the encoder there.
+        "A3_SCREENCAST_CPUS": "1-3",
         **env,
         "A3_SCREENCAST_FANOUT": FANOUT,
         "A3_SCREENCAST_PORT": str(port),

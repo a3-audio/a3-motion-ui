@@ -107,6 +107,14 @@ class TheCopyFindsItsFanOut(unittest.TestCase):
                          env["A3_SCREENCAST_FANOUT"])
         self.assertEqual("4321", env["A3_SCREENCAST_PORT"])
 
+    def test_the_encoder_stays_off_cpu_0_by_default(self):
+        env = load_wrapper().environment({"HOME": "/home/dj"}, 1)
+        self.assertEqual("1-3", env["A3_SCREENCAST_CPUS"])
+
+    def test_an_explicit_cpu_choice_is_kept(self):
+        env = load_wrapper().environment({"HOME": "/home/dj", "A3_SCREENCAST_CPUS": "2"}, 1)
+        self.assertEqual("2", env["A3_SCREENCAST_CPUS"])
+
     def test_home_and_the_x_environment_stay_the_real_ones(self):
         module = load_wrapper()
         given = {"HOME": "/home/dj", "DISPLAY": ":0", "XAUTHORITY": "/x/auth"}
