@@ -264,6 +264,24 @@ TEST (PilotGames, AShipReleasedFromAGameLeavesTheRestPlaying)
   EXPECT_TRUE (games.plays (3));
 }
 
+TEST (PilotContrasts, APressOnAClimbingShipTakesItOutOfTheChain)
+{
+  PilotGames games (1);
+  auto const build = heading (MusicSection::Build, MusicSection::Drop, 12, true, 0, 0.6f);
+  games.step (flying (), {}, build, PilotLevel::Fly, 0., fourFour);
+  auto const climber = pilotLeader (games);
+  ASSERT_GE (climber, 0);
+  // An encircle from beat 40 runs four bars: still the DJ's on the drop's 1.
+  ASSERT_TRUE (games.request (asking (PilotGame::Encircle, climber), flying (),
+                              oneGroupAt ({ -0.5f, 0.3f }), build, 40., fourFour));
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Encircle);
+  EXPECT_FALSE (games.gameOf (climber)->byPilot) << "the DJ's now";
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 28, true, 12, 0.9f);
+  games.step (flying (), oneGroupAt ({ -0.5f, 0.3f }), drop, PilotLevel::Fly, 48., fourFour);
+  EXPECT_EQ (gameOn (games, climber), PilotGame::Encircle)
+      << "the climb's chain does not take back the ship the DJ took";
+}
+
 TEST (ClimbChain, AClimbIntoAPreviewedDropBecomesASlapOnTheOne)
 {
   PilotGames games (1);

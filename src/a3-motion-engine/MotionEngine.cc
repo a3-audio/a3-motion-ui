@@ -2325,9 +2325,16 @@ MotionEngine::postGame (index_t channel, PilotOrder const &order)
   request.postedBeats = beatsNow ();
   _pilotDesk.post (request);
   // \none written out calls off what its ship is doing: a request still
-  // waiting, and the game it plays in.
+  // waiting, and the game it plays in -- a DJ's game for all its ships, a
+  // pilot's for this ship alone, so the other pilots fly on.
   if (order.game && *order.game == PilotGame::None)
-    _games.endGameOn (static_cast<int> (channel));
+    {
+      auto const game = _games.gameOf (static_cast<int> (channel));
+      if (game && game->byPilot)
+        _games.release (static_cast<int> (channel));
+      else
+        _games.endGameOn (static_cast<int> (channel));
+    }
   publishGames ();
 }
 

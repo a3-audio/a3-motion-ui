@@ -664,6 +664,9 @@ private:
   /** Per channel, the game last seen there, so a pilot's new game is
    *  announced once. */
   std::array<std::optional<ShipGame>, 4> _announcedGames{};
+  /** Per channel, the pad whose press left its figure to the music, until
+   *  the engine says which figure it chose. Message thread. */
+  std::array<juce::String, 4> _askedPad{};
   /** Per channel, the game that ended last and the beat it ended on, so its
    *  label can stay for a bar and fade (heldGame). */
   std::array<std::optional<ShipGame>, 4> _endedGames{};
@@ -1082,6 +1085,8 @@ private:
     /** The game its script's Pilot section names, if any: what a pilot at
      *  HINT looks for on its channel. */
     std::optional<PilotGame> game;
+    /** Its script's style, the other half of what a pilot at HINT looks for. */
+    std::optional<PilotStyle> style;
   };
   std::vector<std::array<ActionButton, numActionButtons> > _channelActions;
   /** Works `action`'s source out against the channel's clip and puts what

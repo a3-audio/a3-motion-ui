@@ -31,11 +31,40 @@ pilotOrderAtPress (AppView view, PilotOrder const &order)
     case AppView::Full:
       return std::nullopt;
     case AppView::Fpv:
-      if (!order.game)
-        return std::nullopt;
-      return order;
+      {
+        if (order.game)
+          return order;
+        auto asked = order;
+        asked.style = order.style.value_or (PilotStyle::Auto);
+        if (*asked.style == PilotStyle::None)
+          return std::nullopt;
+        return asked;
+      }
     }
   return std::nullopt;
+}
+
+PilotOrder
+releasingItsShip ()
+{
+  PilotOrder order;
+  order.game = PilotGame::None;
+  return order;
+}
+
+juce::String
+pilotStyleReadout (int channel, juce::String const &padName, PilotStyle style)
+{
+  return "CH" + juce::String (channel + 1) + " " + padName + " "
+         + pilotWord (style).toUpperCase ();
+}
+
+juce::String
+readoutWord (PilotGame game)
+{
+  if (game == PilotGame::Encircle)
+    return "CIRCLE";
+  return pilotWord (game).toUpperCase ();
 }
 
 juce::String
@@ -44,7 +73,7 @@ pilotReadout (int channel, juce::String const &padName, PilotGame game)
   auto const lead = "CH" + juce::String (channel + 1) + " " + padName + " ";
   if (game == PilotGame::None)
     return lead + "NO GAME";
-  return lead + "GAME " + pilotWord (game).toUpperCase ();
+  return lead + "GAME " + readoutWord (game);
 }
 
 }

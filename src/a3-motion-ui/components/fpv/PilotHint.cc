@@ -23,14 +23,25 @@
 namespace a3
 {
 
+bool
+askFits (PadAsk const &ask, FittingGames const &fitting)
+{
+  if (ask.game)
+    return *ask.game != PilotGame::None && fitting.has (*ask.game);
+  if (!ask.style)
+    return false;
+  auto const family = familyOf (*ask.style);
+  return family && fitting.fits (*family);
+}
+
 int
 hintedButton (PilotLevel level, AppView view, FittingGames const &fitting, bool shipIsFree,
-              std::array<std::optional<PilotGame>, numActionButtons> const &games)
+              std::array<PadAsk, numActionButtons> const &asks)
 {
   if (level != PilotLevel::Hint || view != AppView::Fpv || !shipIsFree || !fitting.any ())
     return -1;
-  for (auto button = 0; button < static_cast<int> (games.size ()); ++button)
-    if (auto const &game = games[static_cast<size_t> (button)]; game && fitting.has (*game))
+  for (auto button = 0; button < static_cast<int> (asks.size ()); ++button)
+    if (askFits (asks[static_cast<size_t> (button)], fitting))
       return button;
   return -1;
 }

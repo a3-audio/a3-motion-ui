@@ -735,6 +735,37 @@ TEST (FlightEngine, TheDjsPagePressTakesAShipOutOfItsGame)
   EXPECT_TRUE (flight.engine->gameOf (0).has_value ()) << "the rest play on";
 }
 
+TEST (FlightEngine, ANoneOnAPilotsShipEndsItsFigureAndFlyStays)
+{
+  Flight flight;
+  ASSERT_TRUE (flight.playing ());
+  flight.engine->setFlightMode (0, FlightMode::Orbit);
+  flight.engine->setFlightMode (1, FlightMode::Orbit);
+  // A groove's window opens on the first bars of every sixteen: call &
+  // response, a pilot's figure for two ships.
+  auto const everyBars = static_cast<long long> (GameTuning{}.grooveEveryBars);
+  auto const windowOpen = [&] { return barNow (*flight.engine) % everyBars < 2; };
+  while (!windowOpen ())
+    juce::Thread::sleep (100);
+  auto groove = headingFor (MusicSection::Groove, MusicSection::Groove, 0);
+  groove.next.reset ();
+  flight.engine->setMusicCue (groove);
+  flight.engine->setPilotLevel (PilotLevel::Fly);
+  ASSERT_TRUE (waitUntil (
+      [&] {
+        auto const leader = flight.engine->gameOf (0);
+        auto const partner = flight.engine->gameOf (1);
+        return leader && leader->byPilot && leader->game == PilotGame::CallAndResponse && partner;
+      },
+      3000));
+  PilotOrder none;
+  none.game = PilotGame::None;
+  flight.engine->requestGame (0, none);
+  EXPECT_TRUE (waitUntil ([&] { return !flight.engine->gameOf (0).has_value (); }));
+  EXPECT_TRUE (flight.engine->gameOf (1).has_value ()) << "only that ship leaves";
+  EXPECT_EQ (flight.engine->getPilotLevel (), PilotLevel::Fly);
+}
+
 TEST (FlightEngine, CallingOffEndsEveryGameAndDropsWhatWaits)
 {
   Flight flight;

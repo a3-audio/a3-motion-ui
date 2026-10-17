@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-ui/components/fpv/ActionReach.hh>
+#include <a3-motion-ui/components/fpv/PilotKey.hh>
 
 #include <UiSource.hh>
 
@@ -40,6 +41,14 @@ asking (std::optional<PilotGame> game)
   order.with = PilotRecruit::Nearest;
   return order;
 }
+
+PilotOrder
+styled (std::optional<PilotStyle> style)
+{
+  PilotOrder order;
+  order.style = style;
+  return order;
+}
 }
 
 TEST (ActionReach, FullIgnoresThePilotSection)
@@ -57,9 +66,41 @@ TEST (ActionReach, FpvHandsTheWholeOrderToThePilot)
   EXPECT_EQ (order->with, PilotRecruit::Nearest);
 }
 
-TEST (ActionReach, NoGameNamedIsNothingToHandOn)
+TEST (ActionReach, WithNothingWrittenAnFpvPressAsksTheMusic)
 {
-  EXPECT_FALSE (pilotOrderAtPress (AppView::Fpv, asking (std::nullopt)).has_value ());
+  auto const order = pilotOrderAtPress (AppView::Fpv, PilotOrder{});
+  ASSERT_TRUE (order.has_value ());
+  EXPECT_FALSE (order->game.has_value ());
+  ASSERT_TRUE (order->style.has_value ());
+  EXPECT_EQ (*order->style, PilotStyle::Auto);
+}
+
+TEST (ActionReach, AStyleIsHandedOnAndNoneAsksNothing)
+{
+  EXPECT_EQ (*pilotOrderAtPress (AppView::Fpv, styled (PilotStyle::Soft))->style, PilotStyle::Soft);
+  EXPECT_FALSE (pilotOrderAtPress (AppView::Fpv, styled (PilotStyle::None)).has_value ());
+  EXPECT_FALSE (pilotOrderAtPress (AppView::Full, styled (PilotStyle::Hard)).has_value ());
+  EXPECT_FALSE (pilotOrderAtPress (AppView::Full, PilotOrder{}).has_value ());
+}
+
+TEST (ActionReach, ReleasingAShipIsTheWordNone)
+{
+  auto const order = releasingItsShip ();
+  ASSERT_TRUE (order.game.has_value ());
+  EXPECT_EQ (*order.game, PilotGame::None);
+}
+
+TEST (ActionReach, TheStyleReadoutSaysWhatWasAsked)
+{
+  EXPECT_EQ (pilotStyleReadout (0, "A3", PilotStyle::Auto), "CH1 A3 AUTO");
+  EXPECT_EQ (pilotStyleReadout (2, "A1", PilotStyle::Rising), "CH3 A1 RISING");
+  EXPECT_EQ (pilotReadout (1, "A2", PilotGame::Slap), "CH2 A2 GAME SLAP");
+}
+
+TEST (ActionReach, TheReadoutCallsEncircleCircle)
+{
+  EXPECT_EQ (pilotReadout (0, "A1", PilotGame::Encircle), "CH1 A1 GAME CIRCLE");
+  EXPECT_EQ (pilotGameReadout (0, PilotGame::Encircle), "CH1 FLY CIRCLE");
 }
 
 TEST (ActionReach, NoneIsHandedOnToCallAGameOff)
@@ -121,6 +162,7 @@ TEST (ActionReach, TheRouteHandsThePilotSectionOnByView)
   EXPECT_TRUE (route.contains ("pilotOrderAtPress (_view, fired->pilot)"));
   EXPECT_TRUE (route.contains ("_engine.requestGame (channel, *order)"));
   EXPECT_TRUE (route.contains ("pilotReadout ("));
+  EXPECT_TRUE (route.contains ("pilotStyleReadout ("));
 }
 
 TEST (ActionReach, EveryWayOfFiringGoesThroughTheRoute)
