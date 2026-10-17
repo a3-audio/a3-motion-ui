@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <a3-motion-engine/flight/PilotFamily.hh>
+#include <a3-motion-engine/util/SeedSpread.hh>
 
 using namespace a3;
 
@@ -160,13 +161,10 @@ TEST (ChooseFigure, EncircleIsNeverAPilots)
   auto pressed = 0;
   for (auto index = 0; index < 200; ++index)
     {
-      // JUCE's first draw of a small seed is always false (bit 30 of seed * a
-      // 35-bit multiplier is 0 below 2^11), so spread the seeds.
-      auto const seed = static_cast<juce::int64> (index) * 1000003;
-      juce::Random dice (seed);
+      juce::Random dice (spreadSeed (index));
       EXPECT_EQ (*chooseFigure (PilotFamily::Soft, Asker::Pilot, nothingFits (), true, dice),
                  PilotGame::Graze);
-      juce::Random again (seed);
+      juce::Random again (spreadSeed (index));
       pressed += *chooseFigure (PilotFamily::Soft, Asker::Press, nothingFits (), true, again)
                          == PilotGame::Encircle
                      ? 1

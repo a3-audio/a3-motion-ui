@@ -20,6 +20,7 @@
 
 #include "SlapFigure.hh"
 
+#include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/flight/GameMoments.hh>
 
 #include <algorithm>
@@ -34,12 +35,6 @@ namespace
  *  azimuth of its own. */
 constexpr float poleOffset = 1e-3f;
 
-size_t
-at (int ship)
-{
-  return static_cast<size_t> (ship);
-}
-
 bool
 keepsClear (std::array<Vec2, 2> const &sides, GamePlan const &plan,
             std::array<ShipState, flightShips> const &ships, FigureCall const &call,
@@ -47,10 +42,10 @@ keepsClear (std::array<Vec2, 2> const &sides, GamePlan const &plan,
 {
   for (auto s = 0; s < flightShips; ++s)
     {
-      if (plan.crew[at (s)] || !call.flying[at (s)])
+      if (plan.crew[shipIndex (s)] || !call.flying[shipIndex (s)])
         continue;
       for (auto const &side : sides)
-        if (ships[at (s)].p.getDistanceFrom (side) < tuning.slapClearSide)
+        if (ships[shipIndex (s)].p.getDistanceFrom (side) < tuning.slapClearSide)
           return false;
     }
   return true;
@@ -59,7 +54,7 @@ keepsClear (std::array<Vec2, 2> const &sides, GamePlan const &plan,
 Vec2
 slapPoint (GamePlan const &plan, int ship, int event)
 {
-  auto const mirrored = plan.part[at (ship)] % 2;
+  auto const mirrored = plan.part[shipIndex (ship)] % 2;
   if (plan.snaps && event == 0)
     return mirrored != 0 ? -plan.opening : plan.opening;
   auto const side = (plan.snaps ? event - 1 : event) + mirrored;
@@ -76,8 +71,8 @@ chooseSlapAxis (std::array<bool, slapAxes> const &allowed, juce::Random &dice,
                                              tuning.slapUpDownWeight };
   auto total = 0.f;
   for (auto a = 0; a < slapAxes; ++a)
-    if (allowed[at (a)])
-      total += std::max (0.f, weights[at (a)]);
+    if (allowed[axisIndex (a)])
+      total += std::max (0.f, weights[axisIndex (a)]);
   if (total <= 0.f)
     return SlapAxis::LeftRight;
 
@@ -85,10 +80,10 @@ chooseSlapAxis (std::array<bool, slapAxes> const &allowed, juce::Random &dice,
   auto last = SlapAxis::LeftRight;
   for (auto a = 0; a < slapAxes; ++a)
     {
-      if (!allowed[at (a)] || weights[at (a)] <= 0.f)
+      if (!allowed[axisIndex (a)] || weights[axisIndex (a)] <= 0.f)
         continue;
       last = static_cast<SlapAxis> (a);
-      thrown -= weights[at (a)];
+      thrown -= weights[axisIndex (a)];
       if (thrown < 0.f)
         return last;
     }
@@ -138,7 +133,8 @@ planSlap (GamePlan &plan, std::array<ShipState, flightShips> const &ships, Figur
   plan.endBeats = std::min (plan.startBeats
                                 + static_cast<double> (tuning.slapBars) * beatsPerBar,
                             call.endByBeats);
-  plan.opening = call.snaps ? Vec2{ tuning.slapSideRadius, 0.f } : plan.from[at (plan.leader)];
+  plan.opening = call.snaps ? Vec2{ tuning.slapSideRadius, 0.f }
+                            : plan.from[shipIndex (plan.leader)];
   auto const azimuth = std::atan2 (plan.opening.y, plan.opening.x);
 
   std::array<bool, slapAxes> allowed{};
@@ -146,8 +142,9 @@ planSlap (GamePlan &plan, std::array<ShipState, flightShips> const &ships, Figur
     {
       auto const axis = static_cast<SlapAxis> (a);
       auto const banded = axis == SlapAxis::LeftRight || call.bandFreq >= tuning.highBandFreq;
-      allowed[at (a)] = banded && keepsClear (slapSides (axis, azimuth, tuning), plan, ships,
-                                              call, tuning);
+      allowed[axisIndex (a)]
+          = banded && keepsClear (slapSides (axis, azimuth, tuning), plan, ships,
+                              call, tuning);
     }
   auto const axis = chooseSlapAxis (allowed, dice, tuning);
   auto sides = slapSides (axis, azimuth, tuning);
@@ -157,7 +154,7 @@ planSlap (GamePlan &plan, std::array<ShipState, flightShips> const &ships, Figur
   plan.sides = sides;
   plan.sideGlide = slapGlidePath (axis);
   for (auto s = 0; s < flightShips; ++s)
-    plan.part[at (s)] = s == plan.leader ? 0 : 1;
+    plan.part[shipIndex (s)] = s == plan.leader ? 0 : 1;
 }
 
 int
@@ -182,7 +179,7 @@ slapGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar, GameTun
 {
   auto const events = slapEventsBy (plan, beats, beatsPerBar, tuning);
   if (events == 0)
-    return { plan.from[at (ship)], {} };
+    return { plan.from[shipIndex (ship)], {} };
   return { slapPoint (plan, ship, events - 1), {} };
 }
 

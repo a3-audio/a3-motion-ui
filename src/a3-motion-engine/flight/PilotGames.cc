@@ -20,6 +20,7 @@
 
 #include "PilotGames.hh"
 
+#include <a3-motion-engine/flight/FigureMath.hh>
 #include <a3-motion-engine/util/SeedSpread.hh>
 
 #include <algorithm>
@@ -30,12 +31,6 @@ namespace a3
 
 namespace
 {
-size_t
-at (int i)
-{
-  return static_cast<size_t> (i);
-}
-
 bool
 isShip (int ship)
 {
@@ -130,13 +125,13 @@ PilotGames::request (GameRequest const &request, GameShips const &ships,
 {
   auto const leader = request.leader;
   if (!isShip (leader) || !request.order.game || *request.order.game == PilotGame::None
-      || !ships[at (leader)].canFly)
+      || !ships[shipIndex (leader)].canFly)
     return false;
 
   leave (leader);
   std::array<bool, flightShips> free{};
   for (auto s = 0; s < flightShips; ++s)
-    free[at (s)] = ships[at (s)].canFly && _slotOf[at (s)] < 0;
+    free[shipIndex (s)] = ships[shipIndex (s)].canFly && _slotOf[shipIndex (s)] < 0;
   auto const game = *request.order.game;
   start (game, leader, crewFor (game, request.order.with), request.order.target, false, free,
          ships, bodies, cue, beats, beatsPerBar);
@@ -158,30 +153,30 @@ PilotGames::start (PilotGame game, int leader, PilotRecruit with, PilotTarget ta
   std::array<ShipState, flightShips> states{};
   for (auto s = 0; s < flightShips; ++s)
     {
-      where[at (s)] = ships[at (s)].state.p;
-      now[at (s)] = ships[at (s)].now;
-      states[at (s)] = ships[at (s)].state;
+      where[shipIndex (s)] = ships[shipIndex (s)].state.p;
+      now[shipIndex (s)] = ships[shipIndex (s)].now;
+      states[shipIndex (s)] = ships[shipIndex (s)].state;
     }
   auto const crew = recruit (with, leader, where, free, now);
 
-  auto &running = _games[at (slot)];
+  auto &running = _games[shipIndex (slot)];
   running.live = true;
   running.byPilot = byPilot;
   running.resume = crew.resume;
   running.plan = planGame (game, leader, crew.ships, states, target, bodies, cue, beats,
                            beatsPerBar, _dice, _flight, _tuning);
   for (auto s = 0; s < flightShips; ++s)
-    if (crew.ships[at (s)])
-      _slotOf[at (s)] = slot;
+    if (crew.ships[shipIndex (s)])
+      _slotOf[shipIndex (s)] = slot;
 }
 
 void
 PilotGames::leave (int ship)
 {
-  auto const slot = _slotOf[at (ship)];
+  auto const slot = _slotOf[shipIndex (ship)];
   if (slot < 0)
     return;
-  _slotOf[at (ship)] = -1;
+  _slotOf[shipIndex (ship)] = -1;
   if (std::none_of (_slotOf.begin (), _slotOf.end (), [slot] (int s) { return s == slot; }))
     end (slot);
 }
@@ -189,7 +184,7 @@ PilotGames::leave (int ship)
 void
 PilotGames::end (int slot)
 {
-  auto &running = _games[at (slot)];
+  auto &running = _games[shipIndex (slot)];
   if (!running.live)
     return;
   for (auto &s : _slotOf)
@@ -203,8 +198,8 @@ PilotGames::end (int slot)
 void
 PilotGames::endGameOn (int ship)
 {
-  if (isShip (ship) && _slotOf[at (ship)] >= 0)
-    end (_slotOf[at (ship)]);
+  if (isShip (ship) && _slotOf[shipIndex (ship)] >= 0)
+    end (_slotOf[shipIndex (ship)]);
 }
 
 void
@@ -218,7 +213,7 @@ int
 PilotGames::freeSlot () const
 {
   for (auto slot = 0; slot < flightShips; ++slot)
-    if (!_games[at (slot)].live)
+    if (!_games[shipIndex (slot)].live)
       return slot;
   return -1;
 }
@@ -241,17 +236,17 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
 
   for (auto s = 0; s < flightShips; ++s)
     {
-      auto const slot = _slotOf[at (s)];
+      auto const slot = _slotOf[shipIndex (s)];
       if (slot < 0)
         continue;
-      if (!ships[at (s)].canFly
-          || !sameDoing (ships[at (s)].now, _games[at (slot)].resume[at (s)]))
+      if (!ships[shipIndex (s)].canFly
+          || !sameDoing (ships[shipIndex (s)].now, _games[shipIndex (slot)].resume[shipIndex (s)]))
         leave (s);
     }
 
   for (auto slot = 0; slot < flightShips; ++slot)
     {
-      auto &running = _games[at (slot)];
+      auto &running = _games[shipIndex (slot)];
       if (!running.live)
         continue;
       if (beats >= running.plan.endBeats || (running.byPilot && level != PilotLevel::Fly))
@@ -280,8 +275,8 @@ PilotGames::letAPilotPlay (GameShips const &ships, FlightBodies const &bodies,
   auto freeShips = 0;
   for (auto s = 0; s < flightShips; ++s)
     {
-      free[at (s)] = ships[at (s)].canFly && ships[at (s)].now.orbiting && _slotOf[at (s)] < 0;
-      freeShips += free[at (s)] ? 1 : 0;
+      free[shipIndex (s)] = ships[shipIndex (s)].canFly && ships[shipIndex (s)].now.orbiting && _slotOf[shipIndex (s)] < 0;
+      freeShips += free[shipIndex (s)] ? 1 : 0;
     }
   if (freeShips == 0)
     return;
@@ -289,7 +284,7 @@ PilotGames::letAPilotPlay (GameShips const &ships, FlightBodies const &bodies,
   auto pick = _dice.nextInt (freeShips);
   auto leader = -1;
   for (auto s = 0; s < flightShips && leader < 0; ++s)
-    if (free[at (s)] && pick-- == 0)
+    if (free[shipIndex (s)] && pick-- == 0)
       leader = s;
   start (*game, leader, pilotsCrew (*game), PilotTarget{}, true, free, ships, bodies, cue,
          beats, beatsPerBar);
@@ -298,7 +293,7 @@ PilotGames::letAPilotPlay (GameShips const &ships, FlightBodies const &bodies,
 bool
 PilotGames::plays (int ship) const
 {
-  return isShip (ship) && _slotOf[at (ship)] >= 0;
+  return isShip (ship) && _slotOf[shipIndex (ship)] >= 0;
 }
 
 std::optional<OrbitPoint>
@@ -306,7 +301,7 @@ PilotGames::steerOf (int ship, double beats, int beatsPerBar) const
 {
   if (!plays (ship))
     return std::nullopt;
-  return figureGoal (_games[at (_slotOf[at (ship)])].plan, ship, beats, beatsPerBar, _tuning);
+  return figureGoal (_games[shipIndex (_slotOf[shipIndex (ship)])].plan, ship, beats, beatsPerBar, _tuning);
 }
 
 std::optional<ShipGame>
@@ -314,7 +309,7 @@ PilotGames::gameOf (int ship) const
 {
   if (!plays (ship))
     return std::nullopt;
-  auto const &running = _games[at (_slotOf[at (ship)])];
+  auto const &running = _games[shipIndex (_slotOf[shipIndex (ship)])];
   return ShipGame{ running.plan.game, running.byPilot, running.plan.leader,
                    running.plan.targetBodyId };
 }

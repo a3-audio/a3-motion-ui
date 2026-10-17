@@ -24,6 +24,7 @@
 #include <a3-motion-engine/flight/SlapFigure.hh>
 #include <a3-motion-engine/tempo/TempoClock.hh>
 #include <a3-motion-engine/util/Geometry.hh>
+#include <a3-motion-engine/util/SeedSpread.hh>
 
 #include <cmath>
 #include <optional>
@@ -86,7 +87,7 @@ slapPlan (FigureCall const &call, GameTuning const &tuning,
           std::array<ShipState, flightShips> const &ships = cruising (),
           FlightBodies const &bodies = {}, juce::int64 seed = 5, int beatsPerBar = fourFour)
 {
-  juce::Random dice (seed);
+  juce::Random dice (spreadSeed (seed));
   return planGame (PilotGame::Slap, 0, crew, ships, PilotTarget{}, bodies, MusicCue{},
                    call.openingBeats.value_or (0.), beatsPerBar, dice, flight, tuning, call);
 }
@@ -111,13 +112,6 @@ eventsOf (GamePlan const &plan, int ship, GameTuning const &tuning, int beatsPer
       last = at;
     }
   return events;
-}
-
-/** juce::Random's first draw is near 0 for a small seed: spread the seeds. */
-juce::int64
-spread (int seed)
-{
-  return seed * 1000003LL;
 }
 
 float
@@ -223,9 +217,9 @@ TEST (SlapFigure, FrontBackAndUpDownOnlyWithAHighBand)
     {
       auto call = openingAt (8., true);
       call.bandFreq = 0.3f;
-      low.insert (slapPlan (call, tuning, only (0), cruising (), {}, spread (seed)).sideGlide);
+      low.insert (slapPlan (call, tuning, only (0), cruising (), {}, seed).sideGlide);
       call.bandFreq = 0.8f;
-      high.insert (slapPlan (call, tuning, only (0), cruising (), {}, spread (seed)).sideGlide);
+      high.insert (slapPlan (call, tuning, only (0), cruising (), {}, seed).sideGlide);
     }
   EXPECT_EQ (low, (std::set<GlidePath>{ GlidePath::ViaFront }));
   EXPECT_EQ (high, (std::set<GlidePath>{ GlidePath::ViaFront, GlidePath::ViaSide,
@@ -238,7 +232,7 @@ TEST (SlapFigure, LeftRightIsThrownMostOften)
   std::array<int, 3> thrown{};
   for (auto seed = 0; seed < 600; ++seed)
     {
-      auto const glide = slapPlan (openingAt (8., true), tuning, only (0), cruising (), {}, spread (seed))
+      auto const glide = slapPlan (openingAt (8., true), tuning, only (0), cruising (), {}, seed)
                              .sideGlide;
       ++thrown[glide == GlidePath::ViaFront ? 0 : (glide == GlidePath::ViaSide ? 1 : 2)];
     }
@@ -254,8 +248,8 @@ TEST (SlapFigure, TheSidesStandInTheRoomWhereverTheGroupsAre)
   here.body[0] = { { -0.5f, 0.4f }, flight.groupMass, 2 };
   there.body[0] = { { 0.6f, -0.2f }, flight.hotspotMass, 2 };
   for (auto seed = 0; seed < 20; ++seed)
-    EXPECT_EQ (slapPlan (openingAt (8., true), tuning, only (0), cruising (), here, spread (seed)).sides,
-               slapPlan (openingAt (8., true), tuning, only (0), cruising (), there, spread (seed)).sides)
+    EXPECT_EQ (slapPlan (openingAt (8., true), tuning, only (0), cruising (), here, seed).sides,
+               slapPlan (openingAt (8., true), tuning, only (0), cruising (), there, seed).sides)
         << "a side change, not an impulse towards a group";
 }
 
@@ -265,7 +259,7 @@ TEST (SlapFigure, ASideNearAnotherShipIsLeftForAnotherAxis)
   auto ships = cruising ();
   ships[1].p = { 0.f, 0.8f }; // on the left side point
   for (auto seed = 0; seed < 60; ++seed)
-    EXPECT_NE (slapPlan (openingAt (8., true), tuning, only (0), ships, {}, spread (seed)).sideGlide,
+    EXPECT_NE (slapPlan (openingAt (8., true), tuning, only (0), ships, {}, seed).sideGlide,
                GlidePath::ViaFront)
         << seed;
   auto grounded = openingAt (8., true);
@@ -273,7 +267,7 @@ TEST (SlapFigure, ASideNearAnotherShipIsLeftForAnotherAxis)
   std::set<GlidePath> seen;
   for (auto seed = 0; seed < 60; ++seed)
     {
-      juce::Random dice (spread (seed));
+      juce::Random dice (spreadSeed (seed));
       seen.insert (planGame (PilotGame::Slap, 0, only (0), ships, PilotTarget{}, {}, MusicCue{},
                              8., fourFour, dice, flight, tuning, grounded)
                        .sideGlide);
