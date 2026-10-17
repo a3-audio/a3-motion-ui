@@ -505,3 +505,76 @@ TEST (LiveMoodFamilies, ABuildTheRoomHeardIsClimbedToItsLineAndLetGoWithoutASnap
   games.step (flying (), {}, drop, PilotLevel::Fly, 72., fourFour);
   EXPECT_FALSE (games.plays (climber)) << "over by the end of the drop's second bar";
 }
+
+namespace
+{
+/** Steps `games` on every downbeat from `from` up to, not including, `until`. */
+void
+barsOf (PilotGames &games, MusicCue const &cue, double from, double until)
+{
+  for (auto beats = from; beats < until; beats += fourFour)
+    games.step (flying (), {}, cue, PilotLevel::Fly, beats, fourFour);
+}
+
+/** The ship the pilots hide in a breakdown, or -1. */
+int
+pilotHider (PilotGames const &games)
+{
+  auto const leader = pilotLeader (games);
+  return leader >= 0 && gameOn (games, leader) == PilotGame::HideAndSeek ? leader : -1;
+}
+}
+
+TEST (DropPreempts, APilotHideRunningIntoAPreviewedDropEndsOnItsOneAndAPilotSlapsIt)
+{
+  PilotGames games (1);
+  auto const breakdown = heading (MusicSection::Breakdown, MusicSection::Drop, 16, true, 0);
+  barsOf (games, breakdown, 0., 64.);
+  auto const hider = pilotHider (games);
+  ASSERT_GE (hider, 0) << "no group: the pilots hide through the breakdown";
+
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 32, true, 16, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 64., fourFour);
+  EXPECT_NE (gameOn (games, hider), PilotGame::HideAndSeek) << "the drop's 1 ends the hide";
+  auto const slapper = pilotLeader (games);
+  ASSERT_GE (slapper, 0);
+  EXPECT_EQ (gameOn (games, slapper), PilotGame::Slap);
+  EXPECT_EQ (games.steerOf (slapper, 64., fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "on the drop's 1, with the snap";
+}
+
+TEST (DropPreempts, APilotHideRunningIntoADropTheRoomHeardYieldsToABarOfSlap)
+{
+  PilotGames games (1);
+  auto const breakdown = heading (MusicSection::Breakdown, std::nullopt, -1, false, 0, 0.4f);
+  barsOf (games, breakdown, 20., 32.);
+  auto const hider = pilotHider (games);
+  ASSERT_GE (hider, 0);
+  ASSERT_TRUE (games.steerOf (hider, 32., fourFour).has_value ()) << "still hiding at bar 8";
+
+  auto const heard = heading (MusicSection::Drop, MusicSection::Groove, 16, false, 7, 0.4f);
+  games.step (flying (), {}, heard, PilotLevel::Fly, 32., fourFour); // bar 8: the drop was bar 7
+  EXPECT_NE (gameOn (games, hider), PilotGame::HideAndSeek);
+  auto const slapper = pilotLeader (games);
+  ASSERT_GE (slapper, 0);
+  EXPECT_EQ (gameOn (games, slapper), PilotGame::Slap);
+  EXPECT_NE (games.steerOf (slapper, 32., fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "its 1 has passed: no snap";
+  games.step (flying (), {}, heard, PilotLevel::Fly, 36., fourFour);
+  EXPECT_FALSE (games.plays (slapper)) << "over two bars after the drop";
+}
+
+TEST (DropPreempts, ADjsOwnFigureIsNotPreemptedByTheDrop)
+{
+  PilotGames games (1);
+  auto const breakdown = heading (MusicSection::Breakdown, MusicSection::Drop, 16, true, 0);
+  ASSERT_TRUE (games.request (asking (PilotGame::HideAndSeek, 0), flying (), {}, breakdown, 0.,
+                              fourFour));
+  barsOf (games, breakdown, 0., 64.);
+  ASSERT_EQ (gameOn (games, 0), PilotGame::HideAndSeek);
+
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 32, true, 16, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 64., fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::HideAndSeek) << "the DJ's hide plays on";
+  EXPECT_FALSE (games.gameOf (0)->byPilot);
+}

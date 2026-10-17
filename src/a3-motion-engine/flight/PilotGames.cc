@@ -115,6 +115,27 @@ pilotsCrew (PilotGame game)
   return PilotRecruit::Self;
 }
 
+/** A figure of the SOFT family: the drop's 1 pre-empts it when a pilot plays it. */
+bool
+isSoftFigure (PilotGame game)
+{
+  switch (game)
+    {
+    case PilotGame::HideAndSeek:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
+      return true;
+    case PilotGame::None:
+    case PilotGame::FakeOut:
+    case PilotGame::Formation:
+    case PilotGame::CallAndResponse:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+      return false;
+    }
+  return false;
+}
+
 /** Whether two cues name the same moment: a pilot looks again when it moves. */
 bool
 sameMoment (MusicCue const &a, MusicCue const &b)
@@ -250,15 +271,19 @@ PilotGames::leave (int ship)
 void
 PilotGames::end (int slot)
 {
-  auto &running = _games[shipIndex (slot)];
-  if (!running.live)
-    return;
+  auto const pilots = _games[shipIndex (slot)].live && _games[shipIndex (slot)].byPilot;
+  clear (slot);
+  if (pilots)
+    _restUntilBar = _bar + _tuning.restBars;
+}
+
+void
+PilotGames::clear (int slot)
+{
   for (auto &s : _slotOf)
     if (s == slot)
       s = -1;
-  running.live = false;
-  if (running.byPilot)
-    _restUntilBar = _bar + _tuning.restBars;
+  _games[shipIndex (slot)].live = false;
 }
 
 void
@@ -310,11 +335,20 @@ PilotGames::step (GameShips const &ships, FlightBodies const &bodies, MusicCue c
         leave (s);
     }
 
+  // The drop's 1 pre-empts a pilot's soft figure, and takes no rest for it:
+  // the slap that hits the drop starts on the same tick.
+  auto const dropHits = level == PilotLevel::Fly
+                        && pilotFamily (cue, bar, Asker::Pilot, _tuning) == PilotFamily::Hard;
   for (auto slot = 0; slot < flightShips; ++slot)
     {
       auto &running = _games[shipIndex (slot)];
       if (!running.live)
         continue;
+      if (dropHits && running.byPilot && isSoftFigure (running.plan.game))
+        {
+          clear (slot);
+          continue;
+        }
       if (running.plan.game == PilotGame::Climb && running.plan.chainsIntoSlap
           && beats >= running.plan.climaxBeats)
         chainIntoSlap (slot, ships, bodies, cue, beatsPerBar);

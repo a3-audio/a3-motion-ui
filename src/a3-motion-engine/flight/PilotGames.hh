@@ -92,7 +92,9 @@ public:
    *  follow their groups; and at FLY, on a new bar or when the music's cue
    *  changes, a pilot may start a figure of the family the music asks for --
    *  one pilot figure at a time, ORBIT ships only, restBars after the last
-   *  one. A pilot's climb that does not chain into a previewed drop yields
+   *  one. A drop the pilots hit ends a pilot's soft figure on its first tick,
+   *  with no rest, so the slap can open on it; a DJ's figure plays on. A
+   *  pilot's climb that does not chain into a previewed drop yields
    *  to a drop the room hears: a slap without the snap. */
   void step (GameShips const &ships, FlightBodies const &bodies, MusicCue const &cue,
              PilotLevel level, double beats, int beatsPerBar);
@@ -158,7 +160,10 @@ private:
   /** Whether a slap called `call` leaves room for a step after its opening. */
   bool slapHasRoom (FigureCall const &call) const;
   void leave (int ship);
+  /** Ends the game in `slot`; after a pilot's own, the pilots rest. */
   void end (int slot);
+  /** Ends the game in `slot` with no rest after it. */
+  void clear (int slot);
   int freeSlot () const;
   bool aPilotPlays () const;
   void letAPilotPlay (GameShips const &ships, FlightBodies const &bodies, MusicCue const &cue,
