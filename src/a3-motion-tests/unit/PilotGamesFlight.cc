@@ -30,6 +30,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -132,7 +133,7 @@ struct Floor
     auto const dt = 1. / TempoClock::getTicksPerBeat ();
     while (beats < until - 1e-9)
       {
-        games.step (ships (), bodies, cue, PilotLevel::Off, beats, fourFour);
+        games.step (ships (), bodies, cue, level, beats, fourFour);
         std::array<ShipOrders, flightShips> orders{};
         for (auto ch = 0; ch < flightShips; ++ch)
           {
@@ -140,9 +141,12 @@ struct Floor
             order.flying = true;
             if (auto const goal = games.steerOf (ch, beats, fourFour))
               {
+                auto const stance = games.stanceOf (ch, beats, fourFour);
                 order.goal = FlightGoal::Steer;
                 order.steer = *goal;
                 order.bodyId = games.gameOf (ch)->target;
+                order.hold = stance.hold;
+                order.breathes = stance.breathes;
               }
           }
         world.step (orders, bodies, beats, fourFour,
@@ -164,6 +168,7 @@ struct Floor
   FlightWorld world{ 7 };
   PilotGames games;
   std::array<bool, flightShips> canFly{ true, true, true, true };
+  PilotLevel level = PilotLevel::Off;
   double beats = 0.;
 };
 
@@ -630,4 +635,24 @@ TEST (PilotGamesFlight, AGameAgainstAGroupPastTheRimStaysInsideTheDisc)
           EXPECT_LE (worst, 1.f + 1e-5f) << what;
           EXPECT_FALSE (floor.games.plays (0)) << what << ": over by beat 24";
         }
+}
+
+TEST (PilotGamesFlight, ASlapHoldsItsShipAtItsSidesAndRelaunchesItAfterward)
+{
+  Floor floor;
+  floor.runTo (8., heading (MusicSection::Groove, std::nullopt, -1));
+  ASSERT_TRUE (floor.ask (PilotGame::Slap, 0, PilotRecruit::Self,
+                          heading (MusicSection::Groove, std::nullopt, -1)));
+  std::optional<Vec2> held;
+  floor.runTo (16., heading (MusicSection::Groove, std::nullopt, -1), [&] (double beat) {
+    if (beat > 8.5 && beat < 9.5)
+      held = floor.at (0);
+  });
+  ASSERT_TRUE (held.has_value ());
+  EXPECT_EQ (*held, (Vec2{ tuning.slapSideRadius, 0.f })) << "placed at the front on the 1";
+  floor.runTo (16. + 1. / TempoClock::getTicksPerBeat (),
+               heading (MusicSection::Groove, std::nullopt, -1));
+  EXPECT_FALSE (floor.games.plays (0)) << "two bars, then over";
+  EXPECT_GT (floor.world.ship (0).v.getDistanceFromOrigin (), FlightTuning{}.speedMin + 0.05f)
+      << "relaunched at cruise, not crawling off from standing";
 }

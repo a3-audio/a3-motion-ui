@@ -266,4 +266,22 @@ nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning)
   return (first + 3.) * bar;
 }
 
+double
+openingBeats (PilotGame game, double beats, int beatsPerBar, double graceBeats)
+{
+  if (!isContrastFigure (game) || beatsPerBar <= 0)
+    return beats;
+  auto const whole = std::floor (beats);
+  auto beat = beats - whole <= graceBeats ? whole : std::ceil (beats);
+  if (game == PilotGame::Slap && breathHolds (beat, beatsPerBar))
+    beat = (std::floor (beat / beatsPerBar) + 1.) * beatsPerBar;
+  return beat;
+}
+
+bool
+isDownbeat (double beats, int beatsPerBar)
+{
+  return beatsPerBar > 0 && std::abs (std::fmod (beats, static_cast<double> (beatsPerBar))) < 1e-9;
+}
+
 }

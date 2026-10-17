@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/flight/GameFigures.hh>
 #include <a3-motion-engine/flight/PilotDesk.hh>
+#include <a3-motion-engine/flight/PilotFamily.hh>
 #include <a3-motion-engine/flight/PilotLevel.hh>
 
 #include <array>
@@ -54,6 +55,9 @@ struct GameShip
   /** Where it is on the floor and how it moves; for a ship on its clip,
    *  where it would launch. */
   ShipState state;
+  /** The channel's FREQ knob, 0-1, as the band is heard: front-back and
+   *  up-down slaps want a high one. */
+  float bandFreq = 0.f;
 };
 using GameShips = std::array<GameShip, flightShips>;
 
@@ -71,10 +75,12 @@ public:
   explicit PilotGames (juce::int64 seed, FlightTuning const &flight = {},
                        GameTuning const &tuning = {});
 
-  /** An action's request: its leader leaves whatever game it plays in, and
-   *  the game starts on it and the free ships its `with` brings (call &
-   *  response: a pair whatever it says). False, and nothing changes, when
-   *  the leader cannot fly or the request names no game to play. */
+  /** An action's request: a game named outright, or a style the music turns
+   *  into a figure (`\auto`: the music's own family). Its leader leaves
+   *  whatever game it plays in; the figure opens on the next beat (a game of
+   *  the first version at once) and takes the free ships its `with` brings.
+   *  False, and nothing changes, when the leader cannot fly or nothing is
+   *  asked. */
   bool request (GameRequest const &request, GameShips const &ships, FlightBodies const &bodies,
                 MusicCue const &cue, double beats, int beatsPerBar);
   /** Ends the game `ship` plays in, for every ship in it. */
@@ -90,8 +96,14 @@ public:
              PilotLevel level, double beats, int beatsPerBar);
 
   bool plays (int ship) const;
-  /** What `ship` steers for now; nothing when it plays no game. */
+  /** What `ship` steers for now; nothing when it plays no game, or while its
+   *  figure waits for its beat. */
   std::optional<OrbitPoint> steerOf (int ship, double beats, int beatsPerBar) const;
+  /** How `ship` stands besides its point (FigureStance); the default when it
+   *  plays no game or its figure has not opened. */
+  FigureStance stanceOf (int ship, double beats, int beatsPerBar) const;
+  /** Takes `ship` alone out of its game; the rest play on. */
+  void release (int ship);
   std::optional<ShipGame> gameOf (int ship) const;
 
 private:
@@ -105,7 +117,20 @@ private:
 
   void start (PilotGame game, int leader, PilotRecruit with, PilotTarget target, bool byPilot,
               std::array<bool, flightShips> const &free, GameShips const &ships,
-              FlightBodies const &bodies, MusicCue const &cue, double beats, int beatsPerBar);
+              FlightBodies const &bodies, MusicCue const &cue, double beats, int beatsPerBar,
+              FigureCall const &call);
+  /** What the floor offers a soft figure played from `from` against `target`. */
+  struct Room
+  {
+    bool group = false;
+    bool grazeFits = false;
+  };
+  Room roomFor (PilotTarget target, Vec2 from, FlightBodies const &bodies) const;
+  std::optional<PilotGame> pressedFigure (PilotOrder const &order, Vec2 leaderAt,
+                                          FlightBodies const &bodies, MusicCue const &cue,
+                                          double beats, int beatsPerBar);
+  FigureCall pressCall (PilotGame game, GameShips const &ships, int leader, double beats,
+                        int beatsPerBar) const;
   void leave (int ship);
   void end (int slot);
   int freeSlot () const;

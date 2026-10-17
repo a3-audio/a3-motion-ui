@@ -230,3 +230,20 @@ TEST (GameMoments, ASlapStepsOnTheOneAndTheThreeTwoBeatsApart)
   EXPECT_DOUBLE_EQ (nextSlapEvent (6., 3, tuning), 9.) << "in 3/4 the third beat breathes";
   EXPECT_DOUBLE_EQ (nextSlapEvent (4., 2, tuning), 6.) << "2/4 has no breath";
 }
+
+TEST (GameMoments, AContrastFigureOpensOnTheNextBeat)
+{
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Graze, 5.3, fourFour, 0.), 6.);
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Graze, 6., fourFour, 0.), 6.)
+      << "on a beat: that beat, as a pad press lands";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Slap, 2.5, fourFour, 0.), 4.)
+      << "beat 4 breathes: a slap opens on the following 1";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Climb, 2.5, fourFour, 0.), 3.)
+      << "only a slap waits for the 1";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::FakeOut, 5.3, fourFour, 0.), 5.3)
+      << "the first four start at once";
+  EXPECT_DOUBLE_EQ (openingBeats (PilotGame::Slap, 8.05, fourFour, 0.25), 8.)
+      << "a cue a moment late still lands on the beat it was for";
+  EXPECT_TRUE (isDownbeat (8., fourFour));
+  EXPECT_FALSE (isDownbeat (9., fourFour));
+}

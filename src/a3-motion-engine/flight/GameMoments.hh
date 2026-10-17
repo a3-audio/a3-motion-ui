@@ -81,4 +81,15 @@ FittingGames fittingGames (MusicCue const &cue, long long bar, int beatsPerBar,
  *  and 3 in 4/4), never the breath's beat. */
 double nextSlapEvent (double after, int beatsPerBar, GameTuning const &tuning);
 
+/** The beat a figure asked for at `beats` opens on. The four first games:
+ *  `beats` itself -- they start at once and land on their own 1. A contrast
+ *  figure: the next beat, a beat itself when on one (the rule a pad press
+ *  follows, TempoClock::nextBeat), or the beat just passed when that is at
+ *  most `graceBeats` ago; a Slap whose beat is the breath's opens on the
+ *  following 1. */
+double openingBeats (PilotGame game, double beats, int beatsPerBar, double graceBeats);
+
+/** Whether `beats` is a bar's 1. */
+bool isDownbeat (double beats, int beatsPerBar);
+
 }

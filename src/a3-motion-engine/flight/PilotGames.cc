@@ -124,25 +124,81 @@ PilotGames::request (GameRequest const &request, GameShips const &ships,
                      int beatsPerBar)
 {
   auto const leader = request.leader;
-  if (!isShip (leader) || !request.order.game || *request.order.game == PilotGame::None
-      || !ships[shipIndex (leader)].canFly)
+  if (!isShip (leader) || !ships[shipIndex (leader)].canFly || beatsPerBar <= 0)
+    return false;
+  auto const game = pressedFigure (request.order, ships[shipIndex (leader)].state.p, bodies, cue,
+                                   beats, beatsPerBar);
+  if (!game || *game == PilotGame::None)
     return false;
 
   leave (leader);
   std::array<bool, flightShips> free{};
   for (auto s = 0; s < flightShips; ++s)
     free[shipIndex (s)] = ships[shipIndex (s)].canFly && _slotOf[shipIndex (s)] < 0;
-  auto const game = *request.order.game;
-  start (game, leader, crewFor (game, request.order.with), request.order.target, false, free,
-         ships, bodies, cue, beats, beatsPerBar);
+  start (*game, leader, crewFor (*game, request.order.with), request.order.target, false, free,
+         ships, bodies, cue, beats, beatsPerBar,
+         pressCall (*game, ships, leader, beats, beatsPerBar));
   return true;
+}
+
+PilotGames::Room
+PilotGames::roomFor (PilotTarget target, Vec2 from, FlightBodies const &bodies) const
+{
+  Room room;
+  room.group = targetBody (target, from, bodies, _flight) != noBodyId;
+  room.grazeFits = room.group; // a group is room enough to pass
+  return room;
+}
+
+std::optional<PilotGame>
+PilotGames::pressedFigure (PilotOrder const &order, Vec2 leaderAt, FlightBodies const &bodies,
+                           MusicCue const &cue, double beats, int beatsPerBar)
+{
+  auto const room = roomFor (order.target, leaderAt, bodies);
+  if (order.game)
+    return playableFigure (*order.game, room.group, room.grazeFits);
+  if (!order.style || *order.style == PilotStyle::None)
+    return std::nullopt;
+  auto const bar = static_cast<long long> (std::floor (beats / beatsPerBar));
+  auto const family = *order.style == PilotStyle::Auto
+                          ? pilotFamily (cue, bar, Asker::Press, _tuning)
+                          : familyOf (*order.style);
+  if (!family)
+    return std::nullopt;
+  auto const game = chooseFigure (*family, Asker::Press, fittingGames (cue, bar, beatsPerBar, _tuning),
+                                  room.grazeFits, _dice);
+  if (!game)
+    return std::nullopt;
+  return playableFigure (*game, room.group, room.grazeFits);
+}
+
+FigureCall
+PilotGames::pressCall (PilotGame game, GameShips const &ships, int leader, double beats,
+                       int beatsPerBar) const
+{
+  FigureCall call;
+  call.openingBeats = openingBeats (game, beats, beatsPerBar, 0.);
+  // A press on a 1 hits it with the jump to the front; off the 1 a slap
+  // opens on its first side.
+  call.snaps = game == PilotGame::Slap && isDownbeat (*call.openingBeats, beatsPerBar);
+  call.bandFreq = ships[shipIndex (leader)].bandFreq;
+  for (auto s = 0; s < flightShips; ++s)
+    call.flying[shipIndex (s)] = ships[shipIndex (s)].canFly;
+  return call;
+}
+
+void
+PilotGames::release (int ship)
+{
+  if (isShip (ship))
+    leave (ship);
 }
 
 void
 PilotGames::start (PilotGame game, int leader, PilotRecruit with, PilotTarget target,
                    bool byPilot, std::array<bool, flightShips> const &free,
                    GameShips const &ships, FlightBodies const &bodies, MusicCue const &cue,
-                   double beats, int beatsPerBar)
+                   double beats, int beatsPerBar, FigureCall const &call)
 {
   auto const slot = freeSlot ();
   if (slot < 0)
@@ -164,7 +220,7 @@ PilotGames::start (PilotGame game, int leader, PilotRecruit with, PilotTarget ta
   running.byPilot = byPilot;
   running.resume = crew.resume;
   running.plan = planGame (game, leader, crew.ships, states, target, bodies, cue, beats,
-                           beatsPerBar, _dice, _flight, _tuning);
+                           beatsPerBar, _dice, _flight, _tuning, call);
   for (auto s = 0; s < flightShips; ++s)
     if (crew.ships[shipIndex (s)])
       _slotOf[shipIndex (s)] = slot;
@@ -287,7 +343,7 @@ PilotGames::letAPilotPlay (GameShips const &ships, FlightBodies const &bodies,
     if (free[shipIndex (s)] && pick-- == 0)
       leader = s;
   start (*game, leader, pilotsCrew (*game), PilotTarget{}, true, free, ships, bodies, cue,
-         beats, beatsPerBar);
+         beats, beatsPerBar, FigureCall{});
 }
 
 bool
@@ -301,7 +357,20 @@ PilotGames::steerOf (int ship, double beats, int beatsPerBar) const
 {
   if (!plays (ship))
     return std::nullopt;
-  return figureGoal (_games[shipIndex (_slotOf[shipIndex (ship)])].plan, ship, beats, beatsPerBar, _tuning);
+  auto const &plan = _games[shipIndex (_slotOf[shipIndex (ship)])].plan;
+  // Waiting for its beat, the ship flies on as it was.
+  if (beats < plan.startBeats)
+    return std::nullopt;
+  return figureGoal (plan, ship, beats, beatsPerBar, _tuning);
+}
+
+FigureStance
+PilotGames::stanceOf (int ship, double beats, int beatsPerBar) const
+{
+  if (!plays (ship))
+    return {};
+  return figureStance (_games[shipIndex (_slotOf[shipIndex (ship)])].plan, ship, beats,
+                       beatsPerBar, _tuning);
 }
 
 std::optional<ShipGame>
