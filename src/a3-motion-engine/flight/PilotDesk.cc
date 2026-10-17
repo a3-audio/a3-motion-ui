@@ -94,10 +94,10 @@ recruit (PilotRecruit with, int leader,
 void
 PilotDesk::post (GameRequest request)
 {
-  if (!isShip (request.leader) || !request.order.game)
+  if (!isShip (request.leader) || (!request.order.game && !request.order.style))
     return;
   auto &slot = _pending[index (request.leader)];
-  if (*request.order.game == PilotGame::None)
+  if (request.order.game && *request.order.game == PilotGame::None)
     {
       slot.reset ();
       return;

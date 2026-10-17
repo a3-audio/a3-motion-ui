@@ -93,3 +93,57 @@ TEST (PilotOrder, AFreshOrderAsksNoGame)
   EXPECT_EQ (order.target.kind, PilotTargetKind::Nearest);
   EXPECT_EQ (order.with, PilotRecruit::Self);
 }
+
+TEST (PilotOrder, TheFourContrastFiguresAreWordsToo)
+{
+  for (auto const game : { PilotGame::Slap, PilotGame::Climb, PilotGame::Graze,
+                           PilotGame::Encircle })
+    {
+      auto const back = pilotGameNamed (pilotWord (game));
+      ASSERT_TRUE (back.has_value ()) << pilotWord (game);
+      EXPECT_EQ (*back, game);
+    }
+  EXPECT_EQ (pilotWord (PilotGame::Slap), "slap");
+  EXPECT_EQ (pilotWord (PilotGame::Encircle), "encircle");
+}
+
+TEST (PilotOrder, TheStylesReadBackAndUnknownWordsAreEmpty)
+{
+  for (auto const style : { PilotStyle::Auto, PilotStyle::Hard, PilotStyle::Rising,
+                            PilotStyle::Soft, PilotStyle::Groove, PilotStyle::None })
+    {
+      auto const back = pilotStyleNamed (pilotWord (style));
+      ASSERT_TRUE (back.has_value ()) << pilotWord (style);
+      EXPECT_EQ (*back, style);
+    }
+  EXPECT_EQ (pilotWord (PilotStyle::Rising), "rising");
+  EXPECT_FALSE (pilotStyleNamed ("loud").has_value ());
+  EXPECT_FALSE (pilotStyleNamed ("Hard").has_value ()) << "spelled as a script writes it";
+}
+
+TEST (PilotOrder, AStyleNamesItsFamilyAutoAndNoneNameNone)
+{
+  auto const family = [] (PilotStyle style) { return familyOf (style); };
+  ASSERT_TRUE (family (PilotStyle::Hard).has_value ());
+  EXPECT_EQ (*family (PilotStyle::Hard), PilotFamily::Hard);
+  EXPECT_EQ (*family (PilotStyle::Rising), PilotFamily::Rising);
+  EXPECT_EQ (*family (PilotStyle::Soft), PilotFamily::Soft);
+  EXPECT_EQ (*family (PilotStyle::Groove), PilotFamily::Groove);
+  EXPECT_FALSE (family (PilotStyle::Auto).has_value ());
+  EXPECT_FALSE (family (PilotStyle::None).has_value ());
+}
+
+TEST (PilotOrder, OnlyTheContrastFiguresAreContrastFigures)
+{
+  for (auto const game : { PilotGame::Slap, PilotGame::Climb, PilotGame::Graze,
+                           PilotGame::Encircle })
+    EXPECT_TRUE (isContrastFigure (game)) << pilotWord (game);
+  for (auto const game : { PilotGame::None, PilotGame::FakeOut, PilotGame::Formation,
+                           PilotGame::HideAndSeek, PilotGame::CallAndResponse })
+    EXPECT_FALSE (isContrastFigure (game)) << pilotWord (game);
+}
+
+TEST (PilotOrder, AFreshOrderAsksNoStyle)
+{
+  EXPECT_FALSE (PilotOrder{}.style.has_value ());
+}

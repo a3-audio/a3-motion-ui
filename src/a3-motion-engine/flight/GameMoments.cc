@@ -53,6 +53,10 @@ landsOnTheChange (PilotGame game, MusicCue const &cue)
       return cue.section == MusicSection::Breakdown && cue.next && cue.changeBar >= 0;
     case PilotGame::None:
     case PilotGame::CallAndResponse:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return false;
     }
   return false;
@@ -73,6 +77,10 @@ FittingGames::has (PilotGame game) const
     case PilotGame::CallAndResponse:
       return callAndResponse;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return false;
     }
   return false;
@@ -99,6 +107,10 @@ minLeadBeats (PilotGame game, int beatsPerBar, GameTuning const &tuning)
     case PilotGame::CallAndResponse:
       return tuning.callGatherBars * bar;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return 0.;
     }
   return 0.;
@@ -141,6 +153,10 @@ afterClimaxBeats (PilotGame game, int beatsPerBar, GameTuning const &tuning)
     case PilotGame::HideAndSeek:
       return tuning.afterClimaxBars * bar;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return 0.;
     }
   return 0.;

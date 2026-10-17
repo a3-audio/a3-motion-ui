@@ -565,6 +565,10 @@ planGame (PilotGame game, int leader, std::array<bool, flightShips> const &crew,
       planCallAndResponse (plan);
       break;
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       break;
     }
   return plan;
@@ -590,6 +594,10 @@ figureGoal (GamePlan const &plan, int ship, double beats, int beatsPerBar,
     case PilotGame::CallAndResponse:
       return callAndResponseGoal (plan, ship, beats, beatsPerBar, tuning);
     case PilotGame::None:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       break;
     }
   return standAt (plan.from[at (ship)]);

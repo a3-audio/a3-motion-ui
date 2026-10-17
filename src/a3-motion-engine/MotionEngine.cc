@@ -2399,8 +2399,11 @@ MotionEngine::publishGames ()
       _gameView[ch].store (encodeGame (_games.gameOf (static_cast<int> (ch))),
                            std::memory_order_relaxed);
       auto const pending = _pilotDesk.pending (static_cast<int> (ch));
-      _pendingGameView[ch].store (pending ? static_cast<int> (*pending->order.game) : -1,
-                                  std::memory_order_relaxed);
+      // A pending style is chosen into a figure when the clock takes it:
+      // until then it shows as no game.
+      _pendingGameView[ch].store (
+          pending ? static_cast<int> (pending->order.game.value_or (PilotGame::None)) : -1,
+          std::memory_order_relaxed);
     }
 }
 

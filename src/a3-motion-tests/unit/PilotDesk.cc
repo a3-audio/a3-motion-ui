@@ -162,3 +162,17 @@ TEST (PilotDesk, AllBringsEveryFreeShipAndRemembersEach)
   EXPECT_EQ (r.resume[2].bodyId, 3);
   EXPECT_FALSE (r.resume[3].orbiting) << "a ship not taken keeps no resume";
 }
+
+TEST (PilotDesk, AStyleWithoutAGameIsARequestToo)
+{
+  PilotDesk desk;
+  GameRequest request;
+  request.leader = 1;
+  request.order.style = PilotStyle::Auto;
+  desk.post (request);
+  auto const pending = desk.pending (1);
+  ASSERT_TRUE (pending.has_value ());
+  EXPECT_FALSE (pending->order.game.has_value ());
+  ASSERT_TRUE (pending->order.style.has_value ());
+  EXPECT_EQ (*pending->order.style, PilotStyle::Auto);
+}

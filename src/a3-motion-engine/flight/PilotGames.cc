@@ -57,6 +57,16 @@ crewFor (PilotGame game, PilotRecruit with)
     {
     case PilotGame::CallAndResponse:
       return PilotRecruit::Nearest;
+    case PilotGame::Slap:
+    case PilotGame::Encircle:
+      // A pair at most: a partner mirrors on the opposite side, and a third
+      // ship would stand where one of the two stands.
+      return with == PilotRecruit::All ? PilotRecruit::Nearest : with;
+    case PilotGame::Graze:
+      // One line past one group: a second ship on it would meet the first.
+      return PilotRecruit::Self;
+    case PilotGame::Climb:
+      return with;
     case PilotGame::None:
     case PilotGame::FakeOut:
     case PilotGame::Formation:
@@ -79,6 +89,10 @@ pilotsCrew (PilotGame game)
     case PilotGame::None:
     case PilotGame::FakeOut:
     case PilotGame::HideAndSeek:
+    case PilotGame::Slap:
+    case PilotGame::Climb:
+    case PilotGame::Graze:
+    case PilotGame::Encircle:
       return PilotRecruit::Self;
     }
   return PilotRecruit::Self;
