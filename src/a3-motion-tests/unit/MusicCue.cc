@@ -100,3 +100,48 @@ TEST (MusicCue, WithoutAFreshPreviewTheLiveMoodSpeaks)
   EXPECT_EQ (cue.changeBar, 16);
   EXPECT_FALSE (cue.previewed);
 }
+
+namespace
+{
+MusicCue
+sectionCue (MusicSection now, std::optional<MusicSection> next = std::nullopt,
+            long long changeBar = -1)
+{
+  MusicCue cue;
+  cue.section = now;
+  cue.next = next;
+  cue.changeBar = changeBar;
+  cue.energy = 0.5f;
+  cue.previewed = true;
+  return cue;
+}
+}
+
+TEST (MusicCue, ANamedChangeStartsOnTheBarItWasNamedFor)
+{
+  auto const build = withSectionStart (sectionCue (MusicSection::Build, MusicSection::Drop, 32),
+                                       MusicCue{}, 16);
+  // the drop's preview arrives a bar late: it still began on bar 32
+  auto const drop = withSectionStart (sectionCue (MusicSection::Drop), build, 33);
+  EXPECT_EQ (drop.sectionStartBar, 32);
+}
+
+TEST (MusicCue, ASectionKeepsTheBarItStartedOn)
+{
+  auto const drop = withSectionStart (sectionCue (MusicSection::Drop), MusicCue{}, 40);
+  EXPECT_EQ (drop.sectionStartBar, 40) << "an unannounced change starts now";
+  auto const again = withSectionStart (sectionCue (MusicSection::Drop), drop, 43);
+  EXPECT_EQ (again.sectionStartBar, 40);
+}
+
+TEST (MusicCue, AStartTheCueBringsIsKept)
+{
+  auto cue = sectionCue (MusicSection::Drop);
+  cue.sectionStartBar = 8;
+  EXPECT_EQ (withSectionStart (cue, MusicCue{}, 9).sectionStartBar, 8);
+}
+
+TEST (MusicCue, AFreshCueKnowsNoStart)
+{
+  EXPECT_EQ (MusicCue{}.sectionStartBar, -1);
+}

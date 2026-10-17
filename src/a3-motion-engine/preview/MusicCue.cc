@@ -55,4 +55,20 @@ chooseCue (std::optional<MusicAhead> const &freshPreview, long long previewBar,
   return liveMood;
 }
 
+MusicCue
+withSectionStart (MusicCue next, MusicCue const &previous, long long bar)
+{
+  if (next.sectionStartBar >= 0)
+    return next;
+  if (next.section == previous.section && previous.sectionStartBar >= 0)
+    {
+      next.sectionStartBar = previous.sectionStartBar;
+      return next;
+    }
+  auto const announced = next.section != previous.section && previous.next
+                         && *previous.next == next.section && previous.changeBar >= 0;
+  next.sectionStartBar = announced ? previous.changeBar : bar;
+  return next;
+}
+
 }

@@ -1209,7 +1209,11 @@ MotionEngine::handleFifoMessage (Message const &message)
       }
     case Message::Command::SetMusicCue:
       {
-        _musicCue = message.cue;
+        // The bar a section began is what a pilot counts a drop's first bars
+        // from; StemDeck sends only what comes next.
+        _musicCue = withSectionStart (
+            message.cue, _musicCue,
+            nearestDownbeatBar (beatsNow (), _tempoClock.getBeatsPerBar ()));
         break;
       }
     case Message::Command::CallOffGames:

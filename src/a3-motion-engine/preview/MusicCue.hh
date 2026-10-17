@@ -38,6 +38,8 @@ struct MusicCue
   std::optional<MusicSection> next;
   /** The bar on whose downbeat `next` starts; -1: not known. */
   long long changeBar = -1;
+  /** The bar on whose downbeat `section` began; -1: not known. */
+  long long sectionStartBar = -1;
   /** 0-1, how loud the music is now. */
   float energy = 0.f;
   /** From StemDeck's preview, not from the live mood. */
@@ -56,5 +58,11 @@ long long nearestDownbeatBar (double beats, int beatsPerBar);
 /** The preview while it is fresh, the live mood otherwise. */
 MusicCue chooseCue (std::optional<MusicAhead> const &freshPreview, long long previewBar,
                     MusicCue const &liveMood);
+
+/** `next` with the bar its section began: its own when it brings one; the
+ *  previous cue's when the section goes on; the bar the previous cue named
+ *  for a change it announced; else `bar`, the bar it is taken on -- a change
+ *  nobody announced (a jump in the set) starts when it is heard. */
+MusicCue withSectionStart (MusicCue next, MusicCue const &previous, long long bar);
 
 }
