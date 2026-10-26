@@ -156,24 +156,38 @@ TEST (ChannelSource, ADeckNotReportedPresentIsAbsent)
   EXPECT_EQ (sources.faceText (0), "DECK A (absent)");
 }
 
-TEST (ChannelSource, ANewCoreBringsEverythingBackToAnalog)
+// The first boot id Motion hears is only noted: Core answers the recall with
+// its channel sources within a moment of Motion's start, and the first
+// announcement arrives after that. Resetting on it wiped a valid state.
+TEST (ChannelSource, TheFirstBootIdOnlyRecords)
 {
   ChannelSources sources;
   sources.setSource (0, 1);
-  sources.setSource (3, 2);
   sources.setPresent (1, true);
 
-  EXPECT_TRUE (sources.coreAnnounced ("boot-1")) << "the first one is news";
-  EXPECT_FALSE (sources.coreAnnounced ("boot-1")) << "the same boot again";
-  sources.setSource (0, 1);
-  sources.setPresent (1, true);
   EXPECT_FALSE (sources.coreAnnounced ("boot-1"));
-  EXPECT_EQ (sources.source (0), 1) << "a repeated announcement resets nothing";
+  EXPECT_EQ (sources.source (0), 1) << "the first id wiped the recalled state";
+  EXPECT_TRUE (sources.isPresent (1));
+  EXPECT_FALSE (sources.coreAnnounced ("boot-1")) << "the same boot again";
+  EXPECT_EQ (sources.source (0), 1);
+}
+
+TEST (ChannelSource, ANewCoreBringsEverythingBackToAnalog)
+{
+  ChannelSources sources;
+  EXPECT_FALSE (sources.coreAnnounced ("boot-1"));
+  sources.setSource (0, 1);
+  sources.setSource (3, 2);
+  sources.setPresent (1, true);
 
   EXPECT_TRUE (sources.coreAnnounced ("boot-2"));
   for (int channel = 0; channel < 4; ++channel)
     EXPECT_EQ (sources.source (channel), analogSource) << channel;
   EXPECT_FALSE (sources.isPresent (1));
+
+  sources.setSource (0, 1);
+  EXPECT_FALSE (sources.coreAnnounced ("boot-2"));
+  EXPECT_EQ (sources.source (0), 1);
 }
 
 TEST (ChannelSource, AnAnnouncementWithoutABootIdResetsNothing)

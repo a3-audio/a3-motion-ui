@@ -112,16 +112,23 @@ public:
     return deckFaceText (s, isPresent (s));
   }
 
-  /** Core announced itself with this boot id. True when it is a Core Motion
-   *  has not heard before; then everything is back to analog and absent. An
-   *  announcement without a boot id (an older Core) says nothing. */
+  /** Core announced itself with this boot id. True when it is another Core
+   *  than the one Motion knew; then everything is back to analog and absent.
+   *  The first id Motion hears only records: Core answers the recall with
+   *  its sources before the first announcement arrives, and that answer
+   *  must stand. An announcement without a boot id (an older Core) says
+   *  nothing. */
   bool
   coreAnnounced (std::string const &bootId)
   {
     if (bootId.empty () || bootId == _bootId)
       return false;
 
+    auto const known = !_bootId.empty ();
     _bootId = bootId;
+    if (!known)
+      return false;
+
     _source.fill (analogSource);
     _present.fill (false);
     return true;

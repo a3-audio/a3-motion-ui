@@ -80,12 +80,6 @@ TruthKeeperLink::waiting () const
 }
 
 void
-TruthKeeperLink::onBootId (std::function<void (std::string const &)> callback)
-{
-  _onBootId = std::move (callback);
-}
-
-void
 TruthKeeperLink::oscMessageReceived (juce::OSCMessage const &message)
 {
   if (message.getAddressPattern ().toString () != truthkeeper::announceAddress
@@ -95,8 +89,6 @@ TruthKeeperLink::oscMessageReceived (juce::OSCMessage const &message)
     return;
   auto const url = message[0].getString ();
   auto const announced = message[1].getString ();
-  if (_onBootId && message.size () == 3 && message[2].isString ())
-    _onBootId (message[2].getString ().toStdString ());
   if (waiting ())
     {
       apply (_wait->announced (announced.toStdString ()), url, announced);

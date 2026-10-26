@@ -57,9 +57,6 @@ public:
   void waitForCore (std::string candidate, std::function<void ()> open);
   /** From now on, the truth Motion runs on is `own`; another one restarts. */
   void follow (std::string own);
-  /** Every announcement that carries Core's boot id calls this with it, on
-   *  the message thread. The caller decides whether the id is a new Core. */
-  void onBootId (std::function<void (std::string const &)> callback);
 
 private:
   void oscMessageReceived (juce::OSCMessage const &message) override;
@@ -73,7 +70,6 @@ private:
   void refuse (juce::String const &reason);
 
   std::string _own;
-  std::function<void (std::string const &)> _onBootId;
   std::optional<truthkeeper::StartupWait> _wait;
   std::function<void ()> _open;
   juce::File _cache;

@@ -43,6 +43,7 @@ target_sources("a3-motion-engine" PRIVATE
     MeterBallistics.cc
     MeterBallistics.hh
     OscTruth.cc
+    CoreBootWatcher.cc
     TruthKeeperLink.cc
     OscTruth.hh
     DeviceHello.hh
