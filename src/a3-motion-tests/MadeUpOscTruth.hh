@@ -47,9 +47,10 @@ madeUpOscTruth (juce::StringArray const &leaveOut = {})
       {
         auto *entry = new juce::DynamicObject ();
         auto const perChannel = key.startsWith ("channel.");
+        auto const suffix = perChannel ? "/{ch}"
+                            : key == "stemdeck.present" ? "/{deck}" : "";
         auto const pattern = key == "vu" ? juce::String ("/t/vu/{n}")
-                                         : "/t/" + key
-                                               + (perChannel ? "/{ch}" : "");
+                                         : "/t/" + key + suffix;
         entry->setProperty ("pattern", pattern);
         addresses->setProperty (juce::Identifier (key), juce::var (entry));
       }

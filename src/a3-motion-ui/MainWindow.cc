@@ -60,6 +60,12 @@ MainWindow::userTriedToCloseWindow ()
 }
 
 void
+MainWindow::coreAnnounced (std::string const &bootId)
+{
+  _motionController.coreAnnounced (bootId);
+}
+
+void
 MainWindow::resized ()
 {
   juce::ResizableWindow::resized ();

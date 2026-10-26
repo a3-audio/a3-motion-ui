@@ -204,6 +204,12 @@ StandaloneApp::waitForCoresTruth ()
     // The loaded bytes' digest, not a second read of a file StemDeck may
     // rewrite meanwhile: from here on Motion follows what it runs on.
     _truthKeeper->follow (installedOscTruth ().digest ().toStdString ());
+    // A Core that has just started knows nothing of the last one's channel
+    // sources: the window goes back to analog until Core says them again.
+    _truthKeeper->onBootId ([this] (std::string const &bootId) {
+      if (_mainWindow)
+        _mainWindow->coreAnnounced (bootId);
+    });
   });
 }
 

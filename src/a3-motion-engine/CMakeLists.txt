@@ -73,6 +73,7 @@ target_sources("a3-motion-engine" PRIVATE
     PlaybackRate.cc
     ActionScript.hh
     PilotOrder.hh
+    ChannelSource.hh
     FiredAction.hh
     ActionMotion.hh
     ClipFile.hh

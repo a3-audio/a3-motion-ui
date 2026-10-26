@@ -1584,6 +1584,19 @@ ClipSettingsComponent::setChannelFaces (
   repaint ();
 }
 
+void
+ClipSettingsComponent::setChannelDecks (
+    std::array<juce::String, numChannelColumns> text,
+    std::array<bool, numChannelColumns> absent)
+{
+  if (text == _channelDeckText && absent == _channelDeckAbsent)
+    return;
+
+  _channelDeckText = text;
+  _channelDeckAbsent = absent;
+  repaint (_layout.channelFacesFrame);
+}
+
 juce::Colour
 ClipSettingsComponent::panelFrameColour (PanelFrameInk ink) const
 {
@@ -1675,11 +1688,19 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       auto const bar = _layout.channelFaceProgress[channel];
       g.setColour (colour.withAlpha (theme ().alphaOutline));
       g.fillRect (bar);
-      auto const fill = progressFill (bar, _channelProgress[channel]);
+      // A deck channel plays no clip of its own: the deck's name instead of
+      // the clip's, and nothing filling.
+      auto const onDeck = _channelDeckText[channel].isNotEmpty ();
+      auto const fill = onDeck ? bar.withWidth (0)
+                               : progressFill (bar, _channelProgress[channel]);
       g.setColour (colour);
       g.fillRect (fill);
 
-      auto const &name = _channelFaceClipNames[channel];
+      auto const &name = onDeck ? _channelDeckText[channel]
+                                : _channelFaceClipNames[channel];
+      auto const nameAlpha
+          = onDeck && _channelDeckAbsent[channel] ? theme ().alphaMuted
+                                                  : 1.f;
       if (name.isEmpty ())
         continue;
 
@@ -1694,7 +1715,7 @@ ClipSettingsComponent::paintChannelFaces (juce::Graphics &g)
       auto const drawNameIn = [&] (juce::Rectangle<int> clip, juce::Colour ink) {
         juce::Graphics::ScopedSaveState keep (g);
         g.reduceClipRegion (clip);
-        g.setColour (ink);
+        g.setColour (ink.withMultipliedAlpha (nameAlpha));
         g.drawText (name, nameArea, juce::Justification::centredLeft, true);
       };
       drawNameIn (fill, padGlyphInk (colour));

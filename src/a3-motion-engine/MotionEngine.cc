@@ -197,6 +197,9 @@ MotionEngine::createChannels (index_t const numChannels)
   _freqView = std::vector<AccentView> (numChannels);
   _qView = std::vector<AccentView> (numChannels);
   _previewMode = std::vector<std::atomic<bool>> (numChannels);
+  _channelSource = std::vector<std::atomic<int>> (numChannels);
+  for (auto &source : _channelSource)
+    source.store (analogSource, std::memory_order_relaxed);
   _flightMode = std::vector<std::atomic<int>> (numChannels);
   _flightTarget = std::vector<std::atomic<int>> (numChannels);
   for (auto &target : _flightTarget)
@@ -873,6 +876,24 @@ MotionEngine::isPreviewMode (index_t channel) const
 }
 
 void
+MotionEngine::setChannelSource (index_t channel, int wire)
+{
+  if (channel >= _channelSource.size ())
+    return;
+
+  _channelSource[channel].store (sourceFromWire (wire),
+                                 std::memory_order_relaxed);
+}
+
+int
+MotionEngine::getChannelSource (index_t channel) const
+{
+  return channel < _channelSource.size ()
+             ? _channelSource[channel].load (std::memory_order_relaxed)
+             : analogSource;
+}
+
+void
 MotionEngine::setFlightMode (index_t channel, FlightMode mode)
 {
   if (channel >= _flightMode.size ()
@@ -1054,11 +1075,20 @@ MotionEngine::tickCallback ()
       if (holding)
         continue;
 
+      // A deck channel's stems are placed by Core: no position, 3D, FREQ or
+      // Q from here. Not "preview" -- the channel's clips go on running, so
+      // back on analog it is where its trajectory is by then, and what a
+      // hand changed meanwhile goes out then. After the hold, so that the
+      // first pass still takes what Core answered to the recall.
+      auto const onDeck
+          = isDeck (_channelSource[index].load (std::memory_order_relaxed));
+
       auto const position = _channels[index]->getPosition ();
       // Paced, not every tick: ~260 a second per channel filled Core's
       // port under load. A skipped position stays "not sent" and goes out
       // on a later tick, so the newest always arrives.
-      if (position.isValid () && _lastSentPositions[index] != position
+      if (!onDeck && position.isValid ()
+          && _lastSentPositions[index] != position
           && _positionPacer.due (index, nowMillis))
         {
           _commandQueue.sendPosition (index, position);
@@ -1125,6 +1155,11 @@ MotionEngine::tickCallback ()
               (_commandQueue.*send) (index, next);
               lastSent[index] = next;
             };
+
+      // Primed above, so the values it has now count as what Core has; the
+      // rest waits for analog -- they are then sent on the ramp.
+      if (onDeck && primed)
+        continue;
 
       // At rest all three are exactly what the hand set -- slewTowards()
       // lands on its target rather than approaching it, which is the whole

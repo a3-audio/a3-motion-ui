@@ -7721,6 +7721,45 @@ A3MotionUIComponent::onProdjLive (bool on)
 }
 
 void
+A3MotionUIComponent::onChannelSource (int channel, int source)
+{
+  _channelSources.setSource (channel, source);
+  showChannelDecks ();
+}
+
+void
+A3MotionUIComponent::onStemdeckPresent (int deck, bool present)
+{
+  _channelSources.setPresent (deck, present);
+  showChannelDecks ();
+}
+
+void
+A3MotionUIComponent::coreAnnounced (std::string const &bootId)
+{
+  if (_channelSources.coreAnnounced (bootId))
+    showChannelDecks ();
+}
+
+void
+A3MotionUIComponent::showChannelDecks ()
+{
+  std::array<juce::String, numChannelColumns> text;
+  std::array<bool, numChannelColumns> absent{};
+  for (std::size_t channel = 0; channel < numChannelColumns; ++channel)
+    {
+      auto const c = static_cast<int> (channel);
+      auto const source = _channelSources.source (c);
+      _engine.setChannelSource (channel, source);
+      text[channel] = _channelSources.faceText (c);
+      absent[channel] = isDeck (source) && !_channelSources.isPresent (source);
+    }
+
+  if (_clipSettings)
+    _clipSettings->setChannelDecks (text, absent);
+}
+
+void
 A3MotionUIComponent::onRemotePointer (int phase, float x, float y)
 {
   auto const event = parsePointer (phase, x, y);
@@ -10060,6 +10099,7 @@ A3MotionUIComponent::updateClipSettingsDisplay ()
 
     _clipSettings->setChannelFaces (colours, clipNames,
                                     static_cast<int> (_clipSettingsChannel));
+    showChannelDecks ();
   }
   // The coverage the hand set, and where the swell is holding it now.
   // The swept value comes from sweptElevation rather than from lfoSweep on

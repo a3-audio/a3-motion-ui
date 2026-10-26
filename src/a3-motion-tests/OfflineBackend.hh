@@ -22,6 +22,7 @@
 
 #include <a3-motion-engine/backends/SpatBackend.hh>
 
+#include <array>
 #include <atomic>
 #include <memory>
 
@@ -37,19 +38,35 @@ class OfflineBackend : public SpatBackend
 {
 public:
   void
-  sendPosition (index_t, Pos const &) override
+  sendPosition (index_t channel, Pos const &) override
   {
     ++positionsSent;
+    count (positionsOn, channel);
   }
-  void sendPot1 (index_t, float) override { ++potsSent; }
-  void sendPot2 (index_t, float) override { ++potsSent; }
-  void sendPot3 (index_t, float) override { ++potsSent; }
+  void sendPot1 (index_t channel, float) override { countPot (channel); }
+  void sendPot2 (index_t channel, float) override { countPot (channel); }
+  void sendPot3 (index_t channel, float) override { countPot (channel); }
 
   // Written on the command queue's thread, read on the test's.
   std::atomic<int> positionsSent{ 0 };
   std::atomic<int> potsSent{ 0 };
+  /** The same, per channel (the first four). */
+  std::array<std::atomic<int>, 4> positionsOn{};
+  std::array<std::atomic<int>, 4> potsOn{};
 
 protected:
+  static void
+  count (std::array<std::atomic<int>, 4> &counters, index_t channel)
+  {
+    if (channel < counters.size ())
+      ++counters[channel];
+  }
+  void
+  countPot (index_t channel)
+  {
+    ++potsSent;
+    count (potsOn, channel);
+  }
   void addressesChanged (OscAddresses const &) override {}
 };
 

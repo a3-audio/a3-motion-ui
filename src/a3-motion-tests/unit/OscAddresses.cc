@@ -202,3 +202,29 @@ TEST (OscAddresses, PointerAndLiveAreOptional)
   EXPECT_TRUE (optionalOscAddressKeys ().contains ("prodj.live"));
   EXPECT_TRUE (optionalOscAddressKeys ().contains ("motion.pointer"));
 }
+
+// Engine mode's two words (channel.source, stemdeck.present) arrive with a
+// later truth too: a truth without them is not missing anything, Motion is
+// deaf to them and every channel stays analog.
+TEST (OscAddresses, TheDecksWordsAreOptional)
+{
+  auto const all = oscAddressesFrom (madeUpOscTruth ());
+  EXPECT_EQ (all.channelSource, "/t/channel.source/{ch}");
+  EXPECT_EQ (all.stemdeckPresent, "/t/stemdeck.present/{deck}");
+
+  auto const without
+      = madeUpOscTruth ({ "channel.source", "stemdeck.present" });
+  EXPECT_TRUE (oscAddressesFrom (without).channelSource.isEmpty ());
+  EXPECT_TRUE (oscAddressesFrom (without).stemdeckPresent.isEmpty ());
+  EXPECT_FALSE (missingOscKeys (without).contains ("channel.source"));
+  EXPECT_FALSE (oscAddressKeys ().contains ("channel.source"));
+  EXPECT_TRUE (optionalOscAddressKeys ().contains ("channel.source"));
+  EXPECT_TRUE (optionalOscAddressKeys ().contains ("stemdeck.present"));
+}
+
+TEST (OscAddresses, ADeckNumberReplacesItsPlaceholder)
+{
+  EXPECT_EQ (withDeckNumber ("/stemdeck/{deck}/present", 2),
+             "/stemdeck/2/present");
+  EXPECT_EQ (withDeckNumber ("/nodeck", 1), "/nodeck");
+}

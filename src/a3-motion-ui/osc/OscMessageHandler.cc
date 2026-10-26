@@ -161,6 +161,37 @@ OscMessageHandler::routePointer (juce::OSCMessage const &message)
     _listener.onRemotePointer (*phase, *x, *y);
 }
 
+bool
+OscMessageHandler::routeDeckWords (juce::String const &address,
+                                   juce::OSCMessage const &message)
+{
+  // Both patterns are empty in a truth that lacks them, and an address is
+  // never empty: such a truth never matches here.
+  auto const value
+      = message.size () >= 1 ? intArgument (message[0]) : std::nullopt;
+
+  for (index_t channel = 0; channel < _engine.getNumChannels (); ++channel)
+    if (_addresses.channelSource.isNotEmpty ()
+        && address == withChannelIndex (_addresses.channelSource,
+                                        static_cast<int> (channel)))
+      {
+        if (value)
+          _listener.onChannelSource (static_cast<int> (channel), *value);
+        return true;
+      }
+
+  for (int deck = 1; deck <= maxDecks; ++deck)
+    if (_addresses.stemdeckPresent.isNotEmpty ()
+        && address == withDeckNumber (_addresses.stemdeckPresent, deck))
+      {
+        if (value)
+          _listener.onStemdeckPresent (deck, *value != 0);
+        return true;
+      }
+
+  return false;
+}
+
 void
 OscMessageHandler::handleMessage (juce::OSCMessage const &message,
                                   int clockMode)
@@ -221,6 +252,9 @@ OscMessageHandler::handleMessage (juce::OSCMessage const &message,
       routePointer (message);
       return;
     }
+
+  if (routeDeckWords (address, message))
+    return;
 
   if (address == _addresses.beatIn && message.size () >= 3)
     {
