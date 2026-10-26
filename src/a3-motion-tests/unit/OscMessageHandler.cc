@@ -1193,6 +1193,25 @@ TEST (OscMessageHandler, ADeckBeingPresentReachesTheListener)
   EXPECT_FALSE (listener.lastPresent);
 }
 
+TEST (OscMessageHandler, DecksCAndDBeingPresentReachTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  for (auto const deck : { 3, 4 })
+    {
+      juce::OSCMessage here (
+          withDeckNumber (madeUpAddresses ().stemdeckPresent, deck));
+      here.addInt32 (1);
+      handler.handleMessage (here, 0);
+      EXPECT_EQ (listener.lastPresentDeck, deck);
+      EXPECT_TRUE (listener.lastPresent);
+    }
+}
+
 TEST (OscMessageHandler, WithoutTheDecksWordsNothingIsHeard)
 {
   HeightMapSphere heightMap;

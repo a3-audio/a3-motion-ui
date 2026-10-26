@@ -28,16 +28,16 @@ namespace a3
 
 /** What feeds a channel in engine mode: the analog input, or StemDeck's deck
  *  k. The wire says it with Core's `channel.source` word (0 = analog, k =
- *  deck k, 1 = A, 2 = B); Core sends it to the desk and to Motion alike.
+ *  deck k, 1 = A ... 4 = D); Core sends it to the desk and to Motion alike.
  *
  *  Motion places sound only for an analog channel: a deck's stems are placed
  *  by Core, so a deck channel sends no position, 3D, FREQ or Q. */
 constexpr int analogSource = 0;
 
-/** The truth's `stemdeck.present` deck range (1..2). A wire value outside
+/** The truth's `stemdeck.present` deck range (1..4, A..D). A wire value outside
  *  0..maxDecks is not a source Motion knows, and is analog: the safe side
  *  of a mistake is the channel that behaves as it always has. */
-constexpr int maxDecks = 2;
+constexpr int maxDecks = 4;
 
 constexpr int numSourceChannels = 4;
 

@@ -97,6 +97,49 @@ TEST (ChannelSource, DeckChannelSendsNoPositions)
   EXPECT_EQ (w.backend->potsOn[0].load (), 0);
 }
 
+// Core numbers decks 1..4 (A..D): a channel on deck C or D is a deck channel
+// too. Literal numbers, not maxDecks: the wire is the thing being pinned.
+TEST (ChannelSource, DecksCAndDSendNoPositionsEither)
+{
+  for (auto const deck : { 3, 4 })
+    {
+      Watched w;
+      w.engine->setChannelSource (0, deck);
+      EXPECT_EQ (w.engine->getChannelSource (0), deck);
+      ASSERT_TRUE (w.primed ()) << deck;
+      ASSERT_TRUE (w.changeBothAndWaitForChannelOne ()) << deck;
+
+      EXPECT_EQ (w.backend->positionsOn[0].load (), 0) << deck;
+      EXPECT_EQ (w.backend->potsOn[0].load (), 0) << deck;
+    }
+}
+
+TEST (ChannelSource, SourceFiveIsUnknownAndAnalog)
+{
+  Watched w;
+  w.engine->setChannelSource (0, 5);
+  EXPECT_EQ (w.engine->getChannelSource (0), analogSource);
+  EXPECT_TRUE (
+      waitUntil ([&] { return w.backend->positionsOn[0].load () > 0; }));
+}
+
+TEST (ChannelSource, TheWireNamesFourDecks)
+{
+  EXPECT_EQ (sourceFromWire (3), 3);
+  EXPECT_EQ (sourceFromWire (4), 4);
+  EXPECT_EQ (sourceFromWire (5), analogSource);
+  EXPECT_EQ (deckFaceText (3, true), "DECK C");
+  EXPECT_EQ (deckFaceText (4, false), "DECK D (absent)");
+
+  ChannelSources sources;
+  sources.setSource (2, 4);
+  EXPECT_EQ (sources.faceText (2), "DECK D (absent)");
+  sources.setPresent (4, true);
+  EXPECT_EQ (sources.faceText (2), "DECK D");
+  sources.setPresent (5, true);
+  EXPECT_FALSE (sources.isPresent (5));
+}
+
 TEST (ChannelSource, AnalogAgainResumes)
 {
   Watched w;
@@ -114,7 +157,7 @@ TEST (ChannelSource, AnalogAgainResumes)
 
 TEST (ChannelSource, UnknownSourceIsAnalog)
 {
-  for (auto const unknown : { -1, 99, maxDecks + 1 })
+  for (auto const unknown : { -1, 99, 5 })
     {
       Watched w;
       w.engine->setChannelSource (0, unknown);
