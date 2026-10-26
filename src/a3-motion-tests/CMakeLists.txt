@@ -31,6 +31,8 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotGames.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotGamesFlight.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotContrasts.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotsOfflinePass.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PilotsOfflinePassTool.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Handover.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightBodiesBox.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/FlightEngine.cc"

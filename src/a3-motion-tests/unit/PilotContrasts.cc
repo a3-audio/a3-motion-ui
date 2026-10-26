@@ -578,3 +578,63 @@ TEST (DropPreempts, ADjsOwnFigureIsNotPreemptedByTheDrop)
   EXPECT_EQ (gameOn (games, 0), PilotGame::HideAndSeek) << "the DJ's hide plays on";
   EXPECT_FALSE (games.gameOf (0)->byPilot);
 }
+
+namespace
+{
+/** The ship the pilots call with in a groove, or -1. */
+int
+pilotCaller (PilotGames const &games)
+{
+  auto const leader = pilotLeader (games);
+  return leader >= 0 && gameOn (games, leader) == PilotGame::CallAndResponse ? leader : -1;
+}
+}
+
+TEST (DropPreempts, APilotCallEndingOnAPreviewedDropsOneGivesWayToASlapOnIt)
+{
+  // The rig on 2026-10-17: a call started in the last window before the drop
+  // ran to the drop's 1, ended there with the pilots' rest, and nobody slapped.
+  PilotGames games (1);
+  auto const groove = heading (MusicSection::Groove, MusicSection::Drop, 21, true, 0);
+  barsOf (games, groove, 64., 84.);
+  ASSERT_GE (pilotCaller (games), 0) << "bar 16 opens a call that lasts to bar 21";
+
+  auto const drop = heading (MusicSection::Drop, MusicSection::Breakdown, 37, true, 21, 0.9f);
+  games.step (flying (), {}, drop, PilotLevel::Fly, 84., fourFour);
+  auto const slapper = pilotLeader (games);
+  ASSERT_GE (slapper, 0) << "the drop's 1 is slapped";
+  EXPECT_EQ (gameOn (games, slapper), PilotGame::Slap);
+  EXPECT_EQ (games.steerOf (slapper, 84., fourFour)->at, (Vec2{ tuning.slapSideRadius, 0.f }))
+      << "on the drop's 1, with the snap";
+}
+
+TEST (DropPreempts, APilotCallRunningIntoADropTheRoomHeardYieldsToASlap)
+{
+  PilotGames games (1);
+  auto const groove = heading (MusicSection::Groove, std::nullopt, -1, false, 0);
+  barsOf (games, groove, 64., 76.);
+  auto const caller = pilotCaller (games);
+  ASSERT_GE (caller, 0) << "still calling at bar 18";
+
+  auto const heard = heading (MusicSection::Drop, MusicSection::Groove, 34, false, 18, 0.9f);
+  games.step (flying (), {}, heard, PilotLevel::Fly, 76., fourFour); // bar 19: the drop was bar 18
+  EXPECT_NE (gameOn (games, caller), PilotGame::CallAndResponse) << "the drop ends the call";
+  auto const slapper = pilotLeader (games);
+  ASSERT_GE (slapper, 0);
+  EXPECT_EQ (gameOn (games, slapper), PilotGame::Slap);
+}
+
+TEST (DropPreempts, ADjsOwnCallIsNotPreemptedByTheDrop)
+{
+  PilotGames games (1);
+  auto const groove = heading (MusicSection::Groove, std::nullopt, -1, false, 0);
+  ASSERT_TRUE (games.request (asking (PilotGame::CallAndResponse, 0), flying (), {}, groove, 64.,
+                              fourFour));
+  barsOf (games, groove, 64., 76.);
+  ASSERT_EQ (gameOn (games, 0), PilotGame::CallAndResponse);
+
+  auto const heard = heading (MusicSection::Drop, MusicSection::Groove, 34, false, 18, 0.9f);
+  games.step (flying (), {}, heard, PilotLevel::Fly, 76., fourFour);
+  EXPECT_EQ (gameOn (games, 0), PilotGame::CallAndResponse) << "the DJ's call plays on";
+  EXPECT_FALSE (games.gameOf (0)->byPilot);
+}
