@@ -249,6 +249,13 @@ public:
                         std::array<juce::String, numChannelColumns> clipNames,
                         int shownChannel);
 
+  /** Engine mode: a channel fed by a deck says so on its face, where its
+   *  clip's name stood ("DECK A"); empty text is an analog channel as ever.
+   *  `absent` draws a deck Core does not report present muted. A deck
+   *  channel shows no clip progress: it sends nothing to Core meanwhile. */
+  void setChannelDecks (std::array<juce::String, numChannelColumns> text,
+                        std::array<bool, numChannelColumns> absent);
+
   /** Which of the Motion section's 3 controls (0 = speed, 1 = direction,
    *  2 = end-action) the Pot-Encoder currently edits, cycled by pressing
    *  it. All three are always shown; this only controls highlighting. */
@@ -765,6 +772,8 @@ private:
    *  that knows all four. */
   std::array<juce::Colour, numChannelColumns> _channelFaceColours;
   std::array<juce::String, numChannelColumns> _channelFaceClipNames{};
+  std::array<juce::String, numChannelColumns> _channelDeckText{};
+  std::array<bool, numChannelColumns> _channelDeckAbsent{};
   std::array<float, numChannelColumns> _channelProgress{ -1.f, -1.f, -1.f, -1.f };
   int _shownChannel = 0;
   std::array<std::unique_ptr<TouchControl>, numTransportKeys> _transportTouch;

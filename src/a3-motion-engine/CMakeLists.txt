@@ -43,6 +43,7 @@ target_sources("a3-motion-engine" PRIVATE
     MeterBallistics.cc
     MeterBallistics.hh
     OscTruth.cc
+    CoreBootWatcher.cc
     TruthKeeperLink.cc
     OscTruth.hh
     DeviceHello.hh
@@ -73,6 +74,7 @@ target_sources("a3-motion-engine" PRIVATE
     PlaybackRate.cc
     ActionScript.hh
     PilotOrder.hh
+    ChannelSource.hh
     FiredAction.hh
     ActionMotion.hh
     ClipFile.hh

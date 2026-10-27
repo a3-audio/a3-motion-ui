@@ -149,6 +149,15 @@ public:
      *  1 move, 2 up, then x and y as a share of the screen picture. Passed
      *  on as it came; the gate decides what it is worth. */
     virtual void onRemotePointer (int phase, float x, float y) = 0;
+
+    /** Engine mode: what feeds `channel` (0-based), as Core says it: 0 =
+     *  analog, k = deck k. Passed on as it came; ChannelSource.hh decides
+     *  what an unknown value is. Nothing arrives while the truth lacks the
+     *  word, so a listener that does not care may leave these two alone. */
+    virtual void onChannelSource (int /*channel*/, int /*source*/) {}
+
+    /** Engine mode: deck `deck` (1 = A) is present or not. */
+    virtual void onStemdeckPresent (int /*deck*/, bool /*present*/) {}
   };
 
   OscMessageHandler (MotionEngine &engine, Listener &listener);
@@ -167,6 +176,9 @@ private:
   void routePreview (juce::OSCMessage const &message);
   void routeProdjLive (juce::OSCMessage const &message);
   void routePointer (juce::OSCMessage const &message);
+  /** The two engine-mode words; true when `address` was one of them. */
+  bool routeDeckWords (juce::String const &address,
+                       juce::OSCMessage const &message);
   void routeChannelSide (std::size_t channel, std::size_t side, float peak,
                          float rms);
 

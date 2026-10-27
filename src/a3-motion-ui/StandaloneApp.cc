@@ -128,6 +128,16 @@ StandaloneApp::openWindow ()
   // over half the room it has.
   _mainWindow->setBounds (0, 0, 768, 1024);
   _mainWindow->setVisible (true);
+
+  // Independent of the truth keeper, so it also runs with $A3_OSC_TRUTH set
+  // or when the keeper cannot listen: a new Core knows nothing of the last
+  // one's channel sources, and the window goes back to analog until Core
+  // says them again.
+  _coreBoot = std::make_unique<CoreBootWatcher> ([this] (std::string const &id) {
+    if (_mainWindow)
+      _mainWindow->coreAnnounced (id);
+  });
+  _coreBoot->start ();
 }
 
 

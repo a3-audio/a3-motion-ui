@@ -35,6 +35,9 @@ public:
   void userTriedToCloseWindow () override;
   void resized () override;
 
+  /** Core's boot id, from its announcement (A3MotionUIComponent). */
+  void coreAnnounced (std::string const &bootId);
+
 private:
   bool keyPressed (const juce::KeyPress &k) override;
 

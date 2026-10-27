@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <a3-motion-engine/ChannelSource.hh>
 #include <a3-motion-engine/ClipSettings.hh>
 #include <a3-motion-engine/Envelope.hh>
 #include <a3-motion-engine/KnobLanes.hh>
@@ -111,6 +112,13 @@ public:
    *  running was a tug of war the finger could not win. */
   void setChannelPositionHeld (index_t channel, bool held);
   bool isChannelPositionHeld (index_t channel) const;
+
+  /** What feeds the channel (ChannelSource.hh), from any thread. A deck
+   *  channel sends nothing to Core: no position, 3D, FREQ or Q. Its clips
+   *  keep their place and nothing is deleted; analog again, the values that
+   *  changed meanwhile go out. A wire value Motion does not know is analog. */
+  void setChannelSource (index_t channel, int wire);
+  int getChannelSource (index_t channel) const;
 
   float getChannelPot1 (index_t channel);
   void setChannelPot1 (index_t channel, float pot1);
@@ -780,6 +788,8 @@ private:
 
   // Per-channel preview mode: when true, suppress OSC output
   std::vector<std::atomic<bool>> _previewMode;
+  /** Per channel, ChannelSource.hh's source: analog, or the deck's slot. */
+  std::vector<std::atomic<int>> _channelSource;
   /** A channel whose position a finger is holding. */
   std::vector<std::atomic<bool>> _positionHeld;
 

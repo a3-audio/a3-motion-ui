@@ -110,6 +110,30 @@ struct RecordingListener : public OscMessageHandler::Listener
     lastPreview = ahead;
   }
 
+  int sourceCalls = 0;
+  int lastSourceChannel = -1;
+  int lastSource = -1;
+
+  void
+  onChannelSource (int channel, int source) override
+  {
+    ++sourceCalls;
+    lastSourceChannel = channel;
+    lastSource = source;
+  }
+
+  int presentCalls = 0;
+  int lastPresentDeck = -1;
+  bool lastPresent = false;
+
+  void
+  onStemdeckPresent (int deck, bool present) override
+  {
+    ++presentCalls;
+    lastPresentDeck = deck;
+    lastPresent = present;
+  }
+
   int liveCalls = 0;
   bool lastLive = false;
 
@@ -1107,4 +1131,99 @@ TEST (OscMessageHandler, WithoutTheWordsInTheTruthNeitherArrives)
 
   EXPECT_EQ (listener.liveCalls, 0);
   EXPECT_EQ (listener.pointerCalls, 0);
+}
+
+TEST (OscMessageHandler, AChannelSourceReachesTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  juce::OSCMessage message (
+      withChannelIndex (madeUpAddresses ().channelSource, 2));
+  message.addInt32 (2);
+  handler.handleMessage (message, 0);
+
+  EXPECT_EQ (listener.sourceCalls, 1);
+  EXPECT_EQ (listener.lastSourceChannel, 2);
+  EXPECT_EQ (listener.lastSource, 2);
+}
+
+TEST (OscMessageHandler, ASourceThatIsNotANumberIsNotASource)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  juce::OSCMessage text (
+      withChannelIndex (madeUpAddresses ().channelSource, 0));
+  text.addString ("deck");
+  handler.handleMessage (text, 0);
+  juce::OSCMessage empty (
+      withChannelIndex (madeUpAddresses ().channelSource, 0));
+  handler.handleMessage (empty, 0);
+
+  EXPECT_EQ (listener.sourceCalls, 0);
+}
+
+TEST (OscMessageHandler, ADeckBeingPresentReachesTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  juce::OSCMessage here (
+      withDeckNumber (madeUpAddresses ().stemdeckPresent, 2));
+  here.addInt32 (1);
+  handler.handleMessage (here, 0);
+  EXPECT_EQ (listener.lastPresentDeck, 2);
+  EXPECT_TRUE (listener.lastPresent);
+
+  juce::OSCMessage gone (
+      withDeckNumber (madeUpAddresses ().stemdeckPresent, 2));
+  gone.addInt32 (0);
+  handler.handleMessage (gone, 0);
+  EXPECT_EQ (listener.presentCalls, 2);
+  EXPECT_FALSE (listener.lastPresent);
+}
+
+TEST (OscMessageHandler, DecksCAndDBeingPresentReachTheListener)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (madeUpOscTruth ()));
+
+  for (auto const deck : { 3, 4 })
+    {
+      juce::OSCMessage here (
+          withDeckNumber (madeUpAddresses ().stemdeckPresent, deck));
+      here.addInt32 (1);
+      handler.handleMessage (here, 0);
+      EXPECT_EQ (listener.lastPresentDeck, deck);
+      EXPECT_TRUE (listener.lastPresent);
+    }
+}
+
+TEST (OscMessageHandler, WithoutTheDecksWordsNothingIsHeard)
+{
+  HeightMapSphere heightMap;
+  MotionEngine engine (4, heightMap, offlineBackend ());
+  RecordingListener listener;
+  OscMessageHandler handler (engine, listener);
+  handler.setAddresses (oscAddressesFrom (
+      madeUpOscTruth ({ "channel.source", "stemdeck.present" })));
+
+  juce::OSCMessage message ("/anything");
+  message.addInt32 (1);
+  handler.handleMessage (message, 0);
+  EXPECT_EQ (listener.sourceCalls, 0);
+  EXPECT_EQ (listener.presentCalls, 0);
 }

@@ -84,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# JOBS=2 caps the compiler processes (a shared 4-core box); default 4.
 # One build at a time on this machine, across every worktree. Two -j4 builds
 # on four cores each take as long as both in a row, with the load at 11 and
 # the live UI and REAPER starved beside them (2026-09-29). A second build
@@ -139,7 +140,7 @@ fi
 BUILD_LOG="$(mktemp -t a3-build-XXXXXX.log)"
 trap 'rm -f "$BUILD_LOG"' EXIT
 
-cmake --build "$BUILD_DIR" --target "${BUILD_TARGETS[@]}" -j4 2>&1 \
+cmake --build "$BUILD_DIR" --target "${BUILD_TARGETS[@]}" -j"${JOBS:-4}" 2>&1 \
     | tee "$BUILD_LOG"
 BUILD_STATUS=${PIPESTATUS[0]}
 

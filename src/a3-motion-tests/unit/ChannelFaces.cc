@@ -167,3 +167,72 @@ TEST (ChannelFaces, TheFaceRowPaintsInTheShippedSkin)
   }
   setTheme (before);
 }
+
+namespace
+{
+bool
+sameImage (juce::Image const &a, juce::Image const &b)
+{
+  if (a.getWidth () != b.getWidth () || a.getHeight () != b.getHeight ())
+    return false;
+
+  for (int y = 0; y < a.getHeight (); ++y)
+    for (int x = 0; x < a.getWidth (); ++x)
+      if (a.getPixelAt (x, y) != b.getPixelAt (x, y))
+        return false;
+  return true;
+}
+
+void
+writeSnapshot (juce::Image const &image, juce::String const &name)
+{
+  auto const dir
+      = juce::SystemStats::getEnvironmentVariable ("A3_SNAPSHOT_DIR", {});
+  if (dir.isEmpty ())
+    return;
+
+  auto file = juce::File (dir).getChildFile (name);
+  file.deleteFile ();
+  juce::FileOutputStream out (file);
+  juce::PNGImageFormat ().writeImageToStream (image, out);
+}
+}
+
+// A channel on a deck shows its deck where the clip's name stood, and a deck
+// Core does not report present is drawn differently from one that is (the
+// face must paint, in every state, in the shipped skin).
+TEST (ChannelFaces, ADeckChannelPaintsItsDeckAndAbsentIsMarked)
+{
+  auto const before = theme ();
+  setTheme (loadTheme (shippedSkin ()));
+  {
+    Bar b (BarPage::Clip);
+    std::array<juce::Colour, numChannelColumns> colours;
+    for (size_t i = 0; i < colours.size (); ++i)
+      colours[i] = toColour (theme ().channel[i]);
+    b.bar.setChannelFaces (colours, { "Closing Sunset", "Tribal Drift", "",
+                                      "Acid Spiral" },
+                           1);
+
+    auto const faces = b.bar.getLocalBounds ();
+    auto const analog = b.bar.createComponentSnapshot (faces);
+
+    b.bar.setChannelDecks ({ "DECK A", "", "", "" }, { false, false, false, false });
+    auto const present = b.bar.createComponentSnapshot (faces);
+    EXPECT_FALSE (sameImage (analog, present))
+        << "the deck is not on the face";
+
+    b.bar.setChannelDecks ({ "DECK A (absent)", "", "", "" },
+                           { true, false, false, false });
+    auto const absent = b.bar.createComponentSnapshot (faces);
+    EXPECT_FALSE (sameImage (present, absent)) << "absent looks like present";
+
+    b.bar.setChannelDecks ({ "", "", "", "" }, { false, false, false, false });
+    EXPECT_TRUE (sameImage (analog, b.bar.createComponentSnapshot (faces)))
+        << "analog again is not as before";
+
+    writeSnapshot (present, "deck-channel-present.png");
+    writeSnapshot (absent, "deck-channel-absent.png");
+  }
+  setTheme (before);
+}

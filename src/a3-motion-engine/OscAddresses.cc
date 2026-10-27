@@ -103,6 +103,12 @@ withChannelIndex (juce::String const &pattern, int index)
   return pattern.replace (channelPlaceholder, juce::String (index + 1));
 }
 
+juce::String
+withDeckNumber (juce::String const &pattern, int deck)
+{
+  return pattern.replace ("{deck}", juce::String (deck));
+}
+
 juce::StringArray
 oscAddressKeys ()
 {
@@ -165,6 +171,8 @@ oscAddressesFrom (OscTruth const &truth)
   a.stemdeckAhead = truth.pattern ("stemdeck.ahead");
   a.prodjLive = truth.pattern ("prodj.live");
   a.motionPointer = truth.pattern ("motion.pointer");
+  a.channelSource = truth.pattern ("channel.source");
+  a.stemdeckPresent = truth.pattern ("stemdeck.present");
 
   fillTable (truth, mixerChannelKeys, a.mixerChannel);
   fillTable (truth, mixerMasterKeys, a.mixerMaster);
@@ -175,7 +183,8 @@ oscAddressesFrom (OscTruth const &truth)
 juce::StringArray
 optionalOscAddressKeys ()
 {
-  return { "stemdeck.ahead", "prodj.live", "motion.pointer" };
+  return { "stemdeck.ahead",   "prodj.live",       "motion.pointer",
+           "channel.source",   "stemdeck.present" };
 }
 
 juce::StringArray

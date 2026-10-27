@@ -115,6 +115,13 @@ struct OscAddresses
   /** The pro-DJ's pointer, relayed by Core: `/motion/pointer iff`. Optional
    *  and empty like prodjLive. */
   juce::String motionPointer;
+  /** Engine mode: what feeds a channel, `/channel/{ch}/source i` from Core
+   *  (0 = analog, k = deck k). Optional and empty like the words above;
+   *  with it empty every channel stays analog. */
+  juce::String channelSource;
+  /** Engine mode: deck k's hello is fresh, `/stemdeck/{deck}/present i`.
+   *  Optional; with it empty no deck is ever present. */
+  juce::String stemdeckPresent;
 };
 
 /** Whether juce::OSCMessage will accept this as an address.
@@ -128,6 +135,9 @@ bool isSendableOscAddress (juce::String const &address);
 /** Substitutes `{ch}` with the channel's number on the wire: index 0 is
  *  channel 1. A pattern without the placeholder comes back unchanged. */
 juce::String withChannelIndex (juce::String const &pattern, int index);
+
+/** Substitutes `{deck}` with the deck's number on the wire (1 = A). */
+juce::String withDeckNumber (juce::String const &pattern, int deck);
 
 /** Every key of the truth's `addresses` Motion reads. */
 juce::StringArray oscAddressKeys ();

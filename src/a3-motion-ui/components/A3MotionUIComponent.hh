@@ -145,6 +145,18 @@ public:
   void onMusicPreview (std::optional<MusicAhead> const &ahead) override;
   void onProdjLive (bool on) override;
   void onRemotePointer (int phase, float x, float y) override;
+  void onChannelSource (int channel, int source) override;
+  void onStemdeckPresent (int deck, bool present) override;
+
+public:
+  /** Core announced itself with this boot id. A new Core has not said
+   *  which channel is on which deck yet: everything is analog again. */
+  void coreAnnounced (std::string const &bootId);
+
+private:
+  /** Engine mode: what the channels' faces say about their decks, and what
+   *  the engine is told to send. */
+  void showChannelDecks ();
   void repaintMixerPages ();
   void moveChannelFromOutside (int channel, float azimuth, float elevation);
   void askCoreForItsState ();
@@ -161,6 +173,8 @@ public:
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
   MotionEngine _engine;
+  /** What Core says feeds each channel and which decks are present. */
+  ChannelSources _channelSources;
   std::unique_ptr<OscMessageHandler> _oscMessageHandler;
 
   void tickCallback (Measure measure);
