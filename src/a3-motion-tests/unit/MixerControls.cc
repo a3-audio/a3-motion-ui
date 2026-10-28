@@ -322,3 +322,9 @@ TEST (MixerControls, TheCueKeySaysCue)
 {
   EXPECT_STREQ (mixerControlLabel (MixerControl::Cue), "CUE");
 }
+
+// P38: the return is the FX Return in every mode; the pot's label is too narrow for the name.
+TEST (MixerControls, TheReturnPotIsLabelledFxRet)
+{
+  EXPECT_STREQ (masterControlLabel (MasterControl::Return), "FX RET");
+}

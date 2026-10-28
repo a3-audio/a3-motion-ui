@@ -307,7 +307,7 @@ masterControlLabel (MasterControl control)
     case MasterControl::PhonesVolume:
       return "PHN";
     case MasterControl::Return:
-      return "RET";
+      return "FX RET";
     }
   return "";
 }
