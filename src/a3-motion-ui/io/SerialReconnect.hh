@@ -74,6 +74,10 @@ bool isControllerPingReply (juce::uint8 const *reply, std::size_t length);
 class SerialReconnect
 {
 public:
+  SerialReconnect () = default;
+  /** Start with opening forbidden when another program may hold the panel. */
+  explicit SerialReconnect (bool openAllowed) : _openAllowed (openAllowed) {}
+
   /** A quarter of a second each (the read timeout), so this is about two
    *  seconds of silence. Long enough that a lost frame or a busy moment
    *  passes through it, short enough that a dead link is back before anybody

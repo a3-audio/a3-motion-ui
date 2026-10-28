@@ -70,11 +70,14 @@ namespace a3
 class InputOutputAdapterV3 : public InputOutputAdapter
 {
 public:
-  InputOutputAdapterV3 ();
+  /** \`startHeld\` false: do not touch the tty until setPanelHeld (true) --
+   *  the other deck may hold it (PanelFollowsWorkspace.hh). */
+  explicit InputOutputAdapterV3 (bool startHeld = true);
   ~InputOutputAdapterV3 ();
 
   void processInput () override;
   void setPanelHeld (bool held) override { _reconnect.allowOpen (held); }
+  bool isPanelHeld () const override { return _reconnect.isOpenAllowed (); }
   void outputButtonLED (Button button, juce::Colour colour) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 

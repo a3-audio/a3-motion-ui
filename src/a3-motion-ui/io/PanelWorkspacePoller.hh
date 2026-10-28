@@ -31,7 +31,5 @@ public:
 private:
   InputOutputAdapter &_adapter;
   PanelFollowsWorkspace _rule;
-  /** The adapter starts out holding the panel, as it always did. */
-  bool _holding = true;
 };
 }

@@ -1435,6 +1435,18 @@ A3MotionUIComponent::runsOnHardware ()
 #endif
 }
 
+namespace
+{
+std::optional<std::string>
+panelWorkspace ()
+{
+  return panelWorkspaceFromEnvironment (
+      juce::SystemStats::getEnvironmentVariable ("A3_MOTION_PANEL_WORKSPACE",
+                                                 {})
+          .toStdString ());
+}
+}
+
 void
 A3MotionUIComponent::createHardwareInterface ()
 {
@@ -1442,7 +1454,9 @@ A3MotionUIComponent::createHardwareInterface ()
 #ifdef HARDWARE_INTERFACE_V2
   _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
 #elif defined(HARDWARE_INTERFACE_V3)
-  _ioAdapter = std::make_unique<InputOutputAdapterV3> ();
+  // Following a workspace: stay off the tty until the poller says it is ours.
+  _ioAdapter = std::make_unique<InputOutputAdapterV3> (
+      !panelWorkspace ().has_value ());
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
@@ -1478,9 +1492,7 @@ A3MotionUIComponent::createHardwareInterface ()
 
   _ioAdapter->startThread ();
 
-  if (auto workspace = panelWorkspaceFromEnvironment (
-          juce::SystemStats::getEnvironmentVariable (
-              "A3_MOTION_PANEL_WORKSPACE", {}).toStdString ()))
+  if (auto workspace = panelWorkspace ())
     {
       _panelWorkspacePoller
           = std::make_unique<PanelWorkspacePoller> (*_ioAdapter, *workspace);

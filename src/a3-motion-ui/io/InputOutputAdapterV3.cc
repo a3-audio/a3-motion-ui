@@ -41,9 +41,11 @@ constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-InputOutputAdapterV3::InputOutputAdapterV3 () : InputOutputAdapter ()
+InputOutputAdapterV3::InputOutputAdapterV3 (bool startHeld)
+    : InputOutputAdapter (), _reconnect (startHeld)
 {
-  serialInit ();
+  if (startHeld)
+    serialInit ();
 }
 
 InputOutputAdapterV3::~InputOutputAdapterV3 ()

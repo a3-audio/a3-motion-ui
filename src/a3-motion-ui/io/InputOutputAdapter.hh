@@ -117,6 +117,8 @@ public:
    *  today's behaviour; adapters without a serial port ignore it. From any
    *  thread. */
   virtual void setPanelHeld (bool /*held*/) {}
+  /** Whether this side may hold the panel now. */
+  virtual bool isPanelHeld () const { return true; }
   /** A button that belongs to the keyboard went down or came up. On the
    *  message thread. */
   std::function<void (PanelCell cell, bool down)> onPanelKey;
