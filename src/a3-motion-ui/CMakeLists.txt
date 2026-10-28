@@ -280,6 +280,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     io/PanelButtonCells.hh
     io/PanelFollowsWorkspace.cc
     io/PanelFollowsWorkspace.hh
+    io/PanelPotPickup.cc
+    io/PanelPotPickup.hh
     io/PanelWorkspacePoller.cc
     io/PanelWorkspacePoller.hh
     io/PanelOwnership.cc

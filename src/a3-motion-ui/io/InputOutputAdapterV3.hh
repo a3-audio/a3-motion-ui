@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 
 #include <libserial/SerialPort.h>
@@ -76,7 +77,14 @@ public:
   ~InputOutputAdapterV3 ();
 
   void processInput () override;
-  void setPanelHeld (bool held) override { _reconnect.allowOpen (held); }
+  void setPanelHeld (bool held) override
+  {
+    // Only a real hand-over counts: being told twice that it is ours is not.
+    if (held && !_reconnect.isOpenAllowed ())
+      _panelGained = true;
+    _reconnect.allowOpen (held);
+  }
+  bool takePanelGained () override { return _panelGained.exchange (false); }
   bool isPanelHeld () const override { return _reconnect.isOpenAllowed (); }
   void outputButtonLED (Button button, juce::Colour colour) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
@@ -255,6 +263,7 @@ private:
   // ── Hardware pot state ────────────────────────────────────────────────────
   static constexpr int numGlobalPots = 4;
 
+  std::atomic<bool> _panelGained{ false };
   std::array<PanelPot, numGlobalPots> _globalPots;
   std::array<juce::Value, numGlobalPots> _globalPotValues;
 

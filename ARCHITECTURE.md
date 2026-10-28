@@ -1092,6 +1092,10 @@ Three places hold it:
   sent. `applySet()` never reaches it.
 - **`PanelPot`** (V3 panel) takes the pots' first reading as the reference and reports nothing:
   where an absolute pot stands when the panel is first heard is not a hand.
+- **`PanelPotPickup`** (P44) arms the four pots when the panel comes back from StemDeck
+  (`takePanelGained()`): a pot then does nothing until it crosses the channel's 3d value, the
+  reading from before the hand-over is forgotten, and a value moved away from a picked-up pot
+  (touch, clip or set load) arms it again. Without a hand-over it passes every reading through.
 
 This replaces the order of 2026-09-12 -- *"applySet() runs first, the recall's answer lands after
 it, so Core wins"* -- under which the first freq/Q/3d went out whole after the hold. That held only

@@ -1754,7 +1754,19 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 
           // One knob per channel. What Core makes of the value is its
           // business; here it is a number between 0 and 1.
-          _engine.setChannelPot3 (pot, normalized);
+          // After the panel came back from StemDeck a pot picks up the value
+          // before it moves it (P44).
+          if (_ioAdapter->takePanelGained ())
+            _panelPotPickup.panelGained ();
+          auto const picked = _panelPotPickup.feed (
+              static_cast<int> (pot), normalized,
+              _engine.getChannelPot3 (pot));
+          if (!picked)
+            return;
+
+          _engine.setChannelPot3 (pot, *picked);
+          _panelPotPickup.wrote (static_cast<int> (pot),
+                                 _engine.getChannelPot3 (pot));
           scheduleSetSave ();
           updateControlReadout ("CH" + juce::String (pot + 1) + " 3D "
                                 + juce::String (normalized, 2));

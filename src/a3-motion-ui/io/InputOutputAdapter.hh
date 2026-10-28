@@ -119,6 +119,9 @@ public:
   virtual void setPanelHeld (bool /*held*/) {}
   /** Whether this side may hold the panel now. */
   virtual bool isPanelHeld () const { return true; }
+  /** True once after the panel came back from the other program, so the
+   *  pots can find their values again (PanelPotPickup). From any thread. */
+  virtual bool takePanelGained () { return false; }
   /** A button that belongs to the keyboard went down or came up. On the
    *  message thread. */
   std::function<void (PanelCell cell, bool down)> onPanelKey;

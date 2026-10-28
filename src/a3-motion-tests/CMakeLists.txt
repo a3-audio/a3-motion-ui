@@ -172,6 +172,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelOwnership.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelFollowsWorkspace.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelPotPickup.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/Workspaces.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TouchGrabs.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/RemotePointer.cc"
