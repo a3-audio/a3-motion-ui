@@ -58,6 +58,10 @@ public:
    *  colour -- and forget them. */
   std::vector<Change> takeChanged ();
 
+  /** Send this slot again with its latest colour: what reached the panel is
+   *  not known any more. A slot past the end is ignored. */
+  void resend (std::size_t slot);
+
 private:
   std::mutex _lock;
   std::vector<juce::Colour> _colours;

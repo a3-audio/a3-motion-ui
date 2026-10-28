@@ -468,6 +468,14 @@ InputOutputAdapter::ledSlot (index_t channel, index_t pad)
 }
 
 void
+InputOutputAdapter::repaintPads ()
+{
+  for (auto channel = 0u; channel < numChannels; ++channel)
+    for (auto pad = 0u; pad < numPadsPerChannel; ++pad)
+      _ledState.resend (ledSlot (channel, pad));
+}
+
+void
 InputOutputAdapter::processOutput ()
 {
   for (auto const &change : _ledState.takeChanged ())

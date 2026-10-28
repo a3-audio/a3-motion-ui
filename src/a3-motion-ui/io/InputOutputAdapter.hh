@@ -273,6 +273,11 @@ protected:
    *  outputPadLED(). The thread's loop calls it between polls. */
   void processOutput ();
 
+  /** Every pad goes out again on the next processOutput(), with the colour it
+   *  is asked for now: for a port that has just opened, whose pads show
+   *  whatever the last program on it left there. */
+  void repaintPads ();
+
 private:
   void submitInputMessage (std::unique_ptr<InputMessage> message);
   void handleInputMessage (std::unique_ptr<InputMessage> message);

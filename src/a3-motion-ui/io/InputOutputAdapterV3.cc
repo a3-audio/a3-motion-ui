@@ -111,8 +111,11 @@ InputOutputAdapterV3::serialInit ()
           // Everything written while there was no controller was dropped by
           // writeSetLed() and recorded as sent all the same, so a panel that
           // came back came back dark. It is put back to what it was asked for
-          // here -- the same way a changed resting light is applied.
+          // here -- the same way a changed resting light is applied. The
+          // pads, too: while the panel was StemDeck's, every pad change was
+          // taken and dropped, and the pads show what StemDeck left.
           reapplyButtonLeds ();
+          repaintPads ();
           return;
         }
       catch (const std::exception &e)

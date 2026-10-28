@@ -98,3 +98,19 @@ TEST (LedState, ASlotPastTheEndIsIgnored)
 
   EXPECT_TRUE (state.takeChanged ().empty ());
 }
+
+TEST (LedState, AResentSlotGoesOutAgainWithItsLatestColour)
+{
+  LedState state (panelLeds);
+  state.set (7, red);
+  state.set (7, green);
+  state.takeChanged ();
+
+  state.resend (7);
+  state.resend (panelLeds);   // past the end: ignored
+  auto const changed = state.takeChanged ();
+
+  ASSERT_EQ (changed.size (), 1u);
+  EXPECT_EQ (changed[0].slot, 7u);
+  EXPECT_EQ (changed[0].colour, green);
+}

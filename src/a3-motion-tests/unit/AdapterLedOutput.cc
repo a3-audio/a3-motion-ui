@@ -37,6 +37,7 @@ class RecordingAdapter : public InputOutputAdapter
 {
 public:
   using InputOutputAdapter::processOutput;
+  using InputOutputAdapter::repaintPads;
 
   void
   setPadLED (index_t channel, index_t pad, juce::Colour colour)
@@ -100,4 +101,28 @@ TEST (AdapterLedOutput, APadChangedTwiceBeforeAPollShowsItsLastColour)
 
   ASSERT_EQ (adapter.pads.count ({ 2, 5 }), 1u);
   EXPECT_EQ (adapter.pads.at ({ 2, 5 }), lit);
+}
+
+// While StemDeck holds the panel every pad change is taken and dropped (the
+// port is closed). When the port opens again, every pad has to show what it
+// is asked for now, not what StemDeck left on it.
+TEST (AdapterLedOutput, RepaintingThePadsSendsEveryPadItsLatestColour)
+{
+  RecordingAdapter adapter;
+
+  adapter.setPadLED (1, 3, juce::Colours::red);
+  adapter.processOutput ();
+  adapter.setPadLED (1, 3, lit);   // while the panel was not ours
+  adapter.processOutput ();
+  adapter.pads.clear ();           // ... so none of it reached the panel
+
+  adapter.repaintPads ();
+  adapter.processOutput ();
+
+  EXPECT_EQ (adapter.pads.size (),
+             static_cast<std::size_t> (adapter.getNumChannels ()
+                                       * adapter.getNumPadsPerChannel ()));
+  ASSERT_EQ (adapter.pads.count ({ 1, 3 }), 1u);
+  EXPECT_EQ (adapter.pads.at ({ 1, 3 }), lit);
+  EXPECT_TRUE (adapter.keys.empty ()) << "the keys have their own repaint";
 }
