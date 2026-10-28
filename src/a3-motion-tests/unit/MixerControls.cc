@@ -323,8 +323,8 @@ TEST (MixerControls, TheCueKeySaysCue)
   EXPECT_STREQ (mixerControlLabel (MixerControl::Cue), "CUE");
 }
 
-// P38: the return is the FX Return in every mode; the pot's label is too narrow for the name.
-TEST (MixerControls, TheReturnPotIsLabelledFxRet)
+// P42: the return is the FX Return; where the name does not fit, its one short form is FX RTN.
+TEST (MixerControls, TheReturnPotIsLabelledFxRtn)
 {
-  EXPECT_STREQ (masterControlLabel (MasterControl::Return), "FX RET");
+  EXPECT_STREQ (masterControlLabel (MasterControl::Return), "FX RTN");
 }
