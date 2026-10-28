@@ -1159,6 +1159,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _tapSender.disconnect ();
   _mixerSender.disconnect ();
 
+  _panelWorkspacePoller.reset ();
   if (runsOnHardware ())
     {
       _ioAdapter->stopThread (-1);
@@ -1476,6 +1477,15 @@ A3MotionUIComponent::createHardwareInterface ()
     _ioAdapter->getGlobalPot (pot).addListener (this);
 
   _ioAdapter->startThread ();
+
+  if (auto workspace = panelWorkspaceFromEnvironment (
+          juce::SystemStats::getEnvironmentVariable (
+              "A3_MOTION_PANEL_WORKSPACE", {}).toStdString ()))
+    {
+      _panelWorkspacePoller
+          = std::make_unique<PanelWorkspacePoller> (*_ioAdapter, *workspace);
+      _panelWorkspacePoller->startThread ();
+    }
   blankLEDs ();
 #endif
 }

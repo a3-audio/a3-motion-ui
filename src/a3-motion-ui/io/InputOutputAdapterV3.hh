@@ -74,6 +74,7 @@ public:
   ~InputOutputAdapterV3 ();
 
   void processInput () override;
+  void setPanelHeld (bool held) override { _reconnect.allowOpen (held); }
   void outputButtonLED (Button button, juce::Colour colour) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 
@@ -88,6 +89,8 @@ private:
    *  thread: the port may not be closed by anyone who is not the one reading
    *  from it. */
   void serialReopen ();
+  /** Close the port and mark the panel unavailable. Polling thread only. */
+  void releasePort ();
   /** Ask the port who it is. See isControllerPingReply(). */
   bool pingAnswers ();
   /** Throw away a slipped stream so the next poll starts on a frame boundary. */

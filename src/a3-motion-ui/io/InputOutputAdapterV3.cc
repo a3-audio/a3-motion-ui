@@ -253,23 +253,26 @@ InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw,
 // ── Main poll loop ────────────────────────────────────────────────────────────
 
 void
+InputOutputAdapterV3::releasePort ()
+{
+  try
+    {
+      _serialPort.Close ();
+    }
+  catch (std::exception const &e)
+    {
+      juce::Logger::writeToLog (
+          juce::String ("InputOutputAdapterV3: closing failed: ") + e.what ());
+    }
+
+  _hardwareAvailable = false;
+}
+
+void
 InputOutputAdapterV3::serialReopen ()
 {
   if (_hardwareAvailable)
-    {
-      try
-        {
-          _serialPort.Close ();
-        }
-      catch (std::exception const &e)
-        {
-          juce::Logger::writeToLog (
-              juce::String ("InputOutputAdapterV3: closing failed: ")
-              + e.what ());
-        }
-
-      _hardwareAvailable = false;
-    }
+    releasePort ();
 
   serialInit ();
 }
@@ -277,6 +280,17 @@ InputOutputAdapterV3::serialReopen ()
 void
 InputOutputAdapterV3::processInput ()
 {
+  // Another program holds the panel: let go of the tty at once, so two
+  // readers never share it. Here, not from the poller's thread, because the
+  // port may only be closed by the thread that reads it.
+  if (!_reconnect.isOpenAllowed ())
+    {
+      if (_hardwareAvailable)
+        releasePort ();
+
+      return;
+    }
+
   if (!_hardwareAvailable)
     {
       // A controller plugged in after the app started, or one that went away

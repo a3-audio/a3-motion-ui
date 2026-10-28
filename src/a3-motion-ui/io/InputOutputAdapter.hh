@@ -111,6 +111,12 @@ public:
    *  pressed then goes to \`onPanelKey\` as its place on the panel, and so
    *  does its release -- not to the pads and keys (PanelOwnership.hh). */
   void setKeyboardOwnsPanel (bool owned);
+
+  /** False while another program holds the shared panel: the adapter closes
+   *  its serial port and stays away until told true again. The default is
+   *  today's behaviour; adapters without a serial port ignore it. From any
+   *  thread. */
+  virtual void setPanelHeld (bool /*held*/) {}
   /** A button that belongs to the keyboard went down or came up. On the
    *  message thread. */
   std::function<void (PanelCell cell, bool down)> onPanelKey;

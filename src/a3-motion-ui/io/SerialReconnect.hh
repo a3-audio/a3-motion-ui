@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <atomic>
 #include <cstddef>
 
 namespace a3
@@ -97,7 +98,14 @@ public:
    *  controller which was there all along. */
   bool shouldRetryOpening (juce::int64 nowMs);
 
+  /** False while another program holds the panel (PanelFollowsWorkspace):
+   *  no attempt to open is made, and none is counted, so the first try after
+   *  allowing again comes at once. From any thread. */
+  void allowOpen (bool allowed) { _openAllowed = allowed; }
+  bool isOpenAllowed () const { return _openAllowed; }
+
 private:
+  std::atomic<bool> _openAllowed{ true };
   int _quietPolls = 0;
   juce::int64 _lastAttemptMs = -1;
 };

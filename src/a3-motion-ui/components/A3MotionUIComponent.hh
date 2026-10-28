@@ -78,6 +78,7 @@
 #include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
+#include <a3-motion-ui/io/PanelWorkspacePoller.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
@@ -579,6 +580,8 @@ private:
   EndKeyLayer _endKeyLayer;
   PlayAllPress _playAll;
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
+  /** Only with A3_MOTION_PANEL_WORKSPACE set (PanelFollowsWorkspace.hh). */
+  std::unique_ptr<PanelWorkspacePoller> _panelWorkspacePoller;
 
   void initializePatterns ();
 
