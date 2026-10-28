@@ -111,6 +111,17 @@ public:
    *  pressed then goes to \`onPanelKey\` as its place on the panel, and so
    *  does its release -- not to the pads and keys (PanelOwnership.hh). */
   void setKeyboardOwnsPanel (bool owned);
+
+  /** False while another program holds the shared panel: the adapter closes
+   *  its serial port and stays away until told true again. The default is
+   *  today's behaviour; adapters without a serial port ignore it. From any
+   *  thread. */
+  virtual void setPanelHeld (bool /*held*/) {}
+  /** Whether this side may hold the panel now. */
+  virtual bool isPanelHeld () const { return true; }
+  /** True once after the panel came back from the other program, so the
+   *  pots can find their values again (PanelPotPickup). From any thread. */
+  virtual bool takePanelGained () { return false; }
   /** A button that belongs to the keyboard went down or came up. On the
    *  message thread. */
   std::function<void (PanelCell cell, bool down)> onPanelKey;
@@ -264,6 +275,11 @@ protected:
   /** Hand every LED change since the last call to outputButtonLED() and
    *  outputPadLED(). The thread's loop calls it between polls. */
   void processOutput ();
+
+  /** Every pad goes out again on the next processOutput(), with the colour it
+   *  is asked for now: for a port that has just opened, whose pads show
+   *  whatever the last program on it left there. */
+  void repaintPads ();
 
 private:
   void submitInputMessage (std::unique_ptr<InputMessage> message);

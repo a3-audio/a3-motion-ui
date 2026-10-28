@@ -1159,6 +1159,7 @@ A3MotionUIComponent::~A3MotionUIComponent ()
   _tapSender.disconnect ();
   _mixerSender.disconnect ();
 
+  _panelWorkspacePoller.reset ();
   if (runsOnHardware ())
     {
       _ioAdapter->stopThread (-1);
@@ -1434,6 +1435,18 @@ A3MotionUIComponent::runsOnHardware ()
 #endif
 }
 
+namespace
+{
+std::optional<std::string>
+panelWorkspace ()
+{
+  return panelWorkspaceFromEnvironment (
+      juce::SystemStats::getEnvironmentVariable ("A3_MOTION_PANEL_WORKSPACE",
+                                                 {})
+          .toStdString ());
+}
+}
+
 void
 A3MotionUIComponent::createHardwareInterface ()
 {
@@ -1441,7 +1454,9 @@ A3MotionUIComponent::createHardwareInterface ()
 #ifdef HARDWARE_INTERFACE_V2
   _ioAdapter = std::make_unique<InputOutputAdapterV2> ();
 #elif defined(HARDWARE_INTERFACE_V3)
-  _ioAdapter = std::make_unique<InputOutputAdapterV3> ();
+  // Following a workspace: stay off the tty until the poller says it is ours.
+  _ioAdapter = std::make_unique<InputOutputAdapterV3> (
+      !panelWorkspace ().has_value ());
 #else
 #error hardware interface enabled but no implementation selected!
 #endif
@@ -1476,6 +1491,13 @@ A3MotionUIComponent::createHardwareInterface ()
     _ioAdapter->getGlobalPot (pot).addListener (this);
 
   _ioAdapter->startThread ();
+
+  if (auto workspace = panelWorkspace ())
+    {
+      _panelWorkspacePoller
+          = std::make_unique<PanelWorkspacePoller> (*_ioAdapter, *workspace);
+      _panelWorkspacePoller->startThread ();
+    }
   blankLEDs ();
 #endif
 }
@@ -1732,7 +1754,19 @@ A3MotionUIComponent::valueChanged (juce::Value &value)
 
           // One knob per channel. What Core makes of the value is its
           // business; here it is a number between 0 and 1.
-          _engine.setChannelPot3 (pot, normalized);
+          // After the panel came back from StemDeck a pot picks up the value
+          // before it moves it (P44).
+          if (_ioAdapter->takePanelGained ())
+            _panelPotPickup.panelGained ();
+          auto const picked = _panelPotPickup.feed (
+              static_cast<int> (pot), normalized,
+              _engine.getChannelPot3 (pot));
+          if (!picked)
+            return;
+
+          _engine.setChannelPot3 (pot, *picked);
+          _panelPotPickup.wrote (static_cast<int> (pot),
+                                 _engine.getChannelPot3 (pot));
           scheduleSetSave ();
           updateControlReadout ("CH" + juce::String (pot + 1) + " 3D "
                                 + juce::String (normalized, 2));

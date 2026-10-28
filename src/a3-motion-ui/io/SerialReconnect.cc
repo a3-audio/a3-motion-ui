@@ -46,6 +46,9 @@ SerialReconnect::noteQuietPoll ()
 bool
 SerialReconnect::shouldRetryOpening (juce::int64 nowMs)
 {
+  if (!_openAllowed)
+    return false;
+
   // A clock that has gone backwards — wrapped, or corrected under us — must
   // not lock the retry out until it has caught up again.
   auto const due = _lastAttemptMs < 0 || nowMs < _lastAttemptMs

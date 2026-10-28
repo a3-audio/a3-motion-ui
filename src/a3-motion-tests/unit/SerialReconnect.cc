@@ -148,3 +148,47 @@ TEST (SerialReconnect, AnythingElseIsSomebodyElsesPort)
           << "accepted 0x" << juce::String::toHexString (byte);
     }
 }
+
+// The panel follows the workspace in front (A3_MOTION_PANEL_WORKSPACE): while
+// the other deck holds it, no reopen may be tried -- two readers on one tty.
+TEST (SerialReconnect, ReleasedPortIsNotReopened)
+{
+  SerialReconnect reconnect;
+  reconnect.allowOpen (false);
+
+  for (juce::int64 now = 0; now < 20000; now += 500)
+    EXPECT_FALSE (reconnect.shouldRetryOpening (now)) << "at " << now;
+}
+
+// A follow-mode adapter (A3_MOTION_PANEL_WORKSPACE set) must not touch the tty
+// at construction: the other deck may hold it. It starts not allowed.
+TEST (SerialReconnect, StartingNotAllowedNeverOpensUntilAllowed)
+{
+  SerialReconnect reconnect (false);
+
+  EXPECT_FALSE (reconnect.isOpenAllowed ());
+  EXPECT_FALSE (reconnect.shouldRetryOpening (0));
+
+  reconnect.allowOpen (true);
+
+  EXPECT_TRUE (reconnect.shouldRetryOpening (1));
+}
+
+TEST (SerialReconnect, TheDefaultIsAllowedAsBefore)
+{
+  SerialReconnect reconnect;
+
+  EXPECT_TRUE (reconnect.isOpenAllowed ());
+}
+
+TEST (SerialReconnect, AllowedAgainOpensOnTheNextTry)
+{
+  SerialReconnect reconnect;
+  EXPECT_TRUE (reconnect.shouldRetryOpening (0));
+  reconnect.allowOpen (false);
+  EXPECT_FALSE (reconnect.shouldRetryOpening (5000));
+
+  reconnect.allowOpen (true);
+
+  EXPECT_TRUE (reconnect.shouldRetryOpening (5001));
+}

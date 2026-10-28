@@ -41,9 +41,11 @@ constexpr uint8_t InputOutputAdapterV3::hwIndexToLedId[44];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-InputOutputAdapterV3::InputOutputAdapterV3 () : InputOutputAdapter ()
+InputOutputAdapterV3::InputOutputAdapterV3 (bool startHeld)
+    : InputOutputAdapter (), _reconnect (startHeld)
 {
-  serialInit ();
+  if (startHeld)
+    serialInit ();
 }
 
 InputOutputAdapterV3::~InputOutputAdapterV3 ()
@@ -109,8 +111,11 @@ InputOutputAdapterV3::serialInit ()
           // Everything written while there was no controller was dropped by
           // writeSetLed() and recorded as sent all the same, so a panel that
           // came back came back dark. It is put back to what it was asked for
-          // here -- the same way a changed resting light is applied.
+          // here -- the same way a changed resting light is applied. The
+          // pads, too: while the panel was StemDeck's, every pad change was
+          // taken and dropped, and the pads show what StemDeck left.
           reapplyButtonLeds ();
+          repaintPads ();
           return;
         }
       catch (const std::exception &e)
@@ -253,23 +258,26 @@ InputOutputAdapterV3::resolveFrameOffsets (const uint8_t *raw,
 // ── Main poll loop ────────────────────────────────────────────────────────────
 
 void
+InputOutputAdapterV3::releasePort ()
+{
+  try
+    {
+      _serialPort.Close ();
+    }
+  catch (std::exception const &e)
+    {
+      juce::Logger::writeToLog (
+          juce::String ("InputOutputAdapterV3: closing failed: ") + e.what ());
+    }
+
+  _hardwareAvailable = false;
+}
+
+void
 InputOutputAdapterV3::serialReopen ()
 {
   if (_hardwareAvailable)
-    {
-      try
-        {
-          _serialPort.Close ();
-        }
-      catch (std::exception const &e)
-        {
-          juce::Logger::writeToLog (
-              juce::String ("InputOutputAdapterV3: closing failed: ")
-              + e.what ());
-        }
-
-      _hardwareAvailable = false;
-    }
+    releasePort ();
 
   serialInit ();
 }
@@ -277,6 +285,17 @@ InputOutputAdapterV3::serialReopen ()
 void
 InputOutputAdapterV3::processInput ()
 {
+  // Another program holds the panel: let go of the tty at once, so two
+  // readers never share it. Here, not from the poller's thread, because the
+  // port may only be closed by the thread that reads it.
+  if (!_reconnect.isOpenAllowed ())
+    {
+      if (_hardwareAvailable)
+        releasePort ();
+
+      return;
+    }
+
   if (!_hardwareAvailable)
     {
       // A controller plugged in after the app started, or one that went away

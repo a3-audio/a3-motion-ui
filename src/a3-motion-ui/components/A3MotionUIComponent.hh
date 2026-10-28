@@ -78,6 +78,8 @@
 #include <a3-motion-ui/io/FunctionKeyHold.hh>
 #include <a3-motion-ui/io/AsyncOSCSender.hh>
 #include <a3-motion-ui/io/InputOutputAdapter.hh>
+#include <a3-motion-ui/io/PanelPotPickup.hh>
+#include <a3-motion-ui/io/PanelWorkspacePoller.hh>
 #include <a3-motion-ui/osc/OscMessageHandler.hh>
 
 namespace a3
@@ -173,6 +175,8 @@ private:
 private:
   std::unique_ptr<HeightMapSphere> _heightMap;
   MotionEngine _engine;
+  /** The panel's pots after a hand-over (P44). */
+  a3::PanelPotPickup _panelPotPickup;
   /** What Core says feeds each channel and which decks are present. */
   ChannelSources _channelSources;
   std::unique_ptr<OscMessageHandler> _oscMessageHandler;
@@ -579,6 +583,8 @@ private:
   EndKeyLayer _endKeyLayer;
   PlayAllPress _playAll;
   std::unique_ptr<InputOutputAdapter> _ioAdapter;
+  /** Only with A3_MOTION_PANEL_WORKSPACE set (PanelFollowsWorkspace.hh). */
+  std::unique_ptr<PanelWorkspacePoller> _panelWorkspacePoller;
 
   void initializePatterns ();
 

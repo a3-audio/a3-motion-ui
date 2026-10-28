@@ -21,6 +21,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 
 #include <libserial/SerialPort.h>
@@ -70,10 +71,21 @@ namespace a3
 class InputOutputAdapterV3 : public InputOutputAdapter
 {
 public:
-  InputOutputAdapterV3 ();
+  /** \`startHeld\` false: do not touch the tty until setPanelHeld (true) --
+   *  the other deck may hold it (PanelFollowsWorkspace.hh). */
+  explicit InputOutputAdapterV3 (bool startHeld = true);
   ~InputOutputAdapterV3 ();
 
   void processInput () override;
+  void setPanelHeld (bool held) override
+  {
+    // Only a real hand-over counts: being told twice that it is ours is not.
+    if (held && !_reconnect.isOpenAllowed ())
+      _panelGained = true;
+    _reconnect.allowOpen (held);
+  }
+  bool takePanelGained () override { return _panelGained.exchange (false); }
+  bool isPanelHeld () const override { return _reconnect.isOpenAllowed (); }
   void outputButtonLED (Button button, juce::Colour colour) override;
   void outputPadLED (PadIndex padIndex, juce::Colour colour) override;
 
@@ -88,6 +100,8 @@ private:
    *  thread: the port may not be closed by anyone who is not the one reading
    *  from it. */
   void serialReopen ();
+  /** Close the port and mark the panel unavailable. Polling thread only. */
+  void releasePort ();
   /** Ask the port who it is. See isControllerPingReply(). */
   bool pingAnswers ();
   /** Throw away a slipped stream so the next poll starts on a frame boundary. */
@@ -249,6 +263,7 @@ private:
   // ── Hardware pot state ────────────────────────────────────────────────────
   static constexpr int numGlobalPots = 4;
 
+  std::atomic<bool> _panelGained{ false };
   std::array<PanelPot, numGlobalPots> _globalPots;
   std::array<juce::Value, numGlobalPots> _globalPotValues;
 

@@ -39,6 +39,16 @@ LedState::set (std::size_t slot, juce::Colour colour)
   _changed[slot] = true;
 }
 
+void
+LedState::resend (std::size_t slot)
+{
+  if (slot >= _colours.size ())
+    return;
+
+  std::scoped_lock const guard (_lock);
+  _changed[slot] = true;
+}
+
 std::vector<LedState::Change>
 LedState::takeChanged ()
 {

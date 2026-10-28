@@ -22,6 +22,7 @@
 
 #include <JuceHeader.h>
 
+#include <atomic>
 #include <cstddef>
 
 namespace a3
@@ -73,6 +74,10 @@ bool isControllerPingReply (juce::uint8 const *reply, std::size_t length);
 class SerialReconnect
 {
 public:
+  SerialReconnect () = default;
+  /** Start with opening forbidden when another program may hold the panel. */
+  explicit SerialReconnect (bool openAllowed) : _openAllowed (openAllowed) {}
+
   /** A quarter of a second each (the read timeout), so this is about two
    *  seconds of silence. Long enough that a lost frame or a busy moment
    *  passes through it, short enough that a dead link is back before anybody
@@ -97,7 +102,14 @@ public:
    *  controller which was there all along. */
   bool shouldRetryOpening (juce::int64 nowMs);
 
+  /** False while another program holds the panel (PanelFollowsWorkspace):
+   *  no attempt to open is made, and none is counted, so the first try after
+   *  allowing again comes at once. From any thread. */
+  void allowOpen (bool allowed) { _openAllowed = allowed; }
+  bool isOpenAllowed () const { return _openAllowed; }
+
 private:
+  std::atomic<bool> _openAllowed{ true };
   int _quietPolls = 0;
   juce::int64 _lastAttemptMs = -1;
 };

@@ -322,3 +322,9 @@ TEST (MixerControls, TheCueKeySaysCue)
 {
   EXPECT_STREQ (mixerControlLabel (MixerControl::Cue), "CUE");
 }
+
+// P42: the return is the FX Return; where the name does not fit, its one short form is FX RTN.
+TEST (MixerControls, TheReturnPotIsLabelledFxRtn)
+{
+  EXPECT_STREQ (masterControlLabel (MasterControl::Return), "FX RTN");
+}
