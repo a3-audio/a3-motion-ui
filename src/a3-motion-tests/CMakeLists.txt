@@ -168,6 +168,7 @@ target_sources("a3-motion-tests" PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinNames.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/TextInput.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/SkinEditorTyping.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/ChildCommand.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/OnScreenKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelKeyboard.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/PanelOwnership.cc"

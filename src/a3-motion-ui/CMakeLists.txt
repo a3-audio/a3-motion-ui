@@ -272,6 +272,8 @@ target_sources(a3-motion-ui-shared PRIVATE
     io/LedLoad.cc
     io/LedCache.cc
     io/LedState.cc
+    io/ChildCommand.cc
+    io/ChildCommand.hh
     io/OnScreenKeyboard.cc
     io/OnScreenKeyboard.hh
     io/PanelGrid.cc
