@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 A3 Audio <contact@a3-audio.com>
+// SPDX-FileCopyrightText: 2026 Raphael Eismann
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "PointerInjector.hh"
