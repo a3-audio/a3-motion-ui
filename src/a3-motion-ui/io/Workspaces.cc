@@ -20,6 +20,8 @@
 
 #include "Workspaces.hh"
 
+#include "ChildCommand.hh"
+
 #include <optional>
 
 namespace a3
@@ -87,21 +89,17 @@ switcherGeometry (int windowWidth)
 std::vector<Workspace>
 list ()
 {
-  juce::ChildProcess i3;
-  if (!i3.start (juce::StringArray{ "i3-msg", "-t", "get_workspaces" }))
-    return {};
-
-  return parse (i3.readAllProcessOutput ());
+  return parse (
+      runCommand (juce::StringArray{ "i3-msg", "-t", "get_workspaces" }));
 }
 
 void
 goTo (int number)
 {
-  juce::ChildProcess i3;
-  if (!i3.start (juce::StringArray{ "i3-msg", "-q",
-                                    "workspace number " + juce::String (number) }))
-    juce::Logger::writeToLog ("workspaces: could not ask i3 for "
-                              + juce::String (number));
+  // Waited for rather than left running: i3-msg answers at once, and a
+  // child nobody waits for is a zombie until this program ends.
+  runCommand (juce::StringArray{ "i3-msg", "-q",
+                                 "workspace number " + juce::String (number) });
 }
 
 }

@@ -20,6 +20,8 @@
 
 #include "OnScreenKeyboard.hh"
 
+#include "ChildCommand.hh"
+
 namespace a3
 {
 namespace onScreenKeyboard
@@ -42,20 +44,7 @@ call (juce::String const &method)
                              "/org/onboard/Onboard/Keyboard",
                              "org.onboard.Onboard.Keyboard." + method };
 
-  juce::ChildProcess process;
-  if (!process.start (command))
-    juce::Logger::writeToLog ("on-screen keyboard: could not call " + method);
-}
-
-/** Run a command and hand back what it printed. */
-juce::String
-readCommand (juce::StringArray const &command)
-{
-  juce::ChildProcess process;
-  if (!process.start (command))
-    return {};
-
-  return process.readAllProcessOutput ();
+  runCommand (command);
 }
 
 /** Whether anything owns Onboard's bus name. Asked before the property, so
@@ -64,7 +53,7 @@ readCommand (juce::StringArray const &command)
 bool
 isRunning ()
 {
-  return readCommand ({ "dbus-send", "--session", "--print-reply",
+  return runCommand ({ "dbus-send", "--session", "--print-reply",
                         "--dest=org.freedesktop.DBus",
                         "/org/freedesktop/DBus",
                         "org.freedesktop.DBus.NameHasOwner",
@@ -108,7 +97,7 @@ isShown ()
   if (!isRunning ())
     return false;
 
-  auto const reply = readCommand (
+  auto const reply = runCommand (
       { "dbus-send", "--session", "--print-reply",
         "--dest=org.onboard.Onboard", "/org/onboard/Onboard/Keyboard",
         "org.freedesktop.DBus.Properties.Get",
