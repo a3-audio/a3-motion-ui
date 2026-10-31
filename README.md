@@ -6,7 +6,7 @@ movements on a sphere, plays them back in time with the beat and sends each
 channel's position to A³ Core over OSC. JUCE 9 / C++17; it is the `ui`
 submodule of a3-motion.
 
-![Four StemDecks around the A³ desk and A³ Motion, each deck playing its own track](docs/a3-setup.jpg)
+![Four StemDecks around the A³ desk and A³ Motion, each deck playing its own track](https://a3-audio.github.io/img/a3-setup.jpg)
 
 **Documentation: https://a3-audio.github.io/a3-doc/**
 

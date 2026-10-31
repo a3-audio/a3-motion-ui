@@ -17,7 +17,3 @@ Files: cmake-build-debug/CMakeFiles/3.18.4/CompilerIdC/* cmake-build-debug/CMake
 Copyright: 2000-2020 Kitware, Inc. and Contributors
 License: BSD-3-Clause
 Comment: CMake's compiler identification sources (Modules/CMakeCompilerId.*.in) and the probe binaries built from them.
-
-Files: docs/a3-setup.jpg
-Copyright: 2026 Raphael Eismann
-License: CC-BY-SA-4.0
